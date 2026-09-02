@@ -1,58 +1,20 @@
 /*
- * Sentry settings: default team, webhook URL and secret.
+ * Sentry settings. The page chrome, the section shape and the danger zone come from
+ * SettingsPage, SettingsSection and DangerZone — what is left here is the prose this screen
+ * writes around its fields and the webhook URL, which is read character by character.
  */
 
-.screen {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex: none;
-  height: var(--header-height);
-  padding-inline: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.title {
+.hint {
   margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-}
-
-.body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-10);
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: var(--space-6) var(--space-8);
-  max-width: 72ch;
-}
-
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.sectionTitle {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-}
-
-.sectionHint {
-  margin: 0;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .row {
@@ -62,24 +24,8 @@
   gap: var(--space-3);
 }
 
-.failure {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border-radius: var(--radius-md);
-  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
-  color: var(--priority-urgent);
-}
-
-.failureText {
-  margin: 0;
-  flex: 1;
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-normal);
-}
-
 .mono {
+  margin: 0;
   font-family: var(--font-mono);
   font-size: var(--font-size-sm);
   word-break: break-all;

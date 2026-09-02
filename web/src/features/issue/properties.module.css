@@ -87,9 +87,11 @@
   animation: panelOut var(--duration-instant) var(--ease-in) forwards;
 }
 
+/* Secondary and not tertiary: this sits on `.panel`, which is `--bg-elevated`, where
+   tertiary measures 4.08:1 in dark and fails body text. See 08-ui-composition.md. */
 .note {
   margin: 0;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }
@@ -150,7 +152,8 @@
 
 .relativeDay {
   flex: none;
-  color: var(--text-tertiary);
+  /* Raised surface again — see `.note`. */
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
 }
 

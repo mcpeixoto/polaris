@@ -12,6 +12,8 @@ import { report } from '~/features/issue/mutations';
 import { InitiativeUpdateEditor } from '~/features/initiative-updates/InitiativeUpdateEditor';
 import { listInitiativeUpdates } from '~/features/initiative-updates/helpers';
 import { deleteInitiativeUpdate } from '~/features/initiative-updates/mutations';
+import { personName } from '~/features/prefs/prefs';
+import { exact, when } from '~/features/time';
 import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
 import { PencilGlyph, TrashGlyph } from '~/features/project-updates/glyphs';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
@@ -53,13 +55,13 @@ export function InitiativeActivity() {
           // Both edit and delete are author-only on the server. Drawing them for anyone
           // else would be an affordance whose only outcome is a refusal.
           const mine = viewerId !== null && viewerId === update.authorId;
-          const when = formatWhen(update.createdAt);
+          const posted = when(update.createdAt);
           return (
             <li key={update.id} className={styles.item}>
               <div className={styles.header}>
                 <ProjectHealthBadge health={update.health} />
-                <span className={styles.meta}>
-                  {authorName ?? 'Someone'} · {when}
+                <span className={styles.meta} title={exact(update.createdAt)}>
+                  {authorName ?? 'Someone'} · {posted}
                   {update.editedAt === undefined ? '' : ' · edited'}
                 </span>
                 {mine && editing !== update.id && (
@@ -67,14 +69,14 @@ export function InitiativeActivity() {
                     <IconButton
                       size="sm"
                       icon={<PencilGlyph />}
-                      aria-label={`Edit update from ${when}`}
+                      aria-label={`Edit update from ${posted}`}
                       tooltip="Edit update"
                       onClick={() => setEditing(update.id)}
                     />
                     <IconButton
                       size="sm"
                       icon={<TrashGlyph />}
-                      aria-label={`Delete update from ${when}`}
+                      aria-label={`Delete update from ${posted}`}
                       tooltip="Delete update"
                       onClick={() => setRemoving(update.id)}
                     />
@@ -113,17 +115,13 @@ export function InitiativeActivity() {
 function listUpdateRows(store: Store, initiativeId: UUID): UpdateRow[] {
   return listInitiativeUpdates(store, initiativeId).map((update) => ({
     update,
-    authorName: store.users.get(update.authorId)?.displayName ?? null,
+    // `personName`, and `when()` from features/time — this tab and the overview a click away
+    // showed the same record under a different name form and a different date format.
+    authorName: authorOf(store, update.authorId),
   }));
 }
 
-function formatWhen(iso: string): string {
-  const date = new Date(iso);
-  return date.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+function authorOf(store: Store, authorId: UUID): string | null {
+  const author = store.users.get(authorId);
+  return author === undefined ? null : personName(author);
 }

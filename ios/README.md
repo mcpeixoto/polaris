@@ -62,9 +62,51 @@ What it keeps from the local-first design is the part that matters most for corr
 every mutation carries `clientId` and `opId`, so a retry after a timeout replays the original
 result instead of creating a duplicate, and `createIssue` mints its own v7 UUID.
 
-The cost is honest: no live updates while the app sits in the foreground, and no offline
-reads. If realtime is wanted later, the middle path is to open the socket and use `delta`
+The cost is honest: no live updates beyond a thirty-second `syncVersion` poll while the app
+sits in the foreground, and no offline *writes* — a cold-start read comes from the cache
+described under **Offline** below. If realtime is wanted later, the middle path is to open the socket and use `delta`
 frames purely as invalidation signals — refetch what changed — without holding a replica.
+
+## Screens
+
+Four tabs on a phone — Inbox, My Issues, Search, Settings — and a `NavigationSplitView` with
+the same four in a sidebar on an iPad, chosen on `horizontalSizeClass`. Create is a sheet from
+the list's toolbar rather than the fifth tab
+`docs/01-features/19-clients-sync-preferences.md` names: a tab that opens a modal and never
+shows a screen of its own is a tab you cannot go back to.
+
+Screens are content only. `PolarisNavigation` owns the `NavigationStack` and declares the
+issue and team destinations, so the same view renders as a tab on a phone and as the detail
+column on an iPad without knowing which it is in.
+
+### The inbox is pull-only, and that is a backend gap
+
+The server has no push infrastructure at all — no device-token schema, no APNs sender — so
+there is nothing for this client to register with and nothing to receive. The inbox is
+therefore a list plus a badge, refreshed on foreground and on the same thirty-second poll that
+checks `syncVersion`. Push notifications are a backend project, not an iOS one.
+
+## Theme
+
+Colour lives in `PolarisCore/Design/Palette.swift` — the iOS half of
+`web/src/styles/tokens.css`, primitives and semantics, as *data*. `Theme` in the app target
+does nothing but hand those numbers to SwiftUI. A colour that only exists as a `SwiftUI.Color`
+cannot be measured, and contrast and cross-client parity are properties of the numbers, which
+is why `swift test` can read them.
+
+The app follows the system appearance, with a light/dark/system preference in Settings. It was
+pinned to dark, which cost two things: the web client ships all three, so the clients
+disagreed about what Polaris looks like; and `LaunchBackground`'s light appearance was pure
+white, so every cold start on a phone in Light mode flashed white before snapping to a
+near-black app.
+
+## Offline
+
+There is still no replica and no socket (see below), but a successful load of "my issues" is
+now written to a JSON file in Application Support and put back on screen before the first
+request of the next launch — marked as a saved copy, and replaced the moment a request
+answers. That is the cold-start half of offline; live updates while the app sits open are
+still the poll.
 
 ## Signing and TestFlight
 

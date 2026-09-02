@@ -5,6 +5,12 @@
  * stroke pattern its series is actually drawn with. The prediction was the one series with
  * no legend entry at all: a dashed accent line running off past the last week of data, the
  * single most consequential mark on the chart, and nothing on screen said what it was.
+ *
+ * It also had no axes. Three curves floated in an unlabelled box, stretched by
+ * `preserveAspectRatio="none"` so the same slope meant a different rate in a wide panel
+ * than in a narrow one, and the per-period bars `computeProjectGraph` had been computing
+ * all along were drawn by nobody. A chart whose numbers cannot be read off it is a
+ * decoration; the scale, the dates and the bars are what make this one a chart.
  */
 
 import { useMemo } from 'react';
@@ -62,18 +68,65 @@ export function ProjectGraph({ projectId }: ProjectGraphProps) {
       <svg
         className={styles.chart}
         viewBox={`0 0 ${layout.width} ${layout.height}`}
-        preserveAspectRatio="none"
         role="img"
         aria-label={`Project graph showing ${data.totalCompleted} of ${data.totalScope} ${unit} completed`}
       >
-        {layout.targetX !== undefined && (
-          <line
-            x1={layout.targetX}
-            x2={layout.targetX}
-            y1={layout.pad}
-            y2={layout.height - layout.pad}
-            className={styles.target}
+        {/* The scale first, under everything, so a gridline never crosses a series. */}
+        {layout.yTicks.map((tick) => (
+          <g key={tick.value}>
+            <line
+              x1={layout.left}
+              x2={layout.width - layout.right}
+              y1={tick.y}
+              y2={tick.y}
+              className={styles.grid}
+            />
+            <text x={layout.left - 4} y={tick.y + 3} className={styles.axisLabel} textAnchor="end">
+              {tick.value}
+            </text>
+          </g>
+        ))}
+        {layout.xTicks.map((tick) => (
+          <text
+            key={tick.day}
+            x={tick.x}
+            y={layout.height - 6}
+            className={styles.axisLabel}
+            textAnchor={tick.anchor}
+          >
+            {formatDay(tick.day)}
+          </text>
+        ))}
+        {/* Work finished in each week, which is the one thing the cumulative lines cannot
+            show: three flat weeks and a busy one all read as the same rising curve. */}
+        {layout.bars.map((bar) => (
+          <rect
+            key={bar.day}
+            x={bar.x}
+            y={bar.y}
+            width={bar.width}
+            height={bar.height}
+            className={styles.bar}
           />
+        ))}
+        {layout.targetX !== undefined && (
+          <>
+            <line
+              x1={layout.targetX}
+              x2={layout.targetX}
+              y1={layout.top}
+              y2={layout.height - layout.bottom}
+              className={styles.target}
+            />
+            <text
+              x={layout.targetX - 3}
+              y={layout.top + 8}
+              className={styles.targetLabel}
+              textAnchor="end"
+            >
+              Target
+            </text>
+          </>
         )}
         {layout.prediction !== undefined && (
           <>
@@ -136,10 +189,16 @@ export function ProjectGraph({ projectId }: ProjectGraphProps) {
 interface Layout {
   width: number;
   height: number;
-  pad: number;
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
   scope: string;
   started: string;
   completed: string;
+  bars: readonly { day: string; x: number; y: number; width: number; height: number }[];
+  yTicks: readonly { value: number; y: number }[];
+  xTicks: readonly { day: string; x: number; anchor: 'start' | 'middle' | 'end' }[];
   targetX: number | undefined;
   prediction:
     | {
@@ -151,10 +210,20 @@ interface Layout {
   y: (value: number) => number;
 }
 
+/*
+ * The canvas is 720 by 220 user units and scales uniformly, which is what makes the slope
+ * of a line mean something: under `preserveAspectRatio="none"` the same two weeks of
+ * progress rose steeply in the properties rail and gently on the overview. 720 also puts
+ * the scale near 1:1 at the widths this panel is actually laid out at, so the axis text is
+ * the size the token says it is rather than whatever the stretch made of it.
+ */
 function toLayout(data: ProjectGraphData): Layout | null {
-  const width = 360;
-  const height = 140;
-  const pad = 8;
+  const width = 720;
+  const height = 220;
+  const left = 34;
+  const right = 10;
+  const top = 12;
+  const bottom = 26;
   const maxY = Math.max(...data.weeks.map((week) => week.scope), 1);
 
   const timeline = [...data.weeks.map((week) => week.weekStart)];
@@ -170,10 +239,10 @@ function toLayout(data: ProjectGraphData): Layout | null {
 
   const xForDay = (day: string) => {
     const index = dayIndex(day, first);
-    return pad + (index / span) * (width - pad * 2);
+    return left + (index / span) * (width - left - right);
   };
 
-  const y = (value: number) => height - pad - (value / maxY) * (height - pad * 2);
+  const y = (value: number) => height - bottom - (value / maxY) * (height - top - bottom);
 
   const line = (values: readonly number[]) =>
     data.weeks
@@ -189,6 +258,46 @@ function toLayout(data: ProjectGraphData): Layout | null {
 
   const targetX = data.targetDate === undefined ? undefined : xForDay(data.targetDate);
 
+  // A bar per week, sized to the gap between two weeks so a long project's bars stay
+  // separated and a four-week one does not draw four slabs.
+  const step = data.weeks.length < 2 ? width : xForDay(data.weeks[1]!.weekStart) - xForDay(first);
+  const barWidth = Math.max(1, Math.min(14, step * 0.55));
+  const baseline = y(0);
+  const bars = data.weeks
+    .filter((week) => week.completedDelta > 0)
+    .map((week) => {
+      const top_ = y(week.completedDelta);
+      return {
+        day: week.weekStart,
+        x: xForDay(week.weekStart) - barWidth / 2,
+        y: top_,
+        width: barWidth,
+        height: Math.max(1, baseline - top_),
+      };
+    });
+
+  // Three ticks — nothing, half, all — because a chart this size cannot carry more without
+  // the labels touching, and those three are the ones anybody reads off it.
+  const yTicks = [0, Math.round(maxY / 2), maxY]
+    .filter((value, index, all) => all.indexOf(value) === index)
+    .map((value) => ({ value, y: y(value) }));
+
+  // First, last, and the middle if there is room. The end labels are anchored inward so
+  // they cannot hang off the canvas.
+  const xTicks: Layout['xTicks'] = [
+    { day: first, x: xForDay(first), anchor: 'start' as const },
+    ...(span > 21
+      ? [
+          {
+            day: middleDay(first, span),
+            x: xForDay(middleDay(first, span)),
+            anchor: 'middle' as const,
+          },
+        ]
+      : []),
+    { day: last, x: xForDay(last), anchor: 'end' as const },
+  ];
+
   let prediction: Layout['prediction'];
   if (data.prediction !== undefined) {
     const lastWeek = data.weeks[data.weeks.length - 1]!;
@@ -203,7 +312,30 @@ function toLayout(data: ProjectGraphData): Layout | null {
     };
   }
 
-  return { width, height, pad, scope, started, completed, targetX, prediction, y };
+  return {
+    width,
+    height,
+    left,
+    right,
+    top,
+    bottom,
+    scope,
+    started,
+    completed,
+    bars,
+    yTicks,
+    xTicks,
+    targetX,
+    prediction,
+    y,
+  };
+}
+
+/** The day halfway along the plotted span, for the middle x-axis label. */
+function middleDay(first: string, span: number): string {
+  const date = new Date(`${first}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + Math.round(span / 2));
+  return date.toISOString().slice(0, 10);
 }
 
 function dayIndex(day: string, origin: string): number {

@@ -31,7 +31,13 @@ test('E archives an issue, G X finds it, and # brings it back', async ({ page, w
   const firstTitle = first === gone ? 'Archived and restored' : 'Left alone';
   const otherTitle = first === gone ? 'Left alone' : 'Archived and restored';
 
-  await page.keyboard.press('e');
+  // Archive is a button on the selection bar now, and it asks first — 02-issues.md:106.
+  await page.getByText(firstTitle).click({ modifiers: ['Shift'] });
+  await page.getByRole('button', { name: 'Archive', exact: true }).click();
+  await page
+    .getByRole('dialog', { name: `Archive ${first.identifier}?` })
+    .getByRole('button', { name: `Archive ${first.identifier}` })
+    .click();
 
   // Optimistically gone, because the server's change for an archive is a delete and the
   // client matches it.
@@ -66,9 +72,14 @@ test("an archived issue's link points at the archives rather than nowhere", asyn
   const issue = await createIssueViaApi(workspace, 'Reachable after archiving');
   await signIn(page, workspace.account);
 
-  await page.goto(`/issue/${issue.identifier}`);
+  await openTeamList(page, workspace.teamKey);
+  await page.getByText('Reachable after archiving').click({ modifiers: ['Shift'] });
   await page.getByRole('button', { name: 'Archive', exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/team/${workspace.teamKey}$`));
+  await page
+    .getByRole('dialog', { name: `Archive ${issue.identifier}?` })
+    .getByRole('button', { name: `Archive ${issue.identifier}` })
+    .click();
+  await expect(page.getByText('Reachable after archiving')).toBeHidden();
 
   // The link somebody else already has.
   await page.goto(`/issue/${issue.identifier}`);

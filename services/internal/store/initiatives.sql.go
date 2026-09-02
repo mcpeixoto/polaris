@@ -316,6 +316,52 @@ func (q *Queries) ListInitiativeProjects(ctx context.Context, initiativeID uuid.
 	return items, nil
 }
 
+const listInitiativeProjectsForInitiatives = `-- name: ListInitiativeProjectsForInitiatives :many
+SELECT id, workspace_id, initiative_id, project_id, created_at
+FROM initiative_project
+WHERE initiative_id = ANY($1::uuid[])
+  AND workspace_id = $2
+ORDER BY initiative_id, created_at
+`
+
+type ListInitiativeProjectsForInitiativesParams struct {
+	InitiativeIds []uuid.UUID
+	WorkspaceID   uuid.UUID
+}
+
+// ListInitiativeProjectsForInitiatives is the listing above for a whole page of initiatives
+// at once, for the reason ListIssueLabelsForIssues is: `initiatives { projects { … } }`
+// hydrates a list in one pass, and a per-initiative query there is a query per row.
+//
+// Visibility comes from the initiative, which the caller has already resolved: this reads
+// only the join rows, and the projects behind them are hydrated through the same
+// permission-filtered path every other project read uses.
+func (q *Queries) ListInitiativeProjectsForInitiatives(ctx context.Context, arg ListInitiativeProjectsForInitiativesParams) ([]InitiativeProject, error) {
+	rows, err := q.db.Query(ctx, listInitiativeProjectsForInitiatives, arg.InitiativeIds, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []InitiativeProject{}
+	for rows.Next() {
+		var i InitiativeProject
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.InitiativeID,
+			&i.ProjectID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listInitiativesInWorkspace = `-- name: ListInitiativesInWorkspace :many
 SELECT id, workspace_id, name, description, status, priority, owner_id, lead_team_id,
        creator_id, sort_order, target_date, target_date_granularity,

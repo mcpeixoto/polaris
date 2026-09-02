@@ -39,7 +39,7 @@ type CreateRecurringIssueInput struct {
 	// when minting. Nil when the schedule was written by hand or converted from an issue.
 	TemplateID *uuid.UUID
 
-	Cadence     string
+	Cadence      string
 	FirstDueDate model.Date
 
 	// SourceIssueID converts an existing issue into the first occurrence instead of

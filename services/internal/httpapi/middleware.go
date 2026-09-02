@@ -127,7 +127,12 @@ func Authenticate(tokens *Tokens, svc *domain.Service) func(http.Handler) http.H
 				// it is present and names a different one, that is refused rather than
 				// ignored. A caller who asked for workspace B and silently got answers about
 				// workspace A has been given the wrong data with no way to notice.
-				if ws := workspaceFromRequest(r); ws != uuid.Nil && ws != principal.WorkspaceID {
+				ws, err := workspaceFromRequest(r)
+				if err != nil {
+					writeError(w, r, err)
+					return
+				}
+				if ws != uuid.Nil && ws != principal.WorkspaceID {
 					writeError(w, r, platform.Unauthorized("this API key does not belong to that workspace"))
 					return
 				}
@@ -146,7 +151,12 @@ func Authenticate(tokens *Tokens, svc *domain.Service) func(http.Handler) http.H
 					writeError(w, r, err)
 					return
 				}
-				if ws := workspaceFromRequest(r); ws != uuid.Nil && ws != principal.WorkspaceID {
+				ws, err := workspaceFromRequest(r)
+				if err != nil {
+					writeError(w, r, err)
+					return
+				}
+				if ws != uuid.Nil && ws != principal.WorkspaceID {
 					writeError(w, r, platform.Unauthorized("this access token does not belong to that workspace"))
 					return
 				}
@@ -174,7 +184,12 @@ func Authenticate(tokens *Tokens, svc *domain.Service) func(http.Handler) http.H
 				ctx = auth.WithRefreshTokenHash(ctx, auth.HashToken(c.Value))
 			}
 
-			if ws := workspaceFromRequest(r); ws != uuid.Nil {
+			ws, wsErr := workspaceFromRequest(r)
+			if wsErr != nil {
+				writeError(w, r, wsErr)
+				return
+			}
+			if ws != uuid.Nil {
 				principal, err := svc.ResolvePrincipal(ctx, claims.AccountID, ws)
 				if err != nil {
 					writeError(w, r, err)
@@ -260,19 +275,28 @@ func bearerToken(r *http.Request) string {
 	return ""
 }
 
-func workspaceFromRequest(r *http.Request) uuid.UUID {
+// workspaceFromRequest reads the workspace the caller named, and says so when they named
+// one badly.
+//
+// The error matters. Returning uuid.Nil for both "no header" and "a header that will not
+// parse" made `X-Polaris-Workspace: abc` indistinguishable from no header at all: the
+// principal never resolved, RequireWorkspace answered 401 "this request must name a
+// workspace" — when the client HAD named one, just badly — and a 401 sends the web client
+// into a token-refresh loop to fix a typo. The webhook handlers get this right and answer
+// 400 with the field named; this is the same answer.
+func workspaceFromRequest(r *http.Request) (uuid.UUID, error) {
 	raw := r.Header.Get(WorkspaceHeader)
 	if raw == "" {
 		raw = r.URL.Query().Get("workspace")
 	}
 	if raw == "" {
-		return uuid.Nil
+		return uuid.Nil, nil
 	}
 	id, err := uuid.Parse(raw)
 	if err != nil {
-		return uuid.Nil
+		return uuid.Nil, platform.Validation("workspace", "not a workspace id")
 	}
-	return id
+	return id, nil
 }
 
 // clientIP reads the caller's address for the session list.

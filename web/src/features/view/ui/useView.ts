@@ -63,7 +63,13 @@ import {
   type FilterNode,
 } from '~/filter';
 import { useEngine } from '~/app/context';
-import { filterContextFor, groupIssues, type IssueGroup, type ViewClock } from '~/features/view';
+import {
+  filterContextFor,
+  groupIssues,
+  subGroupIssues,
+  type IssueGroup,
+  type ViewClock,
+} from '~/features/view';
 import { report } from '~/features/issue/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewer, useViewerId } from '~/hooks/useViewer';
@@ -380,8 +386,10 @@ export function useView({
       display.groupBy,
       display.orderBy,
       display.direction,
+      display.subGroupBy,
       display.showSubIssues,
       display.showCompleted,
+      display.showEmptyGroups,
       // A pinned clock is part of the question; the wall clock deliberately is not.
       now ?? 0,
       timezone,
@@ -557,18 +565,30 @@ function computeView(
     issues = issues.filter((issue) => issue.parentId === undefined || !present.has(issue.parentId));
   }
 
+  const grouped = groupIssues(
+    issues,
+    store,
+    display.groupBy,
+    display.orderBy,
+    display.direction,
+    teamId,
+    // The same filter the rows went through, so an empty status column is only drawn
+    // where a row could actually arrive in it.
+    admitsStatus(combined),
+    display.showEmptyGroups,
+  );
+
   return {
     count: issues.length,
-    groups: groupIssues(
-      issues,
+    // Sub-grouping runs over the finished groups rather than inside `groupIssues`, so the
+    // padding rules, the group order and the within-group sort are all settled before a lane
+    // is split — one answer about what a group is, then one about how to divide it.
+    groups: subGroupIssues(
+      grouped,
       store,
-      display.groupBy,
+      display.subGroupBy,
       display.orderBy,
       display.direction,
-      teamId,
-      // The same filter the rows went through, so an empty status column is only drawn
-      // where a row could actually arrive in it.
-      admitsStatus(combined),
     ).map(toViewGroup),
   };
 }
@@ -603,6 +623,8 @@ function resolveDisplay(params: URLSearchParams): Required<DisplayOptions> {
     direction: parsed.direction ?? DEFAULT_DISPLAY.direction,
     showSubIssues: parsed.showSubIssues ?? DEFAULT_DISPLAY.showSubIssues,
     showCompleted: parsed.showCompleted ?? DEFAULT_DISPLAY.showCompleted,
+    subGroupBy: parsed.subGroupBy ?? DEFAULT_DISPLAY.subGroupBy,
+    showEmptyGroups: parsed.showEmptyGroups ?? DEFAULT_DISPLAY.showEmptyGroups,
     showSnoozed: parsed.showSnoozed ?? DEFAULT_DISPLAY.showSnoozed,
     properties: parsed.properties ?? DEFAULT_DISPLAY.properties,
   };

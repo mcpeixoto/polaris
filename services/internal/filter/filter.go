@@ -22,8 +22,10 @@
 package filter
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"slices"
 	"strconv"
 	"strings"
@@ -259,11 +261,46 @@ func sortedKeys(m map[string]json.RawMessage) []string {
 	return out
 }
 
+// The ceilings on a filter document, enforced by Parse for every caller.
+//
+// A filter is built by a UI out of a handful of clauses. These numbers are far above
+// anything that surface can produce and far below anything that costs the process
+// something, which is the only useful place for a limit like this to sit.
+const (
+	// MaxBytes is the size of the document itself. The same 64 KiB a stored view has
+	// always been capped at (domain.maxViewJSONBytes); Parse applies it everywhere,
+	// because SearchInput.filter is a free JSON scalar that had no cap at all and was
+	// bounded only by the 1 MiB request body.
+	MaxBytes = 64 << 10
+
+	// MaxDepth is how deeply groups may nest. UnmarshalJSON, Validate and the compiler's
+	// group() are all mutually recursive over Nodes with no bound, and a Go stack
+	// overflow is a FATAL RUNTIME ERROR rather than a panic: neither the Recover
+	// middleware nor gqlgen's RecoverFunc can catch it, so one query took the whole API
+	// process down and every in-flight request with it.
+	MaxDepth = 16
+
+	// MaxNodes bounds the tree's total size. Depth alone does not: a single group holding
+	// a million clauses is flat, legal, and compiles to a million SQL fragments.
+	MaxNodes = 1024
+)
+
 // Parse reads a filter AST and validates it in one step.
 //
 // This is the entry point every caller should use. Unmarshalling without validating leaves
 // a node that looks fine and compiles to SQL that quietly means something else.
+//
+// The bounds are checked BEFORE unmarshalling, not after, because UnmarshalJSON is itself
+// one of the recursive functions: a check that runs once the tree exists never runs at all
+// on the document that was going to kill the process.
 func Parse(data []byte) (Node, error) {
+	if len(data) > MaxBytes {
+		return Node{}, fmt.Errorf("filter: that filter is too large (%d bytes, the limit is %d)", len(data), MaxBytes)
+	}
+	if err := checkShape(data); err != nil {
+		return Node{}, err
+	}
+
 	var n Node
 	if err := json.Unmarshal(data, &n); err != nil {
 		return Node{}, err
@@ -274,12 +311,60 @@ func Parse(data []byte) (Node, error) {
 	return n, nil
 }
 
+// checkShape walks the raw document with a token scanner and refuses one that is too deep
+// or too large before any recursive decoder touches it.
+//
+// A token scan is iterative, so it cannot itself overflow, and it reads the document once
+// without allocating a tree — which is the point: the tree is what must not be built.
+func checkShape(data []byte) error {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	depth, nodes := 0, 0
+	for {
+		tok, err := dec.Token()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			// Malformed JSON is the unmarshaller's error to report, with its message
+			// and its offset. Stopping here would replace it with a worse one.
+			return nil
+		}
+		delim, ok := tok.(json.Delim)
+		if !ok {
+			continue
+		}
+		switch delim {
+		case '{':
+			depth++
+			nodes++
+			// Objects are nodes, arrays are their "nodes" key, so the object depth is
+			// the nesting the recursion actually pays for.
+			if depth > MaxDepth {
+				return fmt.Errorf("filter: that filter nests more than %d levels deep", MaxDepth)
+			}
+			if nodes > MaxNodes {
+				return fmt.Errorf("filter: that filter holds more than %d nodes", MaxNodes)
+			}
+		case '}':
+			depth--
+		}
+	}
+}
+
 // Validate reports the first thing wrong with the tree.
 //
 // Nothing is tolerated and nothing is dropped. The alternative — skipping a clause that
 // does not make sense — widens the result set, and the user is never told, which is how a
 // filter ends up returning issues it plainly says it excludes.
-func (n Node) Validate() error {
+func (n Node) Validate() error { return n.validate(1) }
+
+// validate carries the depth so a tree built in Go — a saved view read back, a test, an
+// SLA rule — is held to the same ceiling as one that arrived as JSON. checkShape covers
+// the parse path and cannot cover this one.
+func (n Node) validate(depth int) error {
+	if depth > MaxDepth {
+		return fmt.Errorf("filter: that filter nests more than %d levels deep", MaxDepth)
+	}
 	if !n.IsClause() {
 		switch n.Conjunction() {
 		case ConjAnd, ConjOr:
@@ -287,7 +372,7 @@ func (n Node) Validate() error {
 			return fmt.Errorf("filter: unknown conjunction %q, expected \"and\" or \"or\"", n.Conj)
 		}
 		for _, child := range n.Nodes {
-			if err := child.Validate(); err != nil {
+			if err := child.validate(depth + 1); err != nil {
 				return err
 			}
 		}

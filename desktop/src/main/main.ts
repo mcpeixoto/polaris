@@ -13,6 +13,7 @@ import {
   dialog,
   shell,
   ipcMain,
+  clipboard,
   net,
   protocol,
   screen,
@@ -20,9 +21,12 @@ import {
   Tray,
   Menu,
   nativeImage,
+  nativeTheme,
   Notification,
+  powerMonitor,
   type MenuItemConstructorOptions,
   type Rectangle,
+  type WebContents,
 } from 'electron';
 /**
  * electron-updater is CommonJS, and it defines `autoUpdater` with a property getter rather
@@ -70,6 +74,12 @@ interface WindowState {
 interface Settings {
   serverUrl?: string;
   window?: WindowState;
+  /**
+   * The renderer's zoom level, which lives on the webContents and is otherwise lost on every
+   * launch and on every window recreation. Somebody who zoomed out to fit a wide board is
+   * telling us something durable about their eyes and their monitor, not about this session.
+   */
+  zoomLevel?: number;
 }
 
 function settingsPath(): string {
@@ -86,7 +96,7 @@ function readSettings(): Settings {
   }
 }
 
-function writeSettings(next: Settings): void {
+function writeSettings(next: Settings): boolean {
   const file = settingsPath();
   // Written to a temporary file and renamed, so a crash or a full disk leaves the previous
   // settings intact rather than a half-written file the next launch cannot parse.
@@ -95,9 +105,47 @@ function writeSettings(next: Settings): void {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(tmp, JSON.stringify(next, null, 2), 'utf8');
     fs.renameSync(tmp, file);
+    return true;
+  } catch (error) {
+    // Losing a window position is a nuisance and not worth taking the main process down for.
+    // Losing the *server address* is not the same failure: the next launch asks for it again
+    // with no explanation, and the user has no way to connect the two events. The caller
+    // decides which of the two it was — see `applyServerUrl`.
+    log('settings write failed:', error);
+    return false;
+  }
+}
+
+/**
+ * Diagnostics that survive the session.
+ *
+ * A packaged app has no stdout anybody can see, so every `console.warn` in this file used to
+ * be a message to nobody: "updates never install" and "the tray icon is missing" are both
+ * reported without a single line of evidence attached. The log is opened lazily, capped, and
+ * reachable from Help → Open Logs, which is the whole point of writing it.
+ */
+const LOG_LIMIT = 1_000_000;
+
+function logPath(): string {
+  return path.join(app.getPath('logs'), 'polaris-main.log');
+}
+
+function log(...parts: readonly unknown[]): void {
+  const line = `${new Date().toISOString()} ${parts
+    .map((p) => (p instanceof Error ? (p.stack ?? p.message) : String(p)))
+    .join(' ')}\n`;
+  console.warn('[polaris]', line.trimEnd());
+  try {
+    const file = logPath();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    // Truncated rather than rotated. One file that cannot grow without bound is the whole
+    // requirement; a rotation scheme here would be a second thing to get wrong.
+    if ((fs.statSync(file, { throwIfNoEntry: false })?.size ?? 0) > LOG_LIMIT) {
+      fs.writeFileSync(file, '', 'utf8');
+    }
+    fs.appendFileSync(file, line, 'utf8');
   } catch {
-    // Losing a window position or having to retype a server address is a nuisance. Taking
-    // the main process down over a read-only home directory is not a trade worth making.
+    // A log that cannot be written must never be the reason the app stops working.
   }
 }
 
@@ -156,9 +204,26 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
-let mainWindow: BrowserWindow | null = null;
+/**
+ * Every window this app owns, and which of them a side effect should land on.
+ *
+ * A set rather than a single `mainWindow`, because ⌘N opens a second one and every native
+ * surface — the badge, a notification click, a deep link — has to pick a window rather than
+ * assume there is one. The most recently focused is the right answer for all of them: it is
+ * the window the user is looking at.
+ */
+const windows = new Set<BrowserWindow>();
+let lastFocused: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
+
+function targetWindow(): BrowserWindow | null {
+  const focused = BrowserWindow.getFocusedWindow();
+  if (focused !== null && windows.has(focused)) return focused;
+  if (lastFocused !== null && !lastFocused.isDestroyed()) return lastFocused;
+  for (const win of windows) if (!win.isDestroyed()) return win;
+  return null;
+}
 
 /**
  * A single instance owns the protocol handler and the tray.
@@ -167,8 +232,12 @@ let isQuitting = false;
  * that fights the first for the tray icon and opens its own window — and the deep link
  * lands in the process the user was not looking at.
  */
-if (!app.requestSingleInstanceLock()) {
-  app.quit();
+// `app.exit` rather than `app.quit`: quit is asynchronous and this module keeps evaluating
+// through it, including the `whenReady` chain at the bottom — so the losing process could
+// reach `createWindow()` and flash a second window on screen before it went away.
+const hasInstanceLock = app.requestSingleInstanceLock();
+if (!hasInstanceLock) {
+  app.exit(0);
 } else {
   app.on('second-instance', (_event, argv) => {
     focusMainWindow();
@@ -249,22 +318,59 @@ function trackWindowState(win: BrowserWindow): void {
   });
 }
 
+/**
+ * The window's own background, which is what the user looks at between the window appearing
+ * and the first paint of the renderer.
+ *
+ * Two literals, and they are the only colours in this file. They are the two `--bg-primary`
+ * values from web/src/styles/tokens.css, and they are here because a BrowserWindow option is
+ * read before any stylesheet exists — there is no way to ask the renderer for a colour it
+ * has not loaded yet. Following `nativeTheme` rather than pinning the dark one means a user
+ * on a light desktop no longer gets a black flash on every launch.
+ */
+function windowBackground(): string {
+  return nativeTheme.shouldUseDarkColors ? '#0d0e10' : '#ffffff';
+}
+
+/** The Windows controls overlay, recoloured with the theme so it is not a grey notch. */
+function titleBarOverlayColors(): { color: string; symbolColor: string; height: number } {
+  const dark = nativeTheme.shouldUseDarkColors;
+  return {
+    color: dark ? '#0d0e10' : '#ffffff',
+    symbolColor: dark ? '#eeeff1' : '#282a30',
+    // Repeated in preload.cts's `chromeOf`, which is what the renderer insets by.
+    height: TITLE_BAR_HEIGHT,
+  };
+}
+
+const TITLE_BAR_HEIGHT = 38;
+
+/** Where the renderer lives: Vite in development, the app's own scheme once packaged. */
+function appUrl(): string {
+  return isDev ? DEV_SERVER : `${APP_ORIGIN}/index.html`;
+}
+
 function createWindow(): BrowserWindow {
   const bounds = restoredBounds();
+  const isMac = process.platform === 'darwin';
+  const isWindows = process.platform === 'win32';
 
   const win = new BrowserWindow({
     ...bounds,
     minWidth: 720,
     minHeight: 480,
-    // The traffic lights sit inside the app's own chrome, which is what lets the sidebar
-    // run to the top edge the way a native application does.
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    // The window controls sit inside the app's own chrome on both platforms that support it,
+    // which is what lets the sidebar run to the top edge the way a native application does.
+    // The renderer is told (preload.cts `chrome`) so it can leave room and declare a drag
+    // region — with the title bar hidden, nothing else does either.
+    titleBarStyle: isMac || isWindows ? (isMac ? 'hiddenInset' : 'hidden') : 'default',
     trafficLightPosition: { x: 16, y: 16 },
+    ...(isWindows ? { titleBarOverlay: titleBarOverlayColors() } : {}),
     // Windows and Linux keep a real menu for its accelerators, but a keyboard-first product
     // showing a File/Edit strip above its own chrome reads as a wrapped web page. Alt still
     // reveals it for anybody who goes looking.
     autoHideMenuBar: true,
-    backgroundColor: '#0d0e10',
+    backgroundColor: windowBackground(),
     // Do not show a white rectangle while the bundle parses; reveal on ready-to-show.
     show: false,
     webPreferences: {
@@ -273,6 +379,11 @@ function createWindow(): BrowserWindow {
       // renderer needs it synchronously — the sync engine builds its first URL before any
       // promise could resolve, and the alternative is a loading state wrapped around the
       // whole application to answer a question that was already settled at launch.
+      // A command line is readable by any local user through `ps`, so this puts a
+      // customer's internal hostname where an unprivileged process on the same machine can
+      // see it. Accepted, narrowly: it is a hostname the machine also resolves and connects
+      // to, and `ipcRenderer.sendSync` — the alternative with the same synchrony — blocks
+      // the main process. Reconsider if anything secret ever needs the same treatment.
       additionalArguments: [`--polaris-server=${serverUrl}`],
       // The three settings that actually matter. contextIsolation keeps the renderer's
       // JavaScript context separate from the preload's, sandbox puts the renderer in the
@@ -289,37 +400,74 @@ function createWindow(): BrowserWindow {
 
   if (bounds.maximized) win.maximize();
   trackWindowState(win);
-
-  win.once('ready-to-show', () => win.show());
-
-  // Anything that is not the app itself opens in the user's browser. Without this an
-  // external link navigates the app window and there is no back button to return from.
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    openExternal(url);
-    return { action: 'deny' };
+  windows.add(win);
+  lastFocused = win;
+  win.on('focus', () => {
+    lastFocused = win;
+    // A laptop that was asleep for a week has a `setInterval` that never fired. Coming back
+    // to the app is the moment a stale check is both cheap and wanted.
+    checkForUpdatesIfStale();
+  });
+  win.on('closed', () => {
+    windows.delete(win);
+    if (lastFocused === win) lastFocused = null;
   });
 
-  win.webContents.on('will-navigate', (event, url) => {
-    // The app may navigate within itself and nowhere else. Anything else — a link in a
-    // comment, a redirect from a misconfigured server — opens in the user's browser rather
-    // than replacing the application with a page that has no way back.
-    const ownOrigin = isDev ? new URL(DEV_SERVER).origin : APP_ORIGIN;
-    if (originOf(url) === ownOrigin) return;
-    event.preventDefault();
-    openExternal(url);
+  // Shown on `ready-to-show`, or after a deadline, whichever comes first.
+  //
+  // The deadline is not paranoia: `ready-to-show` fires off the renderer's first paint, so
+  // anything that stops the bundle loading — a truncated extraResources copy, an antivirus
+  // quarantine of the asar, a permissions problem on the install directory — leaves a
+  // process with a dock icon and no window at all, forever, with nothing on screen to say
+  // why. A visible window showing the failure is recoverable; an invisible one is not.
+  let shown = false;
+  const reveal = (): void => {
+    if (shown || win.isDestroyed()) return;
+    shown = true;
+    win.show();
+  };
+  win.once('ready-to-show', reveal);
+  const revealTimer = setTimeout(() => {
+    if (shown) return;
+    log('renderer did not become ready within 10s; showing the window anyway');
+    reveal();
+  }, 10_000);
+  win.once('closed', () => clearTimeout(revealTimer));
+
+  win.webContents.on('did-fail-load', (_event, code, description, url, isMainFrame) => {
+    // Sub-resources fail for ordinary reasons (an avatar host that is down) and a cancelled
+    // load is what a fast second navigation looks like. Neither is the case this exists for.
+    if (!isMainFrame || code === -3) return;
+    log(`renderer failed to load ${url}: ${description} (${code})`);
+    reveal();
+    void win.loadURL(failurePageUrl(url, `${description} (${code})`));
   });
 
-  if (isDev) {
-    void win.loadURL(DEV_SERVER);
-    win.webContents.openDevTools({ mode: 'detach' });
-  } else {
-    void win.loadURL(`${APP_ORIGIN}/index.html`);
-  }
+  // The zoom level is per-webContents and would otherwise reset on every launch and every
+  // window recreation. Applied after load, because setting it before there is a document
+  // is silently dropped.
+  win.webContents.on('did-finish-load', () => {
+    const level = readSettings().zoomLevel;
+    if (typeof level === 'number' && Number.isFinite(level)) {
+      win.webContents.setZoomLevel(Math.max(-5, Math.min(5, level)));
+    }
+  });
+  win.webContents.on('zoom-changed', () => {
+    writeSettings({ ...readSettings(), zoomLevel: win.webContents.getZoomLevel() });
+  });
 
-  // On macOS closing the window hides the app rather than quitting it, matching every
-  // other tray-resident application on the platform.
+  void win.loadURL(appUrl());
+  if (isDev) win.webContents.openDevTools({ mode: 'detach' });
+
+  // Closing the window hides the app rather than quitting it, on every platform where
+  // something is left behind to bring it back. On macOS that is the dock icon; on Windows
+  // and Linux it is the tray, which is otherwise a "quick way back" that disappears at the
+  // exact moment it would be used — along with the unread badge and the notifications.
   win.on('close', (event) => {
-    if (process.platform === 'darwin' && !isQuitting) {
+    const hidesOnClose = process.platform === 'darwin' || tray !== null;
+    // Only the last window hides; closing one of several is a plain close.
+    const lastOne = [...windows].filter((w) => !w.isDestroyed()).length <= 1;
+    if (hidesOnClose && lastOne && !isQuitting) {
       event.preventDefault();
       win.hide();
     }
@@ -328,18 +476,49 @@ function createWindow(): BrowserWindow {
   return win;
 }
 
+/**
+ * The page shown when the renderer could not be loaded.
+ *
+ * A data: URL rather than a bundled file, because the failure this reports is "the bundled
+ * files cannot be read" — a fallback that lives in the same directory as the thing that
+ * failed is a fallback that fails the same way.
+ */
+function failurePageUrl(url: string, reason: string): string {
+  const escape = (s: string): string =>
+    s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c] ?? c);
+  const html = `<!doctype html><meta charset="utf-8"><title>Polaris</title>
+<style>
+  html { color-scheme: dark light }
+  body { font: 13px/1.5 system-ui, sans-serif; margin: 0; display: grid; place-items: center;
+         height: 100vh; -webkit-app-region: drag }
+  main { max-width: 34em; padding: 24px; text-align: center }
+  h1 { font-size: 15px; margin: 0 0 8px }
+  p { margin: 0 0 8px; opacity: .75 }
+  code { word-break: break-all }
+  button { -webkit-app-region: no-drag; margin-top: 12px; font: inherit; padding: 6px 14px }
+</style>
+<main>
+  <h1>Polaris could not start</h1>
+  <p>The application files could not be read. Reinstalling usually fixes this.</p>
+  <p><code>${escape(url)}</code><br><code>${escape(reason)}</code></p>
+  <button onclick="window.polarisDesktop ? window.polarisDesktop.reloadApp() : location.reload()">Retry</button>
+</main>`;
+  return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+}
+
 app.on('before-quit', () => {
   isQuitting = true;
 });
 
 function focusMainWindow(): void {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    mainWindow = createWindow();
+  const win = targetWindow();
+  if (win === null) {
+    createWindow();
     return;
   }
-  if (mainWindow.isMinimized()) mainWindow.restore();
-  if (!mainWindow.isVisible()) mainWindow.show();
-  mainWindow.focus();
+  if (win.isMinimized()) win.restore();
+  if (!win.isVisible()) win.show();
+  win.focus();
 }
 
 /** The origin of a URL, or null if it is not one. Never throws; callers are handling input. */
@@ -413,6 +592,13 @@ function buildMenu(): void {
             submenu: [
               { role: 'about' },
               { label: 'Check for Updates…', click: () => checkForUpdates({ manual: true }) },
+              {
+                label: 'Restart to Update',
+                // Only meaningful once a build has finished downloading, and a menu item
+                // that does nothing is worse than one that is not there.
+                visible: updateStatus.state === 'ready',
+                click: installUpdate,
+              },
               { type: 'separator' },
               {
                 label: 'Settings…',
@@ -435,6 +621,8 @@ function buildMenu(): void {
     {
       label: '&File',
       submenu: [
+        { label: 'New Window', accelerator: 'CmdOrCtrl+N', click: () => createWindow() },
+        { type: 'separator' },
         ...(isMac
           ? []
           : ([
@@ -445,6 +633,11 @@ function buildMenu(): void {
               },
               { label: 'Change Server…', click: () => void changeServer() },
               { label: 'Check for Updates…', click: () => checkForUpdates({ manual: true }) },
+              {
+                label: 'Restart to Update',
+                visible: updateStatus.state === 'ready',
+                click: installUpdate,
+              },
               { type: 'separator' },
             ] satisfies MenuItemConstructorOptions[])),
         isMac ? { role: 'close' } : { role: 'quit' },
@@ -470,26 +663,56 @@ function buildMenu(): void {
       submenu: [
         { role: 'reload' },
         { role: 'forceReload' },
-        { role: 'toggleDevTools' },
+        {
+          // Not the role's default accelerator. On Windows and Linux that is Ctrl+Shift+I,
+          // which the renderer binds to the Insights panel — and a menu-registered
+          // accelerator is swallowed before the page sees the keystroke, so the product's
+          // own shortcut opened devtools instead. F12 is the platform-native spelling
+          // anyway; ⌥⌘I is the mac one, and neither collides with the registry.
+          role: 'toggleDevTools',
+          accelerator: isMac ? 'Alt+Command+I' : 'F12',
+        },
         { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },
+        // Electron's zoomIn role registers CommandOrControl+Plus — the *shifted* key — and
+        // the one almost everybody presses is the unshifted `=` next to it. Hidden extra
+        // items rather than a second visible row, so the menu still reads as three entries.
+        { role: 'zoomIn', accelerator: 'CommandOrControl+=', visible: false },
+        { role: 'zoomIn', accelerator: 'CommandOrControl+numadd', visible: false },
         { role: 'zoomOut' },
+        { role: 'zoomOut', accelerator: 'CommandOrControl+numsub', visible: false },
         { type: 'separator' },
         { role: 'togglefullscreen' },
       ],
     },
+    // `windowMenu` on macOS rather than a hand-written submenu: the standard list of open
+    // windows is part of it, and with ⌘N there is now more than one window to list.
+    isMac
+      ? { role: 'windowMenu' }
+      : {
+          label: '&Window',
+          submenu: [{ role: 'minimize' }, { role: 'close' }],
+        },
     {
-      label: '&Window',
+      label: '&Help',
+      role: 'help',
       submenu: [
-        { role: 'minimize' },
+        {
+          label: 'Polaris Documentation',
+          click: () => openExternal('https://github.com/mcpeixoto/polaris'),
+        },
+        {
+          label: 'Report an Issue',
+          click: () => openExternal('https://github.com/mcpeixoto/polaris/issues/new'),
+        },
+        { type: 'separator' },
+        // The log is the only evidence a user can attach to "updates never install". A menu
+        // item is the difference between it existing and it being findable.
+        { label: 'Open Logs', click: () => void shell.openPath(path.dirname(logPath())) },
         ...(isMac
-          ? ([
-              { role: 'zoom' },
-              { type: 'separator' },
-              { role: 'front' },
-            ] satisfies MenuItemConstructorOptions[])
-          : ([{ role: 'close' }] satisfies MenuItemConstructorOptions[])),
+          ? []
+          : ([{ type: 'separator' }, { role: 'about' }] as MenuItemConstructorOptions[])),
       ],
     },
   ];
@@ -499,7 +722,24 @@ function buildMenu(): void {
 
 // --- tray --------------------------------------------------------------------------
 
+/**
+ * The three things worth reaching without the window in front of you. One list, used by the
+ * tray menu, the macOS dock menu and the Windows jump list — three surfaces that are the
+ * same question asked by three platforms, and that drift apart the moment they are written
+ * out separately.
+ */
+const QUICK_ROUTES: readonly { readonly label: string; readonly route: string }[] = [
+  { label: 'Inbox', route: '/inbox' },
+  { label: 'My Issues', route: '/my-issues' },
+  { label: 'Search', route: '/search' },
+];
+
 function createTray(): void {
+  // macOS has a dock icon that already does everything a tray icon would — it focuses the
+  // app, it carries the unread badge, and it holds the quick-route menu below. A second
+  // permanent icon in the menu bar is clutter this product does not need.
+  if (process.platform === 'darwin') return;
+
   // Resolved relative to the compiled main process, which puts it at `assets/tray.png`
   // inside the asar once packaged — see the `files` list in electron-builder.yml, which has
   // to name it explicitly because `assets` is also the buildResources directory and is
@@ -509,25 +749,73 @@ function createTray(): void {
     // An empty image gives macOS a tray slot with nothing in it, which the user reads as a
     // rendering bug in their menu bar. No tray at all is the better failure, and the app
     // works without one.
-    console.warn('[polaris] tray icon missing; running without a tray');
+    log('tray icon missing; running without a tray');
     return;
   }
 
-  // A template image is recoloured by macOS to match the menu bar, so it stays legible in
-  // both light and dark mode without shipping two assets. Windows and Linux draw the PNG
-  // as it is, and setting the flag there would be a lie about a platform behaviour.
-  if (process.platform === 'darwin') icon.setTemplateImage(true);
-
   tray = new Tray(icon);
-  tray.setToolTip('Polaris');
+  updateTrayMenu(0);
+  // Windows and Linux deliver a plain left click separately from the context menu, and this
+  // is the gesture people use to get the window back after closing it to the tray.
+  tray.on('click', focusMainWindow);
+}
+
+/** The tray menu, rebuilt when the unread count changes so the count is actually in it. */
+function updateTrayMenu(unread: number): void {
+  if (tray === null || tray.isDestroyed()) return;
+  tray.setToolTip(unread > 0 ? `Polaris — ${unread} unread` : 'Polaris');
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: 'Open Polaris', click: focusMainWindow },
+      { label: unread > 0 ? `${unread} unread` : 'No unread', enabled: false },
       { type: 'separator' },
-      { label: 'Quit', click: () => app.quit() },
+      ...QUICK_ROUTES.map((entry) => ({ label: entry.label, click: () => openRoute(entry.route) })),
+      { type: 'separator' },
+      {
+        label: 'Quit',
+        click: () => {
+          // The window hides rather than closes on this platform now, so quitting has to say
+          // so explicitly — otherwise `app.quit()` runs into the close handler that hides.
+          isQuitting = true;
+          app.quit();
+        },
+      },
     ]),
   );
-  tray.on('click', focusMainWindow);
+}
+
+/** The dock and jump-list menus: the same quick routes, in each platform's own shape. */
+function createLauncherMenus(): void {
+  if (process.platform === 'darwin') {
+    app.dock?.setMenu(
+      Menu.buildFromTemplate(
+        QUICK_ROUTES.map((entry) => ({ label: entry.label, click: () => openRoute(entry.route) })),
+      ),
+    );
+    return;
+  }
+  if (process.platform !== 'win32') return;
+  try {
+    app.setJumpList([
+      {
+        type: 'tasks',
+        items: QUICK_ROUTES.map((entry) => ({
+          type: 'task' as const,
+          title: entry.label,
+          program: process.execPath,
+          // Launched as a deep link rather than as a private flag, so the route travels the
+          // one path that is already tested — including when the app is already running and
+          // the second instance hands its argv over.
+          args: `polaris:/${entry.route}`,
+          description: `Open ${entry.label} in Polaris`,
+        })),
+      },
+    ]);
+  } catch (error) {
+    // setJumpList throws if the app is not registered with the Start menu — an unpacked
+    // development run, or a portable copy. Not a reason to fail a launch.
+    log('jump list not set:', error);
+  }
 }
 
 // --- deep links --------------------------------------------------------------------
@@ -547,16 +835,58 @@ function deepLinkFromArgv(argv: readonly string[]): string | undefined {
   return argv.find((a) => a.startsWith('polaris://'));
 }
 
+/**
+ * The route prefixes a link is allowed to name.
+ *
+ * An allowlist because this is an *external* input: anything on the machine can hand the app
+ * a `polaris://` URL, and the renderer treats what arrives as a route it navigated to itself.
+ * The documented shapes are the ones the product publishes links for; anything else is
+ * either a typo or somebody probing, and both are better dropped than followed.
+ */
+const DEEP_LINK_PREFIXES = [
+  'issue',
+  'project',
+  'initiative',
+  'document',
+  'workspace',
+  'team',
+  'view',
+  'inbox',
+  'my-issues',
+  'search',
+  'settings',
+] as const;
+
 /** `polaris://issue/ENG-123` becomes `/issue/ENG-123`. Null for anything that is not a link. */
 function routeOf(url: string | undefined): string | null {
   if (url === undefined) return null;
+  let parsed: URL;
   try {
-    const parsed = new URL(url);
-    return `/${parsed.host}${parsed.pathname}${parsed.search}`;
+    parsed = new URL(url);
   } catch {
     // A malformed link is a user pasting something odd, not an error worth surfacing.
     return null;
   }
+
+  // The OAuth callback is not a page path, and routing it as one would push an authorisation
+  // code into the renderer's history — where it stays, readable, long after it was spent.
+  // It has its own branch that consumes the parameters and lands on a clean URL.
+  if (parsed.host === 'oauth' || parsed.host === 'auth') {
+    // Nothing consumes the parameters yet — the desktop OAuth flow is not built — so they
+    // are dropped here rather than carried. That is the safe half of the eventual handling,
+    // and the half that has to exist first: without this branch the query string was routed
+    // as a page path today.
+    log('oauth callback received; the desktop flow is not implemented, landing on /login');
+    return '/login';
+  }
+
+  if (!(DEEP_LINK_PREFIXES as readonly string[]).includes(parsed.host)) {
+    log(`ignoring deep link with an unknown prefix: ${parsed.host}`);
+    return null;
+  }
+  // The fragment is part of the route — `polaris://issue/ENG-123#comment-5` is a link to a
+  // comment, and dropping it silently lands the reader at the top of a long thread.
+  return `/${parsed.host}${parsed.pathname}${parsed.search}${parsed.hash}`;
 }
 
 /** Set when a link arrives before the app is ready; delivered by `whenReady`. */
@@ -585,7 +915,7 @@ function routeDeepLink(url: string | undefined): void {
  * before the application subscribes — see preload.cts, which is where that gap is closed.
  */
 function navigateTo(route: string): void {
-  const contents = mainWindow?.webContents;
+  const contents = targetWindow()?.webContents;
   if (!contents || contents.isDestroyed()) return;
 
   if (contents.isLoading()) {
@@ -653,21 +983,38 @@ function contentSecurityPolicy(): string {
  *     single-page app: a deep link to /issue/ENG-123 has no file behind it, and without
  *     this every reload on a real route shows nothing.
  */
+async function isFile(candidate: string): Promise<boolean> {
+  try {
+    return (await fs.promises.stat(candidate)).isFile();
+  } catch {
+    return false;
+  }
+}
+
 function serveRenderer(): void {
   const root = path.join(process.resourcesPath, 'renderer');
 
+  const index = path.join(root, 'index.html');
+
   protocol.handle(APP_SCHEME, async (request) => {
     const url = new URL(request.url);
-    const requested = path.normalize(decodeURIComponent(url.pathname));
-    const resolved = path.join(root, requested);
+    // decodeURIComponent throws URIError on a lone `%`, which a bundler plugin or a filename
+    // with a percent sign can produce. Uncaught it rejects the request with no diagnostic at
+    // all; treated as "no such file" it degrades to the single-page-app fallback below.
+    let resolved: string | null = null;
+    try {
+      resolved = path.join(root, path.normalize(decodeURIComponent(url.pathname)));
+    } catch {
+      resolved = null;
+    }
 
     // path.join normalises away the ../ segments, so this comparison is what actually
     // stops traversal rather than the normalisation above.
-    const inside = resolved === root || resolved.startsWith(root + path.sep);
-    const target =
-      inside && fs.existsSync(resolved) && fs.statSync(resolved).isFile()
-        ? resolved
-        : path.join(root, 'index.html');
+    const inside = resolved !== null && (resolved === root || resolved.startsWith(root + path.sep));
+    // Asynchronous stat, not existsSync/statSync: this handler runs on the main process's
+    // thread and serves every chunk, font and image the renderer asks for, so a synchronous
+    // filesystem call here is a stall in the same loop that draws the menus.
+    const target = inside && resolved !== null && (await isFile(resolved)) ? resolved : index;
 
     // pathToFileURL rather than string concatenation: a Windows drive letter and a space in
     // a user's install path both produce a URL that silently resolves to nothing otherwise.
@@ -695,6 +1042,15 @@ const ALLOWED_PERMISSIONS = new Set(['clipboard-sanitized-write']);
 function lockDownSession(): void {
   const defaultSession = session.defaultSession;
 
+  // The spellchecker otherwise uses whatever the OS locale happens to be, with no way to add
+  // a second language — which for a team writing English issues on a German laptop is a
+  // document underlined end to end. The user's locale first, English always, and anything
+  // Chromium does not have a dictionary for dropped rather than thrown.
+  const wanted = [app.getLocale(), app.getSystemLocale(), 'en-US'];
+  const supported = new Set(defaultSession.availableSpellCheckerLanguages);
+  const languages = [...new Set(wanted.filter((code) => supported.has(code)))];
+  if (languages.length > 0) defaultSession.setSpellCheckerLanguages(languages);
+
   defaultSession.setPermissionRequestHandler((_contents, permission, callback) => {
     callback(ALLOWED_PERMISSIONS.has(permission));
   });
@@ -706,15 +1062,187 @@ function lockDownSession(): void {
   defaultSession.setDevicePermissionHandler(() => false);
 }
 
-// Belt and braces over `webviewTag: false`: a <webview> gets its own webPreferences, and a
-// tag that slipped past the flag would otherwise be free to set nodeIntegration itself.
+/**
+ * The guards every web contents gets, whether or not this file created it.
+ *
+ * Attached here rather than in `createWindow` because "there is exactly one window" stopped
+ * being true: a second window, a devtools contents, anything a future feature opens would
+ * otherwise inherit none of these. A navigation guard that only covers the windows somebody
+ * remembered to wire is not a guard.
+ */
 app.on('web-contents-created', (_event, contents) => {
+  // Belt and braces over `webviewTag: false`: a <webview> gets its own webPreferences, and a
+  // tag that slipped past the flag would otherwise be free to set nodeIntegration itself.
   contents.on('will-attach-webview', (event) => event.preventDefault());
+
+  // Anything that is not the app itself opens in the user's browser. Without this an
+  // external link navigates the app window and there is no back button to return from.
+  contents.setWindowOpenHandler(({ url }) => {
+    openExternal(url);
+    return { action: 'deny' };
+  });
+
+  contents.on('will-navigate', (event, url) => {
+    // The app may navigate within itself and nowhere else. Anything else — a link in a
+    // comment, a redirect from a misconfigured server — opens in the user's browser rather
+    // than replacing the application with a page that has no way back.
+    const ownOrigin = isDev ? new URL(DEV_SERVER).origin : APP_ORIGIN;
+    if (originOf(url) === ownOrigin) return;
+    event.preventDefault();
+    openExternal(url);
+  });
+
+  contents.on('context-menu', (_event, params) => showContextMenu(contents, params));
+
+  // A renderer that stops pumping its message loop is a frozen app with no menu bar on
+  // Windows (`autoHideMenuBar`) and therefore no way to reload. Offering the reload is the
+  // difference between a hang the user recovers from and one they force-quit.
+  contents.on('unresponsive', () => {
+    log('renderer became unresponsive');
+    const win = BrowserWindow.fromWebContents(contents);
+    void dialog
+      .showMessageBox({
+        type: 'warning',
+        buttons: ['Wait', 'Reload'],
+        defaultId: 0,
+        cancelId: 0,
+        message: 'Polaris is not responding',
+        detail: 'Reloading keeps your synced data; anything typed and not yet saved is lost.',
+      })
+      .then(({ response }) => {
+        if (response === 1 && win !== null && !win.isDestroyed()) contents.reload();
+      });
+  });
 });
+
+/**
+ * A renderer crash, once.
+ *
+ * Reloaded automatically the first time, because the overwhelmingly common cause is a
+ * transient out-of-memory in one tab-sized process and the user's session survives it. Not
+ * the second time within a minute: a crash that reproduces on load is a reload loop, and a
+ * loop is worse than a blank window because it never stops long enough to read anything.
+ */
+let recentRendererCrashes = 0;
+
+app.on('render-process-gone', (_event, contents, details) => {
+  log(`renderer gone: ${details.reason} (exit ${details.exitCode})`);
+  if (details.reason === 'clean-exit') return;
+
+  recentRendererCrashes += 1;
+  setTimeout(() => (recentRendererCrashes = Math.max(0, recentRendererCrashes - 1)), 60_000);
+
+  const win = BrowserWindow.fromWebContents(contents);
+  if (win === null || win.isDestroyed()) return;
+
+  if (recentRendererCrashes <= 1) {
+    void win.loadURL(appUrl());
+    return;
+  }
+  void win.loadURL(
+    failurePageUrl(appUrl(), `The window stopped unexpectedly (${details.reason}).`),
+  );
+});
+
+// The default for an uncaught throw in the main process is Electron's raw modal, which names
+// a stack frame and offers nothing. Logged first so there is something to send with a bug
+// report, then reported in the app's own words. Not exiting: most of these are a failed
+// native call, and an app that is still running is still recoverable.
+process.on('uncaughtException', (error: Error) => {
+  log('uncaught exception in the main process:', error);
+  if (app.isReady()) {
+    dialog.showErrorBox('Polaris hit an unexpected error', `${error.message}\n\n${logPath()}`);
+  }
+});
+
+process.on('unhandledRejection', (reason: unknown) => {
+  log('unhandled rejection in the main process:', reason);
+});
+
+/**
+ * The right-click menu.
+ *
+ * `spellcheck: true` on its own underlines a misspelling and then offers nothing when it is
+ * clicked, which reads as a broken feature rather than a missing one. Cut/copy/paste are
+ * here for the same reason: on Windows the context menu, not the Edit menu, is the gesture
+ * people actually reach for.
+ */
+function showContextMenu(contents: WebContents, params: Electron.ContextMenuParams): void {
+  const items: MenuItemConstructorOptions[] = [];
+
+  for (const suggestion of params.dictionarySuggestions.slice(0, 5)) {
+    items.push({ label: suggestion, click: () => contents.replaceMisspelling(suggestion) });
+  }
+  if (params.dictionarySuggestions.length > 0) items.push({ type: 'separator' });
+  if (params.misspelledWord !== '') {
+    items.push({
+      label: 'Add to Dictionary',
+      click: () => contents.session.addWordToSpellCheckerDictionary(params.misspelledWord),
+    });
+    items.push({ type: 'separator' });
+  }
+
+  if (params.linkURL !== '') {
+    const link = params.linkURL;
+    items.push({ label: 'Open Link', click: () => openExternal(link) });
+    items.push({
+      label: 'Copy Link Address',
+      click: () => clipboard.writeText(link),
+    });
+    items.push({ type: 'separator' });
+  }
+
+  items.push(
+    { role: 'cut', enabled: params.editFlags.canCut },
+    { role: 'copy', enabled: params.editFlags.canCopy },
+    { role: 'paste', enabled: params.editFlags.canPaste },
+    { type: 'separator' },
+    { role: 'selectAll', enabled: params.editFlags.canSelectAll },
+  );
+
+  Menu.buildFromTemplate(items).popup();
+}
 
 // --- updates -----------------------------------------------------------------------
 
 let manualUpdateCheck = false;
+
+/**
+ * What the renderer is told about updates.
+ *
+ * The shell used to download a new version and say nothing: the update landed on the next
+ * quit, and on a laptop that is never quit that is several versions behind indefinitely.
+ * The status is pushed to every window so the app can offer the restart itself — a quiet row
+ * the user clicks when they are between things, rather than a modal in the middle of one.
+ */
+type UpdateStatus =
+  | { state: 'idle' }
+  | { state: 'checking' }
+  | { state: 'available'; version: string }
+  | { state: 'downloading'; percent: number }
+  | { state: 'ready'; version: string }
+  | { state: 'error'; message: string };
+
+let updateStatus: UpdateStatus = { state: 'idle' };
+let lastUpdateCheck = 0;
+
+function setUpdateStatus(next: UpdateStatus): void {
+  updateStatus = next;
+  for (const win of windows) {
+    if (!win.isDestroyed()) win.webContents.send('polaris:update-status', next);
+  }
+  // The menu carries a "Restart to Update" item whose visibility depends on this, and a
+  // menu template is a snapshot — it has to be rebuilt for the item to appear.
+  if (next.state === 'ready' || next.state === 'idle') buildMenu();
+}
+
+function installUpdate(): void {
+  if (updateStatus.state !== 'ready') return;
+  // Set first, or the close handler that hides the window on quit fights quitAndInstall and
+  // the app stays running with the installer waiting behind it.
+  isQuitting = true;
+  autoUpdater.quitAndInstall();
+}
 
 /**
  * Auto-update against the GitHub releases the CI workflow publishes.
@@ -727,7 +1255,8 @@ let manualUpdateCheck = false;
  */
 function wireUpdater(): void {
   autoUpdater.on('error', (error: Error) => {
-    console.warn('[polaris] update check failed:', error.message);
+    log('update check failed:', error.message);
+    setUpdateStatus({ state: 'error', message: error.message });
     if (!manualUpdateCheck) return;
     manualUpdateCheck = false;
     void dialog.showMessageBox({
@@ -738,7 +1267,18 @@ function wireUpdater(): void {
     });
   });
 
+  autoUpdater.on('checking-for-update', () => setUpdateStatus({ state: 'checking' }));
+
+  autoUpdater.on('update-available', (info: { version: string }) => {
+    setUpdateStatus({ state: 'available', version: info.version });
+  });
+
+  autoUpdater.on('download-progress', (progress: { percent: number }) => {
+    setUpdateStatus({ state: 'downloading', percent: Math.round(progress.percent) });
+  });
+
   autoUpdater.on('update-not-available', () => {
+    setUpdateStatus({ state: 'idle' });
     if (!manualUpdateCheck) return;
     manualUpdateCheck = false;
     void dialog.showMessageBox({
@@ -748,9 +1288,25 @@ function wireUpdater(): void {
     });
   });
 
-  autoUpdater.on('update-downloaded', () => {
+  autoUpdater.on('update-downloaded', (info: { version: string }) => {
     manualUpdateCheck = false;
+    setUpdateStatus({ state: 'ready', version: info.version });
   });
+}
+
+/**
+ * The check a `setInterval` cannot make.
+ *
+ * An interval does not run while the machine is asleep, so a laptop closed for a week checks
+ * once on wake at the earliest — and only if the timer happens to be due. Coming back to the
+ * app, and waking the machine, are both moments where a check is free and wanted.
+ */
+const UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
+
+function checkForUpdatesIfStale(): void {
+  if (isDev) return;
+  if (Date.now() - lastUpdateCheck < UPDATE_INTERVAL_MS) return;
+  checkForUpdates({ manual: false });
 }
 
 function checkForUpdates({ manual }: { manual: boolean }): void {
@@ -767,6 +1323,7 @@ function checkForUpdates({ manual }: { manual: boolean }): void {
     return;
   }
   manualUpdateCheck = manual;
+  lastUpdateCheck = Date.now();
   // Caught as well as listened for. `checkForUpdatesAndNotify` both emits 'error' *and*
   // returns a promise that rejects, so handling only the event still leaves an unhandled
   // rejection — which is a warning today and process-fatal the day Electron changes the
@@ -786,11 +1343,21 @@ function checkForUpdates({ manual }: { manual: boolean }): void {
  */
 function applyServerUrl(next: string): void {
   serverUrl = next;
-  writeSettings({ ...readSettings(), serverUrl: next });
+  if (!writeSettings({ ...readSettings(), serverUrl: next })) {
+    // A window rectangle that fails to save is a nuisance; a server address that fails to
+    // save is an app that asks for it again on the next launch with no explanation, and the
+    // user has no way to connect that to the read-only home directory it came from.
+    dialog.showErrorBox(
+      'Polaris could not save the server address',
+      `Polaris will work until you quit, and then ask for the address again.\n\n${settingsPath()}`,
+    );
+  }
 
-  const old = mainWindow;
-  mainWindow = createWindow();
-  old?.destroy();
+  // Every window is replaced, not just the focused one: the server URL is a launch argument
+  // of the window, so any that survived would keep talking to the old server.
+  const previous = [...windows];
+  createWindow();
+  for (const win of previous) win.destroy();
 }
 
 /**
@@ -823,13 +1390,37 @@ async function changeServer(): Promise<void> {
 
 // --- launch ------------------------------------------------------------------------
 
-void app.whenReady().then(() => {
-  app.setAsDefaultProtocolClient('polaris');
+// Guarded on the lock rather than trusting `app.exit` to have taken effect: the losing
+// process keeps evaluating this module, and a second copy that reaches `createWindow` flashes
+// a window and grabs the tray for however long it has left.
+if (hasInstanceLock) {
+  void app.whenReady().then(onReady);
+}
+
+function onReady(): void {
+  // The AUMID is what ties this process to the Start-menu shortcut electron-builder writes.
+  // Without it Windows attributes toast notifications to `electron.app.Polaris` or drops
+  // them, taskbar pinning is unreliable, and `setJumpList` has nothing to attach to. It must
+  // stay identical to `appId` in electron-builder.yml.
+  if (process.platform === 'win32') app.setAppUserModelId('com.peixotolabs.polaris');
+
+  registerProtocolClient();
   lockDownSession();
   if (!isDev) serveRenderer();
   buildMenu();
-  mainWindow = createWindow();
+  createWindow();
   createTray();
+  createLauncherMenus();
+
+  // The window background and the Windows controls overlay are both colours, and a user who
+  // switches their system to light mode should not be left with the dark ones until relaunch.
+  nativeTheme.on('updated', () => {
+    for (const win of windows) {
+      if (win.isDestroyed()) continue;
+      win.setBackgroundColor(windowBackground());
+      if (process.platform === 'win32') win.setTitleBarOverlay?.(titleBarOverlayColors());
+    }
+  });
 
   // A link that launched the app arrives through `open-url` on macOS — before `ready`, hence
   // the buffer — and in argv on Windows and Linux. Whichever it was, there is a window now.
@@ -839,17 +1430,36 @@ void app.whenReady().then(() => {
 
   wireUpdater();
   if (!isDev) {
-    // Checked on launch and then daily. Downloaded in the background and applied on the
-    // next quit, so an update never interrupts somebody mid-sentence.
+    // Checked on launch and then every four hours, per the cadence in
+    // docs/05-infrastructure/06-desktop-electron.md. Downloaded in the background; the
+    // renderer offers the restart, so an update never interrupts somebody mid-sentence.
     checkForUpdates({ manual: false });
-    setInterval(() => checkForUpdates({ manual: false }), 24 * 60 * 60 * 1000);
+    setInterval(() => checkForUpdates({ manual: false }), UPDATE_INTERVAL_MS);
+    // An interval does not tick through sleep. Waking is the other moment a check is due.
+    powerMonitor.on('resume', checkForUpdatesIfStale);
   }
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) mainWindow = createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
     else focusMainWindow();
   });
-});
+}
+
+/**
+ * Claims `polaris://`.
+ *
+ * The one-argument form is wrong in development on Windows: it registers `electron.exe`, so
+ * a link opened during a dev session launches a bare Electron rather than this app. The
+ * three-argument form names the executable and the script it should be handed.
+ */
+function registerProtocolClient(): void {
+  const script = isDev && process.platform === 'win32' ? process.argv[1] : undefined;
+  if (script !== undefined) {
+    app.setAsDefaultProtocolClient('polaris', process.execPath, [path.resolve(script)]);
+    return;
+  }
+  app.setAsDefaultProtocolClient('polaris');
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
@@ -857,13 +1467,31 @@ app.on('window-all-closed', () => {
 
 // --- the preload bridge's other end ------------------------------------------------
 
-/** Unread count on the dock or taskbar. */
-ipcMain.on('polaris:set-badge', (_event, count: number) => {
+/**
+ * Unread count on the dock, the taskbar and the tray.
+ *
+ * Windows has no text badge: `setOverlayIcon` draws an *image*, and passing null — which is
+ * what this used to do — removes the overlay and leaves the count reaching nothing but the
+ * screen reader. The renderer draws the digits, because the renderer is the side with a
+ * canvas and a font, and hands the PNG over with the number.
+ */
+ipcMain.on('polaris:set-badge', (_event, count: number, icon?: string) => {
   if (process.platform === 'darwin') {
     app.dock?.setBadge(count > 0 ? String(count) : '');
   } else {
-    mainWindow?.setOverlayIcon(null, count > 0 ? `${count} unread` : '');
+    const win = targetWindow();
+    const overlay =
+      count > 0 && typeof icon === 'string' ? nativeImage.createFromDataURL(icon) : null;
+    // A data URL the decoder rejected is an empty image, which draws as a blank square on the
+    // taskbar button. No overlay is the better failure.
+    win?.setOverlayIcon(
+      overlay !== null && !overlay.isEmpty() ? overlay : null,
+      count > 0 ? `${count} unread` : '',
+    );
+    // Linux has no overlay at all; the launcher badge is the count itself.
+    if (process.platform === 'linux') app.badgeCount = count;
   }
+  updateTrayMenu(count);
 });
 
 ipcMain.on('polaris:notify', (_event, payload: { title: string; body: string; route?: string }) => {
@@ -887,8 +1515,34 @@ ipcMain.handle('polaris:platform', () => ({
  * workspace on one server, and carrying it across would leave issues the new server will
  * never send a revoke for.
  */
-ipcMain.on('polaris:set-server-url', (_event, raw: string) => {
+ipcMain.handle('polaris:set-server-url', (_event, raw: string) => {
+  // A reply, not a fire-and-forget. The screen that calls this shows a spinner and expects
+  // the window to be replaced underneath it — so the two paths that do nothing used to leave
+  // that spinner turning forever, with force-quit as the only way out. Retyping the address
+  // you are already connected to is the ordinary way somebody tries to fix a connection
+  // problem, and it is one of those two paths.
   const next = validServerUrl(raw);
-  if (next === null || next === serverUrl) return;
+  if (next === null) {
+    return { ok: false, reason: 'That does not look like a server address.' };
+  }
+  if (next === serverUrl) {
+    return { ok: false, reason: `Already connected to ${next}.` };
+  }
   applyServerUrl(next);
+  return { ok: true };
+});
+
+ipcMain.on('polaris:install-update', installUpdate);
+
+/**
+ * Reloads the app after a failed load.
+ *
+ * Called only from the failure page, which is a data: URL and cannot navigate itself back to
+ * the app's scheme. A named method rather than a generic reload channel, because the whole
+ * point of this bridge is that every operation on it is one the main process chose to offer.
+ */
+ipcMain.on('polaris:reload-app', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win === null || win.isDestroyed()) return;
+  void win.loadURL(appUrl());
 });

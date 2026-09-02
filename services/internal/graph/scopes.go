@@ -134,9 +134,18 @@ func mutationScopes(field string) []string {
 	}
 	name := strings.ToLower(field)
 	switch {
-	case strings.HasPrefix(name, "createissue") || name == "createissue":
+	// Exact, not a prefix. HasPrefix("createissue") matched createIssueRelation and
+	// createIssueTemplate too, so a token narrowed to "may file issues" could rewrite the
+	// relation graph of issues it did not create — blocks and duplicate edges mutate other
+	// issues' views — and add team-wide templates. A narrow scope must not smuggle in
+	// broader effects, which is the argument this whole file is built on.
+	//
+	// createComment was safe only because it happens to have no siblings today. Naming it
+	// exactly means the day one is added (a comment reaction, say) it does not silently
+	// inherit comments:create.
+	case name == "createissue":
 		return []string{"write", "issues:create"}
-	case strings.HasPrefix(name, "createcomment"):
+	case name == "createcomment":
 		return []string{"write", "comments:create"}
 	case strings.Contains(name, "timeschedule"):
 		return []string{"write", "timeSchedule:write"}

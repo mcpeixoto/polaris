@@ -246,6 +246,11 @@ function isGlobalChord(event: KeyboardEvent): boolean {
   const mod = event.metaKey || event.ctrlKey;
   if (!mod) return false;
   if (event.key === 'k' || event.key === 'K' || event.key === 'Enter') return true;
+  // The shortcut sheet, which is most wanted from exactly where it could not be reached:
+  // somebody stuck halfway through a comment, wondering what submits it. `⌘/` and not the
+  // bare `?` the same action also binds — a question mark typed into a comment is a question
+  // mark, and a text field that swallowed it to open a dialog would be the worse bug.
+  if (event.key === '/' || event.code === 'Slash') return true;
   // Inline comment: ⌘⌥M / Ctrl+Alt+M. Option on Apple layouts turns M into µ, so the
   // physical key is the one that still says what was struck.
   return (

@@ -1013,6 +1013,20 @@ type Comment struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
+// Reaction is one person's emoji on one comment.
+//
+// The smallest entity in the product: no body, no edit, no soft delete. Adding is an
+// insert and removing is a delete, so there is nothing to reconcile and no last-writer-wins
+// question — which is why it carries no updatedAt.
+type Reaction struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	CommentID   uuid.UUID `json:"commentId"`
+	UserID      uuid.UUID `json:"userId"`
+	Emoji       string    `json:"emoji"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
 // Attachment is a link card on an issue. The URL is unique per issue: posting the same
 // URL again updates the existing row. Integrations stay stateless because of that.
 type Attachment struct {

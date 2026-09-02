@@ -45,7 +45,24 @@ func (c SyncChange) Visible(p *authz.Principal) bool {
 // The limit is what makes the "gap too large" branch decidable: a caller that gets a
 // full page asks again, and one whose backlog exceeds its budget sends a resync instead
 // of streaming forever into a client that has been offline for a fortnight.
+//
+// Callers that drive a cursor want ReadChangesScanned instead: an empty slice from this
+// one is ambiguous, and reading it as "the rows are gone" is a bootstrap storm.
 func (s *Service) ReadChanges(ctx context.Context, workspaceID uuid.UUID, after, through int64, limit int32) ([]SyncChange, error) {
+	changes, _, err := s.ReadChangesScanned(ctx, workspaceID, after, through, limit)
+	return changes, err
+}
+
+// ReadChangesScanned is ReadChanges plus the highest version it actually looked at.
+//
+// The distinction is not pedantry. A row whose scope will not parse is skipped, so a page
+// can come back empty while rows genuinely exist between after and through. A caller that
+// reads "empty" as "retention pruned these rows" then makes every session in the workspace
+// re-bootstrap, on every subsequent write, forever — from one malformed row that is inside
+// the retention window and will therefore never be pruned. scannedThrough lets the caller
+// step its cursor over the unreadable rows instead, and reserve the resync path for
+// scannedThrough == after, which is the real "nothing exists here" case.
+func (s *Service) ReadChangesScanned(ctx context.Context, workspaceID uuid.UUID, after, through int64, limit int32) (changes []SyncChange, scannedThrough int64, err error) {
 	rows, err := s.db.Queries().ReadChangesSince(ctx, store.ReadChangesSinceParams{
 		WorkspaceID:    workspaceID,
 		AfterVersion:   after,
@@ -53,16 +70,23 @@ func (s *Service) ReadChanges(ctx context.Context, workspaceID uuid.UUID, after,
 		PageSize:       limit,
 	})
 	if err != nil {
-		return nil, platform.Internal(fmt.Errorf("read changes: %w", err))
+		return nil, after, platform.Internal(fmt.Errorf("read changes: %w", err))
 	}
 
+	scannedThrough = after
+	skipped := 0
 	out := make([]SyncChange, 0, len(rows))
 	for _, r := range rows {
+		// Rows arrive ordered by version, so the last one seen is the high-water mark
+		// whether or not it survived the scope check.
+		scannedThrough = r.Version
+
 		scope, err := authz.ParseScope(r.Scope)
 		if err != nil {
 			// A row whose scope will not parse cannot be judged, so it must not be sent.
 			// Skipping is the safe failure: the client misses a change and re-bootstraps
 			// eventually, rather than being handed something it may not see.
+			skipped++
 			platform.Log(ctx).Error("change_log row has an unparseable scope; skipping",
 				"workspace", workspaceID, "version", r.Version, "error", err)
 			continue
@@ -78,7 +102,14 @@ func (s *Service) ReadChanges(ctx context.Context, workspaceID uuid.UUID, after,
 			Payload:    r.Payload,
 		})
 	}
-	return out, nil
+	if skipped > 0 {
+		// One line per page rather than one per row, and at warn on the page so that a
+		// single malformed scope is visible as a rate rather than as noise.
+		platform.Log(ctx).Warn("change_log page had unreadable rows",
+			"workspace", workspaceID, "skipped", skipped, "scanned", len(rows),
+			"after", after, "scanned_through", scannedThrough)
+	}
+	return out, scannedThrough, nil
 }
 
 // OldestRetainedVersion tells a resuming client whether its position still exists.
@@ -1039,6 +1070,24 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 					})
 				},
 				func(c store.Comment) (uuid.UUID, any) { return c.ID, toComment(c) },
+			); err != nil {
+				return err
+			}
+
+			// Reactions, scoped through the comment's issue for the reason the comment
+			// stream is: a reaction is only ever as visible as what it reacts to. Streamed
+			// right after comments so a replica never holds a reaction whose comment has
+			// not arrived — the order in the client's entity list says the same thing.
+			if err := streamPages(ctx, w, "reaction",
+				func(ctx context.Context, after uuid.UUID) ([]store.Reaction, error) {
+					return q.StreamReactionsForBootstrap(ctx, store.StreamReactionsForBootstrapParams{
+						WorkspaceID: p.WorkspaceID,
+						TeamIds:     teamIDs,
+						AfterID:     after,
+						PageSize:    bootstrapPageSize,
+					})
+				},
+				func(r store.Reaction) (uuid.UUID, any) { return r.ID, toReaction(r) },
 			); err != nil {
 				return err
 			}

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
@@ -359,5 +359,91 @@ describe('DueDatePicker', () => {
     expect(screen.queryByRole('dialog', { name: 'Due date' })).toBeNull();
     expect(onSelect).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Open' }));
+  });
+});
+
+/**
+ * The panel is a text field somebody types into, and a due date is a field two other things
+ * write: another client's edit, and this client's own SLA evaluation. Seeding the box from
+ * `value` on every change meant either of those landed on top of a half-typed day — which is
+ * the picker deciding it knows the date better than the person editing it.
+ */
+describe('DueDatePicker while it is being typed in', () => {
+  const NOW = Date.parse('2026-09-02T09:00:00Z');
+
+  /** The picker with its `value` under the test's control, which is what a delta changes. */
+  function Panel({ value }: { value: string | null }) {
+    const trigger = useMenuTrigger('dialog');
+    return (
+      <>
+        <button {...trigger.props}>Open</button>
+        <DueDatePicker
+          open={trigger.open}
+          onClose={trigger.hide}
+          trigger={trigger.ref}
+          value={value}
+          source="manual"
+          timezone="Europe/Lisbon"
+          now={NOW}
+          onSelect={vi.fn()}
+        />
+      </>
+    );
+  }
+
+  function frame(value: string | null): ReactNode {
+    const engine = { store: storeWith([]), mutate: vi.fn().mockResolvedValue({}) };
+    return (
+      <MemoryRouter>
+        <KeymapProvider>
+          <EngineProvider engine={engine as unknown as SyncEngine} status={{ phase: 'idle' }}>
+            <Panel value={value} />
+          </EngineProvider>
+        </KeymapProvider>
+      </MemoryRouter>
+    );
+  }
+
+  it('keeps a half-typed date when the issue’s own date moves underneath it', async () => {
+    const view = render(frame('2026-09-10'));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open' }));
+
+    const box = screen.getByLabelText('Or a date') as HTMLInputElement;
+    fireEvent.change(box, { target: { value: '2026-12-24' } });
+
+    // The SLA fires, or somebody else moves the deadline. Either way the panel is open and
+    // the person in front of it is mid-edit.
+    view.rerender(frame('2026-09-20'));
+
+    expect((screen.getByLabelText('Or a date') as HTMLInputElement).value).toBe('2026-12-24');
+  });
+
+  it('seeds the box from the issue’s date each time it is opened', async () => {
+    const view = render(frame('2026-09-10'));
+    const user = userEvent.setup();
+    const trigger = screen.getByRole('button', { name: 'Open' });
+
+    await user.click(trigger);
+    fireEvent.change(screen.getByLabelText('Or a date'), { target: { value: '2026-12-24' } });
+    await user.click(trigger);
+
+    // Closed, and reopened on a date that changed while it was shut. Not reseeding at all
+    // would be the other half of the same bug.
+    view.rerender(frame('2026-09-20'));
+    await user.click(screen.getByRole('button', { name: 'Open' }));
+
+    expect((screen.getByLabelText('Or a date') as HTMLInputElement).value).toBe('2026-09-20');
+  });
+
+  it('announces a dialog, and the trigger says so', async () => {
+    render(frame(null));
+    const trigger = screen.getByRole('button', { name: 'Open' });
+
+    // The panel holds a text field and a form; a trigger promising `menu` told a screen
+    // reader to expect a list the arrow keys walk.
+    expect(trigger.getAttribute('aria-haspopup')).toBe('dialog');
+    await userEvent.setup().click(trigger);
+    expect(screen.getByRole('dialog', { name: 'Due date' })).toBeTruthy();
   });
 });

@@ -24,9 +24,10 @@ import {
   onAuthLost,
   sessionMayExist,
   setWorkspace,
+  type RestoreResult,
   type Workspace,
 } from '~/sync/api';
-import { Button } from '~/components';
+import { Button, Logo } from '~/components';
 import { prefetchViewerId } from '~/hooks/useViewer';
 import { pageNeedsNoSession, shouldAttemptDevSession } from '~/sync/endpoint';
 import { SyncEngine, type EngineStatus } from '~/sync/engine';
@@ -35,7 +36,12 @@ import { EngineProvider } from './context';
 import styles from './Boot.module.css';
 
 type Phase =
-  | { kind: 'restoring' }
+  /**
+   * Getting in. `reason` is what the splash is allowed to say about it: `session` is a page
+   * load exchanging a cookie, `switch` is somebody already inside moving to another
+   * workspace — where "Signing you in" described an authentication that was not happening.
+   */
+  | { kind: 'restoring'; reason: 'session' | 'switch'; workspaceName?: string }
   | { kind: 'signed-out' }
   | { kind: 'choosing'; workspaces: Workspace[] }
   | { kind: 'running'; engine: SyncEngine }
@@ -59,6 +65,14 @@ export interface BootProps {
 /** Where the last-used workspace is remembered, so a reload does not ask again. */
 const LAST_WORKSPACE_KEY = 'polaris.workspace';
 
+/**
+ * And the workspace record itself, which exists for one situation: an offline boot has no
+ * workspace list to look anything up in, and a sidebar whose workspace has no name is worse
+ * than one that is a reload out of date. Kept beside the id rather than replacing it, because
+ * the id is the thing every other reader wants and must not start depending on a JSON parse.
+ */
+const LAST_WORKSPACE_RECORD_KEY = 'polaris.workspace.record';
+
 export interface WorkspaceSessionValue {
   readonly workspaces: readonly Workspace[];
   readonly currentId: string;
@@ -76,7 +90,7 @@ export function useWorkspaceSession(): WorkspaceSessionValue {
 }
 
 export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps) {
-  const [phase, setPhase] = useState<Phase>({ kind: 'restoring' });
+  const [phase, setPhase] = useState<Phase>({ kind: 'restoring', reason: 'session' });
   const [status, setStatus] = useState<EngineStatus>({ phase: 'idle' });
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
 
@@ -89,7 +103,7 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
     if (startingRef.current) return;
     startingRef.current = true;
 
-    rememberWorkspace(workspace.id);
+    rememberWorkspace(workspace.id, workspace);
     setWorkspace(workspace.id);
     // Ask who the viewer is now rather than when a screen first needs it. It is one
     // request per workspace per session, and the screens that need it register their
@@ -161,9 +175,45 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const session = pageNeedsNoSession() || !sessionMayExist() ? null : await auth.refresh();
+      const restored: RestoreResult =
+        pageNeedsNoSession() || !sessionMayExist() ? { kind: 'signed-out' } : await auth.restore();
       if (cancelled) return;
-      if (!session) {
+
+      /*
+        The offline cold boot, which used to be a password field.
+
+        `refresh()` answers `null` for a spent cookie and for a train tunnel alike, and this
+        branch read that `null` as "signed out" — so a local-first product with a complete
+        replica on disk met a lost connection by asking the user to authenticate against a
+        server it could not reach. Nothing about that is recoverable by the person holding the
+        laptop; the one thing they can do is keep working, which is the whole promise of
+        keeping the data locally in the first place.
+
+        `engine.start()` is already the right shape for this: it opens IndexedDB, hydrates a
+        complete snapshot without a request, and only calls `bootstrap()` — the network — when
+        the replica is missing or torn. The socket then reconnects on its own and
+        `ConnectionIndicator` says so. So the offline boot is not a new mode, it is the
+        ordinary one with the two questions that need a server skipped: the refresh, and the
+        workspace list.
+
+        Only with a remembered workspace, because there is nothing to open without one, and
+        only when the browser believes it has held a session (`sessionMayExist` above) — an
+        unreachable API on a browser that never signed in is a sign-in form and not a replica.
+      */
+      if (restored.kind === 'unreachable') {
+        const remembered = readLastWorkspace();
+        const offline = remembered === null ? null : readLastWorkspaceRecord(remembered);
+        if (offline !== null) {
+          // Published as the only workspace this session knows about. The switcher then
+          // offers what it can honestly offer — the one already open — rather than an empty
+          // list, and `listWorkspaces` is not asked, because it would fail.
+          setWorkspaces([offline]);
+          await open(offline);
+          return;
+        }
+      }
+
+      if (restored.kind !== 'session') {
         // Loopback only: the API 404s this unless Host and the TCP peer are
         // localhost. A missing cookie on a laptop is the common case after a
         // reload, and minting one here is what skips the sign-in form.
@@ -183,7 +233,7 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
     return () => {
       cancelled = true;
     };
-  }, [enter]);
+  }, [enter, open]);
 
   // A revoked or expired session must drop the user out of the app rather than leaving
   // them looking at a replica they can no longer refresh.
@@ -214,7 +264,7 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
       engineRef.current?.stop();
       engineRef.current = null;
       startingRef.current = false;
-      setPhase({ kind: 'restoring' });
+      setPhase({ kind: 'restoring', reason: 'switch', workspaceName: chosen.name });
       await open(chosen);
     },
     [open],
@@ -229,7 +279,7 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
 
   switch (phase.kind) {
     case 'restoring':
-      return <Splash message="Signing you in" />;
+      return <Splash message={restoringMessage(phase, status)} />;
 
     case 'signed-out':
       return <>{renderSignedOut({ onSignedIn: (workspaceId) => void enter(workspaceId) })}</>;
@@ -241,7 +291,13 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
       const outdated = isOutdatedClientMessage(phase.error);
       return (
         <Splash
-          message={phase.error}
+          tone="failure"
+          message="Polaris could not open your workspace"
+          // The exception's own sentence, kept — it is frequently the only clue anybody has
+          // — but underneath a written headline rather than as the whole of the interface.
+          // "Failed to fetch" is a fact about a function call, not something to say to a
+          // person.
+          detail={phase.error}
           action={
             <Button
               className={styles.retry}
@@ -261,9 +317,10 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
     }
 
     case 'running':
-      // The shell mounts before the snapshot finishes so the sidebar and the workspace
-      // name appear immediately. The list underneath fills in as rows arrive, which is
-      // the difference between "loading" and "already working".
+      // The shell mounts once `engine.start()` has resolved, which — on a cold replica —
+      // is after the snapshot has been downloaded, not before it. That is why `restoring`
+      // now reports the engine's own progress rather than a static line: the wait is real,
+      // its length is known, and the comment that used to sit here claimed the opposite.
       return (
         <EngineProvider engine={phase.engine} status={status}>
           <WorkspaceSessionContext.Provider
@@ -280,9 +337,63 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
   }
 }
 
-function Splash({ message, action }: { message: string; action?: ReactNode }) {
+/**
+ * What the splash says while the workspace is being opened.
+ *
+ * It said "Signing you in" for the whole of it — for the snapshot download too, to somebody
+ * who was already signed in, on a cold boot that can run for many seconds. The engine has been
+ * reporting `{phase: 'bootstrapping', received: N}` into this component the entire time, and
+ * nothing read it until the phase was over. A wait with a number attached to it reads as
+ * progress; the same wait with a wrong sentence attached reads as a hang.
+ *
+ * Exported for its test: the interesting behaviour is a table of four cases, and driving it
+ * through the whole boot sequence would test the mocks rather than the copy.
+ */
+export function restoringMessage(
+  phase: { reason: 'session' | 'switch'; workspaceName?: string },
+  status: EngineStatus,
+): string {
+  if (status.phase === 'bootstrapping') {
+    return `Loading your workspace… ${status.received} items`;
+  }
+  if (status.phase === 'hydrating') return 'Opening your workspace';
+  if (phase.reason === 'switch') {
+    const name = phase.workspaceName ?? '';
+    return name === '' ? 'Opening your workspace' : `Opening ${name}`;
+  }
+  return 'Signing you in';
+}
+
+/**
+ * The boot screen, in its two tones.
+ *
+ * `status` is the polite live region a slow but healthy boot belongs in. `failure` is not a
+ * status — a workspace that would not open is an error, and announcing it politely means it
+ * waits behind whatever the screen reader was already saying, on a screen where there is
+ * nothing else to hear.
+ */
+function Splash({
+  message,
+  detail,
+  action,
+  tone = 'status',
+}: {
+  message: string;
+  detail?: string;
+  action?: ReactNode;
+  tone?: 'status' | 'failure';
+}) {
+  const failed = tone === 'failure';
   return (
-    <div className={styles.splash} role="status" aria-live="polite">
+    <div
+      className={styles.splash}
+      role={failed ? 'alert' : 'status'}
+      aria-live={failed ? 'assertive' : 'polite'}
+    >
+      {/* The product's own mark, which appeared nowhere inside the product. The splash's
+          animation-delay already keeps the whole block invisible on a fast boot, so this
+          costs nothing on the path it would have been noise on. */}
+      <Logo size="lg" />
       {/*
        * Keyed on the text so that a new sentence is a new element.
        *
@@ -299,6 +410,7 @@ function Splash({ message, action }: { message: string; action?: ReactNode }) {
       <span key={message} className={styles.message}>
         {message}
       </span>
+      {detail === undefined ? null : <span className={styles.detail}>{detail}</span>}
       {action}
     </div>
   );
@@ -321,11 +433,35 @@ function readLastWorkspace(): string | null {
  * while already signed in reloads the app, and this is what tells the boot that follows to
  * open the workspace just joined rather than the one just left.
  */
-export function rememberWorkspace(id: string): void {
+export function rememberWorkspace(id: string, record?: Workspace): void {
   try {
     localStorage.setItem(LAST_WORKSPACE_KEY, id);
+    if (record !== undefined) {
+      localStorage.setItem(LAST_WORKSPACE_RECORD_KEY, JSON.stringify(record));
+    }
   } catch {
     /* see readLastWorkspace */
+  }
+}
+
+/**
+ * The remembered workspace record, or null when there is none for this id.
+ *
+ * The id check is what keeps a stale record from being attached to the wrong workspace: the
+ * id is written by every caller and the record only by the one that has a whole workspace to
+ * hand, so the two can legitimately disagree.
+ */
+function readLastWorkspaceRecord(id: string): Workspace | null {
+  try {
+    const raw = localStorage.getItem(LAST_WORKSPACE_RECORD_KEY);
+    if (raw === null) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    const record = parsed as Workspace;
+    return record.id === id ? record : null;
+  } catch {
+    /* see readLastWorkspace */
+    return null;
   }
 }
 

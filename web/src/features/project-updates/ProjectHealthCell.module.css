@@ -9,10 +9,34 @@
   font-weight: var(--font-weight-medium);
 }
 
+/* The dashed edge is emphasis on a state the words already carry — see the note in
+   ProjectHealthCell.tsx. 1px because it hugs a badge, and there is no hairline token. */
 .dueSoonWrap {
   display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   padding: 1px;
   border-radius: var(--radius-sm);
   outline: 1px dashed var(--text-tertiary);
   outline-offset: 1px;
+}
+
+.dueSoon {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+
+/* The compact list cell has no room for the word, so it goes to the accessibility tree
+   only. Never display:none — a dense surface drops the visible label, not the name. */
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
 }

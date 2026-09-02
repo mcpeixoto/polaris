@@ -446,11 +446,16 @@ func newScene(t *testing.T, ctx context.Context, svc *domain.Service, f *testuti
 	if _, _, err := svc.SetIssueSubscription(ctx, s.alice, s.openIssue, true); err != nil {
 		t.Fatalf("subscribe alice: %v", err)
 	}
-	if _, _, err := svc.CreateComment(ctx, s.alice, domain.CreateCommentInput{
+	mention, _, err := svc.CreateComment(ctx, s.alice, domain.CreateCommentInput{
 		IssueID: s.openIssue,
 		Body:    fmt.Sprintf("@[bob](user:%s) could you look at this", bobID),
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("create the mention: %v", err)
+	}
+	// A reaction on the open comment, so the snapshot has one to carry right after it.
+	if _, _, err := svc.AddReaction(ctx, s.bob, mention.ID, "👍"); err != nil {
+		t.Fatalf("react to the mention: %v", err)
 	}
 	// A comment inside the private team too, so the comment stream has something to withhold.
 	if _, _, err := svc.CreateComment(ctx, s.alice, domain.CreateCommentInput{

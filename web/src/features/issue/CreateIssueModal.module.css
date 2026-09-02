@@ -14,9 +14,9 @@
  * rather than letting a cell shrink under its content.
  *
  * Every cell carries a visible label in the detail rail's treatment — see `.propertyLabel` in
- * IssueDetail.module.css, which this deliberately matches — because a row of eight
- * placeholders names nothing, and the person filling it in should not have to open a control
- * to discover what it is.
+ * IssueDetail.module.css, which this deliberately matches — because a row of placeholders
+ * names nothing, and the person filling it in should not have to open a control to discover
+ * what it is.
  */
 
 .form {
@@ -74,10 +74,10 @@
 /*
  * The label, in the detail rail's treatment rather than the form frame's.
  *
- * These sit above eight sibling controls of two different kinds — native selects and menu
+ * These sit above a row of sibling controls of two different kinds — native selects and menu
  * triggers — and the label is the only thing that makes the group read as one row of
  * properties. `Field` would style the selects' own labels and could not reach the buttons',
- * which would leave one row wearing two label treatments; written here, all eight agree.
+ * which would leave one row wearing two label treatments; written here, they all agree.
  */
 .propertyLabel {
   color: var(--text-tertiary);
@@ -87,19 +87,37 @@
 }
 
 /*
- * The four menu triggers, shaped to sit in a group of native selects.
+ * The menu triggers, shaped to sit in a group of native selects.
  *
  * They were `variant="ghost"` with no border and no fill, so half this row looked like
  * controls and half looked like static text. `secondary` is the rule for a trigger standing
  * in a horizontal group; the border colour is pulled to the selects' own so the group has one
  * affordance rather than two hairlines a shade apart, and the inline padding matches the
- * select's text inset so the eight values line up in their columns.
+ * select's text inset so the values line up in their columns.
+ *
+ * The class is doubled, as `Input`'s `.box.plain` is. `border-color` here and `.secondary`'s
+ * in Button.module.css are both one class on the same element, so which hairline these wore
+ * was decided by which stylesheet the bundler emitted last — and when Button won, the group
+ * was back to the two shades this rule exists to collapse. Specificity, not stylesheet order.
  */
-.propertyTrigger {
+.propertyTrigger.propertyTrigger {
   justify-content: flex-start;
   min-width: 0;
   padding-inline: var(--space-2);
   border-color: var(--border-subtle);
+}
+
+/*
+ * The `V` composer: the dialog with the window given to it.
+ *
+ * Doubled for the same reason `.propertyTrigger` is — `Modal`'s own `.lg` sets `max-width`
+ * with one class, and which of the two won would otherwise be a question about emission
+ * order. The scrim keeps its padding, so this is a dialog filling the screen rather than a
+ * page pretending not to be a dialog.
+ */
+.fullScreen.fullScreen {
+  max-width: none;
+  min-height: 100%;
 }
 
 .error {

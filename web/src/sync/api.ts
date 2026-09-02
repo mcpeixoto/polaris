@@ -76,6 +76,27 @@ function readPaywall(source: Record<string, unknown> | undefined): PaywallDetail
   return Object.keys(details).length === 0 ? undefined : details;
 }
 
+/** How long a 429 asked the caller to wait, in milliseconds. */
+export interface ApiErrorDetails {
+  readonly field?: string | undefined;
+  readonly paywall?: PaywallDetails | undefined;
+  /**
+   * From the `Retry-After` header, in milliseconds.
+   *
+   * Carried on the error rather than read at the call site because the only caller that can
+   * act on it — the outbox drain — is several frames removed from the response, and a rate
+   * limit the client answers with its own guess is a rate limit the client keeps hitting.
+   */
+  readonly retryAfterMs?: number | undefined;
+  /**
+   * The per-field errors a partially successful GraphQL response carried.
+   *
+   * Present when the response was thrown away because it had no usable `data`; a response
+   * that *did* carry data is returned rather than thrown (see `gqlDetailed`).
+   */
+  readonly partial?: readonly GraphQLError[] | undefined;
+}
+
 /** A failure the UI can branch on without string-matching a message. */
 export class ApiError extends Error {
   readonly code: ErrorCode;
@@ -85,13 +106,23 @@ export class ApiError extends Error {
    * `PaywallDetails`. `features/admin/entitlements.ts` turns it into an upgrade destination.
    */
   readonly paywall?: PaywallDetails;
+  readonly retryAfterMs?: number;
+  readonly partial?: readonly GraphQLError[];
 
-  constructor(code: ErrorCode, message: string, field?: string, paywall?: PaywallDetails) {
+  constructor(
+    code: ErrorCode,
+    message: string,
+    field?: string,
+    paywall?: PaywallDetails,
+    details: ApiErrorDetails = {},
+  ) {
     super(message);
     this.name = 'ApiError';
     this.code = code;
-    this.field = field;
-    this.paywall = paywall;
+    this.field = field ?? details.field;
+    this.paywall = paywall ?? details.paywall;
+    this.retryAfterMs = details.retryAfterMs;
+    this.partial = details.partial;
   }
 
   /**
@@ -124,7 +155,25 @@ interface Session {
  */
 let session: Session | null = null;
 let workspaceId: string | null = null;
-let refreshInFlight: Promise<Session | null> | null = null;
+let refreshInFlight: Promise<RestoreResult> | null = null;
+
+/**
+ * What asking `/auth/refresh` actually answered.
+ *
+ * `refresh()` collapses all three into `Session | null`, and that collapse is a bug at exactly
+ * one call site: the boot sequence, which read `null` as "signed out" and put a password field
+ * in front of somebody whose complete replica was sitting on disk, because their train went
+ * into a tunnel. A refused credential and an unanswered question are different facts and the
+ * product does different things about them — sign in, versus open the workspace offline — so
+ * the one caller that cares is given all three.
+ */
+export type RestoreResult =
+  /** The cookie was spent for a new access token. */
+  | { kind: 'session' }
+  /** The server refused the credential. There is nothing to restore. */
+  | { kind: 'signed-out' }
+  /** The question never got an answer: no network, or the API is down. */
+  | { kind: 'unreachable' };
 
 /**
  * A note to the next page load that this browser has a refresh cookie worth spending a
@@ -236,8 +285,46 @@ function clearSession({ forgetHint = true }: { forgetHint?: boolean } = {}): voi
   for (const fn of onAuthLostCallbacks) fn();
 }
 
+/**
+ * What a status code means on its own, before anything in the body is read.
+ *
+ * The status is the one part of a failure no intermediary can omit while still being an
+ * intermediary. A body is optional, may be JSON that simply has no `error` key, and may have
+ * been written by a proxy that has never heard of this application.
+ */
+function codeForStatus(status: number): ErrorCode | undefined {
+  if (status === 401) return 'UNAUTHENTICATED';
+  if (status === 403) return 'FORBIDDEN';
+  if (status === 404) return 'NOT_FOUND';
+  if (status === 429) return 'RATELIMITED';
+  if (status === 402) return 'PLAN_LIMIT';
+  if (status === 409) return 'CONFLICT';
+  if (status === 400 || status === 422) return 'VALIDATION';
+  return undefined;
+}
+
+/**
+ * `Retry-After`, in milliseconds, in either form the header is allowed to take.
+ *
+ * Returns undefined for anything unparseable rather than guessing: a caller with no number
+ * falls back to its own backoff, which is worse than the server's answer and much better
+ * than a `NaN` timeout that fires immediately.
+ */
+export function retryAfterMs(header: string | null): number | undefined {
+  if (header === null || header.trim() === '') return undefined;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds)) return seconds >= 0 ? seconds * 1000 : undefined;
+  const at = Date.parse(header);
+  if (Number.isNaN(at)) return undefined;
+  return Math.max(0, at - Date.now());
+}
+
 async function parseError(res: Response): Promise<ApiError> {
-  let code: ErrorCode = 'INTERNAL';
+  // The status is applied first and unconditionally. Doing it in the `catch` of the JSON
+  // parse — which is where it used to live — meant a 401 whose body happened to be
+  // well-formed JSON with no `error` key kept the `INTERNAL` default, so `isAuthFailure` was
+  // false, the session was never cleared, and the user sat signed-out-but-not-signed-out.
+  let code: ErrorCode = codeForStatus(res.status) ?? 'INTERNAL';
   let message = res.statusText || 'request failed';
   let field: string | undefined;
   let paywall: PaywallDetails | undefined;
@@ -247,7 +334,11 @@ async function parseError(res: Response): Promise<ApiError> {
       error?: { code?: string; message?: string; field?: string } & Record<string, unknown>;
     };
     if (body.error) {
-      code = (body.error.code as ErrorCode) ?? code;
+      // The application's own classification refines the status when it offers one; it
+      // never gets to erase it by being absent.
+      if (typeof body.error.code === 'string' && body.error.code !== '') {
+        code = body.error.code as ErrorCode;
+      }
       message = body.error.message ?? message;
       field = body.error.field;
       // Read on every failure rather than only on a 402: the status and the code are the
@@ -256,14 +347,15 @@ async function parseError(res: Response): Promise<ApiError> {
       paywall = readPaywall(body.error);
     }
   } catch {
-    // A non-JSON body means the proxy answered, not the app. The status is all there is.
-    if (res.status === 401) code = 'UNAUTHENTICATED';
-    else if (res.status === 403) code = 'FORBIDDEN';
-    else if (res.status === 404) code = 'NOT_FOUND';
-    else if (res.status === 429) code = 'RATELIMITED';
+    // A non-JSON body means the proxy answered, not the app. The status is all there is,
+    // and it has already been read.
   }
 
-  return new ApiError(code, message, field, paywall);
+  return new ApiError(code, message, field, paywall, {
+    // Read defensively: a `Response` always has headers, and the test doubles and service
+    // workers that stand in for one do not always bother.
+    retryAfterMs: retryAfterMs(res.headers?.get('Retry-After') ?? null),
+  });
 }
 
 /** What a registration may carry besides the credentials. */
@@ -381,6 +473,21 @@ export const auth = {
    * on every use, four of them would be rejected and the user would be signed out on boot.
    */
   async refresh(): Promise<Session | null> {
+    const result = await auth.restore();
+    // Reads the module's own session rather than threading one out of `restore`: the two are
+    // written in the same tick and `Session` is deliberately not part of this module's public
+    // surface.
+    return result.kind === 'session' ? session : null;
+  },
+
+  /**
+   * The same exchange, with its answer intact.
+   *
+   * `refresh` is the ordinary form and stays the ordinary form — almost every caller only
+   * wants to know whether it now holds a token. This is for the caller that has to tell a
+   * refusal from a silence; see `RestoreResult`.
+   */
+  async restore(): Promise<RestoreResult> {
     if (refreshInFlight) return refreshInFlight;
 
     refreshInFlight = (async () => {
@@ -390,13 +497,19 @@ export const auth = {
           {},
           { skipAuth: true },
         );
-        return storeSession(body);
+        storeSession(body);
+        return { kind: 'session' } as const;
       } catch (error) {
         // Only an UNAUTHENTICATED answer proves the cookie is spent. A network error or a
         // 5xx means the question never got an answer, and the hint has to survive it.
         const credentialRefused = error instanceof ApiError && error.isAuthFailure;
         clearSession({ forgetHint: credentialRefused });
-        return null;
+        // A 5xx is grouped with a dropped connection rather than with a refusal, and
+        // deliberately: in both cases the credential was never judged, which is the only
+        // question this discriminant is asked.
+        return credentialRefused
+          ? ({ kind: 'signed-out' } as const)
+          : ({ kind: 'unreachable' } as const);
       } finally {
         refreshInFlight = null;
       }
@@ -549,6 +662,59 @@ interface RequestOptions {
   /** Set internally to stop a refresh loop. */
   isRetry?: boolean;
   signal?: AbortSignal;
+  /** Overrides `REQUEST_TIMEOUT_MS`. Zero disables the timeout entirely. */
+  timeoutMs?: number;
+}
+
+/**
+ * How long any single request may hang before it is abandoned.
+ *
+ * `fetch` has no timeout of its own: a captive portal, a dead load balancer or a proxy that
+ * accepted the connection and then stopped reading leaves the promise pending for as long as
+ * the tab lives. For a mutation that is the worst outcome available — the op is neither
+ * retried nor rolled back, and the user's edit sits in a queue nothing will ever move.
+ *
+ * Thirty seconds because it has to clear a slow mobile round trip on a large mutation
+ * without being indistinguishable from forever.
+ */
+const REQUEST_TIMEOUT_MS = 30_000;
+
+/**
+ * One signal that aborts when any of its inputs do.
+ *
+ * `AbortSignal.any` is the right tool and is not everywhere yet — Safari shipped it in 17.4,
+ * and the packaged desktop app pins its own runtime — so the fallback is written out rather
+ * than assumed. Both paths return a signal; neither returns undefined, because a request
+ * with no timeout is the bug this exists to fix.
+ */
+function combineSignals(signals: readonly AbortSignal[]): AbortSignal {
+  const live = signals.filter((s): s is AbortSignal => s !== undefined);
+  if (live.length === 1) return live[0]!;
+  const any = (AbortSignal as unknown as { any?: (s: readonly AbortSignal[]) => AbortSignal }).any;
+  if (typeof any === 'function') return any(live);
+
+  const controller = new AbortController();
+  for (const signal of live) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      break;
+    }
+    signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+  }
+  return controller.signal;
+}
+
+/**
+ * A timeout signal, without depending on `AbortSignal.timeout`.
+ *
+ * Returns the controller too, so the timer can be cleared: an uncleared 30-second timer per
+ * request keeps the callback — and everything it closes over — alive long after the response
+ * landed, which on a busy list view is thousands of them.
+ */
+function timeoutSignal(ms: number): { signal: AbortSignal; done: () => void } {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error('timeout')), ms);
+  return { signal: controller.signal, done: () => clearTimeout(timer) };
 }
 
 async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
@@ -564,6 +730,12 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   }
   if (workspaceId) headers['X-Polaris-Workspace'] = workspaceId;
 
+  const budget = opts.timeoutMs ?? REQUEST_TIMEOUT_MS;
+  const timeout = budget > 0 ? timeoutSignal(budget) : null;
+  const signals: AbortSignal[] = [];
+  if (opts.signal) signals.push(opts.signal);
+  if (timeout) signals.push(timeout.signal);
+
   let res: Response;
   try {
     res = await fetch(apiUrl(path), {
@@ -574,12 +746,25 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
       // in the desktop app, which is cross-origin to its server by construction.
       credentials: credentialsMode(),
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
-      signal: opts.signal,
+      ...(signals.length > 0 ? { signal: combineSignals(signals) } : null),
     });
   } catch (err) {
     // fetch rejects only on a network-level failure. Everything else is a status code,
     // and conflating the two is how an offline client throws away a queued mutation.
-    throw new ApiError('NETWORK', err instanceof Error ? err.message : 'network unavailable');
+    //
+    // A timeout lands here too, and lands as NETWORK deliberately: nothing was learned about
+    // the mutation, so it must stay queued rather than be rolled back off the user's screen.
+    const timedOut = timeout?.signal.aborted === true && opts.signal?.aborted !== true;
+    throw new ApiError(
+      'NETWORK',
+      timedOut
+        ? 'the server did not answer in time'
+        : err instanceof Error
+          ? err.message
+          : 'network unavailable',
+    );
+  } finally {
+    timeout?.done();
   }
 
   if (res.status === 401 && !opts.skipAuth && !opts.isRetry) {
@@ -604,8 +789,14 @@ function post<T>(path: string, body: unknown, opts: RequestOptions = {}): Promis
 }
 
 /** A GraphQL error as the server's presenter emits it. */
-interface GraphQLError {
+export interface GraphQLError {
   message: string;
+  /**
+   * Which field failed. Present on a per-field error and absent on a top-level one, and that
+   * is the whole difference between "one nullable field could not be resolved" and "this
+   * operation did not happen".
+   */
+  path?: readonly (string | number)[];
   /**
    * `code` and `field` are the contract every client branches on. A PLAN_LIMIT error also
    * carries the paywall's structure here — see `PaywallDetails` — merged in flat beside
@@ -627,25 +818,67 @@ export async function gql<T>(
   variables?: Record<string, unknown>,
   opts: { signal?: AbortSignal } = {},
 ): Promise<T> {
-  const body = await request<{ data?: T; errors?: GraphQLError[] }>('/graphql', {
+  return (await gqlDetailed<T>(query, variables, opts)).data;
+}
+
+/** What a GraphQL call actually answered with: the data, and whatever it could not resolve. */
+export interface GraphQLResult<T> {
+  readonly data: T;
+  /**
+   * Per-field failures the response carried anyway. Empty on an ordinary success.
+   *
+   * A caller that renders one of these fields can say so; a caller that does not is
+   * unaffected, which is the point of returning rather than throwing.
+   */
+  readonly errors: readonly GraphQLError[];
+}
+
+/**
+ * The same call, keeping what a partially successful response carried.
+ *
+ * The API's contract is explicit that a query "can partially succeed with HTTP 200 while
+ * returning errors for individual fields". Throwing on `errors[0]` regardless discarded a
+ * whole good result over one nullable field — and on a *mutation* it was worse than that:
+ * the engine's catch treated it as a rejection and reverted the optimistic patch for a write
+ * the server had already performed, so the user watched their own change undo itself and the
+ * replica stayed wrong until the next delta.
+ *
+ * So the rule is about what the response permits, not about whether `errors` is empty: a
+ * response with usable `data` is a result. It is thrown only when there is no data to hand
+ * back, or when an error names no `path` — a top-level failure, which is the shape an
+ * authorisation refusal or a validation error arrives in, and the shape the outbox needs to
+ * see in order to roll anything back.
+ */
+export async function gqlDetailed<T>(
+  query: string,
+  variables?: Record<string, unknown>,
+  opts: { signal?: AbortSignal } = {},
+): Promise<GraphQLResult<T>> {
+  const body = await request<{ data?: T | null; errors?: GraphQLError[] }>('/graphql', {
     method: 'POST',
     body: { query, variables },
     signal: opts.signal,
   });
 
-  if (body.errors?.length) {
-    const first = body.errors[0]!;
-    throw new ApiError(
-      (first.extensions?.code as ErrorCode) ?? 'INTERNAL',
-      first.message,
-      first.extensions?.field,
-      readPaywall(first.extensions),
-    );
-  }
-  if (body.data === undefined) {
+  const errors = body.errors ?? [];
+  const fatal = errors.find((err) => err.path === undefined || err.path.length === 0);
+  const hasData = body.data !== undefined && body.data !== null;
+
+  if (fatal || !hasData) {
+    const first = fatal ?? errors[0];
+    if (first) {
+      throw new ApiError(
+        (first.extensions?.code as ErrorCode) ?? 'INTERNAL',
+        first.message,
+        first.extensions?.field,
+        readPaywall(first.extensions),
+        { partial: errors },
+      );
+    }
     throw new ApiError('INTERNAL', 'the server returned no data');
   }
-  return body.data;
+
+  return { data: body.data as T, errors };
 }
 
 /** Exposed for the bootstrap stream, which needs the raw headers rather than JSON. */

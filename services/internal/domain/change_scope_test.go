@@ -338,10 +338,14 @@ func exerciseEveryEntityType(t *testing.T, f *testutil.Fixture, svc *domain.Serv
 	if _, _, err := svc.CreateIssueRelation(ctx, p, issue.ID, other.ID, model.RelationBlocks); err != nil {
 		t.Fatalf("issueRelation: %v", err)
 	}
-	if _, _, err := svc.CreateComment(ctx, p, domain.CreateCommentInput{
+	scopedComment, _, err := svc.CreateComment(ctx, p, domain.CreateCommentInput{
 		IssueID: issue.ID, Body: "Scoped comment",
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("comment: %v", err)
+	}
+	if _, _, err := svc.AddReaction(ctx, p, scopedComment.ID, "👍"); err != nil {
+		t.Fatalf("reaction: %v", err)
 	}
 	if _, _, err := svc.CreateAttachment(ctx, p, domain.CreateAttachmentInput{
 		IssueID: issue.ID, URL: "https://github.com/acme/app/pull/1", Title: "PR 1",

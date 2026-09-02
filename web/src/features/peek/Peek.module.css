@@ -50,15 +50,34 @@
   animation: peekOut var(--duration-instant) var(--ease-in) forwards;
 }
 
+/*
+ * The identifier over the title, with the close control beside both.
+ *
+ * A grid rather than the column it was, because the button is a sibling of two stacked lines
+ * and not a third line under them: it belongs at the top-right corner of the header, where
+ * every other dismissable surface in the product puts it.
+ */
 .header {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0 var(--space-2);
   margin-bottom: var(--space-3);
+}
+
+.identifier,
+.title {
+  grid-column: 1;
+}
+
+.close {
+  grid-column: 2;
+  grid-row: 1 / span 2;
 }
 
 .identifier {
   color: var(--text-tertiary);
+  margin-bottom: var(--space-1);
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
 }

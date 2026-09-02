@@ -4,6 +4,20 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  animation: pageEnter var(--duration-normal) var(--ease-out);
+}
+
+/* Reduced motion is answered at the token: --duration-normal collapses to 1ms. */
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* The header, the title and the status chip used to live here. They are `InitiativeShell`'s
@@ -77,13 +91,66 @@
   padding: 0;
 }
 
+/*
+  * Status · name · health · lead · target · progress · action.
+  *
+  * A grid rather than a flex row, because the columns have to line up down the list: a
+  * lead's name is what the eye scans for, and a flex row puts it wherever the project name
+  * happens to end.
+  */
 .projectRow {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 10ch 14ch 9ch 10ch auto;
   align-items: center;
   gap: var(--space-2);
   min-height: var(--row-height);
   padding-inline: var(--space-2);
   border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--font-size-sm);
+}
+
+.projectHealth,
+.projectTarget {
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projectLead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projectProgress {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.projectMuted {
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .projectRow {
+    grid-template-columns: auto minmax(0, 1fr) 10ch 10ch auto;
+  }
+
+  .projectLead,
+  .projectTarget {
+    display: none;
+  }
 }
 
 .projectLink {
@@ -201,8 +268,8 @@
   margin: 0;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
-  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
-  color: var(--priority-urgent);
+  background-color: color-mix(in srgb, var(--text-danger) 12%, transparent);
+  color: var(--text-danger);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }

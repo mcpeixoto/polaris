@@ -3,6 +3,21 @@
   flex-direction: row;
   flex: 1;
   min-height: 0;
+  animation: pageEnter var(--duration-normal) var(--ease-out);
+}
+
+/* The duration tokens collapse to 1ms under prefers-reduced-motion, so the entrance still
+   happens for a reader who has asked for no movement — it simply does not travel. */
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .main {
@@ -11,4 +26,64 @@
   flex: 1;
   min-width: 0;
   min-height: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  height: var(--header-height);
+  padding-inline: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  letter-spacing: -0.014em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.window {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+
+/* Pushes the switcher and the menu to the end of the bar; the facts about the cycle stay
+   together at the start where the name is. */
+.progress {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-inline-start: auto;
+}
+
+.ratio {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-inline-start: auto;
+}
+
+/* When progress has already claimed the gap, the switcher sits directly beside it. */
+.progress + .switcher {
+  margin-inline-start: 0;
+}
+
+.loading {
+  flex: 1;
+  padding: var(--space-4);
 }

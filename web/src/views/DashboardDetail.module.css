@@ -4,6 +4,20 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
+  animation: pageEnter var(--duration-normal) var(--ease-out);
+}
+
+/* Reduced motion is answered at the token: --duration-normal collapses to 1ms, which is
+ * imperceptible and still fires whatever is listening for the end. */
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .header {
@@ -35,12 +49,14 @@
   white-space: nowrap;
 }
 
+/* Tertiary is only legible on --bg-primary; this chip paints its own --bg-secondary, so
+ * the text on it takes the secondary step. Same reason for the tile below. */
 .scope {
   flex: none;
   padding: 1px var(--space-2);
   border-radius: var(--radius-sm);
   background: var(--bg-secondary);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-xs);
 }
 
@@ -89,7 +105,7 @@
 }
 
 .tileTotal {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-xs);
   white-space: nowrap;
 }
@@ -133,7 +149,7 @@
 }
 
 .table th {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-weight: var(--font-weight-medium);
 }
 
@@ -147,7 +163,19 @@
 
 .empty {
   margin: 0;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+}
+
+/* Where a refused write says so. Sits inside the tile it belongs to, rather than at the top
+ * of a page whose tiles all look identical. */
+.error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: color-mix(in srgb, var(--text-danger) 12%, transparent);
+  color: var(--text-danger);
+  font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }

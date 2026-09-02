@@ -17,6 +17,7 @@ import { Link, useParams } from 'react-router';
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
 import {
+  Avatar,
   Button,
   Input,
   LabelChip,
@@ -44,6 +45,16 @@ import {
 import { InitiativeLabelPicker } from '~/features/initiative-labels/InitiativeLabelPicker';
 import { createInitiativeUpdate } from '~/features/initiative-updates/mutations';
 import { latestInitiativeUpdate } from '~/features/initiative-updates/helpers';
+import { InitiativeGraph } from '~/features/initiatives/InitiativeGraph';
+import { ProgressBar } from '~/features/initiatives/ProgressBar';
+import {
+  initiativeProgress,
+  listInitiativeProjectRows,
+  type InitiativeProjectRow,
+} from '~/features/initiatives/progress';
+import { PROJECT_STATUS_ICON } from '~/features/projects/statusCategories';
+import { personName } from '~/features/prefs/prefs';
+import { exact, when, whenDay } from '~/features/time';
 import { HealthDot, ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
 import { report } from '~/features/issue/mutations';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -52,12 +63,6 @@ import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { InitiativeLabel, InitiativeStatus, ProjectUpdateHealth, Store, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import styles from './InitiativeDetail.module.css';
-
-interface ProjectLinkRow {
-  readonly linkId: UUID;
-  readonly projectId: UUID;
-  readonly name: string;
-}
 
 interface ChildRow {
   readonly id: UUID;
@@ -83,6 +88,8 @@ export function InitiativeDetail() {
   const viewerId = useViewerId();
   const { initiativeId = '' } = useParams<{ initiativeId: string }>();
   const [editing, setEditing] = useState(false);
+  const [name, setName] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [chosenProject, setChosenProject] = useState('');
@@ -132,8 +139,13 @@ export function InitiativeDetail() {
   );
 
   const latestAuthor = useLiveQuery(
-    (store) =>
-      latest === undefined ? null : (store.users.get(latest.authorId)?.displayName ?? null),
+    (store) => {
+      if (latest === undefined) return null;
+      const author = store.users.get(latest.authorId);
+      // `personName` rather than `.displayName`: the "full names" preference is one answer
+      // for the whole product, and this screen and the list beside it disagreed on it.
+      return author === undefined ? null : personName(author);
+    },
     ['user', 'initiativeUpdate'],
     [initiativeId, latest?.authorId ?? ''],
   );
@@ -142,7 +154,7 @@ export function InitiativeDetail() {
     (store) =>
       [...store.users.values()]
         .filter((user) => user.archivedAt === undefined && user.status === 'active')
-        .map((user) => ({ id: user.id, name: user.displayName }))
+        .map((user) => ({ id: user.id, name: personName(user) }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     ['user'],
   );
@@ -157,8 +169,23 @@ export function InitiativeDetail() {
   );
 
   const projects = useLiveQuery(
-    (store) => (initiative === null ? [] : listProjects(store, initiative.id)),
-    ['initiative', 'initiativeProject', 'project'],
+    (store) => listInitiativeProjectRows(store, initiativeId),
+    [
+      'initiative',
+      'initiativeProject',
+      'initiativeRelation',
+      'issue',
+      'project',
+      'projectStatus',
+      'projectUpdate',
+      'user',
+    ],
+    [initiativeId],
+  );
+
+  const progress = useLiveQuery(
+    (store) => initiativeProgress(store, initiativeId),
+    ['initiative', 'initiativeProject', 'initiativeRelation', 'issue', 'project'],
     [initiativeId],
   );
 
@@ -331,16 +358,31 @@ export function InitiativeDetail() {
     }
   };
 
+  const nameValue = name ?? initiative.name;
+
   return (
     <div className={styles.screen}>
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Progress</h2>
+        <ProgressBar progress={progress} label={initiative.name} />
+        <p className={styles.muted}>
+          {progress.total === 0
+            ? 'No issues in the linked projects yet.'
+            : `${progress.completed} of ${progress.total} issues completed across ${
+                projects.length === 1 ? '1 project' : `${projects.length} projects`
+              }.`}
+        </p>
+        <InitiativeGraph initiativeId={initiative.id} />
+      </section>
+
       {latest !== undefined && (
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Latest update</h2>
           <div className={styles.latestMeta}>
             <ProjectHealthBadge health={latest.health} />
             {latestAuthor !== null && (
-              <span className={styles.metaText}>
-                {latestAuthor} · {formatWhen(latest.createdAt)}
+              <span className={styles.metaText} title={exact(latest.createdAt)}>
+                {latestAuthor} · {when(latest.createdAt)}
               </span>
             )}
           </div>
@@ -392,18 +434,35 @@ export function InitiativeDetail() {
           Properties
         </h2>
         <p className={styles.muted}>
-          Writes land as you leave a field. There is no Save — status and owner are independent
-          decisions.
+          Every property here saves on its own; the name saves when you leave the field.
         </p>
         <div className={styles.properties}>
+          {/*
+            Controlled, and an empty blur is an error rather than a silent discard. It used
+            to be uncontrolled with a key on the stored name: clearing the box and leaving it
+            saved nothing and did not change the key either, so the field stayed empty while
+            the header two rows up went on showing the real name. The message is the one
+            `CreateInitiativeModal` uses, because it is the same rule.
+          */}
           <Input
             label="Name"
-            defaultValue={initiative.name}
-            key={`name:${initiative.name}`}
-            onBlur={(event) => {
-              const name = event.target.value.trim();
-              if (name === '' || name === initiative.name) return;
-              save({ name });
+            value={nameValue}
+            error={nameError ?? undefined}
+            onChange={(event) => {
+              setName(event.target.value);
+              if (event.target.value.trim() !== '') setNameError(null);
+            }}
+            onBlur={() => {
+              const trimmed = nameValue.trim();
+              if (trimmed === '') {
+                setNameError('An initiative needs a name');
+                return;
+              }
+              setNameError(null);
+              // Back to the stored value, which the write has already updated: a draft left
+              // behind here would go on winning over a rename arriving from someone else.
+              setName(null);
+              if (trimmed !== initiative.name) save({ name: trimmed });
             }}
           />
           <Select
@@ -604,14 +663,11 @@ export function InitiativeDetail() {
         ) : (
           <ul className={styles.projectList}>
             {projects.map((row) => (
-              <li key={row.linkId} className={styles.projectRow}>
-                <Link to={`/project/${row.projectId}`} className={styles.projectLink}>
-                  {row.name}
-                </Link>
-                <Button variant="ghost" onClick={() => void onRemoveProject(row.projectId)}>
-                  Remove
-                </Button>
-              </li>
+              <ProjectRow
+                key={row.projectId}
+                row={row}
+                onRemove={() => void onRemoveProject(row.projectId)}
+              />
             ))}
           </ul>
         )}
@@ -655,26 +711,60 @@ function refusal(failure: unknown, fallback: string): string {
   return failure instanceof ApiError ? failure.message : fallback;
 }
 
-function formatWhen(iso: string): string {
-  const date = new Date(iso);
-  return date.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
-function listProjects(store: Store, initiativeId: UUID): readonly ProjectLinkRow[] {
-  const rows: ProjectLinkRow[] = [];
-  for (const linkId of store.initiativeProjectIdsFor(initiativeId)) {
-    const link = store.initiativeProjects.get(linkId);
-    if (link === undefined) continue;
-    const project = store.projects.get(link.projectId);
-    if (project === undefined || project.archivedAt !== undefined) continue;
-    rows.push({ linkId, projectId: project.id, name: project.name });
-  }
-  return rows.sort((a, b) => a.name.localeCompare(b.name));
+/**
+ * One contributing project: what it is, who has it, and how far along it is.
+ *
+ * The section used to be a list of names with a Remove button each, which said nothing the
+ * initiative is actually tracked on — and it walked only the direct links while the health
+ * strip on the list screen walked descendants, so the same initiative reported two different
+ * project counts. Both read `listInitiativeProjectRows` now.
+ */
+function ProjectRow({ row, onRemove }: { row: InitiativeProjectRow; onRemove: () => void }) {
+  return (
+    <li className={styles.projectRow}>
+      <StateIcon category={PROJECT_STATUS_ICON[row.statusCategory]} label={row.statusName} />
+      <Link to={`/project/${row.projectId}`} className={styles.projectLink}>
+        {row.name}
+      </Link>
+      <span className={styles.projectHealth}>
+        {row.health === null ? (
+          <span className={styles.projectMuted}>No update</span>
+        ) : (
+          <ProjectHealthBadge health={row.health} compact />
+        )}
+      </span>
+      <span className={styles.projectLead}>
+        {row.leadName === null ? (
+          <span className={styles.projectMuted}>No lead</span>
+        ) : (
+          <>
+            <Avatar name={row.leadName} size="xs" colorKey={row.leadId} decorative />
+            {row.leadName}
+          </>
+        )}
+      </span>
+      <span className={styles.projectTarget}>
+        {row.targetDate === undefined ? (
+          <span className={styles.projectMuted}>No target</span>
+        ) : (
+          whenDay(row.targetDate)
+        )}
+      </span>
+      <span className={styles.projectProgress}>
+        <ProgressBar progress={row.progress} label={row.name} compact />
+      </span>
+      {row.direct ? (
+        <Button variant="ghost" onClick={onRemove}>
+          Remove
+        </Button>
+      ) : (
+        // Inherited from a sub-initiative. Removing it here would have to reach into the
+        // initiative that owns the link, which is not what a button on this row looks like
+        // it does — so this row says where the project comes from instead.
+        <span className={styles.projectMuted}>Via a sub-initiative</span>
+      )}
+    </li>
+  );
 }
 
 function listChildren(store: Store, initiativeId: UUID): readonly ChildRow[] {

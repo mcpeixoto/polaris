@@ -40,3 +40,20 @@
   gap: var(--space-1);
   margin-left: auto;
 }
+
+/* The feed settles in rather than snapping. The duration tokens collapse to 1ms under
+   prefers-reduced-motion, which is this rule's reduced-motion answer. */
+.enter {
+  animation: pageEnter var(--duration-normal) var(--ease-out);
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

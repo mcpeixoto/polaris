@@ -146,3 +146,25 @@
   font-size: var(--font-size-xs);
   line-height: var(--line-height-normal);
 }
+
+/*
+ * Reduced motion: opacity alone, on both halves.
+ *
+ * Redefining the keyframes rather than dropping the animation, so the exit still takes the
+ * time `usePresence` is holding the panel on screen for and still ends on `forwards` — a
+ * panel that vanished the instant Escape was pressed and a panel that reappeared at full
+ * opacity for its last frame are both worse than a fade nobody asked to be moved by.
+ */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes panelIn {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes panelOut {
+    to {
+      opacity: 0;
+    }
+  }
+}

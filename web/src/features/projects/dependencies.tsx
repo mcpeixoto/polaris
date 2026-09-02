@@ -29,9 +29,19 @@ interface ProjectDependenciesProps {
   readonly projectId: UUID;
   /** Sidebar uses a tighter layout; overview shows the add controls inline. */
   readonly compact?: boolean;
+  /**
+   * Draw the add controls, whatever the layout. The compact panel is now the only copy on
+   * the project screen — the overview drew a second one — so the sidebar has to offer the
+   * buttons it used to leave to the copy below it. Defaults to the layout's own answer.
+   */
+  readonly addable?: boolean;
 }
 
-export function ProjectDependencies({ projectId, compact = false }: ProjectDependenciesProps) {
+export function ProjectDependencies({
+  projectId,
+  compact = false,
+  addable,
+}: ProjectDependenciesProps) {
   const engine = useEngine();
   const [pickerKind, setPickerKind] = useState<LinkKind | null>(null);
   const blockedByTrigger = useRef<HTMLButtonElement>(null);
@@ -122,12 +132,13 @@ export function ProjectDependencies({ projectId, compact = false }: ProjectDepen
     removeProjectDependency(engine, depId).catch(report);
   };
 
-  // The compact panel draws no add buttons, so on the copy that owns the two commands there
-  // is no button to hang the picker off. A menu with no anchor is not positioned at all: it
-  // keeps the stylesheet's `top: 0; left: 0` and opens in the corner of the window, nowhere
-  // near the project whose dependencies it is about to change. The section heading is the
-  // thing that is always there, so it is what the picker points at.
-  const pickerTrigger: RefObject<HTMLElement | null> = compact
+  // A panel that draws no add buttons has no button to hang the picker off. A menu with no
+  // anchor is not positioned at all: it keeps the stylesheet's `top: 0; left: 0` and opens
+  // in the corner of the window, nowhere near the project whose dependencies it is about to
+  // change. The section heading is the thing that is always there, so it is what the picker
+  // points at instead.
+  const showAdd = addable ?? !compact;
+  const pickerTrigger: RefObject<HTMLElement | null> = !showAdd
     ? pickerKind === 'blocking'
       ? blockingHead
       : blockedByHead
@@ -146,7 +157,7 @@ export function ProjectDependencies({ projectId, compact = false }: ProjectDepen
         addRef={blockedByTrigger}
         headRef={blockedByHead}
         onAdd={() => setPickerKind('blockedBy')}
-        showAdd={!compact}
+        showAdd={showAdd}
       />
       <DependencySection
         title="Blocking"
@@ -157,7 +168,7 @@ export function ProjectDependencies({ projectId, compact = false }: ProjectDepen
         addRef={blockingTrigger}
         headRef={blockingHead}
         onAdd={() => setPickerKind('blocking')}
-        showAdd={!compact}
+        showAdd={showAdd}
       />
       <ProjectPicker
         open={pickerKind !== null}

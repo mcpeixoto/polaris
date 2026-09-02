@@ -5,13 +5,16 @@
  * same bearer API key (or OAuth token) every other integration uses, which is how Jules and
  * any client that can set a header already talk to Linear. This page exists so that hop is
  * written down next to the keys, not in a README somebody has to find.
+ *
+ * Every value on it is copied rather than read, so each one gets a `CopyButton` — the shared
+ * one, not the local `copyText(…).then(ok => ok && setCopied(…))` this file used to carry,
+ * which did nothing at all on the insecure origins where the clipboard is refused and renamed
+ * its own button "Copied" for the rest of the session.
  */
 
-import { useState } from 'react';
 import { Link } from 'react-router';
 
-import { Button } from '~/components';
-import { copyText } from '~/features/github/copy';
+import { CopyButton, SettingsPage, SettingsSection } from '~/components';
 
 import styles from './McpSettings.module.css';
 
@@ -20,60 +23,60 @@ export function McpSettings() {
   const mcpUrl = `${origin}/mcp`;
   const readonlyUrl = `${origin}/mcp/readonly`;
   const claude = `claude mcp add --transport http polaris ${mcpUrl}`;
-  const [copied, setCopied] = useState<string | null>(null);
-
-  const copy = (label: string, value: string) => {
-    void copyText(value).then((ok) => {
-      if (ok) setCopied(label);
-    });
-  };
 
   return (
-    <div className={styles.screen}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>MCP</h1>
-      </header>
+    <SettingsPage title="MCP">
+      <SettingsSection
+        title="Connect a client"
+        description="Polaris speaks Streamable HTTP MCP. Create a personal API key, then send it as an Authorization: Bearer header. The read-only URL never exposes write tools."
+      >
+        <p className={styles.note}>
+          <Link className={styles.link} to="/settings/api-keys">
+            Create an API key
+          </Link>
+        </p>
+      </SettingsSection>
 
-      <div className={styles.body}>
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>Connect a client</h2>
-          <p className={styles.sectionNote}>
-            Polaris speaks Streamable HTTP MCP. Create a personal API key, then send it as{' '}
-            <code>Authorization: Bearer</code>. The read-only URL never exposes write tools.
-          </p>
-          <p className={styles.sectionNote}>
-            <Link className={styles.link} to="/settings/api-keys">
-              Create an API key
-            </Link>
-          </p>
-        </section>
+      <SettingsSection title="Endpoints">
+        <Endpoint label="Read and write" value={mcpUrl} copyLabel="Copy URL" />
+        <Endpoint label="Read only" value={readonlyUrl} copyLabel="Copy URL" />
+      </SettingsSection>
 
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>Endpoints</h2>
-          <p className={styles.sectionNote}>Read and write</p>
-          <pre className={styles.code}>{mcpUrl}</pre>
-          <Button variant="ghost" size="sm" onClick={() => copy('mcp', mcpUrl)}>
-            {copied === 'mcp' ? 'Copied' : 'Copy URL'}
-          </Button>
-          <p className={styles.sectionNote}>Read only</p>
-          <pre className={styles.code}>{readonlyUrl}</pre>
-          <Button variant="ghost" size="sm" onClick={() => copy('readonly', readonlyUrl)}>
-            {copied === 'readonly' ? 'Copied' : 'Copy URL'}
-          </Button>
-        </section>
+      <SettingsSection
+        title="Claude Code"
+        description="Then set the Authorization header to your API key in the client’s MCP config. OAuth sign-in from the client is not wired yet."
+        flush
+      >
+        <Endpoint label="Add the server" value={claude} copyLabel="Copy command" />
+      </SettingsSection>
+    </SettingsPage>
+  );
+}
 
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>Claude Code</h2>
-          <p className={styles.sectionNote}>
-            Then set the Authorization header to your API key in the client’s MCP config. OAuth
-            sign-in from the client is not wired yet.
-          </p>
-          <pre className={styles.code}>{claude}</pre>
-          <Button variant="ghost" size="sm" onClick={() => copy('claude', claude)}>
-            {copied === 'claude' ? 'Copied' : 'Copy command'}
-          </Button>
-        </section>
-      </div>
+interface EndpointProps {
+  label: string;
+  value: string;
+  copyLabel: string;
+}
+
+/**
+ * One copyable line: what it is, the literal value, and the button.
+ *
+ * The button's accessible name names the row rather than repeating "Copy URL" three times —
+ * a list of identically-named controls names nothing, and this page has three of them.
+ */
+function Endpoint({ label, value, copyLabel }: EndpointProps) {
+  return (
+    <div className={styles.endpoint}>
+      <p className={styles.note}>{label}</p>
+      <pre className={styles.code}>{value}</pre>
+      <CopyButton
+        value={value}
+        label={copyLabel}
+        ariaLabel={`${copyLabel} — ${label}`}
+        variant="ghost"
+        size="sm"
+      />
     </div>
   );
 }

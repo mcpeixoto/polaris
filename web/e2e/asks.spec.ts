@@ -123,6 +123,7 @@ test('a deleted form tells the requester the link is retired', async ({
     .first()
     .getByRole('button', { name: 'Delete' })
     .click();
+  await page.getByRole('button', { name: 'Delete this form' }).click();
   await expect(page.locator('li', { hasText: 'Doomed form' })).toHaveCount(0);
 
   // The row goes optimistically; the link dies when the mutation lands. Poll for that

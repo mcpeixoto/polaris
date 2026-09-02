@@ -242,3 +242,20 @@
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
 }
+
+/* The page settles in rather than snapping. The duration tokens collapse to 1ms under
+   prefers-reduced-motion, so this is the reduced-motion answer as well. */
+.enter {
+  animation: pageEnter var(--duration-normal) var(--ease-out);
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

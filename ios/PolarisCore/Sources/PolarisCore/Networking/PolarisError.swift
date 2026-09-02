@@ -57,6 +57,16 @@ public enum PolarisError: Error, Equatable, Sendable {
         }
     }
 
+    /// Anything thrown by the API layer, as the one error type a screen understands.
+    ///
+    /// Every store had its own `(error as? PolarisError) ?? .badResponse` before this; the
+    /// duplication is how one of them ended up mapping a refused read to `.notFound`.
+    public static func mapped(_ error: any Error) -> PolarisError {
+        if let polaris = error as? PolarisError { return polaris }
+        if let urlError = error as? URLError { return .from(urlError: urlError) }
+        return .badResponse
+    }
+
     static func from(urlError: URLError) -> PolarisError {
         switch urlError.code {
         case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed:

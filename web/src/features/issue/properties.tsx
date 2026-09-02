@@ -373,9 +373,17 @@ export function DueDatePicker({
   // edits the day rather than retyping the year. Cleared once the panel has left rather than
   // on opening, so it is never rendered for a frame holding the previous issue's date — and
   // never emptied under the user's eyes while it is still fading out.
+  //
+  // Seeded on the false→true edge of `open` and not on every change to `value`, because the
+  // date can move underneath somebody who is typing one: another client's edit, an SLA
+  // evaluation, or this client's own delta echoing back. Depending on `value` meant any of
+  // those overwrote a half-typed day with the stored one, which is the picker deciding it
+  // knows better than the person using it.
+  const wasOpen = useRef(false);
   useEffect(() => {
     if (!present) setDraft('');
-    else if (open) setDraft(value ?? '');
+    else if (open && !wasOpen.current) setDraft(value ?? '');
+    wasOpen.current = open;
   }, [open, present, value]);
 
   useLayoutEffect(() => {

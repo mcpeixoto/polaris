@@ -1,10 +1,12 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 
 import { EngineProvider } from '~/app/context';
 import { KeymapProvider } from '~/app/keymap';
 import { Store, type Change, type Issue, type Team } from '~/store';
+import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
 import { Links } from './Links';
@@ -108,5 +110,38 @@ describe('Links', () => {
     expect(screen.getByRole('heading', { name: 'Links' })).toBeTruthy();
     const link = screen.getByRole('link', { name: /PR 4/ });
     expect(link.getAttribute('href')).toBe('https://github.com/acme/app/pull/4');
+  });
+});
+
+/**
+ * The server refuses a URL it cannot parse and one over 2048 characters, and the optimistic
+ * card is rolled back either way — so before this the person who pasted it watched their link
+ * appear and then vanish, with the reason in a console nobody had open.
+ */
+describe('Links, when the server will not take one', () => {
+  it('says why, and puts the URL back in the box', async () => {
+    const store = seeded();
+    const mutate = vi.fn(async () => {
+      throw new ApiError('VALIDATION', 'that is not a URL');
+    });
+    const engine = { store, mutate } as unknown as SyncEngine;
+    render(
+      <MemoryRouter>
+        <KeymapProvider>
+          <EngineProvider engine={engine} status={{ phase: 'idle' }}>
+            <Links issueId="i1" />
+          </EngineProvider>
+        </KeymapProvider>
+      </MemoryRouter>,
+    );
+
+    const user = userEvent.setup();
+    await user.type(screen.getByPlaceholderText('Paste a URL'), 'not a url');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe('that is not a URL');
+    expect((screen.getByPlaceholderText('Paste a URL') as HTMLInputElement).value).toBe(
+      'not a url',
+    );
   });
 });

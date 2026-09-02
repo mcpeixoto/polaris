@@ -16,6 +16,7 @@ import {
   type Team,
   type WorkflowState,
 } from '~/store';
+import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
 import { Relations, SubIssues } from './relations';
@@ -473,5 +474,127 @@ describe('Relations', () => {
 
     expect(screen.getByText('Nothing linked to this one.')).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Blocked by' })).toBeNull();
+  });
+});
+
+/**
+ * Everything below is about the two things these panels did with a decision the server had
+ * already made: they threw a refusal at the console and rolled the row back, and they wrote a
+ * duplicate relation while leaving the issue open in every list it was in.
+ */
+describe('Relations, when the write is refused or means more than a row', () => {
+  const HERE = 'issue-here';
+  const THERE = 'issue-there';
+  const DUPLICATE_STATE = 's-duplicate';
+
+  function refusing(store: Store, error: ApiError) {
+    const mutate = vi.fn(async () => {
+      throw error;
+    });
+    return { mutate, engine: { store, mutate } as unknown as SyncEngine };
+  }
+
+  function mountWith(
+    store: Store,
+    children: ReactNode,
+    engine: { mutate: ReturnType<typeof vi.fn>; engine: SyncEngine },
+  ) {
+    render(
+      <MemoryRouter>
+        <KeymapProvider>
+          <EngineProvider engine={engine.engine} status={{ phase: 'idle' }}>
+            {children}
+          </EngineProvider>
+        </KeymapProvider>
+      </MemoryRouter>,
+    );
+    return { store, mutate: engine.mutate, user: userEvent.setup() };
+  }
+
+  const PAIR: Seed = [
+    ...BASE,
+    ['issue', issue(HERE, 1, 'Ship the importer')],
+    ['issue', issue(THERE, 2, 'Fix the flake')],
+  ];
+
+  it('closes the issue as a duplicate as well as writing the relation', async () => {
+    // The team's reserved Duplicate status: system-managed, one per team, and hidden by
+    // `StatusPicker` on purpose.
+    const duplicateState: WorkflowState = {
+      ...state(DUPLICATE_STATE, 'Duplicate', 'duplicate'),
+      isSystem: true,
+    };
+    const store = seeded([...PAIR, ['workflowState', duplicateState]]);
+    const { user, mutate } = mount(store, <Relations issueId={HERE} />);
+
+    await user.click(screen.getByRole('button', { name: 'Add link' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Link type' }), 'duplicateOf');
+    await user.type(screen.getByRole('textbox', { name: 'Search issues' }), 'ENG-2');
+    await user.click(screen.getByRole('button', { name: /ENG-2/ }));
+
+    // Two writes, in order: the link, then the status. `StatusPicker` hides the system
+    // Duplicate state on purpose, so this is the only route the client has to it — a
+    // duplicate that stayed open was one nobody could close through the product.
+    const calls = mutate.mock.calls.map(
+      ([request]) => (request as { variables: unknown }).variables,
+    );
+    expect(calls[0]).toEqual({ issueId: HERE, relatedIssueId: THERE, type: 'DUPLICATE' });
+    expect(calls[1]).toMatchObject({ input: { id: HERE, stateId: DUPLICATE_STATE } });
+  });
+
+  it('still writes the link when the team’s Duplicate status is not in the replica', async () => {
+    const { user, mutate } = mount(seeded(PAIR), <Relations issueId={HERE} />);
+
+    await user.click(screen.getByRole('button', { name: 'Add link' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Link type' }), 'duplicateOf');
+    await user.type(screen.getByRole('textbox', { name: 'Search issues' }), 'ENG-2');
+    await user.click(screen.getByRole('button', { name: /ENG-2/ }));
+
+    // The relation is the write that matters and it is not gated on a status this replica
+    // may simply not have received yet.
+    expect(mutate).toHaveBeenCalledTimes(1);
+  });
+
+  it('says why a link was refused, and gives the search box back', async () => {
+    const store = seeded(PAIR);
+    const refused = refusing(store, new ApiError('VALIDATION', 'these two are already linked'));
+    const { user } = mountWith(store, <Relations issueId={HERE} />, refused);
+
+    await user.click(screen.getByRole('button', { name: 'Add link' }));
+    await user.type(screen.getByRole('textbox', { name: 'Search issues' }), 'ENG-2');
+    await user.click(screen.getByRole('button', { name: /ENG-2/ }));
+
+    // The optimistic row is rolled back either way. What used to happen as well is that the
+    // reason went to the console and the form closed, so the link appeared and then left.
+    expect((await screen.findByRole('alert')).textContent).toBe('these two are already linked');
+    expect((screen.getByRole('textbox', { name: 'Search issues' }) as HTMLInputElement).value).toBe(
+      'ENG-2',
+    );
+  });
+
+  it('says why a sub-issue was refused, and gives the title back', async () => {
+    const store = seeded([...BASE, ['issue', issue(HERE, 1, 'Ship the importer')]]);
+    const refused = refusing(store, new ApiError('VALIDATION', 'that title is too long'));
+    const { user } = mountWith(
+      store,
+      <SubIssues issueId={HERE} teamId={ENG} onDetach={vi.fn()} />,
+      refused,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add sub-issue' }));
+    await user.type(screen.getByRole('textbox', { name: 'Sub-issue title' }), 'Parse the CSV');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe('that title is too long');
+    expect(
+      (screen.getByRole('textbox', { name: 'Sub-issue title' }) as HTMLInputElement).value,
+    ).toBe('Parse the CSV');
+  });
+
+  it('titles the panel Relations, so it is not a second “Links” beside the attachments', () => {
+    mount(seeded(PAIR), <Relations issueId={HERE} />);
+
+    expect(screen.getByRole('heading', { name: 'Relations' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Links' })).toBeNull();
   });
 });

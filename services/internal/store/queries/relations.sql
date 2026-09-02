@@ -54,25 +54,39 @@ ORDER BY created_at;
 -- change row, because a link is a fact about two issues and hiding it from one side would
 -- leave the two teams disagreeing about whether it exists.
 --
+-- Both join their far end and exclude archived and deleted issues, which they did not.
+-- ListLiveIssueRelationsForIssue below has always applied exactly these predicates, and the
+-- comment there says why it must: a relation whose far end is in the trash is in no
+-- bootstrap snapshot, so a client that has one is holding a chip nobody can open. These are
+-- the batched reads the issue-detail screen actually uses, and they were showing them.
+--
 -- name: ListIssueRelationsForIssues :many
-SELECT id, workspace_id, issue_id, related_issue_id, type, team_id, related_team_id,
-       created_by, created_at
-FROM issue_relation
-WHERE issue_id = ANY(sqlc.arg(issue_ids)::uuid[])
-  AND workspace_id = sqlc.arg(workspace_id)
-  AND (team_id = ANY(sqlc.arg(team_ids)::uuid[])
-       OR related_team_id = ANY(sqlc.arg(team_ids)::uuid[]))
-ORDER BY issue_id, created_at;
+SELECT r.id, r.workspace_id, r.issue_id, r.related_issue_id, r.type, r.team_id,
+       r.related_team_id, r.created_by, r.created_at
+FROM issue_relation r
+JOIN issue a ON a.id = r.issue_id
+JOIN issue b ON b.id = r.related_issue_id
+WHERE r.issue_id = ANY(sqlc.arg(issue_ids)::uuid[])
+  AND r.workspace_id = sqlc.arg(workspace_id)
+  AND (r.team_id = ANY(sqlc.arg(team_ids)::uuid[])
+       OR r.related_team_id = ANY(sqlc.arg(team_ids)::uuid[]))
+  AND a.archived_at IS NULL AND a.deleted_at IS NULL
+  AND b.archived_at IS NULL AND b.deleted_at IS NULL
+ORDER BY r.issue_id, r.created_at;
 
 -- name: ListReverseIssueRelationsForIssues :many
-SELECT id, workspace_id, issue_id, related_issue_id, type, team_id, related_team_id,
-       created_by, created_at
-FROM issue_relation
-WHERE related_issue_id = ANY(sqlc.arg(issue_ids)::uuid[])
-  AND workspace_id = sqlc.arg(workspace_id)
-  AND (team_id = ANY(sqlc.arg(team_ids)::uuid[])
-       OR related_team_id = ANY(sqlc.arg(team_ids)::uuid[]))
-ORDER BY related_issue_id, created_at;
+SELECT r.id, r.workspace_id, r.issue_id, r.related_issue_id, r.type, r.team_id,
+       r.related_team_id, r.created_by, r.created_at
+FROM issue_relation r
+JOIN issue a ON a.id = r.issue_id
+JOIN issue b ON b.id = r.related_issue_id
+WHERE r.related_issue_id = ANY(sqlc.arg(issue_ids)::uuid[])
+  AND r.workspace_id = sqlc.arg(workspace_id)
+  AND (r.team_id = ANY(sqlc.arg(team_ids)::uuid[])
+       OR r.related_team_id = ANY(sqlc.arg(team_ids)::uuid[]))
+  AND a.archived_at IS NULL AND a.deleted_at IS NULL
+  AND b.archived_at IS NULL AND b.deleted_at IS NULL
+ORDER BY r.related_issue_id, r.created_at;
 
 -- StreamIssueRelationsForBootstrap ships a relation when the caller can see either end,
 -- which is the same rule the hub applies to a live change. Both issues are joined so a

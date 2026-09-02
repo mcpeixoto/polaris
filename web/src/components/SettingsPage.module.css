@@ -1,0 +1,76 @@
+/*
+ * One settings frame, so the thirty screens that compose from it differ in content and
+ * never in chrome. Every measurement here is the single answer to a question that used to
+ * have six: the measure, the horizontal padding, the title size, the section header size.
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  height: var(--header-height);
+  padding-inline: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-6) var(--space-8);
+  /* Read as prose. Past about this width a control drifts so far from its label that the
+     pairing stops being obvious. */
+  max-width: 86ch;
+}
+
+/* Tables with more columns than prose has width. A named variant, so a page that needs the
+   room asks for it rather than inventing another `ch` value of its own. */
+.wide {
+  max-width: 130ch;
+}
+
+.description {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/*
+ * The page-level failure. --text-danger is the semantic role; it exists so error red and
+ * priority red can be re-themed independently.
+ */
+.error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: color-mix(in srgb, var(--text-danger) 12%, transparent);
+  color: var(--text-danger);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}

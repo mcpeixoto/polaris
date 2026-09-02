@@ -3,6 +3,22 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  animation: pageEnter var(--duration-normal) var(--ease-out);
+}
+
+/* Four pixels and an opacity ramp: enough to say the screen arrived, not enough to be a
+   transition anybody has to wait through. The duration token collapses to 1ms under
+   prefers-reduced-motion, which is this rule's answer to it. */
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .header {
@@ -16,21 +32,58 @@
 
 .titleRow {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   min-width: 0;
 }
 
+/*
+ * The project's mark: its icon over its colour, or the colour alone.
+ *
+ * --project-mark-color is set inline from workspace data, and a project created without a
+ * colour carries an empty string — `background: ''` is not a colour, so the fallback here
+ * is what stops a new project's mark from disappearing.
+ */
 .mark {
-  width: var(--space-3);
-  height: var(--space-3);
-  border-radius: var(--radius-full);
+  --project-mark-color: var(--text-tertiary);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-5);
+  height: var(--space-5);
+  border-radius: var(--radius-md);
   flex: none;
+  background: var(--project-mark-color);
+  color: var(--accent-contrast);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-none);
+}
+
+/* One standing fact about the project — its status, its lead, its target date. Not a
+   control: everything here is editable in the rail, and a chip that looked clickable would
+   be promising a second place to edit it. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+  max-width: 16rem;
+  padding-inline: var(--space-2);
+  min-height: var(--control-height-sm);
+  border-radius: var(--radius-full);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .title {
   margin: 0;
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   font-size: var(--font-size-lg);
@@ -39,6 +92,15 @@
   letter-spacing: -0.018em;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Health and the notification bell are about the reader's relationship to the project
+   rather than about the project, so they sit at the far end away from its identity. */
+.headerEnd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: auto;
 }
 
 .tabs {

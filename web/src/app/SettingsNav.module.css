@@ -15,3 +15,31 @@
   letter-spacing: -0.014em;
   color: var(--text-primary);
 }
+
+/*
+ * The workspace this settings mode belongs to.
+ *
+ * Same row height and same padding as the workspace sidebar's switcher, so entering settings
+ * moves the name a pixel rather than moving it somewhere else. It is not a button: see the
+ * argument at the call site.
+ */
+.identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-height-md);
+  padding: 0 var(--space-2);
+  /* Room for the macOS traffic lights, which the desktop shell draws over the app's own
+     chrome. Harmless in a browser tab. */
+  margin-top: var(--space-1);
+}
+
+.identityName {
+  flex: 1;
+  min-width: 0;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.014em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -25,7 +25,7 @@ main process (Node)
 ├── window manager      BrowserWindow(s), tab strip state, position persistence
 ├── notifications       native notifications, click → focus + route
 ├── badge               app.setBadgeCount (macOS) / overlay icon (Windows)
-├── tray                optional: quick create, inbox count
+├── tray                Windows/Linux only: hide-to-tray, quick routes, inbox count
 ├── protocol            polaris:// registration + argv/open-url handling
 ├── localhost probe     tiny HTTP server on 44450 / 18450 / 33234
 ├── updater             electron-updater, GitHub Releases feed
@@ -126,7 +126,8 @@ Badge count comes from the local store (unread inbox items), not from a server c
 | Concern | Decision |
 |---|---|
 | Channels | `latest` and `beta`; the app reads the channel from preferences |
-| Cadence | Check on launch and every 4 h; download in background; install on quit |
+| Cadence | Check on launch, every 4 h, on resume and on window focus when stale |
+| Restart | A downloaded build is offered as a dismissable row in the app, and installs on quit if it is ignored |
 | Forced updates | Only when `X-Polaris-Min-Client` demands it |
 | Disable | Honour an enterprise policy file — `AutoUpdateDisabled` via `defaults`/plist and MDM |
 | Delta updates | Windows NSIS supports differential; macOS ships full DMG/ZIP |

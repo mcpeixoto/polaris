@@ -3,6 +3,20 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  animation: pageEnter var(--duration-normal) var(--ease-out);
+}
+
+/* Reduced motion is answered at the token: --duration-normal collapses to 1ms. */
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .header {
@@ -33,12 +47,20 @@
   overscroll-behavior: contain;
 }
 
+/*
+  * Name · labels · status · health · project health · progress · target · owner.
+  *
+  * `overflow: hidden` alongside the fixed height, because a 32px row is a promise the row
+  * cannot keep on its own: anything inside it that wraps — a labels run, a long chip —
+  * drew its second line over the next row's border rather than being clipped.
+  */
 .row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 12ch 14ch 8ch 16ch;
+  grid-template-columns: minmax(0, 1fr) 12ch 10ch 12ch 8ch 10ch 9ch 14ch;
   align-items: center;
   gap: var(--space-3);
   height: var(--row-height);
+  overflow: hidden;
   padding-inline: var(--space-4);
   color: inherit;
   text-decoration: none;
@@ -73,8 +95,31 @@
 
 .labels {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-1);
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* The chips that did not fit, as a count. `title` carries their names for the pointer, and
+   the initiative's own overview carries them for everyone else. */
+.labelsMore {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.target {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  min-width: 0;
 }
 
 .summary {
@@ -107,4 +152,20 @@
 
 .ownerMuted {
   color: var(--text-tertiary);
+}
+
+/*
+ * Eight columns do not fit a narrow window, and a grid that keeps them all shrinks each
+ * below its content rather than wrapping. Target date and labels go first: both are
+ * repeated on the initiative's own overview, and neither is what the list is scanned for.
+ */
+@media (max-width: 1100px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr) 10ch 12ch 8ch 10ch 14ch;
+  }
+
+  .labels,
+  .target {
+    display: none;
+  }
 }

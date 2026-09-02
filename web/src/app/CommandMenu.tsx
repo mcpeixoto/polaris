@@ -9,20 +9,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 
-import { useEngine } from '~/app/context';
+import { useEngine, useQuery } from '~/app/context';
 import { Kbd } from '~/components';
+import { useFocusTrap } from '~/hooks/useFocusTrap';
 import { usePresence } from '~/hooks/usePresence';
 import { type Action, type Platform } from '~/keys';
 import { os } from '~/platform/runtime';
 
 import {
-  matchIssues,
+  buildIssueIndex,
   matchUsers,
   parseCommandQuery,
   rankActions,
+  searchIssueIndex,
   type CommandScope,
   type EntityHit,
 } from './commandMenuQuery';
+import {
+  load as loadRecents,
+  record as recordRecent,
+  save as saveRecents,
+  type RecentUses,
+} from './commandMenuRecents';
 import { useKeymap } from './keymap';
 import styles from './CommandMenu.module.css';
 
@@ -39,6 +47,21 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  /**
+   * Whether the pointer has moved since the last arrow key.
+   *
+   * Arrowing down scrolls the list under a stationary pointer, which fires `mouseenter` on
+   * whatever row slides beneath it and drags the cursor back to where the mouse happens to
+   * be. The stylesheet already refused `:hover` for exactly this reason and then the
+   * behaviour came back through JavaScript. So hover only claims the cursor after the pointer
+   * has actually moved.
+   */
+  const pointerMovedRef = useRef(false);
+
+  // Read once per open rather than per render: this is storage, and the palette re-renders on
+  // every keystroke.
+  const [recents, setRecents] = useState<RecentUses>(loadRecents);
 
   // Held on screen for the length of its exit. The two memos below switch from `open` to
   // `present` with it: they are what the panel is drawing, and a list that empties itself
@@ -65,6 +88,18 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
 
   const parsed = useMemo(() => parseCommandQuery(query), [query]);
 
+  /*
+    The searchable form of every issue, rebuilt when the issues or the teams change and not
+    when a character is typed.
+
+    Subscribing through `useQuery` rather than memoising on `engine.store` is what makes that
+    true: the store is one long-lived object, so a memo keyed on it would never invalidate,
+    while a memo keyed on the needle would rebuild the whole index per keystroke — which is
+    what this replaced. Teams are in the dependency list because an issue's identifier is
+    built from its team's key.
+  */
+  const issueIndex = useQuery(buildIssueIndex, ['issue', 'team']);
+
   const rows = useMemo((): Row[] => {
     if (!present) return [];
     const out: Row[] = [];
@@ -74,12 +109,25 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
     const showUsers = parsed.scope === 'user';
 
     if (showCommands) {
-      for (const action of rankActions(candidates, parsed.needle)) {
-        out.push({ kind: 'action', id: action.id, group: action.group ?? 'Commands', action });
-      }
+      const ranked = rankActions(candidates, parsed.needle, recents);
+      /*
+        On an empty query the top of the list is given its own heading.
+
+        `rankActions` has already sorted these to the front, so this only names them. It is
+        worth naming: without a heading the palette opens on four commands in an order the
+        user cannot account for, and "Recent" is the one word that explains it. With a needle
+        typed there is no such section — the order is then an answer to the query, and
+        labelling part of it "Recent" would claim the ranking was about history when it is
+        not.
+      */
+      const recentCount = parsed.needle === '' ? recentlyUsed(ranked, recents) : 0;
+      ranked.forEach((action, index) => {
+        const group = index < recentCount ? 'Recent' : (action.group ?? 'Commands');
+        out.push({ kind: 'action', id: action.id, group, action });
+      });
     }
     if (showIssues) {
-      for (const hit of matchIssues(engine.store, parsed.needle)) {
+      for (const hit of searchIssueIndex(issueIndex, parsed.needle)) {
         out.push({ kind: 'entity', id: `issue:${hit.id}`, group: 'Issues', hit });
       }
     }
@@ -89,13 +137,24 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
       }
     }
     return out;
-  }, [present, candidates, parsed, engine.store]);
+  }, [present, candidates, parsed, recents, issueIndex, engine.store]);
+
+  /*
+    Tab stays inside, and focus goes back where it came from.
+
+    The panel says `role="dialog"` and `aria-modal="true"` and had neither: Tab walked
+    straight out of the query box into the sidebar behind the scrim, and Escape left focus on
+    `<body>`, so the next `J` or `K` — in a product driven by them — went nowhere at all. This
+    is the most-used surface in the application, so it was also the most-felt.
+  */
+  useFocusTrap(panelRef, open, { initialFocus: inputRef });
 
   useEffect(() => {
     if (!open) return;
     setQuery('');
     setActive(0);
-    inputRef.current?.focus();
+    pointerMovedRef.current = false;
+    setRecents(loadRecents());
   }, [open]);
 
   useEffect(() => {
@@ -105,6 +164,14 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
   const run = useCallback(
     (row: Row) => {
       onClose();
+      if (row.kind === 'action') {
+        // Recorded on the way out rather than on success: what the palette is learning is
+        // what this person reaches for, and a command that refused is still one they reached
+        // for. Written through straight away so a reload does not lose the session's history.
+        const next = recordRecent(loadRecents(), row.action.id, Date.now());
+        saveRecents(next);
+        setRecents(next);
+      }
       queueMicrotask(() => {
         if (row.kind === 'action') {
           void registry.invoke(row.action.id, { source: 'menu', context });
@@ -120,10 +187,12 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
     switch (event.key) {
       case 'ArrowDown':
         event.preventDefault();
+        pointerMovedRef.current = false;
         setActive((i) => (rows.length === 0 ? 0 : (i + 1) % rows.length));
         break;
       case 'ArrowUp':
         event.preventDefault();
+        pointerMovedRef.current = false;
         setActive((i) => (rows.length === 0 ? 0 : (i - 1 + rows.length) % rows.length));
         break;
       case 'Home':
@@ -159,10 +228,14 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
   return (
     <div ref={backdropRef} className={styles.backdrop} onMouseDown={onClose} {...exitProps}>
       <div
+        ref={panelRef}
         className={styles.panel}
         role="dialog"
         aria-modal="true"
         aria-label="Command menu"
+        // The trap's fallback focus target when the panel holds nothing focusable, which is
+        // the empty-result case. Programmatic only.
+        tabIndex={-1}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <input
@@ -181,7 +254,15 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
           spellCheck={false}
         />
 
-        <ul className={styles.results} id="command-menu-results" role="listbox" ref={listRef}>
+        <ul
+          className={styles.results}
+          id="command-menu-results"
+          role="listbox"
+          ref={listRef}
+          onPointerMove={() => {
+            pointerMovedRef.current = true;
+          }}
+        >
           {rows.length === 0 && (
             <li className={styles.empty} role="presentation">
               <span className={styles.emptyTitle}>{emptyTitle(parsed.scope, parsed.needle)}</span>
@@ -206,12 +287,21 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
                   aria-selected={i === active}
                   data-active={i === active}
                   className={styles.item}
-                  onMouseEnter={() => setActive(i)}
+                  onMouseEnter={() => {
+                    if (pointerMovedRef.current) setActive(i);
+                  }}
                   onClick={() => run(row)}
                 >
                   <span className={styles.title}>
                     {row.kind === 'action' ? row.action.title : row.hit.title}
                   </span>
+                  {/* The metadata the row already computed and used to throw away. An
+                      identifier beside an issue, a handle beside a person: the thing that
+                      tells two similarly-titled rows apart, in the densest picker in the
+                      product. */}
+                  {row.kind === 'entity' && row.hit.hint !== '' && (
+                    <span className={styles.hint}>{row.hit.hint}</span>
+                  )}
                   {row.kind === 'action' && row.action.keys?.[0] && (
                     // The registry's own handwriting. This drew its own <kbd> and formatted
                     // the spec by hand, which is a second opinion about how a chord is
@@ -227,6 +317,23 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
       </div>
     </div>
   );
+}
+
+/**
+ * How many of the ranked commands are there because this person has run them.
+ *
+ * Capped, because "Recent" stops meaning anything once it is half the list — and the cap is
+ * what keeps the heading honest on a workspace where somebody has used thirty commands.
+ */
+const RECENT_HEADING_LIMIT = 5;
+
+function recentlyUsed(ranked: readonly Action[], recents: RecentUses): number {
+  let count = 0;
+  for (const action of ranked) {
+    if (recents[action.id] === undefined || count === RECENT_HEADING_LIMIT) break;
+    count += 1;
+  }
+  return count;
 }
 
 /**

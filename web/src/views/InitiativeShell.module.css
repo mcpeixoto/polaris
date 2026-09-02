@@ -3,6 +3,20 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  animation: pageEnter var(--duration-normal) var(--ease-out);
+}
+
+/* Reduced motion is answered at the token: --duration-normal collapses to 1ms. */
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .header {

@@ -10,6 +10,16 @@
  * 50 ms and measures well under one, so nothing here is debounced — but that headroom
  * exists because the maps below are the indexes themselves rather than copies. Building a
  * `Map` per keystroke would spend the whole budget on garbage before a single clause ran.
+ *
+ * The customer maps are the one exception, because they are the one thing here the store
+ * does not already hold: they are derived from `customerRequests`, six Maps and a Set of
+ * them, and this function ran that scan on every filter and display change no matter what
+ * the filter asked about. Almost no filter asks about customers. So they are handed over
+ * behind getters that build the index on first read and memoise it for the life of the
+ * context — the evaluator only touches `context.customerTier` and friends from inside a
+ * customer clause's compiled closure, so a filter that never mentions one never pays, and
+ * one that does pays exactly once. The rule above is unchanged: what is handed over is
+ * still the index itself and never a copy.
  */
 
 import type { FilterContext, TimeContext } from '~/filter';
@@ -41,7 +51,10 @@ export function filterContextFor(
   opts?: { readonly hideCustomers?: boolean },
 ): FilterContext {
   const time: TimeContext = { now: clock.now, timezone: clock.timezone };
-  const customer = customerIndex(store);
+
+  // Built at most once per context, and only if something reads one of the getters below.
+  let index: CustomerIndex | undefined;
+  const customer = (): CustomerIndex => (index ??= customerIndex(store));
 
   return {
     time,
@@ -51,13 +64,27 @@ export function filterContextFor(
     blockedBy: store.relationIndex.blockedByIssue(),
     blocking: store.relationIndex.blockingByIssue(),
     hideCustomers: opts?.hideCustomers,
-    customers: customer.customers,
-    customerCount: customer.counts,
-    customerStatus: customer.statuses,
-    customerTier: customer.tiers,
-    customerRevenue: customer.revenues,
-    customerSize: customer.sizes,
-    customerImportant: customer.important,
+    get customers() {
+      return customer().customers;
+    },
+    get customerCount() {
+      return customer().counts;
+    },
+    get customerStatus() {
+      return customer().statuses;
+    },
+    get customerTier() {
+      return customer().tiers;
+    },
+    get customerRevenue() {
+      return customer().revenues;
+    },
+    get customerSize() {
+      return customer().sizes;
+    },
+    get customerImportant() {
+      return customer().important;
+    },
     // Deliberately absent in every ordinary view.
     //
     // A client's replica does not hold soft-deleted issues at all — the server revokes
@@ -79,7 +106,8 @@ function addNumber(map: Map<UUID, number[]>, issueId: UUID, value: number): void
   else bucket.push(value);
 }
 
-function customerIndex(store: Store): {
+/** The seven maps a customer clause reads, built together because one scan yields them all. */
+interface CustomerIndex {
   readonly customers: ReadonlyMap<UUID, ReadonlySet<UUID>>;
   readonly counts: ReadonlyMap<UUID, number>;
   readonly statuses: ReadonlyMap<UUID, ReadonlySet<string>>;
@@ -87,7 +115,9 @@ function customerIndex(store: Store): {
   readonly revenues: ReadonlyMap<UUID, readonly number[]>;
   readonly sizes: ReadonlyMap<UUID, readonly number[]>;
   readonly important: ReadonlySet<UUID>;
-} {
+}
+
+function customerIndex(store: Store): CustomerIndex {
   const customers = new Map<UUID, Set<UUID>>();
   const counts = new Map<UUID, number>();
   const statuses = new Map<UUID, Set<string>>();

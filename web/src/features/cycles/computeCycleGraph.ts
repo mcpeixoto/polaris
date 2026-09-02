@@ -14,7 +14,10 @@
  */
 
 import { effortOf } from '~/features/estimate';
+import { personName } from '~/features/prefs/prefs';
 import type { Issue, Store, UUID } from '~/store';
+
+import { addDays, dayIn, endOfDayIso, isWeekend } from './zone';
 
 export interface CycleGraphPoint {
   readonly day: string;
@@ -59,7 +62,11 @@ export function buildCycleGraph(store: Store, cycleId: UUID): CycleGraphData | n
     .filter((issue): issue is Issue => issue !== undefined && issue.archivedAt === undefined);
 
   const pointValue = (issue: Issue) => effortOf(issue, team);
-  const days = daysInRange(cycle.startsAt, cycle.endsAt);
+  // The team's zone, not UTC and not the reader's: a cycle's days are the days the team
+  // works, and reckoning them anywhere else adds a column at one end or drops one at the
+  // other for everybody who is not in Greenwich.
+  const zone = team.timezone;
+  const days = daysInRange(cycle.startsAt, cycle.endsAt, zone);
   if (days.length === 0) return null;
 
   const weekdayCount = days.filter((day) => !isWeekend(day)).length;
@@ -71,7 +78,7 @@ export function buildCycleGraph(store: Store, cycleId: UUID): CycleGraphData | n
   let lastTarget = 0;
 
   for (const day of days) {
-    const end = endOfDay(day);
+    const end = endOfDayIso(day, zone);
     let scope = 0;
     let started = 0;
     let completed = 0;
@@ -179,10 +186,11 @@ function assigneeRows(
 
   const rows: CycleGraphAssigneeRow[] = [];
   for (const [key, row] of totals) {
-    const name =
-      key === '__unassigned'
-        ? 'Unassigned'
-        : (store.users.get(row.assigneeId!)?.displayName ?? 'Someone');
+    const user = key === '__unassigned' ? undefined : store.users.get(row.assigneeId!);
+    // `personName` is the product's one answer to what a person is called, and the members
+    // panel beside this chart already uses it. Reading `displayName` here made the two
+    // disagree for anybody with full names turned off.
+    const name = key === '__unassigned' ? 'Unassigned' : (user && personName(user)) || 'Someone';
     rows.push({
       assigneeId: row.assigneeId,
       name,
@@ -195,34 +203,12 @@ function assigneeRows(
   return rows;
 }
 
-function daysInRange(startIso: string, endIso: string): string[] {
-  const start = startOfDay(startIso);
-  const end = startOfDay(endIso);
+function daysInRange(startIso: string, endIso: string, timeZone: string): string[] {
+  const start = dayIn(startIso, timeZone);
+  const end = dayIn(endIso, timeZone);
   const days: string[] = [];
   for (let cursor = start; cursor <= end; cursor = addDays(cursor, 1)) {
     days.push(cursor);
   }
   return days.length > 0 ? days : [start];
-}
-
-function startOfDay(iso: string): string {
-  const date = new Date(iso);
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
-    .toISOString()
-    .slice(0, 10);
-}
-
-function endOfDay(day: string): string {
-  return `${day}T23:59:59.999Z`;
-}
-
-function addDays(day: string, count: number): string {
-  const date = new Date(`${day}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + count);
-  return date.toISOString().slice(0, 10);
-}
-
-function isWeekend(day: string): boolean {
-  const weekday = new Date(`${day}T00:00:00.000Z`).getUTCDay();
-  return weekday === 0 || weekday === 6;
 }

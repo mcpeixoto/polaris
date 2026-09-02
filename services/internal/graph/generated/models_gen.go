@@ -233,6 +233,11 @@ type Comment struct {
 	// result is a comment with no way home: without this a client has to fetch the issue by id
 	// to render "in ENG-142", which is a second round trip per hit.
 	Issue *Issue `json:"issue"`
+	// Emoji reactions on this comment, oldest first.
+	//
+	// Non-null and possibly empty: a comment with no reactions is the ordinary case, and a null
+	// here would make every client write the same emptiness check.
+	Reactions []Reaction `json:"reactions"`
 }
 
 type CommentPayload struct {
@@ -2024,6 +2029,31 @@ func (PurgePayload) IsMutationResult() {}
 
 type Query struct {
 }
+
+// One person's emoji on one comment.
+//
+// The smallest entity in the product: no body, no edit, no soft delete. Adding is an insert
+// and removing is a delete, so there is nothing to reconcile and no updatedAt to carry.
+type Reaction struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	CommentID   uuid.UUID `json:"commentId"`
+	UserID      uuid.UUID `json:"userId"`
+	// The character itself, not a shortcode — that is what is rendered and what is compared.
+	Emoji     string    `json:"emoji"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// A reaction that was added.
+//
+// `version` is 0 when the reaction was already there: nothing was written, so there is no
+// delta coming and the client should stop holding its optimistic state.
+type ReactionPayload struct {
+	Version  int       `json:"version"`
+	Reaction *Reaction `json:"reaction"`
+}
+
+func (ReactionPayload) IsMutationResult() {}
 
 // A schedule that mints issues on a cadence.
 //

@@ -172,6 +172,63 @@ func (q *Queries) ListAttachmentsForIssue(ctx context.Context, issueID uuid.UUID
 	return items, nil
 }
 
+const listAttachmentsForIssues = `-- name: ListAttachmentsForIssues :many
+SELECT a.id, a.workspace_id, a.issue_id, a.team_id, a.url, a.title, a.subtitle, a.icon_url,
+       a.metadata, a.creator_id, a.created_at, a.updated_at
+FROM attachment a
+JOIN issue i ON i.id = a.issue_id
+JOIN team  t ON t.id = i.team_id
+WHERE a.issue_id = ANY($1::uuid[])
+  AND a.workspace_id = $2
+  AND (NOT t.private OR t.id = ANY($3::uuid[]))
+ORDER BY a.issue_id, a.created_at
+`
+
+type ListAttachmentsForIssuesParams struct {
+	IssueIds    []uuid.UUID
+	WorkspaceID uuid.UUID
+	TeamIds     []uuid.UUID
+}
+
+// ListAttachmentsForIssues is ListAttachmentsForIssue for a whole page of issues at once,
+// for the reason ListCommentsForIssues gives.
+//
+// attachment carries its own team_id, but the issue's team is what decides visibility: the
+// denormalised column is there for the bootstrap's scoping and follows the issue on a
+// duplicate merge, so reading it here would answer a slightly different question.
+func (q *Queries) ListAttachmentsForIssues(ctx context.Context, arg ListAttachmentsForIssuesParams) ([]Attachment, error) {
+	rows, err := q.db.Query(ctx, listAttachmentsForIssues, arg.IssueIds, arg.WorkspaceID, arg.TeamIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Attachment{}
+	for rows.Next() {
+		var i Attachment
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.IssueID,
+			&i.TeamID,
+			&i.Url,
+			&i.Title,
+			&i.Subtitle,
+			&i.IconUrl,
+			&i.Metadata,
+			&i.CreatorID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAttachmentsForURL = `-- name: ListAttachmentsForURL :many
 SELECT a.id, a.workspace_id, a.issue_id, a.team_id, a.url, a.title, a.subtitle, a.icon_url,
        a.metadata, a.creator_id, a.created_at, a.updated_at

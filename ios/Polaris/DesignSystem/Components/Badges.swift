@@ -12,7 +12,14 @@ struct StateIcon: View {
     var body: some View {
         Image(systemName: state.category.symbolName)
             .font(.system(size: size, weight: .medium))
-            .foregroundStyle(Theme.hex(state.color))
+            // The workspace's colour when it can be seen against the page, the category's
+            // when it cannot. Rendering the configured hex unconditionally meant a workspace
+            // with badly-chosen state colours drew status icons nobody could read, and the
+            // category palette that exists for exactly this was never consulted.
+            .foregroundStyle(Theme.stateColor(state))
+            // A status change swaps one glyph for another on the one control whose whole job
+            // is to show change, so it crossfades rather than cutting.
+            .contentTransition(.symbolEffect(.replace))
             .accessibilityHidden(true)
     }
 }
@@ -67,7 +74,7 @@ struct AvatarView: View {
             } else {
                 Circle()
                     .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [2.5, 2.5]))
-                    .foregroundStyle(Color.white.opacity(0.25))
+                    .foregroundStyle(Theme.border)
             }
         }
         .frame(width: size, height: size)

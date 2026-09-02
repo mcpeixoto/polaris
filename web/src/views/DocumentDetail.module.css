@@ -7,6 +7,20 @@
   padding: var(--space-6) var(--space-5);
   flex: 1;
   min-height: 0;
+  animation: pageEnter var(--duration-normal) var(--ease-out);
+}
+
+/* Reduced motion is answered at the token: --duration-normal collapses to 1ms, which is
+ * imperceptible and still fires whatever is listening for the end. */
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .header {
@@ -38,8 +52,8 @@
   margin: 0;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
-  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
-  color: var(--priority-urgent);
+  background-color: color-mix(in srgb, var(--text-danger) 12%, transparent);
+  color: var(--text-danger);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }
@@ -55,4 +69,30 @@
   font-size: var(--font-size-md);
   color: var(--text-primary);
   line-height: 1.6;
+}
+
+/* The rendered body and the textarea trade places, so they have to occupy the same ground:
+ * a click that lands on a heading has to put the caret roughly where the reader pointed,
+ * and the page must not jump by a line when the two swap. */
+.bodyWrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Transparent to the pointer: the rendered copy is a picture of the field beneath it, so a
+ * click has to reach the textarea itself rather than a layer that catches it and forwards
+ * the focus by hand. Letting the browser do it puts the caret where the pointer landed and
+ * keeps the field reachable by anything that drives the page by its label. */
+.reader {
+  position: absolute;
+  inset: 0;
+  padding: var(--space-2) 0;
+  background-color: var(--bg-primary);
+  overflow-y: auto;
+  pointer-events: none;
+}
+
+.placeholder {
+  color: var(--text-tertiary);
 }

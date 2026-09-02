@@ -66,12 +66,67 @@
   background-color: var(--bg-secondary);
 }
 
-/* The column under the pointer during a drag. The whole column lights up rather than a gap
-   between two cards: a drop sets a property, so where in the column the card lands is not a
-   choice the drop is making, and drawing an insertion point would promise one. */
+/*
+ * The column under the pointer during a drag.
+ *
+ * Both marks now, and the second one used to be argued away. The column lights up to say
+ * which column, and `.insertion` draws the gap to say where in it — which became a real
+ * choice the moment a drop started writing `sortOrder` as well as the grouped field.
+ * `09-views-filters-layouts.md`: "mouse drops land where you drop."
+ */
 .over {
   border-color: var(--accent);
   background-color: var(--accent-subtle);
+}
+
+/*
+ * A folded column: header only, and narrow enough that a board of them is still a board.
+ *
+ * It keeps its drop target rather than leaving the board — "hidden columns collect at the far
+ * right and still accept drops" — and it stays wide enough for the header's own controls,
+ * because a column you cannot unfold is one you have lost.
+ */
+.folded {
+  flex: 0 0 14rem;
+}
+
+/* The heading is the fold control. It takes the header's whole width so the hit target is the
+   heading rather than a chevron beside it. */
+.fold {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.fold:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-sm);
+}
+
+/*
+ * Where a drop would land. A rule in the gap, drawn over the absolutely positioned cards by
+ * the same transform arithmetic they use, so it cannot disagree with them about where a gap
+ * is. Two pixels of `--accent`: the same tone the column's own drag state carries, because it
+ * is the same gesture saying something more precise.
+ */
+.insertion {
+  position: absolute;
+  z-index: var(--z-base);
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 2px;
+  border-radius: var(--radius-full);
+  background-color: var(--accent);
+  pointer-events: none;
 }
 
 .header {
@@ -111,10 +166,12 @@
   outline: none;
 }
 
+/* Secondary and not tertiary: `.column` is `--bg-secondary`, where tertiary is below the
+   floor — see `08-ui-composition.md` on the one surface tertiary was measured for. */
 .blank {
   margin: 0;
   padding: var(--space-4) var(--space-2);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
   text-align: center;
 }
@@ -247,8 +304,63 @@
   font-size: var(--font-size-xs);
 }
 
-/* Overdue is the one fact on a card that is worth interrupting a scan for, and it says so in
-   words as well — "Yesterday" is already the text; the colour only makes it findable. */
+/* The card's own surface is raised, and hovering or selecting it raises it further, so its
+   three quiet facts take the tone that was measured for a raised surface. */
+.card:hover .identifier,
+.card:hover .estimate,
+.card:hover .due,
+.selected .identifier,
+.selected .estimate,
+.selected .due {
+  color: var(--text-secondary);
+}
+
+/*
+ * Overdue is the one fact on a card worth interrupting a scan for, and the word is in the
+ * text as well — `.srOnly` below, because "Yesterday" does not mean overdue. Its own token
+ * rather than `--priority-urgent`: the priority, state and relation ramps are not borrowed
+ * across, or a theme that recolours urgency silently recolours a missed deadline too.
+ */
 .overdue {
-  color: var(--priority-urgent);
+  color: var(--text-danger);
+}
+
+/* Visible to a screen reader and to nothing else — and so not `display: none`, which would
+   take it out of the accessibility tree, which is the entire point of the class. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/*
+ * A card settling after a drop. Opacity and a hair of scale, nothing that moves it: the
+ * column's virtualiser owns every vertical position on screen and a card animating its own
+ * translate would be fighting the arithmetic that put it there.
+ */
+.card {
+  animation: cardSettle var(--duration-fast) var(--ease-out);
+}
+
+@keyframes cardSettle {
+  from {
+    opacity: 0.6;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    animation: none;
+  }
 }

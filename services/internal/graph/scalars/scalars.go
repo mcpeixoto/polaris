@@ -13,6 +13,8 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/google/uuid"
+
+	"github.com/peixotolabs/polaris/services/internal/platform"
 )
 
 // UUID is the identifier type across the whole API. Values are UUIDv7 — time-ordered, so
@@ -32,11 +34,11 @@ func MarshalUUID(u uuid.UUID) graphql.Marshaler {
 func UnmarshalUUID(v any) (uuid.UUID, error) {
 	s, ok := v.(string)
 	if !ok {
-		return uuid.Nil, fmt.Errorf("UUID must be a string, got %T", v)
+		return uuid.Nil, platform.Validation("", fmt.Sprintf("an id must be a string, got %T", v))
 	}
 	u, err := uuid.Parse(s)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("invalid UUID %q", s)
+		return uuid.Nil, platform.Validation("", fmt.Sprintf("%q is not an id", s))
 	}
 	return u, nil
 }
@@ -61,7 +63,7 @@ func UnmarshalJSON(v any) (json.RawMessage, error) {
 	}
 	b, err := json.Marshal(v)
 	if err != nil {
-		return nil, fmt.Errorf("invalid JSON value: %w", err)
+		return nil, platform.Validation("", "that value is not valid JSON")
 	}
 	return b, nil
 }

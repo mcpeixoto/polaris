@@ -24,3 +24,43 @@
   outline: var(--focus-ring-width) solid var(--border-focus);
   outline-offset: var(--focus-ring-offset);
 }
+
+/*
+ * Queue and issue, side by side.
+ *
+ * Both halves take an equal share and neither may shrink below its content: the queue holds
+ * a row's properties and the pane holds a row of four buttons, and a split that let either
+ * one squeeze would truncate the thing the screen exists to show. Below the breakpoint the
+ * right-hand pane is dropped altogether rather than narrowed — one usable pane beats two
+ * unusable ones, and the list's own Space-to-peek still shows the issue there.
+ */
+.split {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.queue {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-width: 26rem;
+  min-height: 0;
+}
+
+.detail {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+}
+
+@media (max-width: 960px) {
+  .queue {
+    min-width: 0;
+  }
+
+  .detail {
+    display: none;
+  }
+}

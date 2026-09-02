@@ -18,6 +18,7 @@ import type { UUID } from '~/store';
 import { buildProjectTimeline } from './computeProjectTimeline';
 import type { ProjectDependencyFilter } from './dependencyHelpers';
 import type { ProjectCustomerFilter } from './customerFilter';
+import type { ProjectStatusFilter } from './display';
 import type { RequiredProjectDisplay } from './ProjectDisplayMenu';
 import styles from './ProjectTimeline.module.css';
 
@@ -25,6 +26,7 @@ export interface ProjectTimelineProps {
   readonly teamId: UUID | undefined;
   readonly depFilter: ProjectDependencyFilter;
   readonly customerFilter?: ProjectCustomerFilter;
+  readonly statusFilter?: ProjectStatusFilter;
   readonly display: RequiredProjectDisplay;
   /**
    * Reset the toolbar's filters. The timeline does not own them, so an empty timeline
@@ -38,6 +40,7 @@ export function ProjectTimeline({
   teamId,
   depFilter,
   customerFilter = 'all',
+  statusFilter = 'all',
   display,
   onClearFilters,
 }: ProjectTimelineProps) {
@@ -51,6 +54,7 @@ export function ProjectTimeline({
         display.showMilestones,
         display.showDependencies,
         customerFilter,
+        statusFilter,
       ),
     [
       'project',
@@ -66,6 +70,7 @@ export function ProjectTimeline({
       teamId ?? '',
       depFilter,
       customerFilter,
+      statusFilter,
       display.zoom,
       display.showMilestones,
       display.showDependencies,
@@ -106,7 +111,7 @@ export function ProjectTimeline({
     return (id: UUID) => names.get(id) ?? 'a project';
   }, [data.bars, data.unscheduled]);
 
-  const filtered = depFilter !== 'all' || customerFilter !== 'all';
+  const filtered = depFilter !== 'all' || customerFilter !== 'all' || statusFilter !== 'all';
 
   if (data.bars.length === 0 && data.unscheduled.length === 0) {
     return (
@@ -114,8 +119,8 @@ export function ProjectTimeline({
         title={filtered ? 'Nothing matches these filters' : 'No projects on this timeline'}
         description={
           filtered
-            ? 'Every project here is excluded by the dependency or customer filter above.'
-            : 'A project draws as a bar once it has a start and a target date. Add them, and it appears here.'
+            ? 'Every project here is excluded by the filters above.'
+            : 'A project draws as a bar once it has a start and a target date. Set both in the project’s properties rail, and it appears here.'
         }
         action={
           filtered && onClearFilters !== undefined ? (
@@ -129,7 +134,10 @@ export function ProjectTimeline({
   }
 
   return (
-    <div className={styles.timeline} aria-label="Projects timeline">
+    <div
+      className={`${styles.timeline ?? ''} ${styles.enter ?? ''}`}
+      aria-label="Projects timeline"
+    >
       <div className={styles.body}>
         <div ref={sidebarRef} className={styles.sidebar} onScroll={onSidebarScroll}>
           <div className={styles.sidebarHeader}>Project</div>
@@ -196,8 +204,12 @@ export function ProjectTimeline({
                       key={milestone.id}
                       className={styles.milestone}
                       style={{ left: milestone.x }}
-                      title={milestone.name}
-                      aria-hidden="true"
+                      // A tick is a hairline with a tooltip, which is a name only a pointer
+                      // can read. `role="img"` plus the label gives the same fact to a
+                      // screen reader walking the bar.
+                      role="img"
+                      title={`${milestone.name} — ${milestone.day}`}
+                      aria-label={`Milestone ${milestone.name}, ${milestone.day}`}
                     />
                   ))}
                 </div>

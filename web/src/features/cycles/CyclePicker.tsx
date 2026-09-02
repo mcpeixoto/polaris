@@ -13,6 +13,9 @@ import type { Cycle, Store, UUID } from '~/store';
 
 import type { Mixed } from '~/features/issue/pickers';
 
+import { phaseOf } from './CycleEditModal';
+import { cycleWindow } from './format';
+
 const NONE = 'none';
 
 interface PickerProps {
@@ -61,7 +64,7 @@ export function CyclePicker({
     items.push({
       id: row.cycle.id,
       label: row.cycle.name,
-      hint: windowHint(row.cycle),
+      hint: row.window,
       selected: value === row.cycle.id,
       onSelect: () => onSelect(row.cycle.id),
     });
@@ -85,6 +88,7 @@ export function CyclePicker({
 interface Ranked {
   readonly heading: string;
   readonly cycle: Cycle;
+  readonly window: string;
 }
 
 function rankCycles(store: Store, teamId: UUID | undefined): readonly Ranked[] {
@@ -93,25 +97,24 @@ function rankCycles(store: Store, teamId: UUID | undefined): readonly Ranked[] {
   for (const cycle of store.cycles.values()) {
     if (cycle.archivedAt !== undefined) continue;
     if (teamId !== undefined && cycle.teamId !== teamId) continue;
-    const start = Date.parse(cycle.startsAt);
-    const end = Date.parse(cycle.endsAt);
-    let heading = 'Previous';
-    if (start <= now && now < end) heading = 'Current';
-    else if (start > now) heading = 'Upcoming';
-    rows.push({ heading, cycle });
+    // `phaseOf` rather than a second reading of the dates, which is how a cycle closed
+    // early — completed, but not yet past its end date — kept listing as Current here while
+    // the Cycles page had already filed it under Previous.
+    const zone = store.teams.get(cycle.teamId)?.timezone ?? 'UTC';
+    rows.push({
+      heading: phaseOf(cycle, now),
+      cycle,
+      window: cycleWindow(cycle.startsAt, cycle.endsAt, zone, now),
+    });
   }
   const order = { Current: 0, Upcoming: 1, Previous: 2 };
   return rows.sort((a, b) => {
     const byHeading =
       order[a.heading as keyof typeof order] - order[b.heading as keyof typeof order];
     if (byHeading !== 0) return byHeading;
-    return Date.parse(a.cycle.startsAt) - Date.parse(b.cycle.startsAt);
+    // Upcoming counts forward from now; Previous counts back from it. Sorting both
+    // ascending buried last week's sprint under every cycle the team had ever run.
+    const byStart = Date.parse(a.cycle.startsAt) - Date.parse(b.cycle.startsAt);
+    return a.heading === 'Previous' ? -byStart : byStart;
   });
-}
-
-function windowHint(cycle: Cycle): string {
-  const start = new Date(cycle.startsAt);
-  const end = new Date(cycle.endsAt);
-  const fmt = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
-  return `${fmt.format(start)} – ${fmt.format(end)}`;
 }

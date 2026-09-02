@@ -12,7 +12,7 @@
 }
 
 .error {
-  color: var(--priority-urgent);
+  color: var(--text-danger);
 }
 
 .status {
@@ -30,4 +30,41 @@
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
   word-break: break-all;
+}
+
+/*
+ * The rotation is not one of the four things this dialog is for, so it sits below them
+ * behind a rule rather than in the run of primary actions where a mis-click costs everyone
+ * their subscription.
+ */
+.rotate {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.rotateCopy {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+}
+
+/* Space reserved, so confirming a copy does not shove the button out from under the
+   pointer that just pressed it. */
+.copied {
+  min-width: 7ch;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.copyRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }

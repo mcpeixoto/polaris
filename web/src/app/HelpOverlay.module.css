@@ -8,12 +8,32 @@
  * one. What is left is the two-column arrangement of groups, which is genuinely local.
  */
 
-/* Columns rather than one long list: the whole sheet should be readable without scrolling
-   on a laptop, because a shortcut you have to scroll to find is one you look up in the
-   command menu instead. */
+/*
+ * The filter, which is the first thing the sheet offers because it is the first thing a
+ * forty-row reference needs.
+ */
+.filter {
+  margin-bottom: var(--space-4);
+}
+
+/*
+ * One column by default, two when there is room.
+ *
+ * Columns rather than one long list, because the whole sheet should be readable without
+ * scrolling on a laptop — a shortcut you have to scroll to find is one you look up in the
+ * command menu instead. But this is `columns: 2` inside a dialog that is `width: 100%` up to
+ * 88ch, and on a phone that gave each row about twenty characters to fit a command name and
+ * its key chips into, so every label wrapped to three lines beside its Kbd. The two-column
+ * arrangement is an answer to having space, so it is stated where there is space.
+ */
 .columns {
-  columns: 2;
   column-gap: var(--space-8);
+}
+
+@media (min-width: 640px) {
+  .columns {
+    columns: 2;
+  }
 }
 
 .section {
@@ -25,7 +45,10 @@
   margin: 0 0 var(--space-2);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
-  color: var(--text-tertiary);
+  /* --text-secondary, not tertiary: this sheet is inside Modal's `.dialog`, a raised surface
+     where tertiary measures 4.08:1 and fails body text. The size and weight are what separate
+     the heading from its rows; the colour was never carrying that on its own. */
+  color: var(--text-secondary);
 }
 
 .list {

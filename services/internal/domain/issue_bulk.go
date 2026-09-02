@@ -2,7 +2,9 @@ package domain
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -79,6 +81,13 @@ type BulkUpdateIssuesInput struct {
 
 	DueDate      *model.Date
 	ClearDueDate bool
+
+	// AddLabelIDs and RemoveLabelIDs are set operations, not a replacement: a bulk edit
+	// says "put this label on all of these" and "take that one off all of these", because
+	// there is no single new label set for two hundred rows any more than there is a
+	// single new title.
+	AddLabelIDs    []uuid.UUID
+	RemoveLabelIDs []uuid.UUID
 }
 
 // BulkUpdateIssues applies one change to many issues in one transaction and one version
@@ -115,10 +124,19 @@ func (s *Service) BulkUpdateIssues(
 		return nil, nil, 0, platform.Validation("dueDate", "cannot set and clear the due date in one call")
 	}
 	if in.StateID == nil && in.AssigneeID == nil && !in.ClearAssignee && in.Priority == nil &&
-		in.Estimate == nil && !in.ClearEstimate && in.DueDate == nil && !in.ClearDueDate {
+		in.Estimate == nil && !in.ClearEstimate && in.DueDate == nil && !in.ClearDueDate &&
+		len(in.AddLabelIDs) == 0 && len(in.RemoveLabelIDs) == 0 {
 		// Otherwise this writes every selected row, bumps the version and wakes every
 		// client to deliver a change that changed nothing.
 		return nil, nil, 0, platform.Validation("input", "a bulk edit needs at least one property to change")
+	}
+	// Adding and removing the same label in one edit has no defensible outcome, and the
+	// two statements below would race to decide it.
+	for _, add := range in.AddLabelIDs {
+		if slices.Contains(in.RemoveLabelIDs, add) {
+			return nil, nil, 0, platform.Validation("addLabelIds",
+				"cannot add and remove the same label in one call")
+		}
 	}
 	estimate, err := validateEstimate(in.Estimate)
 	if err != nil {
@@ -236,6 +254,15 @@ func (s *Service) BulkUpdateIssues(
 			}
 		}
 
+		// The labels this edit adds, resolved once for the whole batch. Scope is a
+		// property of the edit rather than of one row — a team label aimed at a selection
+		// spanning two teams cannot be applied to half of it and reported as a success —
+		// so a label out of scope fails the call the way a bad assignee does.
+		addLabels, err := s.resolveBulkAddLabels(ctx, q, p, in.AddLabelIDs, teamIDs)
+		if err != nil {
+			return err
+		}
+
 		var (
 			setTimestamps bool
 			started       *time.Time
@@ -278,9 +305,22 @@ func (s *Service) BulkUpdateIssues(
 			params.DueDate = store.DateOf(dueDay)
 		}
 
-		rows, err := q.BulkUpdateIssues(ctx, params)
-		if err != nil {
-			return platform.Internal(err)
+		// A label-only edit does not write the issue row. Running the statement anyway
+		// would move every selected issue's updated_at, which is the sort key of My
+		// Issues and of every "recently updated" view — so putting one label on two
+		// hundred issues would reorder somebody's whole screen for a change that did not
+		// touch the issue at all.
+		var rows []store.BulkUpdateIssuesRow
+		if bulkTouchesTheIssueRow(in) {
+			rows, err = q.BulkUpdateIssues(ctx, params)
+			if err != nil {
+				return platform.Internal(err)
+			}
+		} else {
+			rows = make([]store.BulkUpdateIssuesRow, 0, len(before))
+			for _, row := range before {
+				rows = append(rows, store.BulkUpdateIssuesRow(row))
+			}
 		}
 
 		beforeByID := make(map[uuid.UUID]store.GetIssueRow, len(before))
@@ -299,12 +339,24 @@ func (s *Service) BulkUpdateIssues(
 			team := teams[row.TeamID]
 			issue := toIssue(store.AsIssueRow(row), team.Key)
 			out = append(out, issue)
+			if !bulkTouchesTheIssueRow(in) {
+				// Nothing on the row changed, so there is nothing for a client to apply
+				// and no reason to re-render every selected issue. The label rows below
+				// carry the edit.
+				continue
+			}
 			changes = append(changes, Change{
 				EntityType: "issue", EntityID: row.ID, Op: OpUpsert, TeamID: &row.TeamID,
 				Scope: authz.TeamScope(row.TeamID, team.Private), Payload: issue,
 				ChangedFields: fields,
 			})
 		}
+
+		labelChanges, err := s.applyBulkLabels(ctx, q, p, ids, teams, before, addLabels, in.RemoveLabelIDs)
+		if err != nil {
+			return err
+		}
+		changes = append(changes, labelChanges...)
 
 		// One call, one block of versions, one wakeup. This is the line the whole method
 		// exists for.
@@ -329,9 +381,164 @@ func (s *Service) BulkUpdateIssues(
 		return nil
 	})
 	if err != nil {
+		// Exactly as AddIssueLabel does it: the conflict cannot be explained inside the
+		// transaction that raised it, because every further statement on that connection
+		// fails until the rollback.
+		var conflict errLabelGroupConflict
+		if errors.As(err, &conflict) {
+			return nil, nil, 0, s.explainGroupConflict(ctx, conflict)
+		}
 		return nil, nil, 0, err
 	}
 	return out, skipped, version, nil
+}
+
+// bulkTouchesTheIssueRow reports whether this edit changes a column on `issue`.
+//
+// A label lives in its own table and on its own entity in the change stream, so an edit
+// that only moves labels must leave the issue row — and its updated_at — alone.
+func bulkTouchesTheIssueRow(in BulkUpdateIssuesInput) bool {
+	return in.StateID != nil || in.AssigneeID != nil || in.ClearAssignee ||
+		in.Priority != nil || in.Estimate != nil || in.ClearEstimate ||
+		in.DueDate != nil || in.ClearDueDate
+}
+
+// resolveBulkAddLabels reads each label the edit applies and refuses the ones it cannot.
+//
+// The checks are the ones explainApplyFailure makes for a single application, moved in
+// front of the write because the bulk statement's ON CONFLICT DO NOTHING would otherwise
+// turn "that label belongs to another team" into a silent no-op — which is the shape of
+// the bug this whole finding is about.
+func (s *Service) resolveBulkAddLabels(
+	ctx context.Context, q *store.Queries, p *authz.Principal, ids []uuid.UUID, teamIDs []uuid.UUID,
+) ([]store.GetLabelRow, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	out := make([]store.GetLabelRow, 0, len(ids))
+	seen := map[uuid.UUID]bool{}
+	for _, id := range ids {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+
+		lbl, err := s.loadLabel(ctx, q, p, id)
+		if err != nil {
+			if platform.CodeOf(err) == platform.CodeNotFound {
+				return nil, platform.Validation("addLabelIds", "no such label")
+			}
+			return nil, err
+		}
+		if lbl.IsGroup {
+			return nil, platform.Validation("addLabelIds", fmt.Sprintf(
+				"%q is a group — apply one of the labels inside it", lbl.Name))
+		}
+		if lbl.TeamID != nil {
+			for _, teamID := range teamIDs {
+				if *lbl.TeamID != teamID {
+					return nil, platform.Validation("addLabelIds", fmt.Sprintf(
+						"%q belongs to another team and cannot be applied to this selection", lbl.Name))
+				}
+			}
+		}
+		out = append(out, lbl)
+	}
+	return out, nil
+}
+
+// applyBulkLabels writes both set operations and returns their change rows.
+//
+// Two statements for the whole batch rather than two per issue, which is the same reason
+// BulkUpdateIssues exists: the version block is taken once, so the writes must be too.
+//
+// The rows each statement RETURNS are the ones it actually changed — labels already
+// present produce nothing, labels not present remove nothing — so the change stream
+// carries the real edit rather than the requested one, and a client re-renders only what
+// moved.
+func (s *Service) applyBulkLabels(
+	ctx context.Context, q *store.Queries, p *authz.Principal,
+	issueIDs []uuid.UUID, teams map[uuid.UUID]store.Team, before []store.GetIssueRow,
+	add []store.GetLabelRow, remove []uuid.UUID,
+) ([]Change, error) {
+	if len(add) == 0 && len(remove) == 0 {
+		return nil, nil
+	}
+
+	// The change row's scope comes from the ISSUE's team, never the label's: a workspace
+	// label applied to a private team's issue must not be visible outside that team, and
+	// the scope is the only thing the hub consults.
+	teamOf := make(map[uuid.UUID]uuid.UUID, len(before))
+	for _, row := range before {
+		teamOf[row.ID] = row.TeamID
+	}
+	scopeFor := func(issueID uuid.UUID) (uuid.UUID, authz.Scope) {
+		teamID := teamOf[issueID]
+		return teamID, authz.TeamScope(teamID, teams[teamID].Private)
+	}
+
+	changes := []Change{}
+
+	if len(add) > 0 {
+		// The cross product, expanded here because ids are minted in Go everywhere else
+		// in the system and the bulk path must not be the one place they are not.
+		pairIDs := make([]uuid.UUID, 0, len(issueIDs)*len(add))
+		pairIssues := make([]uuid.UUID, 0, len(issueIDs)*len(add))
+		pairLabels := make([]uuid.UUID, 0, len(issueIDs)*len(add))
+		for _, issueID := range issueIDs {
+			for _, lbl := range add {
+				id, err := uuid.NewV7()
+				if err != nil {
+					return nil, platform.Internal(err)
+				}
+				pairIDs = append(pairIDs, id)
+				pairIssues = append(pairIssues, issueID)
+				pairLabels = append(pairLabels, lbl.ID)
+			}
+		}
+		rows, err := q.BulkAddIssueLabels(ctx, store.BulkAddIssueLabelsParams{
+			WorkspaceID: p.WorkspaceID,
+			CreatedBy:   &p.UserID,
+			Ids:         pairIDs,
+			IssueIds:    pairIssues,
+			LabelIds:    pairLabels,
+		})
+		if err != nil {
+			// One statement covers many issues, so the conflict cannot name the row it
+			// hit; the group is what the caller can act on either way.
+			if store.IsUniqueViolation(err, "issue_label_one_per_group") && len(add) > 0 && add[0].ParentID != nil {
+				return nil, errLabelGroupConflict{issueID: issueIDs[0], groupID: *add[0].ParentID}
+			}
+			return nil, platform.Internal(err)
+		}
+		for _, row := range rows {
+			teamID, scope := scopeFor(row.IssueID)
+			applied := toIssueLabel(row)
+			changes = append(changes, Change{
+				EntityType: "issueLabel", EntityID: applied.ID, Op: OpUpsert,
+				TeamID: &teamID, Scope: scope, Payload: applied,
+			})
+		}
+	}
+
+	if len(remove) > 0 {
+		rows, err := q.BulkRemoveIssueLabels(ctx, store.BulkRemoveIssueLabelsParams{
+			IssueIds: issueIDs,
+			LabelIds: remove,
+		})
+		if err != nil {
+			return nil, platform.Internal(err)
+		}
+		for _, row := range rows {
+			teamID, scope := scopeFor(row.IssueID)
+			changes = append(changes, Change{
+				EntityType: "issueLabel", EntityID: row.ID, Op: OpDelete,
+				TeamID: &teamID, Scope: scope,
+			})
+		}
+	}
+
+	return changes, nil
 }
 
 // bulkChangedFields names the columns this edit set, by the vocabulary internal/notify

@@ -4,6 +4,20 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* The page's entrance. Reduced motion is answered at the token: the duration steps
+     collapse to 1ms, so there is no media query here to drift out of step. */
+  animation: pageEnter var(--duration-normal) var(--ease-out);
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .header {
@@ -119,6 +133,19 @@
   color: var(--text-primary);
   font-size: var(--font-size-sm);
   white-space: pre-wrap;
+}
+
+/*
+ * A write this page could not land — a rename, a status, a subscription toggle, a request
+ * removed. It sits under the header rather than beside each control because they are all
+ * edits to the same customer.
+ */
+.error {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  color: var(--text-danger);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
 }
 
 .muted {

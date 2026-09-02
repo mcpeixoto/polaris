@@ -148,16 +148,21 @@ test('a project carries saved views as tabs, created, reordered and deleted in p
 
   // Renaming moves the tab, and the new name is the server's rather than this tab's.
   await openTabMenu(page, tabs, 'Beta');
-  page.once('dialog', (prompt) => void prompt.accept('Bravo'));
   await page.getByRole('menuitem', { name: 'Rename' }).click();
+  const rename = page.getByRole('dialog', { name: 'Rename view' });
+  await rename.getByLabel('View name').fill('Bravo');
+  await rename.getByRole('button', { name: 'Rename view' }).click();
   await expect(tabs.getByRole('link', { name: 'Bravo', exact: true })).toBeVisible();
   await page.reload();
   await expect(tabs.getByRole('link', { name: 'Bravo', exact: true })).toBeVisible();
 
   // Deleting returns to the Issues tab rather than leaving a route with no row behind it.
   await openTabMenu(page, tabs, 'Alpha');
-  page.once('dialog', (confirm) => void confirm.accept());
   await page.getByRole('menuitem', { name: 'Delete' }).click();
+  await page
+    .getByRole('dialog', { name: 'Delete Alpha?' })
+    .getByRole('button', { name: 'Delete view' })
+    .click();
   await expect(page).toHaveURL(new RegExp(`/project/${projectId}/issues`));
   await page.reload();
   await expect(tabs.getByRole('link')).toHaveText(['Overview', 'Issues', 'Bravo', 'Activity']);

@@ -47,6 +47,27 @@ export interface BootstrapHandlers {
 const BATCH_SIZE = 500;
 
 /**
+ * How long the stream may deliver nothing before it is treated as dead.
+ *
+ * A snapshot is a 200 that has already been sent, so a connection that stops producing bytes
+ * halfway through cannot be signalled with a status code and cannot be noticed by `fetch`:
+ * the read promise simply never settles and the progress bar sits on "0 received" for as long
+ * as the tab is open. The server writes a row at a time and never pauses for a minute, so a
+ * minute of silence is a stall rather than a slow workspace.
+ */
+const STALL_MS = 60_000;
+
+/**
+ * A ceiling on the unterminated tail held in memory.
+ *
+ * Lines are short — one entity each. A buffer past this size means nothing on the wire is
+ * newline-delimited NDJSON at all (an HTML error page from a proxy is the usual one), and
+ * accumulating the entire response to discover that is how a bad gateway turns into an
+ * out-of-memory crash.
+ */
+const MAX_LINE_BYTES = 8 * 1024 * 1024;
+
+/**
  * Streams a workspace snapshot.
  *
  * Returns the version the snapshot is consistent as of. That value is what the client
@@ -61,11 +82,18 @@ export async function streamBootstrap(
 ): Promise<{ version: number; clientSchema: number; count: number }> {
   await ensureFreshToken();
 
-  const res = await fetch(apiUrl(`/sync/bootstrap?workspace=${encodeURIComponent(workspaceId)}`), {
-    headers: { ...authHeaders(), Accept: 'application/x-ndjson' },
-    credentials: credentialsMode(),
-    signal,
-  });
+  let res: Response;
+  try {
+    res = await fetch(apiUrl(`/sync/bootstrap?workspace=${encodeURIComponent(workspaceId)}`), {
+      headers: { ...authHeaders(), Accept: 'application/x-ndjson' },
+      credentials: credentialsMode(),
+      ...(signal ? { signal } : null),
+    });
+  } catch (err) {
+    // Including an abort: the caller cancelled, or the request never connected. Either way
+    // nothing was learned about the workspace, which is what NETWORK means here.
+    throw new ApiError('NETWORK', err instanceof Error ? err.message : 'could not reach the API');
+  }
 
   if (!res.ok) {
     let code = 'INTERNAL';
@@ -133,20 +161,59 @@ export async function streamBootstrap(
     }
   };
 
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-
-    // The last fragment is almost never a whole line; hold it until more arrives.
-    let newline = buffer.indexOf('\n');
-    while (newline !== -1) {
-      const line = buffer.slice(0, newline);
-      buffer = buffer.slice(newline + 1);
-      await handleLine(line);
-      newline = buffer.indexOf('\n');
+  /**
+   * One read, or a stall.
+   *
+   * `reader.read()` on a connection that died without a FIN never settles. Racing it against
+   * a timer is the only thing that can notice, and cancelling the reader is what unblocks the
+   * abandoned promise so the stream's resources are released rather than pinned for the life
+   * of the tab.
+   */
+  const readOrStall = async (): Promise<ReadableStreamReadResult<Uint8Array>> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const stalled = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(
+        () => reject(new ApiError('NETWORK', 'the snapshot stopped arriving')),
+        STALL_MS,
+      );
+    });
+    try {
+      return await Promise.race([reader.read(), stalled]);
+    } finally {
+      clearTimeout(timer);
     }
+  };
+
+  try {
+    for (;;) {
+      const { done, value } = await readOrStall();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      // Scanned with an offset and sliced once per chunk rather than once per line. The old
+      // `buffer = buffer.slice(newline + 1)` per line reallocated the remaining buffer tens
+      // of thousands of times on a real snapshot, on the main thread, during the one moment
+      // the user is watching a progress bar.
+      let start = 0;
+      let newline = buffer.indexOf('\n', start);
+      while (newline !== -1) {
+        await handleLine(buffer.slice(start, newline));
+        start = newline + 1;
+        newline = buffer.indexOf('\n', start);
+      }
+      buffer = start === 0 ? buffer : buffer.slice(start);
+
+      if (buffer.length > MAX_LINE_BYTES) {
+        throw new ApiError('INTERNAL', 'the snapshot contained a line that never ended');
+      }
+    }
+  } catch (err) {
+    // Releases the socket. Without it an abandoned stream keeps its connection — and the
+    // whole buffered response behind it — until the tab is closed.
+    await reader.cancel().catch(() => undefined);
+    if (err instanceof ApiError) throw err;
+    throw new ApiError('NETWORK', err instanceof Error ? err.message : 'the snapshot failed');
   }
 
   if (buffer.trim()) await handleLine(buffer.trim());

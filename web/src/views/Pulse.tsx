@@ -12,6 +12,7 @@ import { Link, Navigate, useNavigate } from 'react-router';
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
 import { Button, Checkbox, EmptyState, Input, Modal } from '~/components';
+import { EntityLoading, useStoreSettled } from '~/features/entity-gate/EntityGate';
 import { dayKeyOf } from '~/features/inbox/inbox';
 import { browserTimezone } from '~/features/locale';
 import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
@@ -29,6 +30,8 @@ export function Pulse() {
   const navigate = useNavigate();
   const viewerRole = useViewerRole();
   const viewerId = useViewerId();
+  // A feed with nothing in it and a feed that has not arrived read the same to a live query.
+  const settled = useStoreSettled();
   const timezone = browserTimezone();
   const [tab, setTab] = useState<PulseTab>('for-me');
   const [cursor, setCursor] = useState(0);
@@ -187,7 +190,11 @@ export function Pulse() {
         )}
       </header>
 
-      {flat.length === 0 ? (
+      {flat.length === 0 && !settled ? (
+        <div className={styles.empty}>
+          <EntityLoading label="Loading updates…" lines={4} />
+        </div>
+      ) : flat.length === 0 ? (
         <div className={styles.empty}>
           <EmptyState title={empty.title} description={empty.description} />
         </div>

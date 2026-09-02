@@ -26,6 +26,7 @@ import { PencilGlyph, TrashGlyph } from '~/features/project-updates/glyphs';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewer } from '~/hooks/useViewer';
 import type { Store, UUID } from '~/store';
+import { ApiError } from '~/sync/api';
 import styles from './IssueCustomers.module.css';
 
 export function IssueCustomers({
@@ -46,6 +47,9 @@ export function IssueCustomers({
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<UUID | null>(null);
   const [removing, setRemoving] = useState<UUID | null>(null);
+  // Both writes below used to end at `report`, which reaches the console. A request that
+  // silently refuses to be marked or removed looks to the reader like a click that missed.
+  const [writeError, setWriteError] = useState<string | null>(null);
   const rows = useLiveQuery(
     (store) =>
       issueId !== undefined
@@ -59,6 +63,11 @@ export function IssueCustomers({
 
   if (viewer === null || viewer.role === 'guest' || !enabled) return null;
 
+  const fail = (message: string) => (failure: unknown) => {
+    setWriteError(failure instanceof ApiError ? failure.message : message);
+    report(failure);
+  };
+
   return (
     <section className={styles.section} aria-label="Customers">
       <div className={styles.head}>
@@ -67,6 +76,11 @@ export function IssueCustomers({
           Add request
         </Button>
       </div>
+      {writeError === null ? null : (
+        <p className={styles.error} role="alert">
+          {writeError}
+        </p>
+      )}
       {rows.length === 0 ? (
         <p className={styles.muted}>
           {projectId !== undefined && issueId === undefined
@@ -82,7 +96,12 @@ export function IssueCustomers({
                 className={row.important ? styles.importantOn : styles.important}
                 aria-pressed={row.important}
                 aria-label={row.important ? 'Marked important' : 'Mark important'}
-                onClick={() => void toggleCustomerRequestImportant(engine, row.id, !row.important)}
+                onClick={() => {
+                  setWriteError(null);
+                  toggleCustomerRequestImportant(engine, row.id, !row.important).catch(
+                    fail('That request could not be marked.'),
+                  );
+                }}
               >
                 ▲
               </button>
@@ -143,7 +162,10 @@ export function IssueCustomers({
         onConfirm={() => {
           if (removing !== null) {
             if (editing === removing) setEditing(null);
-            deleteCustomerRequest(engine, removing).catch(report);
+            setWriteError(null);
+            deleteCustomerRequest(engine, removing).catch(
+              fail('That request could not be removed.'),
+            );
           }
           setRemoving(null);
         }}

@@ -22,6 +22,7 @@ import {
   type WorkflowState,
 } from '~/store';
 import { priorityLabel } from '~/components';
+import { personName } from '~/features/prefs/prefs';
 
 export interface IssueGroup {
   /** Stable across renders and unique within the view: the DOM key and the board column id. */
@@ -55,6 +56,16 @@ export function groupIssues(
   direction: DisplayDirection,
   teamId?: UUID,
   admits?: (state: WorkflowState) => boolean,
+  /**
+   * Whether groups that nothing falls into are drawn.
+   *
+   * The default is the module's opening rule — an empty status column is information, and a
+   * board whose columns come and go as work moves through it is one nobody can build a habit
+   * around. `09-views-filters-layouts.md` asks for it to be a toggle, because the argument
+   * stops holding on a filtered view: five zero-count headers over one matching issue is the
+   * padding displacing the answer.
+   */
+  showEmptyGroups = true,
 ): IssueGroup[] {
   if (groupBy === 'none') {
     return [{ key: 'all', label: '', issues: sortIssues([...issues], store, orderBy, direction) }];
@@ -107,7 +118,7 @@ export function groupIssues(
   // Empty groups are added for the dimensions where absence is information. Statuses and
   // priorities are fixed sets the team can see the whole of; assignees and labels are not,
   // and a column per member of a two-hundred-person workspace is not a board.
-  if (groupBy === 'state') {
+  if (groupBy === 'state' && showEmptyGroups) {
     // Statuses belong to a team, so the fixed set to show the whole of is the scoped
     // team's — not the workspace's. Padding from every status in the workspace puts other
     // teams' columns on this team's board (three "Todo"s in a three-team workspace) for
@@ -128,7 +139,7 @@ export function groupIssues(
       buckets.set(id, []);
     }
   }
-  if (groupBy === 'priority') {
+  if (groupBy === 'priority' && showEmptyGroups) {
     for (const priority of [1, 2, 3, 4, 0]) {
       if (!buckets.has(String(priority))) buckets.set(String(priority), []);
     }
@@ -156,8 +167,14 @@ function describe(key: string, groupBy: DisplayGroupBy, store: Store): Omit<Issu
     }
     case 'stateCategory':
       return { key, label: categoryLabel(key) };
-    case 'assignee':
-      return { key, label: store.get('user', key)?.displayName ?? 'Unknown', userId: key };
+    case 'assignee': {
+      // Through `personName`, so the "full names" preference reaches a column heading as well
+      // as the rows under it. Reading `displayName` here meant toggling the preference
+      // relabelled every row on an assignee board and left the columns saying the other
+      // thing — one setting with two answers on one screen.
+      const user = store.get('user', key);
+      return { key, label: user === undefined ? 'Unknown' : personName(user), userId: key };
+    }
     case 'priority':
       return { key, label: priorityLabel(Number(key)), priority: Number(key) };
     case 'team': {
@@ -245,6 +262,59 @@ function compareStates(a: WorkflowState | undefined, b: WorkflowState | undefine
   const byCategory = (CATEGORY_ORDER[a.category] ?? 99) - (CATEGORY_ORDER[b.category] ?? 99);
   if (byCategory !== 0) return byCategory;
   return a.position < b.position ? -1 : a.position > b.position ? 1 : 0;
+}
+
+/**
+ * Groups, then groups each group again — swimlanes, as one flat list of groups.
+ *
+ * `09-views-filters-layouts.md` asks for sub-grouping "in list and board (as rows)". This is
+ * the list's half of it and it is deliberately flat: the virtualiser measures and positions
+ * one list, and real nesting would mean either giving up virtualisation or telling the
+ * accessibility tree about a structure that is not in the DOM — the same bargain `rowsOf`
+ * already makes about `role="group"`. So a swimlane is a group whose key and label name both
+ * dimensions, which collapses, sticks and drops exactly as any other group does.
+ *
+ * Empty sub-groups are never padded, whatever `showEmptyGroups` says. The padding argument is
+ * about a fixed set the team can see the whole of; a status crossed with an assignee is not
+ * that set, and a board of statuses times people is a screen of zeroes.
+ */
+export function subGroupIssues(
+  groups: readonly IssueGroup[],
+  store: Store,
+  subGroupBy: DisplayGroupBy,
+  orderBy: DisplayOrderBy,
+  direction: DisplayDirection,
+): IssueGroup[] {
+  if (subGroupBy === 'none') return [...groups];
+  const out: IssueGroup[] = [];
+  for (const group of groups) {
+    if (group.issues.length === 0) {
+      out.push(group);
+      continue;
+    }
+    for (const sub of groupIssues(
+      group.issues,
+      store,
+      subGroupBy,
+      orderBy,
+      direction,
+      undefined,
+      undefined,
+      false,
+    )) {
+      out.push({
+        ...sub,
+        // The outer group's identity leads, so the swimlanes of one status stay together and
+        // the key is unique across the view rather than only within its lane.
+        key: `${group.key}/${sub.key}`,
+        label: group.label === '' ? sub.label : `${group.label} · ${sub.label}`,
+        // The outer group's entity, not the inner one's: the heading's icon is the status a
+        // status board's lane is in, whatever the lane is then split by.
+        ...(group.stateId === undefined ? null : { stateId: group.stateId }),
+      });
+    }
+  }
+  return out;
 }
 
 /** Sorts in place and returns the same array. */

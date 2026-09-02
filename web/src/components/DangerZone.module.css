@@ -1,0 +1,90 @@
+/*
+ * The edge is the affordance. Colour alone does not say "this region is different" to
+ * anyone reading the page in greyscale, so the zone is drawn with its own border and its
+ * own tinted ground as well as its heading colour.
+ */
+
+.zone {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--text-danger) 32%, transparent);
+  border-radius: var(--radius-lg);
+  background-color: color-mix(in srgb, var(--text-danger) 5%, transparent);
+}
+
+.heading {
+  margin: 0;
+  color: var(--text-danger);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.006em;
+}
+
+.hint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: color-mix(in srgb, var(--text-danger) 12%, transparent);
+  color: var(--text-danger);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.rowText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.rowTitle {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.rowConsequence {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.rowAction {
+  flex: none;
+  margin-inline-start: auto;
+}
+
+/* One column below the point where the sentence and the button stop fitting side by side. */
+@media (max-width: 640px) {
+  .row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rowAction {
+    margin-inline-start: 0;
+  }
+}

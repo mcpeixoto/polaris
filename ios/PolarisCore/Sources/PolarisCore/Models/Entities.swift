@@ -97,8 +97,10 @@ public struct Label: Codable, Sendable, Hashable, Identifiable {
 public struct Issue: Codable, Sendable, Hashable, Identifiable {
     public let id: String
     public let identifier: String
-    public let title: String
-    public let description: String
+    /// `var` for the same reason `state` is: the detail screen edits both in place and shows
+    /// the new value before the server has confirmed it.
+    public var title: String
+    public var description: String
     public var priority: Priority
     public let estimate: Int?
     /// A calendar day, `2006-01-02`, deliberately not a `Time` — see the schema comment on

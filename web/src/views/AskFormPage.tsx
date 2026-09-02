@@ -38,6 +38,9 @@ export function AskFormPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  // Only true once a send has actually been attempted. Validating from the first keystroke
+  // tells a stranger their name is wrong before they have finished typing it.
+  const [attempted, setAttempted] = useState(false);
 
   useEffect(() => {
     if (token === '') {
@@ -62,18 +65,45 @@ export function AskFormPage() {
     };
   }, [token, attempt]);
 
+  /*
+   * What the server is actually sent, which is not what the browser validated.
+   *
+   * Every field goes over the wire `.trim()`ed, and native `required` only asks whether the
+   * control is non-empty — so a title of three spaces passed validation and filed an issue
+   * with no title at all, on the one screen in the product a stranger uses. Validating the
+   * trimmed value is validating the thing that gets stored.
+   */
+  const trimmed = {
+    title: title.trim(),
+    description: description.trim(),
+    requesterName: requesterName.trim(),
+    requesterEmail: requesterEmail.trim(),
+  };
+
+  // Reported through `Input`'s own `error` prop rather than as loose text, so each message
+  // gets Field's treatment and the `aria-describedby` wiring that points the field at it.
+  const problems = {
+    requesterName: trimmed.requesterName === '' ? 'Enter your name' : undefined,
+    // Not a format check. The browser already refuses a value with no "@" via type="email",
+    // and a client-side pattern that is stricter than the server's is a form that rejects
+    // addresses which would have worked.
+    requesterEmail: trimmed.requesterEmail === '' ? 'Enter your email' : undefined,
+    title: trimmed.title === '' ? 'Say what you need in a few words' : undefined,
+  };
+  const invalid =
+    problems.requesterName !== undefined ||
+    problems.requesterEmail !== undefined ||
+    problems.title !== undefined;
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (busy || token === '') return;
+    setAttempted(true);
+    if (invalid) return;
     setBusy(true);
     setError(null);
     try {
-      await asks.submit(token, {
-        title: title.trim(),
-        description: description.trim(),
-        requesterName: requesterName.trim(),
-        requesterEmail: requesterEmail.trim(),
-      });
+      await asks.submit(token, trimmed);
       setDone(true);
     } catch (failure) {
       setBusy(false);
@@ -135,6 +165,7 @@ export function AskFormPage() {
           onChange={(event) => setRequesterName(event.target.value)}
           autoComplete="name"
           required
+          error={attempted ? problems.requesterName : undefined}
         />
         <Input
           label="Your email"
@@ -143,20 +174,30 @@ export function AskFormPage() {
           onChange={(event) => setRequesterEmail(event.target.value)}
           autoComplete="email"
           required
+          error={attempted ? problems.requesterEmail : undefined}
         />
         <Input
           label="Title"
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           required
+          error={attempted ? problems.title : undefined}
         />
         <Textarea
           label="Details"
           value={description}
           onChange={(event) => setDescription(event.target.value)}
         />
-        <Button type="submit" disabled={busy}>
-          {busy ? 'Sending…' : 'Submit'}
+        {/* `loading`, not `disabled`: a disabled button cannot hold focus, so the browser
+            drops the requester to the top of the document the moment they press send.
+
+            The label is "Submit", which the copy rules name as a label a button may not
+            carry — "buttons are verbs and name their outcome". It stays because this form's
+            existing tests assert the accessible name and a pre-existing test may not be
+            edited to accommodate a change. Renaming it to "Send request" is right and is
+            the one-line change to make the moment those assertions can move with it. */}
+        <Button type="submit" loading={busy}>
+          Submit
         </Button>
       </AuthForm>
     </AuthLayout>

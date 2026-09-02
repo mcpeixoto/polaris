@@ -17,20 +17,54 @@
  * Escape stays the registry's `app.dismiss` as well as Modal's own handler — Modal stops the
  * press reaching the window, so the two do not both fire. Nothing about the keymap changed
  * here.
+ *
+ * The sheet routinely lists forty rows, so it has a filter. That is not a convenience: a
+ * reference somebody has to read in full to find one line is a reference they close and guess
+ * from instead, and the ranking this reuses is the same one the command menu already applies
+ * to the same shape of data.
  */
 
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
-import { Kbd, Modal } from '~/components';
+import { EmptyState, Input, Kbd, Modal } from '~/components';
 import type { Platform } from '~/keys';
 import { os } from '~/platform/runtime';
+import { subsequenceScore } from './commandMenuQuery';
 import { useKeymap } from './keymap';
 import styles from './HelpOverlay.module.css';
 
+interface HelpEntry {
+  readonly id: string;
+  readonly title: string;
+  readonly keys: readonly string[];
+}
+
+interface HelpGroup {
+  readonly group: string;
+  readonly entries: readonly HelpEntry[];
+}
+
+/**
+ * The order the sheet reads in, which is not alphabetical.
+ *
+ * It was, and that put "General" — ⌘K, `?`, Escape, the three keys anybody opening this sheet
+ * for the first time is looking for — between "Editor" and "Issues". A reference is ordered by
+ * what the reader wants first, and a group not named here follows in alphabetical order rather
+ * than being dropped, so a new feature's shortcuts appear without anybody editing this list.
+ */
+const GROUP_ORDER = ['General', 'Navigation', 'Issues', 'Views', 'Editor'];
+
+function groupRank(group: string): number {
+  const index = GROUP_ORDER.indexOf(group);
+  return index === -1 ? GROUP_ORDER.length : index;
+}
+
 export function HelpOverlay({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { registry, context } = useKeymap();
+  const [filter, setFilter] = useState('');
+  const filterRef = useRef<HTMLInputElement>(null);
 
-  const groups = useMemo(() => {
+  const groups = useMemo((): HelpGroup[] => {
     if (!open) return [];
     // `byGroup` is the registry's own answer to this question: every *bound* action that
     // applies here, grouped, with the `hidden` ones kept. Filtering `hidden` here — which
@@ -49,46 +83,103 @@ export function HelpOverlay({ open, onClose }: { open: boolean; onClose: () => v
     return [...registry.byGroup({ source: 'menu', context }).entries()]
       .map(([group, actions]) => ({
         group,
-        entries: actions
-          .map((action) => ({
-            id: action.id,
-            title: action.title,
-            // The specs, not strings drawn from them. `Kbd` is what turns a spec into
-            // glyphs everywhere else in the product, and formatting them here left this
-            // sheet drawing `G I` as one chip where the command menu drew two.
-            keys: action.keys ?? [],
-          }))
-          .sort((a, b) => a.title.localeCompare(b.title)),
+        // Registration order within a group, deliberately, and not `localeCompare`. The
+        // order a feature registers its actions in is the order it thinks about them —
+        // "Open", then "Edit", then "Delete" — and alphabetising that produced a column
+        // whose sequence meant nothing.
+        entries: actions.map((action) => ({
+          id: action.id,
+          title: action.title,
+          // The specs, not strings drawn from them. `Kbd` is what turns a spec into
+          // glyphs everywhere else in the product, and formatting them here left this
+          // sheet drawing `G I` as one chip where the command menu drew two.
+          keys: action.keys ?? [],
+        })),
       }))
-      .sort((a, b) => a.group.localeCompare(b.group));
+      .sort((a, b) => groupRank(a.group) - groupRank(b.group) || a.group.localeCompare(b.group));
   }, [open, registry, context]);
 
-  // Returned before the Modal rather than handed `open`, so the memo above keeps its guard:
-  // a sheet that emptied itself on the way out would show the reader the list being taken
-  // apart. It costs the exit animation, which this overlay never had.
-  if (!open) return null;
+  /**
+   * The last sheet that had anything in it.
+   *
+   * `groups` empties the moment `open` goes false, and the overlay is now handed `open` so it
+   * can run `Modal`'s exit — which means the memo above would take the content apart under the
+   * reader's eyes for the fifty milliseconds of the fade. This holds the last non-empty
+   * computation so the sheet leaves holding what it was showing, which is the same trick
+   * `UndoToast` uses for the same reason. `byGroup` can also legitimately answer with nothing
+   * — a context with no bound menu-source actions — and that case still has to reach the
+   * empty state rather than being masked, so it is only substituted while closing.
+   */
+  const lastGroups = useRef<HelpGroup[]>([]);
+  if (open) lastGroups.current = groups;
+  const shown = open ? groups : lastGroups.current;
+
+  const matched = useMemo((): HelpGroup[] => {
+    const needle = filter.trim().toLowerCase();
+    if (needle === '') return shown;
+    return shown
+      .map((section) => ({
+        group: section.group,
+        // Matched against the key text as well as the title, because half of looking a
+        // shortcut up is arriving with the keys and wanting the name.
+        entries: section.entries.filter(
+          (entry) =>
+            subsequenceScore(
+              `${section.group} ${entry.title} ${entry.keys.join(' ')}`.toLowerCase(),
+              needle,
+            ) !== null,
+        ),
+      }))
+      .filter((section) => section.entries.length > 0);
+  }, [shown, filter]);
 
   return (
-    <Modal open onClose={onClose} title="Keyboard shortcuts" size="lg">
-      <div className={styles.columns}>
-        {groups.map(({ group, entries }) => (
-          <section key={group} className={styles.section}>
-            <h3 className={styles.group}>{group}</h3>
-            <dl className={styles.list}>
-              {entries.map((entry) => (
-                <div key={entry.id} className={styles.row}>
-                  <dt className={styles.label}>{entry.title}</dt>
-                  <dd className={styles.keys}>
-                    {entry.keys.map((spec) => (
-                      <Kbd key={spec} keys={spec} platform={platform()} />
-                    ))}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-        ))}
-      </div>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Keyboard shortcuts"
+      size="lg"
+      initialFocus={filterRef}
+    >
+      <Input
+        ref={filterRef}
+        label="Filter shortcuts"
+        hideLabel
+        placeholder="Filter shortcuts…"
+        value={filter}
+        onChange={(event) => setFilter(event.target.value)}
+        className={styles.filter}
+      />
+      {matched.length === 0 ? (
+        <EmptyState
+          title={filter.trim() === '' ? 'No shortcuts on this screen' : 'No shortcuts match'}
+          description={
+            filter.trim() === ''
+              ? 'Nothing here is bound to a key yet. Try the command menu instead.'
+              : 'Try fewer letters, or the name of what the shortcut does.'
+          }
+        />
+      ) : (
+        <div className={styles.columns}>
+          {matched.map(({ group, entries }) => (
+            <section key={group} className={styles.section}>
+              <h3 className={styles.group}>{group}</h3>
+              <dl className={styles.list}>
+                {entries.map((entry) => (
+                  <div key={entry.id} className={styles.row}>
+                    <dt className={styles.label}>{entry.title}</dt>
+                    <dd className={styles.keys}>
+                      {entry.keys.map((spec) => (
+                        <Kbd key={spec} keys={spec} platform={platform()} />
+                      ))}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          ))}
+        </div>
+      )}
     </Modal>
   );
 }

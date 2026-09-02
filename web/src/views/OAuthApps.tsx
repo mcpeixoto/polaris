@@ -34,6 +34,8 @@ export function OAuthApps() {
   const [editing, setEditing] = useState<OauthClientSummary | null>(null);
   const [removing, setRemoving] = useState<OauthClientSummary | null>(null);
   const [busy, setBusy] = useState(false);
+  // The refusal belongs inside the dialog that asked, not in the page banner underneath it.
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -190,14 +192,26 @@ export function OAuthApps() {
         confirmLabel="Delete application"
         destructive
         busy={busy}
-        onClose={() => setRemoving(null)}
+        error={removeError ?? undefined}
+        onClose={() => {
+          setRemoving(null);
+          setRemoveError(null);
+        }}
         onConfirm={() => {
           if (removing === null || busy) return;
           setBusy(true);
-          void deleteOauthClient(removing.id)
+          setRemoveError(null);
+          deleteOauthClient(removing.id)
             .then(() => {
               setRemoving(null);
               reload();
+            })
+            .catch((failure: unknown) => {
+              setRemoveError(
+                failure instanceof ApiError
+                  ? failure.message
+                  : 'That application could not be deleted.',
+              );
             })
             .finally(() => setBusy(false));
         }}

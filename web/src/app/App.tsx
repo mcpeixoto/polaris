@@ -9,98 +9,206 @@
 import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
 
-import { Button, EmptyState } from '~/components';
+import { Button, EmptyState, SkeletonRows } from '~/components';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useViewerRole } from '~/hooks/useViewer';
 import { onDeepLink } from '~/platform/runtime';
 import { hasServer } from '~/sync/endpoint';
-import { LabelSettings } from '~/features/labels/LabelSettings';
-import { ProjectLabelSettings } from '~/features/project-labels/ProjectLabelSettings';
-import { InitiativeLabelSettings } from '~/features/initiative-labels/InitiativeLabelSettings';
-import { ProjectStatusSettings } from '~/features/projects/ProjectStatusSettings';
-import { ProjectUpdateSettings } from '~/views/ProjectUpdateSettings';
 import { UndoToast } from '~/features/undo/UndoToast';
 import { AcceptInvite } from '~/views/AcceptInvite';
 import { AskFormPage } from '~/views/AskFormPage';
-import { AskSettings } from '~/views/AskSettings';
-import { BillingSettings } from '~/views/BillingSettings';
-import { ApiKeys } from '~/views/ApiKeys';
-import { AuthorisedApps } from '~/views/AuthorisedApps';
-import { Sessions } from '~/views/Sessions';
-import { Webhooks } from '~/views/Webhooks';
-import { OAuthApps } from '~/views/OAuthApps';
-import { OAuthAuthorize } from '~/views/OAuthAuthorize';
-import { GitHubSettings } from '~/views/GitHubSettings';
-import { GitLabSettings } from '~/views/GitLabSettings';
-import { SentrySettings } from '~/views/SentrySettings';
-import { SlackSettings } from '~/views/SlackSettings';
 import { ConnectServer } from '~/views/ConnectServer';
-import { CreateIssueFromUrl } from '~/views/CreateIssueFromUrl';
-import { CreateWorkspace } from '~/views/CreateWorkspace';
-import { Drafts } from '~/views/Drafts';
-import { ExportSettings } from '~/views/ExportSettings';
 import { Inbox } from '~/views/Inbox';
-import { Pulse } from '~/views/Pulse';
-import { PulseSettings } from '~/views/PulseSettings';
-import { CustomerRequestSettings } from '~/views/CustomerRequestSettings';
 import { IssueDetail } from '~/views/IssueDetail';
 import { IssueList } from '~/views/IssueList';
-import { AdHocIssues } from '~/views/AdHocIssues';
-import { LabelView } from '~/views/LabelView';
-import { IntegrationDirectory } from '~/views/IntegrationDirectory';
-import { MemberSettings } from '~/views/MemberSettings';
-import { McpSettings } from '~/views/McpSettings';
 import { MyIssues } from '~/views/MyIssues';
-import { NotificationSettings } from '~/views/NotificationSettings';
-import { Preferences } from '~/views/Preferences';
-import { ProfileSettings } from '~/views/ProfileSettings';
-import { WorkspaceSettings } from '~/views/WorkspaceSettings';
-import { ProjectShell } from '~/views/ProjectShell';
-import { ProjectOverview } from '~/views/ProjectOverview';
-import { ProjectIssues } from '~/views/ProjectIssues';
-import { ProjectAttachedView } from '~/views/ProjectAttachedView';
-import { ProjectActivity } from '~/views/ProjectActivity';
-import { Projects } from '~/views/Projects';
-import { CycleDetail } from '~/views/CycleDetail';
-import { Cycles } from '~/views/Cycles';
-import { Triage } from '~/views/Triage';
-import { UserView } from '~/views/UserView';
-import { SavedView } from '~/views/SavedView';
-import { Search } from '~/views/Search';
-import { Templates } from '~/views/Templates';
-import { TeamHome } from '~/views/TeamHome';
-import { TeamSettings } from '~/views/TeamSettings';
-import { Landing } from '~/views/Landing';
-import { Pricing } from '~/views/Pricing';
 import { SignIn } from '~/views/SignIn';
 import { SignUp } from '~/views/SignUp';
-import { Archives } from '~/views/Archives';
-import { Trash } from '~/views/Trash';
-import { DeletedTeams } from '~/views/DeletedTeams';
-import { AuditLog } from '~/views/AuditLog';
-import { SlaSettings } from '~/views/SlaSettings';
-import { DocumentDetail } from '~/views/DocumentDetail';
-import { Documents } from '~/views/Documents';
-import { Initiatives } from '~/views/Initiatives';
-import { InitiativeShell } from '~/views/InitiativeShell';
-import { InitiativeDetail } from '~/views/InitiativeDetail';
-import { InitiativeActivity } from '~/views/InitiativeActivity';
-import { Customers } from '~/views/Customers';
-import { CustomerDetail } from '~/views/CustomerDetail';
-import { Dashboards } from '~/views/Dashboards';
-import { DashboardDetail } from '~/views/DashboardDetail';
 import { CreateIssueModal } from '~/features/issue/CreateIssueModal';
 import { CreateProjectModal } from '~/features/projects/CreateProjectModal';
 import { CreateInitiativeModal } from '~/features/initiatives/CreateInitiativeModal';
 import { CreateCustomerModal } from '~/features/customers/CreateCustomerModal';
 import { CreateCustomerRequestModal } from '~/features/customers/CreateCustomerRequestModal';
 import { CreateDashboardModal } from '~/features/dashboards/CreateDashboardModal';
-
 import { getPrefs } from '~/features/prefs/prefs';
+import { ToastHost } from '~/features/toast/ToastHost';
 import { useQuery } from './context';
 import { AppShell } from './AppShell';
 import { Boot, rememberWorkspace } from './Boot';
+import { ErrorBoundary } from './ErrorBoundary';
 import { KeymapProvider } from './keymap';
-import { NotYet } from './NotYet';
+
+/*
+ * The cold screens, loaded when they are first opened rather than before the issue list
+ * paints.
+ *
+ * Every screen in this file used to be a static import, so the entry chunk carried the audit
+ * log, the dashboard renderer, every integration settings form and the marketing pages —
+ * downloaded and parsed by every user on every cold load, in front of the one list that is
+ * actually the product. Splitting them is not a micro-optimisation; it is the difference
+ * between the first paint waiting on the code for the screen in front of you and waiting on
+ * the code for all ninety.
+ *
+ * What stays eager is the short list above: the shell's own hot routes, the sign-in pages
+ * that are the first paint for anybody signed out, and the create modals, which open on a
+ * keystroke and must not arrive a chunk-fetch later than the key that asked for them.
+ *
+ * `lazy` needs a default export and these modules are all named exports, which is what the
+ * one-line async wrapper is for — the same shape `DevGallery` below already uses.
+ */
+const AdHocIssues = lazy(async () => ({
+  default: (await import('~/views/AdHocIssues')).AdHocIssues,
+}));
+const ApiKeys = lazy(async () => ({ default: (await import('~/views/ApiKeys')).ApiKeys }));
+const Archives = lazy(async () => ({ default: (await import('~/views/Archives')).Archives }));
+const AskSettings = lazy(async () => ({
+  default: (await import('~/views/AskSettings')).AskSettings,
+}));
+const AuditLog = lazy(async () => ({ default: (await import('~/views/AuditLog')).AuditLog }));
+const AuthorisedApps = lazy(async () => ({
+  default: (await import('~/views/AuthorisedApps')).AuthorisedApps,
+}));
+const BillingSettings = lazy(async () => ({
+  default: (await import('~/views/BillingSettings')).BillingSettings,
+}));
+const CreateIssueFromUrl = lazy(async () => ({
+  default: (await import('~/views/CreateIssueFromUrl')).CreateIssueFromUrl,
+}));
+const CreateWorkspace = lazy(async () => ({
+  default: (await import('~/views/CreateWorkspace')).CreateWorkspace,
+}));
+const CustomerDetail = lazy(async () => ({
+  default: (await import('~/views/CustomerDetail')).CustomerDetail,
+}));
+const CustomerRequestSettings = lazy(async () => ({
+  default: (await import('~/views/CustomerRequestSettings')).CustomerRequestSettings,
+}));
+const Customers = lazy(async () => ({ default: (await import('~/views/Customers')).Customers }));
+const CycleDetail = lazy(async () => ({
+  default: (await import('~/views/CycleDetail')).CycleDetail,
+}));
+const Cycles = lazy(async () => ({ default: (await import('~/views/Cycles')).Cycles }));
+const DashboardDetail = lazy(async () => ({
+  default: (await import('~/views/DashboardDetail')).DashboardDetail,
+}));
+const Dashboards = lazy(async () => ({ default: (await import('~/views/Dashboards')).Dashboards }));
+const DeletedTeams = lazy(async () => ({
+  default: (await import('~/views/DeletedTeams')).DeletedTeams,
+}));
+const DocumentDetail = lazy(async () => ({
+  default: (await import('~/views/DocumentDetail')).DocumentDetail,
+}));
+const Documents = lazy(async () => ({ default: (await import('~/views/Documents')).Documents }));
+const Drafts = lazy(async () => ({ default: (await import('~/views/Drafts')).Drafts }));
+const ExportSettings = lazy(async () => ({
+  default: (await import('~/views/ExportSettings')).ExportSettings,
+}));
+const GitHubSettings = lazy(async () => ({
+  default: (await import('~/views/GitHubSettings')).GitHubSettings,
+}));
+const GitLabSettings = lazy(async () => ({
+  default: (await import('~/views/GitLabSettings')).GitLabSettings,
+}));
+const InitiativeActivity = lazy(async () => ({
+  default: (await import('~/views/InitiativeActivity')).InitiativeActivity,
+}));
+const InitiativeDetail = lazy(async () => ({
+  default: (await import('~/views/InitiativeDetail')).InitiativeDetail,
+}));
+const InitiativeLabelSettings = lazy(async () => ({
+  default: (await import('~/features/initiative-labels/InitiativeLabelSettings'))
+    .InitiativeLabelSettings,
+}));
+const InitiativeShell = lazy(async () => ({
+  default: (await import('~/views/InitiativeShell')).InitiativeShell,
+}));
+const Initiatives = lazy(async () => ({
+  default: (await import('~/views/Initiatives')).Initiatives,
+}));
+const IntegrationDirectory = lazy(async () => ({
+  default: (await import('~/views/IntegrationDirectory')).IntegrationDirectory,
+}));
+const LabelSettings = lazy(async () => ({
+  default: (await import('~/features/labels/LabelSettings')).LabelSettings,
+}));
+const LabelView = lazy(async () => ({ default: (await import('~/views/LabelView')).LabelView }));
+const Landing = lazy(async () => ({ default: (await import('~/views/Landing')).Landing }));
+const McpSettings = lazy(async () => ({
+  default: (await import('~/views/McpSettings')).McpSettings,
+}));
+const MemberSettings = lazy(async () => ({
+  default: (await import('~/views/MemberSettings')).MemberSettings,
+}));
+const NotificationSettings = lazy(async () => ({
+  default: (await import('~/views/NotificationSettings')).NotificationSettings,
+}));
+const OAuthApps = lazy(async () => ({ default: (await import('~/views/OAuthApps')).OAuthApps }));
+const OAuthAuthorize = lazy(async () => ({
+  default: (await import('~/views/OAuthAuthorize')).OAuthAuthorize,
+}));
+const Preferences = lazy(async () => ({
+  default: (await import('~/views/Preferences')).Preferences,
+}));
+const Pricing = lazy(async () => ({ default: (await import('~/views/Pricing')).Pricing }));
+const ProfileSettings = lazy(async () => ({
+  default: (await import('~/views/ProfileSettings')).ProfileSettings,
+}));
+const ProjectActivity = lazy(async () => ({
+  default: (await import('~/views/ProjectActivity')).ProjectActivity,
+}));
+const ProjectAttachedView = lazy(async () => ({
+  default: (await import('~/views/ProjectAttachedView')).ProjectAttachedView,
+}));
+const ProjectIssues = lazy(async () => ({
+  default: (await import('~/views/ProjectIssues')).ProjectIssues,
+}));
+const ProjectLabelSettings = lazy(async () => ({
+  default: (await import('~/features/project-labels/ProjectLabelSettings')).ProjectLabelSettings,
+}));
+const ProjectOverview = lazy(async () => ({
+  default: (await import('~/views/ProjectOverview')).ProjectOverview,
+}));
+const ProjectShell = lazy(async () => ({
+  default: (await import('~/views/ProjectShell')).ProjectShell,
+}));
+const ProjectStatusSettings = lazy(async () => ({
+  default: (await import('~/features/projects/ProjectStatusSettings')).ProjectStatusSettings,
+}));
+const ProjectUpdateSettings = lazy(async () => ({
+  default: (await import('~/views/ProjectUpdateSettings')).ProjectUpdateSettings,
+}));
+const Projects = lazy(async () => ({ default: (await import('~/views/Projects')).Projects }));
+const Pulse = lazy(async () => ({ default: (await import('~/views/Pulse')).Pulse }));
+const PulseSettings = lazy(async () => ({
+  default: (await import('~/views/PulseSettings')).PulseSettings,
+}));
+const SavedView = lazy(async () => ({ default: (await import('~/views/SavedView')).SavedView }));
+const Search = lazy(async () => ({ default: (await import('~/views/Search')).Search }));
+const SentrySettings = lazy(async () => ({
+  default: (await import('~/views/SentrySettings')).SentrySettings,
+}));
+const Sessions = lazy(async () => ({ default: (await import('~/views/Sessions')).Sessions }));
+const SlaSettings = lazy(async () => ({
+  default: (await import('~/views/SlaSettings')).SlaSettings,
+}));
+const SlackSettings = lazy(async () => ({
+  default: (await import('~/views/SlackSettings')).SlackSettings,
+}));
+const TeamHome = lazy(async () => ({ default: (await import('~/views/TeamHome')).TeamHome }));
+const TeamSettings = lazy(async () => ({
+  default: (await import('~/views/TeamSettings')).TeamSettings,
+}));
+const TeamsSettings = lazy(async () => ({
+  default: (await import('~/views/TeamsSettings')).TeamsSettings,
+}));
+const Templates = lazy(async () => ({ default: (await import('~/views/Templates')).Templates }));
+const Trash = lazy(async () => ({ default: (await import('~/views/Trash')).Trash }));
+const Triage = lazy(async () => ({ default: (await import('~/views/Triage')).Triage }));
+const UserView = lazy(async () => ({ default: (await import('~/views/UserView')).UserView }));
+const Webhooks = lazy(async () => ({ default: (await import('~/views/Webhooks')).Webhooks }));
+const WorkspaceSettings = lazy(async () => ({
+  default: (await import('~/views/WorkspaceSettings')).WorkspaceSettings,
+}));
 
 /**
  * The component gallery, in development builds and nowhere else.
@@ -153,44 +261,63 @@ export function App() {
       <KeymapProvider>
         <Boot
           renderSignedOut={({ onSignedIn }) => (
-            <Routes>
-              <Route path="/" element={<Landing />} />
-              {/* Same page, bookmarkable even after a tester has a session — see
+            /* Landing and Pricing are split out of the entry chunk, so the anonymous routes
+               need a boundary to suspend against too. `null` rather than a skeleton here:
+               these are whole marketing pages, and a page-shaped shimmer for the few
+               milliseconds a chunk takes reads as a layout glitch rather than as loading. */
+            <Suspense fallback={null}>
+              <Routes>
+                <Route path="/" element={<Landing />} />
+                {/* Same page, bookmarkable even after a tester has a session — see
                   SignedInShell. Anonymous `/` is the marketing surface; authenticated `/`
                   is still the first team's issue list. */}
-              <Route path="/welcome" element={<Landing />} />
-              {/* Declared before the catch-all, which renders the sign-in form: without
+                <Route path="/welcome" element={<Landing />} />
+                {/* Declared before the catch-all, which renders the sign-in form: without
                   this route /pricing showed a password field to somebody who had asked
                   what it costs. Also routed in SignedInShell — see the note there. */}
-              <Route path="/pricing" element={<Pricing />} />
-              <Route path="/signin" element={<SignIn onSignedIn={onSignedIn} />} />
-              <Route path="/signup" element={<SignUp onSignedIn={onSignedIn} />} />
-              {/* The invitation link is followed from an email, so it has to survive
+                <Route path="/pricing" element={<Pricing />} />
+                <Route path="/signin" element={<SignIn onSignedIn={onSignedIn} />} />
+                <Route path="/signup" element={<SignUp onSignedIn={onSignedIn} />} />
+                {/* The invitation link is followed from an email, so it has to survive
                   landing on a signed-out browser rather than bouncing to /signin and
                   losing the token. */}
-              <Route
-                path="/invite/:token"
-                element={<AcceptInviteAndEnter onJoined={onSignedIn} />}
-              />
-              <Route path="/ask/:token" element={<AskFormPage />} />
-              {/* Unknown paths stay on sign-in so a deep link like /team/ENG is still
+                <Route
+                  path="/invite/:token"
+                  element={<AcceptInviteAndEnter onJoined={onSignedIn} />}
+                />
+                <Route path="/ask/:token" element={<AskFormPage />} />
+                {/* Unknown paths stay on sign-in so a deep link like /team/ENG is still
                   the URL after the session is restored. */}
-              <Route path="*" element={<SignIn onSignedIn={onSignedIn} />} />
-            </Routes>
+                <Route path="*" element={<SignIn onSignedIn={onSignedIn} />} />
+              </Routes>
+            </Suspense>
           )}
           renderNoWorkspace={({ onCreated }) => (
-            <Routes>
-              <Route
-                path="/invite/:token"
-                element={<AcceptInviteAndEnter onJoined={onCreated} />}
-              />
-              <Route path="/ask/:token" element={<AskFormPage />} />
-              <Route path="*" element={<CreateWorkspace onCreated={onCreated} />} />
-            </Routes>
+            <Suspense fallback={null}>
+              <Routes>
+                <Route
+                  path="/invite/:token"
+                  element={<AcceptInviteAndEnter onJoined={onCreated} />}
+                />
+                <Route path="/ask/:token" element={<AskFormPage />} />
+                <Route path="*" element={<CreateWorkspace onCreated={onCreated} />} />
+              </Routes>
+            </Suspense>
           )}
         >
           <DeepLinks />
-          <SignedInShell />
+          {/*
+            The outer boundary, and the reason there are two.
+
+            This one catches what takes the chrome with it — a throw in the shell itself, in
+            the nav, in a provider — where there is no sidebar left to keep alive and the only
+            honest offer is a reload. It has no `resetKey`, because when the shell is what
+            crashed there is nowhere to navigate to that would not crash on the way. The inner
+            one, around the routed view below, is the one that recovers.
+          */}
+          <ErrorBoundary title="Polaris crashed">
+            <SignedInShell />
+          </ErrorBoundary>
           {/*
             Mounted once, outside the routes, because an undo has to outlive the screen the
             action was taken on: deleting an issue from its own detail page navigates away,
@@ -199,6 +326,14 @@ export function App() {
             duplicate `undo.last` binding — which is the intended way to find out.
           */}
           <UndoToast />
+          {/*
+            And the other toast host, mounted once for the same reason: the mutation whose
+            failure it reports is very often the one that navigated away from the screen that
+            made it. It is a separate surface from the undo toast on purpose — see
+            features/toast/toast.ts — because the two make different promises about how many
+            messages are visible at a time.
+          */}
+          <ToastHost />
         </Boot>
       </KeymapProvider>
     </BrowserRouter>
@@ -213,6 +348,10 @@ export function App() {
  */
 function SignedInShell() {
   const { pathname } = useLocation();
+  // The shell's own claim on the tab, which is the bare product name. Screens that know what
+  // they are call the hook again with something more specific; this is what they fall back to
+  // so that leaving a named screen does not leave its name in the tab strip behind it.
+  useDocumentTitle([]);
   if (pathname === '/welcome') return <Landing />;
   /*
     Pricing is routed for signed-in people too, and outside AppShell for the same reason
@@ -235,7 +374,9 @@ function SignedInShell() {
 
   return (
     <AppShell
-      renderCreateIssue={({ onClose, seed }) => <CreateIssueModal onClose={onClose} seed={seed} />}
+      renderCreateIssue={({ open, onClose, seed, onFiling }) => (
+        <CreateIssueModal open={open} onClose={onClose} seed={seed} onFiling={onFiling} />
+      )}
       renderCreateProject={({ onClose }) => <CreateProjectModal onClose={onClose} />}
       renderCreateInitiative={({ onClose }) => <CreateInitiativeModal onClose={onClose} />}
       renderCreateCustomer={({ onClose }) => <CreateCustomerModal onClose={onClose} />}
@@ -244,76 +385,91 @@ function SignedInShell() {
       )}
       renderCreateDashboard={({ onClose }) => <CreateDashboardModal onClose={onClose} />}
     >
-      <Routes>
-        <Route path="/" element={<HomeRedirect />} />
-        <Route path="/my-issues" element={<MyIssues />} />
-        <Route path="/inbox" element={<Inbox />} />
-        <Route path="/pulse" element={<Pulse />} />
-        <Route path="/search" element={<Search />} />
-        <Route path="/drafts" element={<Drafts />} />
-        <Route path="/new" element={<CreateIssueFromUrl />} />
-        <Route path="/projects" element={<Projects />} />
-        <Route
-          path="/initiatives"
-          element={
-            <MembersOnly>
-              <Initiatives />
-            </MembersOnly>
-          }
-        />
-        <Route
-          path="/initiative/:initiativeId"
-          element={
-            <MembersOnly>
-              <InitiativeShell />
-            </MembersOnly>
-          }
-        >
-          <Route index element={<InitiativeDetail />} />
-          <Route path="activity" element={<InitiativeActivity />} />
-        </Route>
-        <Route path="/customers" element={<Customers />} />
-        <Route path="/customer/:customerId" element={<CustomerDetail />} />
-        <Route
-          path="/dashboards"
-          element={
-            <MembersOnly>
-              <Dashboards />
-            </MembersOnly>
-          }
-        />
-        <Route
-          path="/dashboard/:dashboardId"
-          element={
-            <MembersOnly>
-              <DashboardDetail />
-            </MembersOnly>
-          }
-        />
-        <Route path="/view/:viewId" element={<SavedView />} />
-        <Route path="/label/:labelId" element={<LabelView />} />
-        <Route path="/user/:userId" element={<UserView />} />
-        <Route path="/team/:teamKey" element={<IssueList />} />
-        <Route path="/team/:teamKey/home" element={<TeamHome />} />
-        <Route path="/team/:teamKey/new" element={<CreateIssueFromUrl />} />
-        <Route path="/team/:teamKey/projects" element={<Projects />} />
-        <Route path="/team/:teamKey/cycles" element={<Cycles />} />
-        <Route path="/team/:teamKey/triage" element={<Triage />} />
-        <Route path="/team/:teamKey/archives" element={<Archives />} />
-        <Route path="/team/:teamKey/documents" element={<Documents />} />
-        <Route path="/team/:teamKey/settings" element={<TeamSettings />} />
-        <Route path="/issues/:identifiers" element={<AdHocIssues />} />
-        <Route path="/issue/:identifier" element={<IssueDetail />} />
-        <Route path="/project/:projectId" element={<ProjectShell />}>
-          <Route index element={<ProjectOverview />} />
-          <Route path="issues" element={<ProjectIssues />} />
-          <Route path="view/:viewId" element={<ProjectAttachedView />} />
-          <Route path="activity" element={<ProjectActivity />} />
-        </Route>
-        <Route path="/project/:projectId/documents" element={<Documents />} />
-        <Route path="/document/:documentId" element={<DocumentDetail />} />
-        <Route path="/cycle/:cycleId" element={<CycleDetail />} />
-        {/*
+      {/*
+        The inner boundary, keyed on the path.
+
+        Its job is the opposite of the outer one's: keep everything *except* the pane alive.
+        The sidebar, the keymap, the sync engine and the connection indicator all survive a
+        screen that threw, so the recovery is pressing `G` `I` rather than reloading the
+        application — and because `resetKey` is the pathname, navigating away is itself the
+        reset. A crash is then an incident rather than a state the session is stuck in.
+
+        Suspense sits inside it rather than outside, so a chunk that fails to load — an
+        offline reload against a deployed build whose assets have rotated — surfaces as the
+        crash card with a Reload rather than as a permanently blank pane.
+      */}
+      <ErrorBoundary resetKey={pathname} action={<GoHome />}>
+        <Suspense fallback={<SkeletonRows count={8} />}>
+          <Routes>
+            <Route path="/" element={<HomeRedirect />} />
+            <Route path="/my-issues" element={<MyIssues />} />
+            <Route path="/inbox" element={<Inbox />} />
+            <Route path="/pulse" element={<Pulse />} />
+            <Route path="/search" element={<Search />} />
+            <Route path="/drafts" element={<Drafts />} />
+            <Route path="/new" element={<CreateIssueFromUrl />} />
+            <Route path="/projects" element={<Projects />} />
+            <Route
+              path="/initiatives"
+              element={
+                <MembersOnly>
+                  <Initiatives />
+                </MembersOnly>
+              }
+            />
+            <Route
+              path="/initiative/:initiativeId"
+              element={
+                <MembersOnly>
+                  <InitiativeShell />
+                </MembersOnly>
+              }
+            >
+              <Route index element={<InitiativeDetail />} />
+              <Route path="activity" element={<InitiativeActivity />} />
+            </Route>
+            <Route path="/customers" element={<Customers />} />
+            <Route path="/customer/:customerId" element={<CustomerDetail />} />
+            <Route
+              path="/dashboards"
+              element={
+                <MembersOnly>
+                  <Dashboards />
+                </MembersOnly>
+              }
+            />
+            <Route
+              path="/dashboard/:dashboardId"
+              element={
+                <MembersOnly>
+                  <DashboardDetail />
+                </MembersOnly>
+              }
+            />
+            <Route path="/view/:viewId" element={<SavedView />} />
+            <Route path="/label/:labelId" element={<LabelView />} />
+            <Route path="/user/:userId" element={<UserView />} />
+            <Route path="/team/:teamKey" element={<IssueList />} />
+            <Route path="/team/:teamKey/home" element={<TeamHome />} />
+            <Route path="/team/:teamKey/new" element={<CreateIssueFromUrl />} />
+            <Route path="/team/:teamKey/projects" element={<Projects />} />
+            <Route path="/team/:teamKey/cycles" element={<Cycles />} />
+            <Route path="/team/:teamKey/triage" element={<Triage />} />
+            <Route path="/team/:teamKey/archives" element={<Archives />} />
+            <Route path="/team/:teamKey/documents" element={<Documents />} />
+            <Route path="/team/:teamKey/settings" element={<TeamSettings />} />
+            <Route path="/issues/:identifiers" element={<AdHocIssues />} />
+            <Route path="/issue/:identifier" element={<IssueDetail />} />
+            <Route path="/project/:projectId" element={<ProjectShell />}>
+              <Route index element={<ProjectOverview />} />
+              <Route path="issues" element={<ProjectIssues />} />
+              <Route path="view/:viewId" element={<ProjectAttachedView />} />
+              <Route path="activity" element={<ProjectActivity />} />
+            </Route>
+            <Route path="/project/:projectId/documents" element={<Documents />} />
+            <Route path="/document/:documentId" element={<DocumentDetail />} />
+            <Route path="/cycle/:cycleId" element={<CycleDetail />} />
+            {/*
           The door into settings, and the only route here that belongs to no screen.
 
           It used to render the workspace general form, which is admin-only — so a member
@@ -321,224 +477,243 @@ function SignedInShell() {
           admins can open this". Profile is the one settings page every role has, including
           a guest, so that is where the mode opens.
         */}
-        <Route path="/settings" element={<Navigate to="/settings/profile" replace />} />
-        <Route
-          path="/settings/workspace"
-          element={
-            <AdminOnly>
-              <WorkspaceSettings />
-            </AdminOnly>
-          }
-        />
-        <Route
-          path="/settings/billing"
-          element={
-            <AdminOnly>
-              <BillingSettings />
-            </AdminOnly>
-          }
-        />
-        <Route path="/settings/profile" element={<ProfileSettings />} />
-        <Route
-          path="/settings/members"
-          element={
-            <MembersOnly>
-              <MemberSettings />
-            </MembersOnly>
-          }
-        />
-        <Route
-          path="/settings/labels"
-          element={
-            <MembersOnly>
-              <LabelSettings />
-            </MembersOnly>
-          }
-        />
-        <Route
-          path="/settings/project-labels"
-          element={
-            <AdminOnly>
-              <ProjectLabelSettings />
-            </AdminOnly>
-          }
-        />
-        <Route
-          path="/settings/initiative-labels"
-          element={
-            <AdminOnly>
-              <InitiativeLabelSettings />
-            </AdminOnly>
-          }
-        />
-        <Route
-          path="/settings/project-statuses"
-          element={
-            <AdminOnly>
-              <ProjectStatusSettings />
-            </AdminOnly>
-          }
-        />
-        <Route
-          path="/settings/project-updates"
-          element={
-            <AdminOnly>
-              <ProjectUpdateSettings />
-            </AdminOnly>
-          }
-        />
-        <Route
-          path="/settings/pulse"
-          element={
-            <AdminOnly>
-              <PulseSettings />
-            </AdminOnly>
-          }
-        />
-        <Route
-          path="/settings/customers"
-          element={
-            <AdminOnly>
-              <CustomerRequestSettings />
-            </AdminOnly>
-          }
-        />
-        <Route
-          path="/settings/slas"
-          element={
-            <AdminOnly>
-              <SlaSettings />
-            </AdminOnly>
-          }
-        />
-        <Route
-          path="/settings/audit-log"
-          element={
-            <AdminOnly>
-              <AuditLog />
-            </AdminOnly>
-          }
-        />
-        <Route path="/settings/notifications" element={<NotificationSettings />} />
-        <Route path="/settings/preferences" element={<Preferences />} />
-        <Route
-          path="/settings/templates"
-          element={
-            <MembersOnly>
-              <Templates />
-            </MembersOnly>
-          }
-        />
-        <Route
-          path="/settings/api-keys"
-          element={
-            <MembersOnly>
-              <ApiKeys />
-            </MembersOnly>
-          }
-        />
-        <Route path="/settings/sessions" element={<Sessions />} />
-        <Route path="/settings/authorised-apps" element={<AuthorisedApps />} />
-        <Route
-          path="/settings/mcp"
-          element={
-            <MembersOnly>
-              <McpSettings />
-            </MembersOnly>
-          }
-        />
-        <Route
-          path="/settings/asks"
-          element={
-            <MembersOnly>
-              <AskSettings />
-            </MembersOnly>
-          }
-        />
-        <Route
-          path="/settings/oauth-apps"
-          element={
-            <AdminOnly>
-              <OAuthApps />
-            </AdminOnly>
-          }
-        />
-        <Route
-          path="/settings/integrations"
-          element={
-            <MembersOnly>
-              <IntegrationDirectory />
-            </MembersOnly>
-          }
-        />
-        <Route
-          path="/settings/webhooks"
-          element={
-            <AdminOnly>
-              <Webhooks />
-            </AdminOnly>
-          }
-        />
-        <Route
-          path="/settings/github"
-          element={
-            <AdminOnly>
-              <GitHubSettings />
-            </AdminOnly>
-          }
-        />
-        <Route
-          path="/settings/gitlab"
-          element={
-            <AdminOnly>
-              <GitLabSettings />
-            </AdminOnly>
-          }
-        />
-        <Route
-          path="/settings/sentry"
-          element={
-            <AdminOnly>
-              <SentrySettings />
-            </AdminOnly>
-          }
-        />
-        <Route
-          path="/settings/slack"
-          element={
-            <AdminOnly>
-              <SlackSettings />
-            </AdminOnly>
-          }
-        />
-        <Route
-          path="/settings/export"
-          element={
-            <MembersOnly>
-              <ExportSettings />
-            </MembersOnly>
-          }
-        />
-        <Route
-          path="/settings/trash"
-          element={
-            <MembersOnly>
-              <Trash />
-            </MembersOnly>
-          }
-        />
-        <Route
-          path="/settings/deleted-teams"
-          element={
-            <MembersOnly>
-              <DeletedTeams />
-            </MembersOnly>
-          }
-        />
-        {/* Unknown paths go somewhere useful rather than to a dead end. A stale
-            bookmark to a renamed team should land the user in their own work. */}
-        <Route path="*" element={<HomeRedirect />} />
-      </Routes>
+            <Route path="/settings" element={<Navigate to="/settings/profile" replace />} />
+            <Route
+              path="/settings/workspace"
+              element={
+                <AdminOnly>
+                  <WorkspaceSettings />
+                </AdminOnly>
+              }
+            />
+            <Route
+              path="/settings/billing"
+              element={
+                <AdminOnly>
+                  <BillingSettings />
+                </AdminOnly>
+              }
+            />
+            <Route path="/settings/profile" element={<ProfileSettings />} />
+            <Route
+              path="/settings/members"
+              element={
+                <MembersOnly>
+                  <MemberSettings />
+                </MembersOnly>
+              }
+            />
+            <Route
+              path="/settings/labels"
+              element={
+                <MembersOnly>
+                  <LabelSettings />
+                </MembersOnly>
+              }
+            />
+            <Route
+              path="/settings/project-labels"
+              element={
+                <AdminOnly>
+                  <ProjectLabelSettings />
+                </AdminOnly>
+              }
+            />
+            <Route
+              path="/settings/initiative-labels"
+              element={
+                <AdminOnly>
+                  <InitiativeLabelSettings />
+                </AdminOnly>
+              }
+            />
+            <Route
+              path="/settings/project-statuses"
+              element={
+                <AdminOnly>
+                  <ProjectStatusSettings />
+                </AdminOnly>
+              }
+            />
+            <Route
+              path="/settings/project-updates"
+              element={
+                <AdminOnly>
+                  <ProjectUpdateSettings />
+                </AdminOnly>
+              }
+            />
+            <Route
+              path="/settings/pulse"
+              element={
+                <AdminOnly>
+                  <PulseSettings />
+                </AdminOnly>
+              }
+            />
+            <Route
+              path="/settings/customers"
+              element={
+                <AdminOnly>
+                  <CustomerRequestSettings />
+                </AdminOnly>
+              }
+            />
+            <Route
+              path="/settings/slas"
+              element={
+                <AdminOnly>
+                  <SlaSettings />
+                </AdminOnly>
+              }
+            />
+            <Route
+              path="/settings/audit-log"
+              element={
+                <AdminOnly>
+                  <AuditLog />
+                </AdminOnly>
+              }
+            />
+            <Route path="/settings/notifications" element={<NotificationSettings />} />
+            <Route path="/settings/preferences" element={<Preferences />} />
+            <Route
+              path="/settings/templates"
+              element={
+                <MembersOnly>
+                  <Templates />
+                </MembersOnly>
+              }
+            />
+            <Route
+              path="/settings/api-keys"
+              element={
+                <MembersOnly>
+                  <ApiKeys />
+                </MembersOnly>
+              }
+            />
+            <Route path="/settings/sessions" element={<Sessions />} />
+            <Route path="/settings/authorised-apps" element={<AuthorisedApps />} />
+            <Route
+              path="/settings/mcp"
+              element={
+                <MembersOnly>
+                  <McpSettings />
+                </MembersOnly>
+              }
+            />
+            <Route
+              path="/settings/asks"
+              element={
+                <MembersOnly>
+                  <AskSettings />
+                </MembersOnly>
+              }
+            />
+            <Route
+              path="/settings/oauth-apps"
+              element={
+                <AdminOnly>
+                  <OAuthApps />
+                </AdminOnly>
+              }
+            />
+            <Route
+              path="/settings/integrations"
+              element={
+                <MembersOnly>
+                  <IntegrationDirectory />
+                </MembersOnly>
+              }
+            />
+            <Route
+              path="/settings/webhooks"
+              element={
+                <AdminOnly>
+                  <Webhooks />
+                </AdminOnly>
+              }
+            />
+            <Route
+              path="/settings/github"
+              element={
+                <AdminOnly>
+                  <GitHubSettings />
+                </AdminOnly>
+              }
+            />
+            <Route
+              path="/settings/gitlab"
+              element={
+                <AdminOnly>
+                  <GitLabSettings />
+                </AdminOnly>
+              }
+            />
+            <Route
+              path="/settings/sentry"
+              element={
+                <AdminOnly>
+                  <SentrySettings />
+                </AdminOnly>
+              }
+            />
+            <Route
+              path="/settings/slack"
+              element={
+                <AdminOnly>
+                  <SlackSettings />
+                </AdminOnly>
+              }
+            />
+            <Route
+              path="/settings/export"
+              element={
+                <MembersOnly>
+                  <ExportSettings />
+                </MembersOnly>
+              }
+            />
+            <Route
+              path="/settings/trash"
+              element={
+                <MembersOnly>
+                  <Trash />
+                </MembersOnly>
+              }
+            />
+            <Route
+              path="/settings/deleted-teams"
+              element={
+                <MembersOnly>
+                  <DeletedTeams />
+                </MembersOnly>
+              }
+            />
+            {/* The wildcard is the `/new` segment: creating a team is an address rather
+                than component state, so the empty-workspace screen can navigate straight to
+                it and a person can send somebody the link. */}
+            <Route
+              path="/settings/teams/*"
+              element={
+                <MembersOnly>
+                  <TeamsSettings />
+                </MembersOnly>
+              }
+            />
+            {/* An unknown path says so rather than rewriting itself.
+
+            It used to redirect to the user's own issue list, which is the same argument
+            `AdminOnly` below rejects for members: bouncing silently "reads as a broken link
+            rather than an answer", and it destroys the evidence — the address the user
+            actually followed — on the way. The signed-out catch-all still redirects, because
+            there the intent is different: it is holding a deep link until there is a session
+            to open it with. */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
     </AppShell>
   );
 }
@@ -667,6 +842,40 @@ function AcceptInviteHere() {
 }
 
 /**
+ * The way out of a crashed pane, offered beside Reload.
+ *
+ * A component rather than an inline element because `ErrorBoundary` is a class and cannot
+ * call `useNavigate` for itself, and because a full page load is exactly what this is trying
+ * to avoid: the shell, the keymap and the sync engine are all still alive behind the card.
+ */
+function GoHome() {
+  const navigate = useNavigate();
+  return <Button onClick={() => void navigate('/')}>Go home</Button>;
+}
+
+/**
+ * An address the product does not have.
+ *
+ * It quotes the path back, because the only person who can act on a 404 is the one holding
+ * the link, and "Page not found" without saying which page is a dead end dressed as an
+ * answer.
+ *
+ * Exported for its test, which would otherwise have to boot the whole shell to reach the one
+ * route that renders it.
+ */
+export function NotFound() {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  return (
+    <EmptyState
+      title="Page not found"
+      description={`Nothing in this workspace answers to ${pathname}.`}
+      action={<Button onClick={() => void navigate('/')}>Go home</Button>}
+    />
+  );
+}
+
+/**
  * Sends the user to the view they asked to land on.
  *
  * The default is still the first team's issue list — that is the product — but Preferences
@@ -689,12 +898,31 @@ function HomeRedirect() {
  * marketing page lives on anonymous `/` and on `/welcome`.
  */
 function FirstTeam() {
+  const navigate = useNavigate();
   const teams = useQuery(
     (store) => [...store.teams.values()].sort((a, b) => a.key.localeCompare(b.key)),
     ['team'],
   );
   const first = teams[0];
-  if (!first) return <NotYet feature="A team" milestone="create one in settings" />;
+  /*
+    A workspace with no team is a first run, not an unbuilt feature.
+
+    This rendered `<NotYet feature="A team" milestone="create one in settings" />` — which
+    drew "A team / Not built yet — scheduled for create one in settings." at the authenticated
+    landing address, inside a `role="status"` live region that announced the whole thing on
+    arrival. It was ungrammatical, untrue, and offered nothing to press. Teams are the thing
+    everything else in the product hangs off, so the one screen that says a workspace has none
+    is the one screen that has to offer making one.
+  */
+  if (!first) {
+    return (
+      <EmptyState
+        title="No teams yet"
+        description="Teams hold issues, cycles and projects. Create one to get started."
+        action={<Button onClick={() => void navigate('/settings/teams/new')}>Create team</Button>}
+      />
+    );
+  }
   return <Navigate to={`/team/${first.key}`} replace />;
 }
 

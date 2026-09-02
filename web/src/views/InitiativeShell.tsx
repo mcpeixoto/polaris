@@ -8,6 +8,7 @@ import { NavLink, Outlet, useNavigate, useParams } from 'react-router';
 import { Button, EmptyState } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { useEngine } from '~/app/context';
+import { EntityLoading, useEntityState } from '~/features/entity-gate/EntityGate';
 import { archiveInitiative, formatInitiativeStatus } from '~/features/initiatives/mutations';
 import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
 import { latestInitiativeUpdate } from '~/features/initiative-updates/helpers';
@@ -45,6 +46,8 @@ export function InitiativeShell() {
     [initiativeId],
   );
 
+  const state = useEntityState(initiative);
+
   const watch = useLiveQuery(
     (store) => {
       if (viewer === null) return null;
@@ -55,6 +58,11 @@ export function InitiativeShell() {
     [initiativeId, viewer?.id],
   );
 
+  // `useLiveQuery` answers null for an initiative that is absent and for one still on the
+  // wire alike, and the shell mounts before the first snapshot lands. Without the gate,
+  // every deep link on a cold start flashed "No such initiative" over a row that was about
+  // to arrive.
+  if (state === 'loading') return <EntityLoading label="Loading initiative…" lines={4} />;
   if (initiative === null) {
     return (
       <EmptyState

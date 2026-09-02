@@ -218,3 +218,50 @@ export const ARCHIVE_PROJECT_STATUS = /* GraphQL */ `
     }
   }
 `;
+
+/*
+ * Milestone writes. They live here beside the milestone fragment rather than in the
+ * `project-milestones` feature, because a fragment and the documents that spread it have to
+ * be in one module for codegen to resolve them — and the fragment was already here.
+ */
+
+export const CREATE_PROJECT_MILESTONE = /* GraphQL */ `
+  ${PROJECT_MILESTONE_FIELDS}
+  mutation CreateProjectMilestone(
+    $input: CreateProjectMilestoneInput!
+    $clientId: UUID
+    $opId: UUID
+  ) {
+    createProjectMilestone(input: $input, clientId: $clientId, opId: $opId) {
+      version
+      milestone {
+        ...ProjectMilestoneFields
+      }
+    }
+  }
+`;
+
+export const UPDATE_PROJECT_MILESTONE = /* GraphQL */ `
+  ${PROJECT_MILESTONE_FIELDS}
+  mutation UpdateProjectMilestone(
+    $input: UpdateProjectMilestoneInput!
+    $clientId: UUID
+    $opId: UUID
+  ) {
+    updateProjectMilestone(input: $input, clientId: $clientId, opId: $opId) {
+      version
+      milestone {
+        ...ProjectMilestoneFields
+      }
+    }
+  }
+`;
+
+export const DELETE_PROJECT_MILESTONE = /* GraphQL */ `
+  mutation DeleteProjectMilestone($id: UUID!, $clientId: UUID, $opId: UUID) {
+    deleteProjectMilestone(id: $id, clientId: $clientId, opId: $opId) {
+      version
+      id
+    }
+  }
+`;

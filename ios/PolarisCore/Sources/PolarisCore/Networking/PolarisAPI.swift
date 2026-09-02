@@ -46,7 +46,11 @@ public protocol PolarisAPI: Sendable {
     /// URLSession persists the cookie across launches, so this is what stops the app asking
     /// for a password every time it is opened.
     func restoreSession() async throws -> Session
-    func signOut() async
+    /// Signs out locally whatever the server says, and reports a server-side logout that did
+    /// not land. Non-throwing on purpose: the local half must happen even when the network
+    /// does not, and a `throws` here invites a caller to skip it.
+    @discardableResult
+    func signOut() async -> PolarisError?
 
     /// Which workspace subsequent calls are scoped to. Every GraphQL request carries it as
     /// `X-Polaris-Workspace`; without it the server resolves an account but no principal and
@@ -64,11 +68,39 @@ public protocol PolarisAPI: Sendable {
     func workflowStates(teamId: String) async throws -> [WorkflowState]
     func users() async throws -> [User]
     func unreadNotificationCount() async throws -> Int
+    /// The inbox. `includeSnoozed` is false by default at every call site: a snoozed row that
+    /// still appears is a snooze that did nothing.
+    func notifications(includeRead: Bool, includeSnoozed: Bool, first: Int?) async throws -> [PolarisNotification]
+    /// Full-text search, server-side. The same `search` query the web client uses, so a phrase
+    /// that finds an issue on a laptop finds it on a phone.
+    func search(query: String, teamId: String?, first: Int?) async throws -> SearchResults
 
     // Writes
     func createIssue(_ draft: IssueDraft) async throws -> Issue
     func updateIssue(_ change: IssueChange) async throws -> Issue
-    func createComment(issueId: String, body: String) async throws -> Comment
+    /// `opId` is a parameter rather than something minted inside the transport, for the same
+    /// reason `IssueDraft.opId` is: it must stay *stable across retries*, and a value the
+    /// transport generates is a new one on every attempt. Minting it inside the call made the
+    /// retry-idempotency guarantee the README claims untrue for comments specifically — a
+    /// retry after a timeout posted the comment twice.
+    func createComment(issueId: String, body: String, opId: String) async throws -> Comment
+    func archiveIssue(id: String, archived: Bool, opId: String) async throws
+    func markNotificationRead(id: String, read: Bool) async throws -> PolarisNotification
+    /// `until` nil un-snoozes, which is what the schema's nullable `Time` means.
+    func snoozeNotification(id: String, until: Date?) async throws -> PolarisNotification
+    func deleteNotification(id: String) async throws
+}
+
+public extension PolarisAPI {
+    /// The overwhelmingly common inbox call. A default on the protocol rather than on the
+    /// method, because a protocol requirement cannot carry default arguments.
+    func notifications() async throws -> [PolarisNotification] {
+        try await notifications(includeRead: true, includeSnoozed: false, first: 100)
+    }
+
+    func search(query: String) async throws -> SearchResults {
+        try await search(query: query, teamId: nil, first: 40)
+    }
 }
 
 /// A new issue, as the composer collects it.

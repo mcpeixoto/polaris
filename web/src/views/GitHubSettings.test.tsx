@@ -1,11 +1,11 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EngineProvider } from '~/app/context';
 import { KeymapProvider } from '~/app/keymap';
 import { Store } from '~/store';
-import { gql } from '~/sync/api';
+import { ApiError, gql } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
 import { GitHubSettings } from './GitHubSettings';
@@ -48,6 +48,17 @@ function renderScreen() {
   );
 }
 
+/** Types a username and submits, which is the only save a non-admin viewer can run here. */
+async function submitUsername(): Promise<HTMLElement> {
+  const field = await screen.findByLabelText('GitHub username');
+  fireEvent.change(field, { target: { value: 'octocat' } });
+  const button = screen.getByRole('button', { name: 'Save username' });
+  fireEvent.click(button);
+  const section = button.closest('section');
+  if (section === null) throw new Error('the login form is not inside a section');
+  return section;
+}
+
 describe('GitHubSettings', () => {
   it('renders without GitHub App credentials and offers a typed username', async () => {
     renderScreen();
@@ -56,5 +67,30 @@ describe('GitHubSettings', () => {
     });
     expect(screen.getByText(/Connect with GitHub stays off/i)).toBeTruthy();
     expect(screen.getByLabelText('GitHub username')).toBeTruthy();
+  });
+
+  it('puts a refused save beside the form that produced it, not in the page banner', async () => {
+    sent.mockImplementation(async (query: string) => {
+      if (query.includes('query GitHubSettings')) return answer(query) as never;
+      throw new ApiError('VALIDATION', 'That GitHub account is already linked.');
+    });
+
+    renderScreen();
+    const section = await submitUsername();
+
+    const message = await screen.findByText('That GitHub account is already linked.');
+    // The proof that it is section-level and not page-level: the alert and the button that
+    // caused it are inside the same section.
+    expect(section.contains(message)).toBe(true);
+    expect(within(section).getByRole('button', { name: 'Save username' })).toBeTruthy();
+  });
+
+  it('announces a landed save through the section indicator', async () => {
+    renderScreen();
+    const section = await submitUsername();
+
+    await waitFor(() => {
+      expect(within(section).getByRole('status').textContent).toBe('Saved');
+    });
   });
 });

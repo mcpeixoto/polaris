@@ -205,3 +205,25 @@
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }
+
+/* The list settles in rather than snapping. The duration tokens collapse to 1ms under
+   prefers-reduced-motion, which is this rule's reduced-motion answer. */
+.enter {
+  animation: pageEnter var(--duration-normal) var(--ease-out);
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The skeleton stands where the rows will be, so the header does not jump when they land. */
+.loading {
+  padding: var(--space-4);
+}

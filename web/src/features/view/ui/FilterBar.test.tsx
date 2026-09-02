@@ -362,7 +362,7 @@ describe('FilterBar', () => {
     expect(name.previousElementSibling?.tagName.toLowerCase()).toBe('svg');
   });
 
-  it('renders a nested group with its own conjunction, without offering to edit it', () => {
+  it('renders a nested group with its own conjunction, offered as its own control', () => {
     renderBar({
       filter: {
         conj: 'and',
@@ -382,9 +382,9 @@ describe('FilterBar', () => {
     expect(screen.getByRole('group', { name: 'Any of these' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Assignee is Ana' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Assignee is Bo' })).toBeTruthy();
-    // The nested conjunction is drawn, not offered: only the top-level group can be changed
-    // from this bar, so there is one "or" on screen and it is not a control.
-    expect(screen.queryByRole('button', { name: 'or' })).toBeNull();
+    // The nested conjunction is its own control: each group flips its own AND/OR, so the
+    // inner "or" is a button beside the top-level "and".
+    expect(screen.getByRole('button', { name: 'or' })).toBeTruthy();
   });
 
   it('explains an unreadable filter and offers to clear it', async () => {

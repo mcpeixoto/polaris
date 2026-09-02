@@ -111,26 +111,17 @@
 }
 
 /*
- * The native colour input, shrunk to a swatch.
+ * The colour control's slot in the row.
  *
- * Deliberately the platform's control rather than a palette of chips: a label's colour is
- * data the workspace chooses — the one value in this interface no theme may overrule — and a
- * fixed palette would be this file deciding what colours a workspace is allowed. The native
- * picker also brings a keyboard path and an eyedropper that a chip grid would reimplement
- * badly.
+ * A label's colour is data the workspace chooses — the one value in this interface no theme
+ * may overrule — and that argument still holds; it just never implied a bare OS swatch with
+ * no readable value in it. `ColorPicker` keeps the custom hex and adds a default set and a
+ * contrast warning, and owns its own layout, so nothing here reaches into it. The blanket
+ * `.color input[type='color']` descendant selector that used to live here was the exact
+ * defect the composition doc opens with, spelled without `:global`.
  */
 .color {
   flex: none;
-  width: var(--control-height-lg);
-}
-
-.color input[type='color'] {
-  width: 100%;
-  height: var(--control-height-md);
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
 }
 
 /*

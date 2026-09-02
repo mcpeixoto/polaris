@@ -18,6 +18,9 @@ public final class WorkspaceDataStore {
     /// picker for the rest of the session.
     public private(set) var statesFailedForTeam: Set<String> = []
 
+    /// Called on a refused read, for the reason `IssuesStore` gives.
+    public var onUnauthorized: (@MainActor (PolarisError) -> Void)?
+
     private let api: any PolarisAPI
 
     public init(api: any PolarisAPI) {
@@ -31,6 +34,12 @@ public final class WorkspaceDataStore {
         async let usersResult = fetch { try await self.api.users() }
         teams = await teamsResult
         users = await usersResult
+        // A session that died while the app was open must reach AppModel from here too:
+        // `statesFailedForTeam` would otherwise silently disable every status picker for the
+        // rest of a session that no longer exists.
+        for failure in [teams.error, users.error].compactMap({ $0 }) {
+            if case .unauthorized = failure { onUnauthorized?(failure) }
+        }
 
         // States are per-team and the app needs them the moment a status picker opens, which
         // is too late to start a request. Fetched concurrently, once.

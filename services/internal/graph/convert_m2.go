@@ -311,15 +311,21 @@ func fromUpdateProjectStatusInput(in generated.UpdateProjectStatusInput) (domain
 	}, nil
 }
 
-func (r *Resolver) hydrateProject(ctx context.Context, p *authz.Principal, project model.Project) (generated.Project, error) {
-	out, err := r.hydrateProjects(ctx, p, []model.Project{project})
+func (r *Resolver) hydrateProject(ctx context.Context, p *authz.Principal, sel selection, project model.Project) (generated.Project, error) {
+	out, err := r.hydrateProjects(ctx, p, sel, []model.Project{project})
 	if err != nil {
 		return generated.Project{}, err
 	}
 	return out[0], nil
 }
 
-func (r *Resolver) hydrateProjects(ctx context.Context, p *authz.Principal, projects []model.Project) ([]generated.Project, error) {
+// hydrateProjects fills in the relations the query asked for, once for the whole list.
+//
+// The selection is a parameter for the reason it is one on hydrateIssues: without it this
+// ran ListProjectTeams, ListProjectMembers and ListProjectMilestones for every project
+// unconditionally, so `query { projects { id name } }` on a two-hundred-project workspace
+// issued six hundred queries and returned none of what they read.
+func (r *Resolver) hydrateProjects(ctx context.Context, p *authz.Principal, sel selection, projects []model.Project) ([]generated.Project, error) {
 	out := make([]generated.Project, 0, len(projects))
 	if len(projects) == 0 {
 		return out, nil
@@ -337,6 +343,15 @@ func (r *Resolver) hydrateProjects(ctx context.Context, p *authz.Principal, proj
 		}
 		statusByID[s.ID] = converted
 	}
+
+	// Asked once, above the loop, rather than re-walking the selection AST per project.
+	var (
+		wantTeams      = sel.has("teams")
+		wantMembers    = sel.has("members")
+		wantMilestones = sel.has("milestones")
+		wantLead       = sel.has("lead")
+		wantCreator    = sel.has("creator")
+	)
 
 	users, err := r.loaders(ctx).allUsers(ctx, p)
 	if err != nil {
@@ -368,7 +383,7 @@ func (r *Resolver) hydrateProjects(ctx context.Context, p *authz.Principal, proj
 			}
 			g.Status = &converted
 		}
-		if project.LeadID != nil {
+		if wantLead && project.LeadID != nil {
 			if u, ok := users.byID[*project.LeadID]; ok {
 				converted, err := toUser(u)
 				if err != nil {
@@ -377,7 +392,7 @@ func (r *Resolver) hydrateProjects(ctx context.Context, p *authz.Principal, proj
 				g.Lead = &converted
 			}
 		}
-		if project.CreatorID != nil {
+		if wantCreator && project.CreatorID != nil {
 			if u, ok := users.byID[*project.CreatorID]; ok {
 				converted, err := toUser(u)
 				if err != nil {
@@ -387,47 +402,53 @@ func (r *Resolver) hydrateProjects(ctx context.Context, p *authz.Principal, proj
 			}
 		}
 
-		links, err := r.Svc.ListProjectTeams(ctx, p, project.ID)
-		if err != nil {
-			return nil, err
-		}
-		g.Teams = make([]generated.ProjectTeam, 0, len(links))
-		for _, link := range links {
-			row := toProjectTeam(link)
-			if t, ok := teams.byID[link.TeamID]; ok {
-				converted, err := toTeam(t)
-				if err != nil {
-					return nil, err
-				}
-				row.Team = &converted
+		if wantTeams {
+			links, err := r.Svc.ListProjectTeams(ctx, p, project.ID)
+			if err != nil {
+				return nil, err
 			}
-			g.Teams = append(g.Teams, row)
+			g.Teams = make([]generated.ProjectTeam, 0, len(links))
+			for _, link := range links {
+				row := toProjectTeam(link)
+				if t, ok := teams.byID[link.TeamID]; ok {
+					converted, err := toTeam(t)
+					if err != nil {
+						return nil, err
+					}
+					row.Team = &converted
+				}
+				g.Teams = append(g.Teams, row)
+			}
 		}
 
-		members, err := r.Svc.ListProjectMembers(ctx, p, project.ID)
-		if err != nil {
-			return nil, err
-		}
-		g.Members = make([]generated.ProjectMember, 0, len(members))
-		for _, member := range members {
-			row := toProjectMember(member)
-			if u, ok := users.byID[member.UserID]; ok {
-				converted, err := toUser(u)
-				if err != nil {
-					return nil, err
-				}
-				row.User = &converted
+		if wantMembers {
+			members, err := r.Svc.ListProjectMembers(ctx, p, project.ID)
+			if err != nil {
+				return nil, err
 			}
-			g.Members = append(g.Members, row)
+			g.Members = make([]generated.ProjectMember, 0, len(members))
+			for _, member := range members {
+				row := toProjectMember(member)
+				if u, ok := users.byID[member.UserID]; ok {
+					converted, err := toUser(u)
+					if err != nil {
+						return nil, err
+					}
+					row.User = &converted
+				}
+				g.Members = append(g.Members, row)
+			}
 		}
 
-		milestones, err := r.Svc.ListProjectMilestones(ctx, p, project.ID)
-		if err != nil {
-			return nil, err
-		}
-		g.Milestones = make([]generated.ProjectMilestone, 0, len(milestones))
-		for _, m := range milestones {
-			g.Milestones = append(g.Milestones, toProjectMilestone(m))
+		if wantMilestones {
+			milestones, err := r.Svc.ListProjectMilestones(ctx, p, project.ID)
+			if err != nil {
+				return nil, err
+			}
+			g.Milestones = make([]generated.ProjectMilestone, 0, len(milestones))
+			for _, m := range milestones {
+				g.Milestones = append(g.Milestones, toProjectMilestone(m))
+			}
 		}
 
 		out = append(out, g)

@@ -27,6 +27,18 @@ export interface AvatarProps {
 /** The number of hues in Avatar.module.css. Kept beside the hash that indexes them. */
 const HUE_COUNT = 8;
 
+/**
+ * The rendered size of each variant, in pixels, matching the `--space-*` tokens the
+ * stylesheet uses.
+ *
+ * Duplicating a number the CSS also states is worth it here, because `width`/`height`
+ * attributes are a different mechanism from a `width` declaration: they give the browser an
+ * intrinsic size before the image has loaded, so a virtualised list of five hundred rows does
+ * not reflow as each photo arrives. The stylesheet still wins on the drawn size — these are
+ * the aspect ratio and the reservation, not the layout.
+ */
+const SIZE_PX: Readonly<Record<AvatarSize, number>> = { xs: 16, sm: 20, md: 24 };
+
 function firstCharacterOf(word: string): string {
   // Code points, not UTF-16 units: `charAt(0)` on an emoji or an astral-plane letter returns
   // half a surrogate pair, which renders as a replacement glyph.
@@ -113,7 +125,19 @@ export function Avatar({
       {usable ? (
         // Empty alt: the wrapper already carries the name, and an alt here would have a
         // screen reader read it twice.
-        <img className={styles.image} src={src} alt="" onError={() => setBrokenSrc(src)} />
+        <img
+          className={styles.image}
+          src={src}
+          alt=""
+          width={SIZE_PX[size]}
+          height={SIZE_PX[size]}
+          // A virtualised issue list mounts hundreds of these at once, most of them off
+          // screen. Lazy defers the request until the row is worth painting, and async
+          // decoding keeps the one that does arrive off the thread the list is scrolling on.
+          loading="lazy"
+          decoding="async"
+          onError={() => setBrokenSrc(src)}
+        />
       ) : (
         <span className={styles.initials} aria-hidden="true">
           {shown}

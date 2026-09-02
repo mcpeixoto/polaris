@@ -1,4 +1,5 @@
 .screen {
+  animation: pageEnter var(--duration-normal) var(--ease-out);
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -89,4 +90,17 @@
 
 .count {
   text-align: right;
+}
+
+/* Reduced motion is answered at the token: --duration-normal collapses to 1ms, which is
+ * imperceptible and still fires whatever is listening for the end. */
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }

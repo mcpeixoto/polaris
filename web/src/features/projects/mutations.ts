@@ -10,6 +10,7 @@
 import { toWire } from '~/gql/enums';
 import {
   uuidv7,
+  type DateOnly,
   type EntityOf,
   type EntityPatch,
   type Project,
@@ -19,6 +20,7 @@ import {
   type ProjectTeam,
   type ProjectUpdateSchedule,
   type Store,
+  type TimeframeGranularity,
   type UUID,
 } from '~/store';
 import { ApiError } from '~/sync/api';
@@ -39,9 +41,14 @@ import {
 export interface NewProject {
   readonly name: string;
   readonly summary?: string | undefined;
+  readonly description?: string | undefined;
   readonly teamIds: readonly UUID[];
   readonly leadId?: UUID | undefined;
+  /** Whoever is filing this, which is not necessarily whoever will lead it. */
+  readonly creatorId?: UUID | undefined;
   readonly statusId?: UUID | undefined;
+  readonly startDate?: DateOnly | undefined;
+  readonly targetDate?: DateOnly | undefined;
   readonly projectTemplateId?: UUID | undefined;
 }
 
@@ -59,13 +66,27 @@ export async function createProject(engine: SyncEngine, input: NewProject): Prom
     workspaceId: store.workspaceId,
     name,
     ...(input.summary === undefined || input.summary === '' ? null : { summary: input.summary }),
-    description: '',
-    color: store.projectStatuses.get(statusId)?.color ?? '',
+    description: input.description ?? '',
+    // No colour of its own yet. This used to copy the status's colour, which was wrong
+    // twice over: the server stores an empty string for a project created without one, so
+    // the optimistic row changed colour the moment the delta landed, and a copy taken here
+    // freezes while the status it was copied from goes on moving. Screens that draw the
+    // mark fall back to a token when this is empty — see ProjectShell.module.css.
+    color: '',
     statusId,
     priority: 0,
     leadId: input.leadId,
-    creatorId: input.leadId,
+    // The lead is a decision about who runs this; the creator is a fact about who filed
+    // it. Recording the lead as the creator meant a project handed to somebody else was
+    // attributed to them retroactively, and one created with no lead had no creator at all.
+    creatorId: input.creatorId,
     sortOrder: 'z',
+    ...(input.startDate === undefined
+      ? null
+      : { startDate: input.startDate, startDateGranularity: 'day' as const }),
+    ...(input.targetDate === undefined
+      ? null
+      : { targetDate: input.targetDate, targetDateGranularity: 'day' as const }),
     updateSchedule: 'default',
     ...(input.projectTemplateId === undefined
       ? null
@@ -94,9 +115,18 @@ export async function createProject(engine: SyncEngine, input: NewProject): Prom
           ...(input.summary === undefined || input.summary === ''
             ? null
             : { summary: input.summary }),
+          ...(input.description === undefined || input.description === ''
+            ? null
+            : { description: input.description }),
           teamIds: [...input.teamIds],
           ...(input.leadId === undefined ? null : { leadId: input.leadId }),
           ...(input.statusId === undefined ? null : { statusId: input.statusId }),
+          ...(input.startDate === undefined
+            ? null
+            : { startDate: input.startDate, startDateGranularity: toWire('day') }),
+          ...(input.targetDate === undefined
+            ? null
+            : { targetDate: input.targetDate, targetDateGranularity: toWire('day') }),
           ...(input.projectTemplateId === undefined
             ? null
             : { projectTemplateId: input.projectTemplateId }),
@@ -129,12 +159,30 @@ export async function createProject(engine: SyncEngine, input: NewProject): Prom
   }
 }
 
+/**
+ * A project's editable properties.
+ *
+ * The three that can be *removed* rather than only changed — the lead, and either end of
+ * the timeframe — take `null` for "take this off" and `undefined` for "leave it alone",
+ * because the API draws that distinction with a separate `clear*` flag and a field that
+ * only understood `undefined` could set a target date but never take one back.
+ *
+ * A granularity travels with its date. The server refuses one on its own, and it means
+ * nothing on its own either: "Q3" is a day the reader is asked not to read too closely.
+ */
 export interface ProjectFields {
   readonly name?: string | undefined;
   readonly summary?: string | undefined;
+  readonly description?: string | undefined;
+  readonly icon?: string | undefined;
+  readonly color?: string | undefined;
   readonly statusId?: UUID | undefined;
   readonly leadId?: UUID | null | undefined;
   readonly priority?: number | undefined;
+  readonly startDate?: DateOnly | null | undefined;
+  readonly startDateGranularity?: TimeframeGranularity | undefined;
+  readonly targetDate?: DateOnly | null | undefined;
+  readonly targetDateGranularity?: TimeframeGranularity | undefined;
   readonly afterProjectId?: UUID | undefined;
   readonly moveToTop?: boolean | undefined;
   readonly updateSchedule?: ProjectUpdateSchedule | undefined;
@@ -155,11 +203,32 @@ export async function updateProject(
     ...before,
     ...(fields.name === undefined ? null : { name: fields.name }),
     ...(fields.summary === undefined ? null : { summary: fields.summary }),
+    ...(fields.description === undefined ? null : { description: fields.description }),
+    ...(fields.icon === undefined ? null : { icon: fields.icon }),
+    ...(fields.color === undefined ? null : { color: fields.color }),
     ...(fields.statusId === undefined ? null : { statusId: fields.statusId }),
     ...(fields.leadId === undefined
       ? null
       : { leadId: fields.leadId === null ? undefined : fields.leadId }),
     ...(fields.priority === undefined ? null : { priority: fields.priority }),
+    ...(fields.startDate === undefined
+      ? null
+      : fields.startDate === null
+        ? { startDate: undefined, startDateGranularity: undefined }
+        : {
+            startDate: fields.startDate,
+            startDateGranularity:
+              fields.startDateGranularity ?? before.startDateGranularity ?? 'day',
+          }),
+    ...(fields.targetDate === undefined
+      ? null
+      : fields.targetDate === null
+        ? { targetDate: undefined, targetDateGranularity: undefined }
+        : {
+            targetDate: fields.targetDate,
+            targetDateGranularity:
+              fields.targetDateGranularity ?? before.targetDateGranularity ?? 'day',
+          }),
     ...(fields.updateSchedule === undefined ? null : { updateSchedule: fields.updateSchedule }),
     ...(fields.updateReminderIntervalDays === undefined
       ? null
@@ -180,6 +249,9 @@ export async function updateProject(
         id,
         ...(fields.name === undefined ? null : { name: fields.name }),
         ...(fields.summary === undefined ? null : { summary: fields.summary }),
+        ...(fields.description === undefined ? null : { description: fields.description }),
+        ...(fields.icon === undefined ? null : { icon: fields.icon }),
+        ...(fields.color === undefined ? null : { color: fields.color }),
         ...(fields.statusId === undefined ? null : { statusId: fields.statusId }),
         ...(fields.leadId === undefined
           ? null
@@ -187,6 +259,26 @@ export async function updateProject(
             ? { clearLead: true }
             : { leadId: fields.leadId }),
         ...(fields.priority === undefined ? null : { priority: fields.priority }),
+        ...(fields.startDate === undefined
+          ? null
+          : fields.startDate === null
+            ? { clearStart: true }
+            : {
+                startDate: fields.startDate,
+                startDateGranularity: toWire(
+                  fields.startDateGranularity ?? before.startDateGranularity ?? 'day',
+                ),
+              }),
+        ...(fields.targetDate === undefined
+          ? null
+          : fields.targetDate === null
+            ? { clearTarget: true }
+            : {
+                targetDate: fields.targetDate,
+                targetDateGranularity: toWire(
+                  fields.targetDateGranularity ?? before.targetDateGranularity ?? 'day',
+                ),
+              }),
         ...(fields.afterProjectId === undefined ? null : { afterProjectId: fields.afterProjectId }),
         ...(fields.moveToTop === undefined ? null : { moveToTop: fields.moveToTop }),
         ...(fields.updateSchedule === undefined ? null : { updateSchedule: fields.updateSchedule }),

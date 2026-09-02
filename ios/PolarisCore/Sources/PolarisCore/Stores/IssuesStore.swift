@@ -16,12 +16,34 @@ public final class IssuesStore {
     /// Set while a write is in flight so a row can show it is settling without the whole list
     /// dropping back to a spinner.
     public private(set) var pendingIssueIDs: Set<String> = []
+    /// True while the list on screen came off disk rather than off the wire, so the header can
+    /// say so. Cleared by the first successful load.
+    public private(set) var isShowingCachedIssues = false
+    /// The last failed background refresh. `refreshIfStale` used to swallow this entirely: a
+    /// foregrounded app with a dead session did nothing at all and said nothing about it.
+    public private(set) var lastRefreshError: PolarisError?
+    /// Called on a refused read, so a session that expired while the app was open ends at the
+    /// sign-in screen instead of on a list with no way back.
+    public var onUnauthorized: (@MainActor (PolarisError) -> Void)?
 
     private let api: any PolarisAPI
+    private let cache: (any IssueCache)?
     private var lastSeenVersion: Int?
 
-    public init(api: any PolarisAPI) {
+    public init(api: any PolarisAPI, cache: (any IssueCache)? = nil) {
         self.api = api
+        self.cache = cache
+    }
+
+    /// Puts the last known list on screen before the first request goes out.
+    ///
+    /// Called once, from the composition root. The list is marked as cached so the screen can
+    /// be honest about it, and the request that follows replaces it — including with an empty
+    /// list, which is a legitimate answer.
+    public func hydrateFromCache() {
+        guard issues.value == nil, let cached = cache?.read(), !cached.isEmpty else { return }
+        issues = .loaded(sort(cached))
+        isShowingCachedIssues = true
     }
 
     public func load() async {
@@ -29,14 +51,21 @@ public final class IssuesStore {
         do {
             let fetched = try await api.myIssues(includeCompleted: includeCompleted)
             issues = .loaded(sort(fetched))
+            isShowingCachedIssues = false
+            lastRefreshError = nil
+            // Only the unfiltered list is cached. Persisting a filtered one would restore
+            // "everything including completed" as if it were the whole truth on the next cold
+            // start, under a filter that is off.
+            if includeCompleted == false { cache?.write(fetched) }
             lastSeenVersion = try? await api.syncVersion()
-        } catch let error as PolarisError {
+        } catch {
+            let mapped = PolarisError.mapped(error)
+            lastRefreshError = mapped
             // A refresh that fails must not blank a list the user is reading. Only an empty
             // list surfaces the error; otherwise the stale data stays and the failure is
             // silent, which is the correct trade for a pull-to-refresh.
-            if issues.value == nil { issues = .failed(error) }
-        } catch {
-            if issues.value == nil { issues = .failed(.badResponse) }
+            if issues.value == nil { issues = .failed(mapped) }
+            if case .unauthorized = mapped { onUnauthorized?(mapped) }
         }
     }
 
@@ -62,12 +91,24 @@ public final class IssuesStore {
         issues = .loaded(sort(current))
     }
 
-    /// Refetches only if the workspace actually changed. Called when the app returns to the
-    /// foreground and on a timer while it is open.
+    /// Refetches only if the workspace actually changed.
+    ///
+    /// Called when the app returns to the foreground, and every thirty seconds while it is
+    /// open — see `MainTabView`. One cheap query per tick; nothing is refetched unless the
+    /// number moved.
     public func refreshIfStale() async {
-        guard let version = try? await api.syncVersion() else { return }
-        guard version != lastSeenVersion else { return }
-        await load()
+        do {
+            let version = try await api.syncVersion()
+            lastRefreshError = nil
+            guard version != lastSeenVersion else { return }
+            await load()
+        } catch {
+            // Reported rather than dropped. A poll that fails silently is how a dead session
+            // becomes an app that quietly stops updating and never says why.
+            let mapped = PolarisError.mapped(error)
+            lastRefreshError = mapped
+            if case .unauthorized = mapped { onUnauthorized?(mapped) }
+        }
     }
 
     /// Moves an issue to a new state, optimistically.
@@ -99,6 +140,9 @@ public final class IssuesStore {
                 issues = .loaded(sort(current))
             }
         } catch {
+            // Deliberately not written to `lastRefreshError`, which is about *reads*: the row
+            // snapping back is what tells the reader this write was refused, and a second
+            // sentence in the header about a stale list would be about something else.
             if var current = issues.value, let position = current.firstIndex(where: { $0.id == issueID }) {
                 current[position] = original
                 // Re-sorted, like the success path. Restoring the row's value without
@@ -117,9 +161,19 @@ public final class IssuesStore {
         return created
     }
 
+    /// Open work first, ordered by priority, then by how recently it moved.
+    private func sort(_ list: [Issue]) -> [Issue] { IssueOrder.sorted(list) }
+}
+
+/// The one order every issue list in the app is in.
+///
+/// Shared rather than duplicated per store: a team list and a my-issues list that disagree
+/// about where an urgent in-progress issue belongs is the sort of difference nobody can name
+/// but everybody notices.
+public enum IssueOrder {
     /// Open work first, ordered by priority, then by how recently it moved. Completed and
     /// cancelled issues sink to the bottom when they are shown at all.
-    private func sort(_ list: [Issue]) -> [Issue] {
+    public static func sorted(_ list: [Issue]) -> [Issue] {
         list.sorted { left, right in
             if left.state.category.isOpen != right.state.category.isOpen {
                 return left.state.category.isOpen

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/google/uuid"
@@ -59,6 +60,12 @@ func (s *Service) CreateLabel(ctx context.Context, p *authz.Principal, in Create
 	in.Name = strings.TrimSpace(in.Name)
 	if in.Name == "" {
 		return model.Label{}, 0, platform.Validation("name", "a label needs a name")
+	}
+	if err := validateLabelText(in.Name, in.Description); err != nil {
+		return model.Label{}, 0, err
+	}
+	if err := validateHexColor("color", in.Color); err != nil {
+		return model.Label{}, 0, err
 	}
 	in.Color = normaliseColor(in.Color)
 
@@ -138,6 +145,16 @@ func (s *Service) UpdateLabel(ctx context.Context, p *authz.Principal, in Update
 			return model.Label{}, 0, platform.Validation("name", "a label needs a name")
 		}
 		in.Name = &trimmed
+	}
+	name := ""
+	if in.Name != nil {
+		name = *in.Name
+	}
+	if err := validateLabelText(name, in.Description); err != nil {
+		return model.Label{}, 0, err
+	}
+	if err := validateHexColor("color", in.Color); err != nil {
+		return model.Label{}, 0, err
 	}
 	in.Color = normaliseColor(in.Color)
 
@@ -813,6 +830,17 @@ func labelScope(teamID *uuid.UUID) authz.Scope {
 	return authz.TeamScope(*teamID, false)
 }
 
+// hexColor is the only colour a label may carry: a six-digit hex triple with a leading #.
+var hexColor = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+
+// maxLabelNameLength and maxLabelDescriptionLength bound the two free-text fields. A label
+// is a chip in a list, so these are generous for a real one and far short of anything that
+// would make a board unreadable or a bootstrap snapshot larger than it should be.
+const (
+	maxLabelNameLength        = 128
+	maxLabelDescriptionLength = 1024
+)
+
 // normaliseColor turns a blank colour into no colour at all, so the insert's COALESCE
 // supplies the product default. An empty string is NOT NULL-clean and renders as a
 // transparent chip, which looks like a bug in the picker rather than a missing input.
@@ -825,6 +853,42 @@ func normaliseColor(c *string) *string {
 		return nil
 	}
 	return &trimmed
+}
+
+// validateHexColor refuses anything that is not a colour.
+//
+// The columns are plain text with no CHECK, so any string at all used to be stored and
+// then shipped to every client, which renders an invalid CSS value as a chip that silently
+// disappears — no error on any layer, and nothing for the person who typed it to see.
+//
+// Validated in Go rather than only in SQL on purpose: labelWrite.explain turns constraint
+// violations into sentences, and a CHECK added later without a matching branch there would
+// fall through its final platform.Internal and become a 500 instead of a message.
+func validateHexColor(field string, c *string) error {
+	if c == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*c)
+	if trimmed == "" {
+		return nil
+	}
+	if !hexColor.MatchString(trimmed) {
+		return platform.Validation(field, "a colour is a hex triple such as #4f46e5")
+	}
+	return nil
+}
+
+// validateLabelText bounds a label's name and description.
+func validateLabelText(name string, description *string) error {
+	if len(name) > maxLabelNameLength {
+		return platform.Validation("name",
+			fmt.Sprintf("a label name is at most %d characters", maxLabelNameLength))
+	}
+	if description != nil && len(*description) > maxLabelDescriptionLength {
+		return platform.Validation("description",
+			fmt.Sprintf("a label description is at most %d characters", maxLabelDescriptionLength))
+	}
+	return nil
 }
 
 // labelWrite is what it takes to turn a rejected label write into a sentence about the input

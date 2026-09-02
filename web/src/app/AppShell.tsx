@@ -10,25 +10,33 @@
 import {
   Fragment,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type DragEvent,
   type FormEvent,
+  type PointerEvent as ReactPointerEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 
 import { useDesktopNotifications, useUnreadBadge } from '~/features/inbox/desktop';
+import { unreadCount, useWakingQuery } from '~/features/inbox/inbox';
+import { offerError } from '~/features/toast/ToastHost';
+import { offerUndo } from '~/features/undo/UndoToast';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { usePresence } from '~/hooks/usePresence';
 import { useViewerId, useViewerRole } from '~/hooks/useViewer';
-import { Menu, type MenuNode } from '~/components';
+import { ConfirmDialog, IconButton, Menu, SkeletonRows, type MenuNode } from '~/components';
 import { auth } from '~/sync/api';
 import { gotoLabelItems, labelViewPath, userViewPath } from '~/features/labels/labelView';
 import { personName } from '~/features/prefs/prefs';
 import { triageQueueCount } from '~/features/triage/queue';
+import { UpdateBanner } from '~/platform/UpdateBanner';
 import { CreateIssueProvider } from '~/features/issue/create-context';
 import { type IssueComposerSeed } from '~/features/issue/create-url';
 import {
@@ -37,9 +45,10 @@ import {
   removeFavorite,
   renameFavoriteFolder,
 } from '~/features/view/mutations';
-import { byOrderKey, byOrderKeyThen } from '~/store';
+import { MOVE_FAVORITE } from '~/features/view/operations';
+import { byOrderKey, byOrderKeyThen, orderKeyBetween } from '~/store';
 import type { Document, Favorite, Store, Team, UUID, View } from '~/store';
-import type { EngineStatus } from '~/sync/engine';
+import type { EngineStatus, SyncEngine } from '~/sync/engine';
 
 import { useWorkspaceSession } from './Boot';
 import { useEngine, useQuery, useSyncStatus } from './context';
@@ -47,8 +56,21 @@ import { useActions } from './keymap';
 import { CommandMenu } from './CommandMenu';
 import { HelpOverlay } from './HelpOverlay';
 import { pathToActiveIssues, pathToBacklogIssues } from './teamIssuePaths';
-import { NavGlyph, navClass, navStyles } from './nav';
+import {
+  MAX_SIDEBAR_WIDTH,
+  MIN_SIDEBAR_WIDTH,
+  DEFAULT_SIDEBAR_WIDTH,
+  NavChevron,
+  NavGlyph,
+  NavSection,
+  WorkspaceMark,
+  navClass,
+  navStyles,
+  useSidebarChrome,
+  type SidebarChrome,
+} from './nav';
 import { SettingsNav } from './SettingsNav';
+import { useScrollRestoration } from './useScrollRestoration';
 import styles from './AppShell.module.css';
 
 export interface AppShellProps {
@@ -62,7 +84,12 @@ export interface AppShellProps {
    * on the shell for its context — a cycle that bundlers resolve in whichever order they
    * happen to walk the graph.
    */
-  renderCreateIssue?: (props: { onClose: () => void; seed?: IssueComposerSeed }) => ReactNode;
+  renderCreateIssue?: (props: {
+    open: boolean;
+    onClose: () => void;
+    seed?: IssueComposerSeed;
+    onFiling: (filing: boolean) => void;
+  }) => ReactNode;
   /**
    * Same split as create-issue: the action is global (command menu from any screen) and
    * the modal lives with the rest of the project UI. `C` stays create-issue.
@@ -72,6 +99,48 @@ export interface AppShellProps {
   renderCreateCustomer?: (props: { onClose: () => void }) => ReactNode;
   renderCreateCustomerRequest?: (props: { onClose: () => void }) => ReactNode;
   renderCreateDashboard?: (props: { onClose: () => void }) => ReactNode;
+}
+
+/**
+ * How far one arrow key moves the sidebar's edge, and how far one with Shift held moves it.
+ *
+ * Pixels rather than a token because this is a delta rather than a size: nothing on the
+ * spacing scale describes "the smallest movement worth making with a key", and tying it to
+ * one would mean a density change silently retuned the keyboard.
+ */
+const RESIZE_STEP_PX = 8;
+const RESIZE_STEP_COARSE_PX = 32;
+
+/**
+ * What to call the screen a path leads to.
+ *
+ * The names are the ones the sidebar draws, because the announcement's job is to tell
+ * somebody they have arrived where they asked to go — "Inbox" after `G I`, not the URL. The
+ * table covers the destinations the shell itself navigates to; anything else falls back to
+ * the first meaningful segment, which is a worse name than a written one and a much better
+ * one than silence.
+ */
+const SCREEN_NAMES: Readonly<Record<string, string>> = {
+  '/my-issues': 'My issues',
+  '/inbox': 'Inbox',
+  '/pulse': 'Pulse',
+  '/drafts': 'Drafts',
+  '/search': 'Search',
+  '/projects': 'Projects',
+  '/initiatives': 'Initiatives',
+  '/customers': 'Customers',
+  '/dashboards': 'Dashboards',
+  '/settings': 'Settings',
+};
+
+export function screenNameFor(pathname: string): string {
+  const known = SCREEN_NAMES[pathname];
+  if (known !== undefined) return known;
+  const segments = pathname.split('/').filter((part) => part !== '');
+  const last = segments.length > 1 ? segments[segments.length - 1] : segments[0];
+  if (last === undefined) return 'Home';
+  const spelled = last.replace(/-/g, ' ');
+  return spelled.charAt(0).toUpperCase() + spelled.slice(1);
 }
 
 export function AppShell({
@@ -84,7 +153,9 @@ export function AppShell({
   renderCreateDashboard,
 }: AppShellProps) {
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
+  const sidebar = useSidebarChrome();
   const [commandOpen, setCommandOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -115,6 +186,16 @@ export function AppShell({
    * start the next sitting, which is the original bug wearing a different hat.
    */
   const composerUp = useRef(false);
+  /**
+   * Whether the composer on screen has already filed its issue and is waiting on the answer.
+   *
+   * The guard below drops a second `C` because a composer that is up is holding a
+   * half-written issue. Between the submit and the close it is holding nothing — the words
+   * are already in the list — and a filer working through a backlog presses `C` in that
+   * window every time. Told by the composer rather than inferred, because the shell has no
+   * other way to know the difference, and put back if the create is refused.
+   */
+  const composerFiling = useRef(false);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [createInitiativeOpen, setCreateInitiativeOpen] = useState(false);
   const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
@@ -170,8 +251,21 @@ export function AppShell({
   const viewerId = useViewerId();
   const viewerRole = useViewerRole();
   const engine = useEngine();
+  const syncStatus = useSyncStatus();
   useDesktopNotifications(engine, viewerId);
   useUnreadBadge();
+  /**
+   * The same count the dock badge gets, drawn on the Inbox row.
+   *
+   * Through `useWakingQuery` rather than a plain live query for the reason `useUnreadBadge`
+   * gives: the number moves without anything being written, because a snoozed row waking is
+   * a clock comparison, and a count that only re-ran on a delta would keep a nine-o'clock
+   * reminder out of the sidebar all day. Asking twice rather than changing `useUnreadBadge`
+   * to return its count — the two answers are the same query against the same in-memory
+   * indexes, and the hook that owns the OS badge should not also be the hook the sidebar
+   * depends on for a label.
+   */
+  const inboxUnread = useWakingQuery(unreadCount, ['notification']).count;
   // Two readings of the same unknown, because the two things being gated fail in opposite
   // directions.
   //
@@ -308,18 +402,28 @@ export function AppShell({
     setCreateDashboardOpen(false);
   }, []);
 
-  const openCreate = useCallback((seed?: IssueComposerSeed) => {
-    // Asking for a composer that is already up is asking for something you have. Starting a
-    // new sitting here would throw away a half-written issue, so the request is dropped and
-    // the dialog on screen keeps the floor. The dialog itself claims the chord for the one
-    // case where that is the wrong answer — a create already in flight.
-    if (composerUp.current) return;
-    composerUp.current = true;
-    currentSitting.current += 1;
-    setSitting(currentSitting.current);
-    setCreateSeed(seed);
-    setCreateOpen(true);
-  }, []);
+  /** What the current sitting's opener asked to be told when the composer shuts. */
+  const onComposerClosed = useRef<(() => void) | undefined>(undefined);
+
+  const openCreate = useCallback(
+    (seed?: IssueComposerSeed, options?: { onClosed?: () => void }) => {
+      // Asking for a composer that is already up is asking for something you have. Starting a
+      // new sitting here would throw away a half-written issue, so the request is dropped and
+      // the dialog on screen keeps the floor. The caller is told, because a screen that opened
+      // this on the user's behalf — `/new` — is otherwise left claiming a composer it did not
+      // get.
+      if (composerUp.current && !composerFiling.current) return false;
+      composerUp.current = true;
+      composerFiling.current = false;
+      currentSitting.current += 1;
+      onComposerClosed.current = options?.onClosed;
+      setSitting(currentSitting.current);
+      setCreateSeed(seed);
+      setCreateOpen(true);
+      return true;
+    },
+    [],
+  );
 
   const closeCreate = useCallback(
     (closing: number) => {
@@ -327,8 +431,12 @@ export function AppShell({
       // dialog they are looking at is not the one asking to close.
       if (closing !== currentSitting.current) return;
       composerUp.current = false;
+      composerFiling.current = false;
       setCreateOpen(false);
       setCreateSeed(undefined);
+      const closed = onComposerClosed.current;
+      onComposerClosed.current = undefined;
+      closed?.();
       if (pathname === '/new' || /\/team\/[^/]+\/new$/.test(pathname)) {
         void navigate('/');
       }
@@ -353,6 +461,23 @@ export function AppShell({
         run: () => setHelpOpen(true),
       },
       {
+        /**
+         * Two chords, on purpose, and both of them Linear's.
+         *
+         * `⌘.` is the one people arrive with and the one that works with a text field
+         * focused; `[` is the one that ends up under the left hand of somebody navigating
+         * with `j`/`k`, and it costs nothing because no other action in the product binds a
+         * bracket. Neither is a component-owned handler: the sidebar is application chrome,
+         * so the toggle is an action like any other and appears in the command menu and on
+         * the shortcut sheet without either of them being told about it.
+         */
+        id: 'app.toggleSidebar',
+        title: 'Toggle sidebar',
+        keys: ['mod+period', '['],
+        group: 'General',
+        run: () => sidebar.toggleCollapsed(),
+      },
+      {
         id: 'app.dismiss',
         title: 'Dismiss',
         keys: ['Escape'],
@@ -368,6 +493,20 @@ export function AppShell({
         keys: ['c'],
         group: 'Issues',
         run: () => openCreate(),
+      },
+      {
+        id: 'issue.createFullScreen',
+        title: 'Create issue full screen',
+        keys: ['v'],
+        group: 'Issues',
+        run: () => openCreate({ fullScreen: true }),
+      },
+      {
+        id: 'issue.createFromTemplate',
+        title: 'Create issue from template',
+        keys: ['alt+c'],
+        group: 'Issues',
+        run: () => openCreate({ openTemplatePicker: true }),
       },
       ...(mayCreate
         ? [
@@ -457,8 +596,12 @@ export function AppShell({
        * mounted, and `o i` would ask a menu to position itself against a ref holding null.
        * The command menu's claim is that it "offers what is actually available rather than
        * a fixed list that fails when chosen", and here that is literal.
+       *
+       * A collapsed sidebar is the same fact arriving a second way: the whole `<nav>` is
+       * unmounted rather than hidden, so the anchors are gone for exactly the same reason
+       * and the pickers have to be withdrawn for exactly the same reason.
        */
-      ...(onSettings
+      ...(onSettings || sidebar.collapsed
         ? []
         : [
             {
@@ -525,7 +668,7 @@ export function AppShell({
               run: () => favoriteMenu.show(),
             },
           ]),
-      ...(showCustomers && !onSettings
+      ...(showCustomers && !onSettings && !sidebar.collapsed
         ? [
             {
               id: 'nav.openCustomer',
@@ -699,6 +842,8 @@ export function AppShell({
     [
       navigate,
       closeAll,
+      sidebar.collapsed,
+      sidebar.toggleCollapsed,
       cyclesPath,
       triagePath,
       archivesPath,
@@ -779,13 +924,155 @@ export function AppShell({
     },
   ];
 
+  /**
+   * Where a route change lands, for the people it currently lands nowhere for.
+   *
+   * `G I` used to change the entire contents of the pane and say nothing about it: no
+   * announcement, and focus still on whatever the last screen had it on — so the next `J`
+   * or `K` walked a list that was no longer there. Both halves are one problem, and both
+   * halves are fixed here rather than in ninety screens.
+   *
+   * The pane takes focus itself (`tabIndex={-1}` below), not its first control. Focusing a
+   * control would activate whatever is under Enter before the person has read the screen,
+   * and this product's screens claim keys of their own the moment focus is inside them.
+   * `preventScroll` because the browser's idea of bringing a focused element into view is
+   * the opposite of the scroll restoration running in the same commit.
+   */
+  const viewRef = useRef<HTMLDivElement>(null);
+  useScrollRestoration(viewRef, location.key);
+  useEffect(() => {
+    viewRef.current?.focus({ preventScroll: true });
+  }, [pathname]);
+  const screenName = useMemo(() => screenNameFor(pathname), [pathname]);
+
+  /**
+   * The sidebar's width, and what happens while it is being dragged.
+   *
+   * The listeners go on the window rather than on the handle, because a pointer moving
+   * faster than the layout can follow leaves the handle behind — and a resize that stops
+   * when the cursor outruns it is a resize that feels broken at exactly the speed people
+   * actually drag. Pointer events rather than mouse events so a trackpad, a pen and a touch
+   * screen are one code path.
+   *
+   * Nothing is written until the drag ends, and every write goes through `setWidth`, which
+   * clamps: a sidebar dragged to four pixels is a sidebar nobody can get back without
+   * knowing the shortcut.
+   */
+  const sidebarWidth = sidebar.width ?? DEFAULT_SIDEBAR_WIDTH;
+  const startResize = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
+      // Or the drag selects the sidebar's text on its way past.
+      event.preventDefault();
+      const originX = event.clientX;
+      const originWidth = sidebarWidth;
+      const onMove = (move: PointerEvent) => sidebar.setWidth(originWidth + move.clientX - originX);
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    },
+    [sidebar, sidebarWidth],
+  );
+
+  /**
+   * The same resize from the keyboard.
+   *
+   * A `separator` with `aria-valuenow` that only a pointer can move is a widget that
+   * announces itself as adjustable and then is not. This is the activation a native control
+   * would have given the element rather than a shortcut — nothing here is reachable from
+   * anywhere except this handle, and putting it in the registry would put "Sidebar wider" in
+   * the command menu as a command that does nothing unless the handle happens to be focused.
+   */
+  const resizeByKey = useCallback(
+    (event: ReactKeyboardEvent<HTMLElement>) => {
+      const step = event.shiftKey ? RESIZE_STEP_COARSE_PX : RESIZE_STEP_PX;
+      if (event.key === 'ArrowLeft') sidebar.setWidth(sidebarWidth - step);
+      else if (event.key === 'ArrowRight') sidebar.setWidth(sidebarWidth + step);
+      else if (event.key === 'Home') sidebar.setWidth(MIN_SIDEBAR_WIDTH);
+      else if (event.key === 'End') sidebar.setWidth(MAX_SIDEBAR_WIDTH);
+      else return;
+      event.preventDefault();
+    },
+    [sidebar, sidebarWidth],
+  );
+
+  /*
+   * One badge and one collapse control, rendered by the shell and handed to whichever
+   * navigation is on screen.
+   *
+   * Both are facts about the application rather than about either navigation, and the badge
+   * in particular was mounted inside the workspace `<nav>` — so "Offline", "Reconnecting" and
+   * "Syncing 3" were invisible on all thirty-one settings screens, which are the screens
+   * whose saves are single deliberate writes and therefore the worst ones to lose in silence.
+   */
+  const connectionIndicator = <ConnectionIndicator />;
+  const collapseControl = (
+    <IconButton
+      aria-label="Collapse sidebar"
+      tooltip="Collapse sidebar"
+      keys="mod+period"
+      size="sm"
+      icon={<CollapseGlyph />}
+      onClick={() => sidebar.toggleCollapsed()}
+    />
+  );
+
+  const shellStyle = (
+    sidebar.collapsed
+      ? { '--sidebar-width': '0px' }
+      : sidebar.width === null
+        ? {}
+        : { '--sidebar-width': `${sidebar.width}px` }
+  ) as CSSProperties;
+
   return (
     <CreateIssueProvider value={{ open: openCreate }}>
-      <div className={styles.shell}>
-        {onSettings ? (
+      <div
+        className={[styles.shell, sidebar.collapsed ? styles.shellCollapsed : null]
+          .filter(Boolean)
+          .join(' ')}
+        style={shellStyle}
+      >
+        {/*
+          What a screen change says out loud.
+
+          Named, polite and permanently mounted: a live region inserted at the moment it has
+          something to announce is a live region assistive technology has not been watching.
+        */}
+        <span className={styles.routeStatus} role="status" aria-live="polite">
+          {screenName}
+        </span>
+
+        {sidebar.collapsed ? (
+          /*
+            The way back, once the sidebar is gone.
+
+            Unmounting the navigation rather than hiding it is what keeps a closed sidebar
+            genuinely closed — no tab stops, no links a screen reader still walks — and the
+            cost of that is that the control which brings it back cannot live inside it. So
+            it floats over the top-left of the pane, which is where the sidebar was.
+          */
+          <IconButton
+            aria-label="Show sidebar"
+            tooltip="Show sidebar"
+            keys="mod+period"
+            size="sm"
+            className={styles.showSidebar}
+            icon={<CollapseGlyph />}
+            onClick={() => sidebar.toggleCollapsed()}
+          />
+        ) : null}
+
+        {sidebar.collapsed ? null : onSettings ? (
           <SettingsNav
             showMemberSettings={showMemberSettings}
             showAdminSettings={showAdminSettings}
+            workspaceName={workspace?.name ?? 'Polaris'}
+            workspaceLogoUrl={workspace?.logoUrl}
+            status={connectionIndicator}
+            collapseControl={collapseControl}
           />
         ) : (
           <nav className={navStyles.sidebar} aria-label="Workspace">
@@ -806,7 +1093,8 @@ export function AppShell({
                 <WorkspaceMark name={workspace?.name ?? 'Polaris'} logoUrl={workspace?.logoUrl} />
                 <span className={styles.workspaceName}>{workspace?.name ?? 'Polaris'}</span>
               </button>
-              <ConnectionIndicator />
+              {connectionIndicator}
+              {collapseControl}
               <Menu
                 open={workspaceMenu.open}
                 onClose={workspaceMenu.hide}
@@ -814,7 +1102,12 @@ export function AppShell({
                 label="Workspace menu"
                 items={workspaceItems}
               />
-              <button type="button" className={styles.gotoTrigger} {...labelMenu.props}>
+              <button
+                type="button"
+                tabIndex={-1}
+                className={styles.gotoTrigger}
+                {...labelMenu.props}
+              >
                 Open label
               </button>
               <Menu
@@ -832,7 +1125,12 @@ export function AppShell({
                   onSelect: () => navigate(labelViewPath(item.id)),
                 }))}
               />
-              <button type="button" className={styles.gotoTrigger} {...userMenu.props}>
+              <button
+                type="button"
+                tabIndex={-1}
+                className={styles.gotoTrigger}
+                {...userMenu.props}
+              >
                 Open user
               </button>
               <Menu
@@ -849,7 +1147,12 @@ export function AppShell({
                   onSelect: () => navigate(userViewPath(user.id)),
                 }))}
               />
-              <button type="button" className={styles.gotoTrigger} {...issueMenu.props}>
+              <button
+                type="button"
+                tabIndex={-1}
+                className={styles.gotoTrigger}
+                {...issueMenu.props}
+              >
                 Open issue
               </button>
               <Menu
@@ -866,7 +1169,12 @@ export function AppShell({
                   onSelect: () => navigate(item.href),
                 }))}
               />
-              <button type="button" className={styles.gotoTrigger} {...projectMenu.props}>
+              <button
+                type="button"
+                tabIndex={-1}
+                className={styles.gotoTrigger}
+                {...projectMenu.props}
+              >
                 Open project
               </button>
               <Menu
@@ -883,7 +1191,12 @@ export function AppShell({
                   onSelect: () => navigate(`/project/${project.id}`),
                 }))}
               />
-              <button type="button" className={styles.gotoTrigger} {...teamMenu.props}>
+              <button
+                type="button"
+                tabIndex={-1}
+                className={styles.gotoTrigger}
+                {...teamMenu.props}
+              >
                 Open team
               </button>
               <Menu
@@ -900,7 +1213,12 @@ export function AppShell({
                   onSelect: () => navigate(`/team/${team.key}`),
                 }))}
               />
-              <button type="button" className={styles.gotoTrigger} {...viewMenu.props}>
+              <button
+                type="button"
+                tabIndex={-1}
+                className={styles.gotoTrigger}
+                {...viewMenu.props}
+              >
                 Open view
               </button>
               <Menu
@@ -917,7 +1235,12 @@ export function AppShell({
                   onSelect: () => navigate(viewPath(view)),
                 }))}
               />
-              <button type="button" className={styles.gotoTrigger} {...documentMenu.props}>
+              <button
+                type="button"
+                tabIndex={-1}
+                className={styles.gotoTrigger}
+                {...documentMenu.props}
+              >
                 Open document
               </button>
               <Menu
@@ -934,7 +1257,12 @@ export function AppShell({
                   onSelect: () => navigate(`/document/${doc.id}`),
                 }))}
               />
-              <button type="button" className={styles.gotoTrigger} {...favoriteMenu.props}>
+              <button
+                type="button"
+                tabIndex={-1}
+                className={styles.gotoTrigger}
+                {...favoriteMenu.props}
+              >
                 Open favourite
               </button>
               <Menu
@@ -953,7 +1281,12 @@ export function AppShell({
               />
               {showCustomers ? (
                 <>
-                  <button type="button" className={styles.gotoTrigger} {...customerMenu.props}>
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    className={styles.gotoTrigger}
+                    {...customerMenu.props}
+                  >
                     Open customer
                   </button>
                   <Menu
@@ -982,6 +1315,7 @@ export function AppShell({
               <NavLink to="/inbox" className={navClass}>
                 <NavGlyph name="inbox" />
                 <span className={navStyles.navLabel}>Inbox</span>
+                <NavCount value={inboxUnread} label="unread" />
               </NavLink>
               {showPulse && (
                 <NavLink to="/pulse" className={() => navClass({ isActive: onPulse })}>
@@ -1025,32 +1359,81 @@ export function AppShell({
               </NavLink>
             </div>
 
-            {viewerId !== null && <FavoritesSection userId={viewerId} />}
+            {viewerId !== null && <FavoritesSection userId={viewerId} sidebar={sidebar} />}
 
-            <div className={navStyles.section}>
-              <h2 className={navStyles.sectionTitle}>Teams</h2>
-              {teamTree.roots.map((team) => (
-                <TeamNavItems
-                  key={team.id}
-                  team={team}
-                  depth={0}
-                  childrenByParent={teamTree.childrenByParent}
-                />
-              ))}
-            </div>
+            <NavSection
+              id="teams"
+              title="Teams"
+              open={sidebar.isOpen('teams', true)}
+              onToggle={() => sidebar.toggleSection('teams', true)}
+            >
+              {/*
+                A workspace with no teams in it is two different situations, and a sidebar
+                that draws nothing cannot tell them apart. Until the first snapshot lands
+                this list is empty because it has not arrived, not because it is empty —
+                which in a local-first client is the ordinary case on a cold boot, and
+                exactly the case `EmptyState` warns against painting as "nothing here".
+              */}
+              {teamTree.roots.length === 0 && syncStatus.phase !== 'ready' ? (
+                <SkeletonRows count={3} height="var(--control-height-md)" />
+              ) : (
+                teamTree.roots.map((team) => (
+                  <TeamNavItems
+                    key={team.id}
+                    team={team}
+                    depth={0}
+                    childrenByParent={teamTree.childrenByParent}
+                    sidebar={sidebar}
+                  />
+                ))
+              )}
+            </NavSection>
 
             {views.length > 0 && (
-              <div className={navStyles.section}>
-                <h2 className={navStyles.sectionTitle}>Views</h2>
+              <NavSection
+                id="views"
+                title="Views"
+                open={sidebar.isOpen('views', true)}
+                onToggle={() => sidebar.toggleSection('views', true)}
+              >
                 {views.map((view) => (
                   <NavLink key={view.id} to={viewPath(view)} className={navClass}>
                     <NavGlyph name="view" />
                     <span className={navStyles.navLabel}>{view.name}</span>
                   </NavLink>
                 ))}
-              </div>
+              </NavSection>
             )}
           </nav>
+        )}
+
+        {sidebar.collapsed ? null : (
+          /*
+            The edge between the two panes, made draggable.
+
+            A `separator` rather than a slider: it divides two regions and its value is the
+            division, which is what the role is for. Focusable and arrow-operable because a
+            widget that announces `aria-valuenow` and only answers a pointer has told an
+            assistive-technology user about an adjustment they cannot make.
+
+            It is drawn over the sidebar's own border rather than taking a grid column of its
+            own, so the columns stay `var(--sidebar-width) 1fr` and the transition below has
+            two values to move between rather than four.
+          */
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize sidebar"
+            aria-valuenow={sidebarWidth}
+            aria-valuemin={MIN_SIDEBAR_WIDTH}
+            aria-valuemax={MAX_SIDEBAR_WIDTH}
+            tabIndex={0}
+            className={styles.resizeHandle}
+            onPointerDown={startResize}
+            onKeyDown={
+              /* keymap-lint-allow: the arrow keys a separator widget owns natively */ resizeByKey
+            }
+          />
         )}
 
         <main className={styles.main}>
@@ -1068,20 +1451,34 @@ export function AppShell({
            * position on each keystroke — a route transition for something that is not a route
            * change.
            */}
-          <div key={pathname} className={styles.view}>
+          <div key={pathname} ref={viewRef} tabIndex={-1} className={styles.view}>
             {children}
           </div>
         </main>
 
+        {/* Renders nothing until the desktop shell says a build has finished downloading. */}
+        <UpdateBanner />
         <CommandMenu open={commandOpen} onClose={() => setCommandOpen(false)} />
         <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
-        {createOpen && (
-          // Keyed by the sitting: asking for a new issue while one is on screen replaces the
-          // dialog rather than leaving the filed issue's title sitting in the field.
-          <Fragment key={sitting}>
-            {renderCreateIssue?.({ onClose: () => closeCreate(sitting), seed: createSeed })}
-          </Fragment>
-        )}
+        {/*
+          Mounted whether or not it is open, and told which it is, the way `Peek` is mounted
+          by the list. A dialog cannot animate its own removal from a tree it has already
+          left, and unmounting on `createOpen` is what left the product's most-used modal
+          hard-cutting while every other one fades.
+
+          Still keyed by the sitting: asking for a new issue while one is on screen replaces
+          the dialog rather than leaving the filed issue's title sitting in the field.
+        */}
+        <Fragment key={sitting}>
+          {renderCreateIssue?.({
+            open: createOpen,
+            onClose: () => closeCreate(sitting),
+            seed: createSeed,
+            onFiling: (filing: boolean) => {
+              composerFiling.current = filing;
+            },
+          })}
+        </Fragment>
         {createProjectOpen && renderCreateProject?.({ onClose: () => setCreateProjectOpen(false) })}
         {createInitiativeOpen &&
           renderCreateInitiative?.({ onClose: () => setCreateInitiativeOpen(false) })}
@@ -1119,53 +1516,264 @@ function buildTeamTree(teams: readonly Team[]): {
   return { roots, childrenByParent };
 }
 
+/**
+ * A team, and the screens inside it.
+ *
+ * A team was one link. Linear's is a disclosure, and the difference is not decoration: the
+ * screens under a team are the ones somebody works in all day — the issue list, what is
+ * active, the backlog, the cycle — and reaching any of them meant landing on the team's home
+ * page first and finding the tab. So the row grew a chevron.
+ *
+ * Closed by default, unlike the three top-level sections, because a workspace with nine
+ * teams expanded is a sidebar nobody can see the bottom of, which is the problem the
+ * disclosure was added to solve rather than a state to start in.
+ *
+ * Every destination here is a route that exists — `/team/:key`, `/projects`, `/cycles`,
+ * `/triage` in `App.tsx`, plus Active and Backlog, which are the same list under the URL's
+ * own filter grammar and go through `teamIssuePaths` rather than inventing a second spelling
+ * of it. Cycles and Triage are drawn only where the team runs them: a link to a cadence a
+ * team has switched off is a link to a screen explaining that it is switched off.
+ */
 function TeamNavItems({
   team,
   depth,
   childrenByParent,
+  sidebar,
 }: {
   team: Team;
   depth: number;
   childrenByParent: ReadonlyMap<UUID, Team[]>;
+  sidebar: SidebarChrome;
 }) {
   const children = childrenByParent.get(team.id) ?? [];
+  const sectionId = `team:${team.id}`;
+  const open = sidebar.isOpen(sectionId, false);
+  const triageWaiting = useLiveQuery(
+    (store) => triageQueueCount(store, team.id),
+    ['issue', 'workflowState'],
+    [team.id],
+  );
+  const indent = (level: number) =>
+    level > 0 ? { paddingInlineStart: `calc(var(--space-3) * ${level + 1})` } : undefined;
+
   return (
     <>
-      <NavLink
-        to={`/team/${team.key}/home`}
-        className={navClass}
-        style={
-          depth > 0 ? { paddingInlineStart: `calc(var(--space-3) * ${depth + 1})` } : undefined
-        }
-      >
-        <span className={styles.teamKey}>{team.key}</span>
-        <span className={navStyles.navLabel}>{team.name}</span>
-      </NavLink>
+      <div className={styles.teamRow} style={indent(depth)}>
+        <button
+          type="button"
+          className={styles.teamDisclosure}
+          aria-expanded={open}
+          aria-label={`${open ? 'Collapse' : 'Expand'} ${team.name}`}
+          onClick={() => sidebar.toggleSection(sectionId, false)}
+        >
+          <NavChevron open={open} />
+        </button>
+        <NavLink
+          to={`/team/${team.key}/home`}
+          className={({ isActive }) => `${navClass({ isActive })} ${styles.teamLink ?? ''}`}
+        >
+          <span className={styles.teamKey}>{team.key}</span>
+          <span className={navStyles.navLabel}>{team.name}</span>
+        </NavLink>
+      </div>
+      {open ? (
+        /* Named after the team, because these rows repeat their labels across every team in
+           the sidebar: "Projects" under Engineering and "Projects" under Design are two
+           different destinations wearing one word, and the group is what tells them apart to
+           anybody not reading the indentation. */
+        <div role="group" aria-label={team.name} className={navStyles.section}>
+          <NavLink to={`/team/${team.key}`} end className={navClass} style={indent(depth + 1)}>
+            <span className={navStyles.navLabel}>Issues</span>
+          </NavLink>
+          <TeamFilteredLink team={team} label="Active" depth={depth + 1} to={pathToActiveIssues} />
+          <TeamFilteredLink
+            team={team}
+            label="Backlog"
+            depth={depth + 1}
+            to={pathToBacklogIssues}
+          />
+          <NavLink to={`/team/${team.key}/projects`} className={navClass} style={indent(depth + 1)}>
+            <span className={navStyles.navLabel}>Projects</span>
+          </NavLink>
+          {team.cyclesEnabled ? (
+            <NavLink to={`/team/${team.key}/cycles`} className={navClass} style={indent(depth + 1)}>
+              <span className={navStyles.navLabel}>Cycles</span>
+            </NavLink>
+          ) : null}
+          {team.triageEnabled || triageWaiting > 0 ? (
+            <NavLink to={`/team/${team.key}/triage`} className={navClass} style={indent(depth + 1)}>
+              <span className={navStyles.navLabel}>Triage</span>
+              <NavCount value={triageWaiting} label="waiting" />
+            </NavLink>
+          ) : null}
+        </div>
+      ) : null}
       {children.map((child) => (
         <TeamNavItems
           key={child.id}
           team={child}
           depth={depth + 1}
           childrenByParent={childrenByParent}
+          sidebar={sidebar}
         />
       ))}
     </>
   );
 }
 
+/**
+ * Active and Backlog, which are the team's issue list under a filter rather than routes of
+ * their own — the same URL grammar somebody would get by typing the filter into the bar, so
+ * the row and the link they would share with a colleague are the same string.
+ */
+function TeamFilteredLink({
+  team,
+  label,
+  depth,
+  to,
+}: {
+  team: Team;
+  label: string;
+  depth: number;
+  to: (store: Store, pathname: string) => string;
+}) {
+  const href = useLiveQuery((store) => to(store, `/team/${team.key}`), ['team'], [team.key, label]);
+  return (
+    <NavLink
+      to={href}
+      className={navClass}
+      style={depth > 0 ? { paddingInlineStart: `calc(var(--space-3) * ${depth + 1})` } : undefined}
+    >
+      <span className={navStyles.navLabel}>{label}</span>
+    </NavLink>
+  );
+}
+
+/**
+ * A count riding at the end of a nav row.
+ *
+ * Zero renders nothing rather than "0": a row that says there is nothing waiting is a row
+ * that has to be read to learn that, and the absence already says it. The unit is in the
+ * accessible name because "Inbox, 9" is ambiguous out loud and "Inbox, 9 unread" is not.
+ */
+function NavCount({ value, label }: { value: number; label: string }) {
+  if (value <= 0) return null;
+  return (
+    <span className={navStyles.navCount} aria-label={`${value} ${label}`}>
+      {value}
+    </span>
+  );
+}
+
+/** The sidebar toggle's glyph: a pane with its leading column marked. */
+function CollapseGlyph() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect
+        x="2.5"
+        y="3"
+        width="11"
+        height="10"
+        rx="1.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.4}
+      />
+      <path d="M6.5 3v10" stroke="currentColor" strokeWidth={1.4} />
+    </svg>
+  );
+}
+
 const FAVORITE_DRAG = 'text/polaris-favorite';
 
-function FavoritesSection({ userId }: { userId: UUID }) {
+/**
+ * The viewer's favourites: folders, loose rows, and the two ways of moving one.
+ *
+ * The section used to disappear entirely when there was nothing in it — and the only control
+ * that could create a folder lived inside the block that guard hid, so `creating` could never
+ * become true from an empty state and the folder feature was unreachable until a favourite
+ * arrived by some other route. The header stays now, with a line saying what would be here.
+ */
+function FavoritesSection({ userId, sidebar }: { userId: UUID; sidebar: SidebarChrome }) {
   const engine = useEngine();
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState('');
+  /** Which container the pointer is currently over, `null` being the unfiled one. */
+  const [dropTarget, setDropTarget] = useState<UUID | null | undefined>(undefined);
   const nav = useLiveQuery(
     (store) => favoriteNav(store, userId),
     ['favorite', 'view', 'team', 'issue', 'label'],
     [userId],
   );
 
-  if (nav.folders.length === 0 && nav.unfiled.length === 0 && !creating) return null;
+  const open = sidebar.isOpen('favourites', true);
+  const empty = nav.folders.length === 0 && nav.unfiled.length === 0;
+
+  /**
+   * Which favourite the keyboard is on.
+   *
+   * A ref rather than state: nothing renders differently for it — the focus ring already
+   * says which row this is — and re-rendering the whole section on every arrow key through
+   * the sidebar would be a re-render per keystroke for no visible change.
+   */
+  const focused = useRef<UUID | null>(null);
+
+  const siblingsOf = useCallback(
+    (id: UUID): readonly FavoriteLink[] => {
+      const folder = nav.folders.find((row) => row.items.some((item) => item.id === id));
+      return folder?.items ?? nav.unfiled;
+    },
+    [nav],
+  );
+
+  /**
+   * Moving the focused favourite one place, from the keyboard.
+   *
+   * Within its own container rather than across the whole list, because that is the move the
+   * user can see: a row leaving a folder is what dragging is for, and a keystroke that
+   * silently refiled something would be a different command wearing the same key.
+   */
+  const nudge = useCallback(
+    (direction: -1 | 1) => {
+      const id = focused.current;
+      if (id === null) return;
+      const siblings = siblingsOf(id);
+      const index = siblings.findIndex((item) => item.id === id);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= siblings.length) return;
+      const afterId =
+        direction === -1 ? (siblings[target - 1]?.id ?? null) : (siblings[target]?.id ?? null);
+      const beforeId =
+        direction === -1 ? (siblings[target]?.id ?? null) : (siblings[target + 1]?.id ?? null);
+      void reorderFavorite(engine, id, afterId, beforeId);
+    },
+    [engine, siblingsOf],
+  );
+
+  useActions(
+    [
+      {
+        id: 'favorite.moveUp',
+        title: 'Move favourite up',
+        keys: ['mod+ArrowUp'],
+        group: 'Navigation',
+        // Not `available`: the shortcut belongs on the sheet whether or not a favourite
+        // happens to be focused right now, and "focus a favourite first" is the answer
+        // somebody looking it up came for. See the note on the two predicates in keys/types.
+        enabled: () => focused.current !== null,
+        run: () => nudge(-1),
+      },
+      {
+        id: 'favorite.moveDown',
+        title: 'Move favourite down',
+        keys: ['mod+ArrowDown'],
+        group: 'Navigation',
+        enabled: () => focused.current !== null,
+        run: () => nudge(1),
+      },
+    ],
+    [nudge],
+  );
 
   const submitFolder = (event: FormEvent) => {
     event.preventDefault();
@@ -1178,20 +1786,49 @@ function FavoritesSection({ userId }: { userId: UUID }) {
 
   const onDropOn = (folderId: UUID | null) => (event: DragEvent) => {
     event.preventDefault();
+    setDropTarget(undefined);
     const id = event.dataTransfer.getData(FAVORITE_DRAG);
     if (id === '') return;
     void moveFavorite(engine, id, folderId);
   };
 
-  return (
-    <div className={navStyles.section}>
-      <h2 className={navStyles.sectionTitle}>
-        Favourites
-        <button type="button" className={styles.folderAction} onClick={() => setCreating(true)}>
-          New folder
-        </button>
-      </h2>
+  /**
+   * What a container does while something is over it.
+   *
+   * `dropEffect` is set on every `dragover` rather than once on `dragstart`, because the
+   * browser resets it per event — without this the cursor shows the "no drop" glyph over a
+   * target that will happily accept the row, which reads as the feature not working.
+   */
+  const dropProps = (folderId: UUID | null) => ({
+    onDragOver: (event: DragEvent) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move' as const;
+    },
+    onDragEnter: () => setDropTarget(folderId),
+    onDragLeave: () => setDropTarget((current) => (current === folderId ? undefined : current)),
+    onDrop: onDropOn(folderId),
+    ...(dropTarget === folderId ? { 'data-drop-active': '' } : null),
+  });
 
+  return (
+    <NavSection
+      id="favourites"
+      title="Favourites"
+      open={open}
+      onToggle={() => sidebar.toggleSection('favourites', true)}
+      action={
+        <IconButton
+          aria-label="New folder"
+          tooltip="New folder"
+          size="sm"
+          icon={<PlusGlyph />}
+          onClick={() => {
+            if (!open) sidebar.toggleSection('favourites', true);
+            setCreating(true);
+          }}
+        />
+      }
+    >
       {creating ? (
         <form className={styles.folderCreate} onSubmit={submitFolder}>
           <input
@@ -1208,33 +1845,64 @@ function FavoritesSection({ userId }: { userId: UUID }) {
         </form>
       ) : null}
 
+      {empty && !creating ? (
+        <p className={styles.favoritesHint}>Star a view, team or issue to keep it here</p>
+      ) : null}
+
       {nav.folders.map((folder) => (
-        <div
-          key={folder.id}
-          className={styles.folder}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={onDropOn(folder.id)}
-        >
+        <div key={folder.id} className={styles.folder} {...dropProps(folder.id)}>
           <FolderHeader
             folder={folder}
             onRename={(name) => void renameFavoriteFolder(engine, folder.id, name)}
-            onDelete={() => void removeFavorite(engine, userId, 'folder', folder.id)}
+            onDelete={() => {
+              void removeFavorite(engine, userId, 'folder', folder.id);
+              // The rows that were in it are favourites in their own right and survive as
+              // unfiled ones, so what the undo has to put back is the folder. It cannot
+              // refile them: `createFavoriteFolder` resolves to nothing, so there is no id
+              // to move them into until the server's delta arrives.
+              offerUndo({
+                label: `Deleted ${folder.name}`,
+                undo: () => createFavoriteFolder(engine, userId, folder.name),
+              });
+            }}
           />
           {folder.items.map((item) => (
-            <FavoriteItem key={item.id} item={item} />
+            <FavoriteItem key={item.id} item={item} focused={focused} />
           ))}
         </div>
       ))}
 
-      <div onDragOver={(event) => event.preventDefault()} onDrop={onDropOn(null)}>
+      {/*
+        Where a favourite goes to leave a folder.
+
+        It was a bare `<div>` whose only children were the unfiled rows, so with nothing
+        unfiled it had no height and could not be hit — a row could be dragged into a folder
+        and never dragged back out. It keeps a row's worth of height whether or not anything
+        is in it, and says so when something is over it.
+      */}
+      <div
+        role="group"
+        aria-label="Unfiled favourites"
+        className={styles.unfiled}
+        {...dropProps(null)}
+      >
         {nav.unfiled.map((item) => (
-          <FavoriteItem key={item.id} item={item} />
+          <FavoriteItem key={item.id} item={item} focused={focused} />
         ))}
       </div>
-    </div>
+    </NavSection>
   );
 }
 
+/**
+ * A folder's name and the two things that can be done to it.
+ *
+ * Both used to be permanently visible text buttons beside a permanently live borderless
+ * input: the name looked like static text, was a Tab stop per folder, renamed on blur after
+ * any stray keystroke, and "Delete" was wired straight to the mutation with no confirmation
+ * and no undo. So the name is a `<span>` until Rename is chosen, the actions are behind one
+ * `…` revealed on hover or focus, and the delete asks first and offers the way back after.
+ */
 function FolderHeader({
   folder,
   onRename,
@@ -1244,8 +1912,13 @@ function FolderHeader({
   onRename: (name: string) => void;
   onDelete: () => void;
 }) {
+  const menu = useMenuTrigger();
+  const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(folder.name);
+  const [confirming, setConfirming] = useState(false);
+
   const commit = () => {
+    setRenaming(false);
     const trimmed = name.trim();
     if (trimmed === '' || trimmed === folder.name) {
       setName(folder.name);
@@ -1256,39 +1929,83 @@ function FolderHeader({
 
   return (
     <div className={styles.folderHeader}>
-      <form
-        className={styles.folderName}
-        onSubmit={(event) => {
-          event.preventDefault();
-          commit();
+      {renaming ? (
+        <form
+          className={styles.folderName}
+          onSubmit={(event) => {
+            event.preventDefault();
+            commit();
+          }}
+        >
+          <input
+            className={styles.folderInput}
+            aria-label={`Rename ${folder.name}`}
+            value={name}
+            autoFocus
+            onChange={(event) => setName(event.target.value)}
+            onBlur={commit}
+          />
+        </form>
+      ) : (
+        <span className={styles.folderName}>{folder.name}</span>
+      )}
+
+      <IconButton
+        aria-label={`${folder.name} folder actions`}
+        tooltip="Folder actions"
+        size="sm"
+        className={styles.folderMenu}
+        icon={<MoreGlyph />}
+        {...menu.props}
+      />
+      <Menu
+        open={menu.open}
+        onClose={menu.hide}
+        trigger={menu.ref}
+        label={`${folder.name} folder actions`}
+        items={[
+          { id: 'rename', label: 'Rename', onSelect: () => setRenaming(true) },
+          { id: 'delete', label: 'Delete', danger: true, onSelect: () => setConfirming(true) },
+        ]}
+      />
+      <ConfirmDialog
+        open={confirming}
+        title={`Delete ${folder.name}?`}
+        consequence={
+          folder.items.length === 0
+            ? 'The folder goes. Nothing else changes.'
+            : `The folder goes and its ${folder.items.length} favourites move back to the sidebar. Nothing is unfavourited.`
+        }
+        confirmLabel="Delete folder"
+        destructive
+        onConfirm={() => {
+          setConfirming(false);
+          onDelete();
         }}
-      >
-        <input
-          className={styles.folderInput}
-          aria-label={`Folder ${folder.name}`}
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          onBlur={commit}
-        />
-      </form>
-      <button
-        type="button"
-        className={styles.folderAction}
-        onClick={onDelete}
-        aria-label={`Delete ${folder.name}`}
-      >
-        Delete
-      </button>
+        onClose={() => setConfirming(false)}
+      />
     </div>
   );
 }
 
-function FavoriteItem({ item }: { item: FavoriteLink }) {
+function FavoriteItem({
+  item,
+  focused,
+}: {
+  item: FavoriteLink;
+  focused: { current: UUID | null };
+}) {
   return (
     <NavLink
       to={item.to}
       className={navClass}
       draggable
+      onFocus={() => {
+        focused.current = item.id;
+      }}
+      onBlur={() => {
+        if (focused.current === item.id) focused.current = null;
+      }}
       onDragStart={(event) => {
         event.dataTransfer.setData(FAVORITE_DRAG, item.id);
         event.dataTransfer.effectAllowed = 'move';
@@ -1297,6 +2014,74 @@ function FavoriteItem({ item }: { item: FavoriteLink }) {
       {item.prefix !== null && <span className={styles.teamKey}>{item.prefix}</span>}
       <span className={navStyles.navLabel}>{item.label}</span>
     </NavLink>
+  );
+}
+
+/**
+ * Moves a favourite in the sidebar's manual order.
+ *
+ * Here rather than beside `moveFavorite` in `features/view/mutations.ts` because that
+ * function expresses one thing deliberately — which folder a favourite sits in — and returns
+ * early when the folder has not changed, which is every keyboard reorder. `MoveFavoriteInput`
+ * already carries `afterFavoriteId`, so the server needs nothing new; what is local is the
+ * optimistic key, minted the same way `reorderIssue` mints one so the row moves on the
+ * keystroke rather than a round trip later. A gap the local neighbours no longer straddle
+ * mints nothing and the move is dropped rather than landing the row somewhere nobody asked
+ * for — the server's delta is the tie-break.
+ */
+async function reorderFavorite(
+  engine: SyncEngine,
+  id: UUID,
+  afterId: UUID | null,
+  beforeId: UUID | null,
+): Promise<void> {
+  const before = engine.store.get('favorite', id);
+  if (before === undefined) return;
+  const lower = afterId === null ? '' : (engine.store.get('favorite', afterId)?.position ?? '');
+  const upper = beforeId === null ? '' : (engine.store.get('favorite', beforeId)?.position ?? '');
+  const position = orderKeyBetween(lower, upper);
+  if (position === null || position === before.position) return;
+
+  const after: Favorite = { ...before, position, updatedAt: new Date().toISOString() };
+  try {
+    await engine.mutate({
+      mutation: MOVE_FAVORITE,
+      variables: {
+        input: {
+          id,
+          ...(before.folderId === undefined
+            ? { clearFolder: true }
+            : { folderId: before.folderId }),
+          ...(afterId === null ? null : { afterFavoriteId: afterId }),
+        },
+      },
+      optimistic: [{ type: 'favorite', id, before, after }],
+    });
+  } catch {
+    // The optimistic row is rolled back by the engine; what is left to do is say so, because
+    // a favourite that springs back to where it was with no explanation reads as a bug in
+    // the keystroke rather than as a refusal.
+    offerError({ title: 'Could not move that favourite' });
+  }
+}
+
+/** The plus on the Favourites header. */
+function PlusGlyph() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** The overflow affordance on a folder row. */
+function MoreGlyph() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <circle cx="4" cy="8" r="1.2" fill="currentColor" />
+      <circle cx="8" cy="8" r="1.2" fill="currentColor" />
+      <circle cx="12" cy="8" r="1.2" fill="currentColor" />
+    </svg>
   );
 }
 
@@ -1519,46 +2304,21 @@ function visibleViews(store: Store, userId: UUID): readonly View[] {
     .sort(byOrderKeyThen('position', 'name'));
 }
 
-/**
- * The square beside the workspace name: its logo if it has one, its initial otherwise.
- *
- * The letter is not a placeholder waiting for an upload — most workspaces never set a logo,
- * and it is what Settings → Workspace promises is kept when the field is blank. Which makes
- * the image the exception, and the fallback the thing that has to be right: a URL that
- * 404s, or one that pointed at an image somebody has since deleted, falls back to the letter
- * rather than leaving a broken-image glyph in the corner of every screen.
- *
- * Keyed by url rather than by a boolean, as `Avatar` is, so replacing a broken logo with a
- * working one is not ignored for the rest of the session.
- */
-function WorkspaceMark({ name, logoUrl }: { name: string; logoUrl?: string | undefined }) {
-  const [brokenSrc, setBrokenSrc] = useState<string | null>(null);
-  const usable = logoUrl !== undefined && logoUrl !== '' && logoUrl !== brokenSrc;
-
-  return (
-    <span className={styles.workspaceMark} aria-hidden="true">
-      {usable ? (
-        // Empty alt, and the wrapper is already hidden: the workspace's name is written
-        // immediately beside this, and naming it twice helps nobody.
-        <img
-          className={styles.workspaceLogo}
-          src={logoUrl}
-          alt=""
-          onError={() => setBrokenSrc(logoUrl)}
-        />
-      ) : (
-        [...name][0]?.toUpperCase()
-      )}
-    </span>
-  );
-}
-
 /** What the badge currently says, or `null` for the states it stays quiet about. */
 interface SyncReport {
   readonly text: string;
   readonly title: string;
   /** The tone class, or undefined for the neutral states. */
   readonly tone: string | undefined;
+  /**
+   * What went wrong, when something did.
+   *
+   * Present only for the failed phase, and its presence is what turns the badge into a
+   * button. The message used to live in a `title` attribute — invisible to a keyboard, a
+   * touch screen and a screen reader alike — beside a word, "Offline", that stated a problem
+   * and offered nothing to do about it.
+   */
+  readonly error?: string;
 }
 
 /**
@@ -1579,7 +2339,12 @@ function describeSync(status: EngineStatus): SyncReport | null {
     };
   }
   if (status.phase === 'failed') {
-    return { text: 'Offline', title: status.error, tone: styles.statusError };
+    return {
+      text: 'Offline',
+      title: 'Offline',
+      tone: styles.statusError,
+      error: status.error,
+    };
   }
   if (status.phase !== 'ready') return null;
   if (status.pending > 0) {
@@ -1623,6 +2388,7 @@ function describeSync(status: EngineStatus): SyncReport | null {
  */
 function ConnectionIndicator() {
   const status = useSyncStatus();
+  const engine = useEngine();
   const ref = useRef<HTMLSpanElement>(null);
   // Memoised on the status object so that `report` only changes when the status does, which
   // is what makes the render-phase update below terminate rather than propose a new report
@@ -1652,10 +2418,35 @@ function ConnectionIndicator() {
       aria-live="polite"
       aria-label="Sync status"
       className={[styles.status, shown.tone].filter(Boolean).join(' ')}
-      title={shown.title}
       {...exitProps}
     >
-      {shown.text}
+      {shown.error === undefined ? (
+        shown.text
+      ) : (
+        /*
+          A failure is the one state here that is worth doing something about, so it is the
+          one state that is a control.
+
+          The reason goes in the accessible name rather than in a `title`, because `title` is
+          a tooltip a mouse can find and nothing else can — and this is precisely the moment
+          a person needs to know whether the network went or the server refused them. Reused
+          as the visible tooltip too, so the two channels say the same sentence.
+        */
+        <button
+          type="button"
+          className={styles.statusRetry}
+          aria-label={`Offline. ${shown.error}. Try connecting again`}
+          title={shown.error}
+          onClick={() => {
+            // `start` re-opens the replica and reconnects the socket, and publishes its own
+            // failure back into this status if it goes wrong again — so there is nothing to
+            // report here that the badge will not say for itself a moment later.
+            void engine.start().catch(() => undefined);
+          }}
+        >
+          {shown.text}
+        </button>
+      )}
     </span>
   );
 }

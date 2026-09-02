@@ -302,9 +302,11 @@ describe('IssueList', () => {
     expect(boundTitles()).not.toContain('Set estimate');
   });
 
-  it('offers both again when the team turns a scale on', () => {
-    renderList('', { estimateScale: 'fibonacci' });
+  it('offers both again when the team turns a scale on', async () => {
+    const { user } = renderList('', { estimateScale: 'fibonacci' });
 
+    // The bar only exists once something is selected; the binding exists regardless.
+    await user.keyboard('x');
     expect(screen.getByRole('button', { name: 'Estimate' })).toBeTruthy();
     expect(boundTitles()).toContain('Set estimate');
   });
@@ -407,11 +409,14 @@ describe('IssueList', () => {
     expect(selectedTexts()).toEqual([]);
   });
 
-  it('archives the whole selection with e, as one mutation per issue', async () => {
+  // There is no manual archive key — `02-issues.md` — so the way in is the bar's button and
+  // the dialogue behind it, and the way back is the undo the dialogue promises.
+  it('archives the whole selection through the dialogue, as one mutation per issue', async () => {
     const { user, mutate } = renderList();
 
     await user.keyboard('{Shift>}{ArrowDown}{/Shift}');
-    await user.keyboard('e');
+    await user.click(screen.getByRole('button', { name: 'Archive' }));
+    await user.click(screen.getByRole('button', { name: 'Archive 2 issues' }));
 
     expect(mutate).toHaveBeenCalledTimes(2);
     expect(mutate.mock.calls.map((call) => call[0].variables)).toEqual([
@@ -426,10 +431,13 @@ describe('IssueList', () => {
   it('acts on the cursor row when nothing is selected', async () => {
     const { user, mutate } = renderList();
 
-    await user.keyboard('je');
+    await user.keyboard('ji');
 
     expect(mutate).toHaveBeenCalledTimes(1);
-    expect(mutate.mock.calls[0]?.[0].variables).toEqual({ id: 'issue-2', archived: true });
+    expect(mutate.mock.calls[0]?.[0].variables.input).toMatchObject({
+      id: 'issue-2',
+      assigneeId: 'user-ada',
+    });
   });
 
   it('assigns the cursor row to the viewer with i', async () => {

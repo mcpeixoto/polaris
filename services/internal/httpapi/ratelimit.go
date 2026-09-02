@@ -327,9 +327,74 @@ func writeLimitHeaders(w http.ResponseWriter, d ratelimit.Decision) {
 }
 
 // writeRateLimited answers a refusal, with the one header that makes it actionable.
+//
+// The body is shaped by the endpoint rather than by this package. A refusal on /graphql
+// used to carry the REST envelope, which no GraphQL client parses: Apollo, urql and this
+// repo's own gql() all read {data, errors} and surface anything else as a transport
+// failure. The consequence was that the client could not see RATELIMITED at all, so it
+// rolled the mutation back instead of queueing it for the retry the 429 was asking for.
+// Same defect on /mcp, where a JSON-RPC client got a body that is not a JSON-RPC error.
+//
+// The status stays 429 and Retry-After is set for every shape; only the body changes.
 func writeRateLimited(w http.ResponseWriter, r *http.Request, d ratelimit.Decision, msg string) {
 	w.Header().Set("Retry-After", strconv.Itoa(wholeSeconds(d.RetryAfter)))
-	writeError(w, r, platform.RateLimited(msg))
+
+	switch {
+	case isGraphQLPath(r.URL.Path):
+		writeGraphQLRateLimited(w, msg, wholeSeconds(d.RetryAfter))
+	case isMCPPath(r.URL.Path):
+		writeJSONRPCRateLimited(w, msg)
+	default:
+		writeError(w, r, platform.RateLimited(msg))
+	}
+}
+
+func isGraphQLPath(p string) bool { return p == "/graphql" }
+
+func isMCPPath(p string) bool { return p == "/mcp" || p == "/mcp/readonly" }
+
+// writeGraphQLRateLimited emits the envelope docs/03-platform/01-graphql-api.md publishes:
+// a top-level errors array whose extensions.code is the thing clients are told to branch on.
+func writeGraphQLRateLimited(w http.ResponseWriter, msg string, retryAfter int) {
+	type gqlExtensions struct {
+		Code       string `json:"code"`
+		RetryAfter int    `json:"retryAfter"`
+	}
+	type gqlError struct {
+		Message    string        `json:"message"`
+		Extensions gqlExtensions `json:"extensions"`
+	}
+	writeJSON(w, http.StatusTooManyRequests, struct {
+		Errors []gqlError `json:"errors"`
+		Data   any        `json:"data"`
+	}{
+		Errors: []gqlError{{
+			Message:    msg,
+			Extensions: gqlExtensions{Code: string(platform.CodeRateLimited), RetryAfter: retryAfter},
+		}},
+		Data: nil,
+	})
+}
+
+// writeJSONRPCRateLimited emits a JSON-RPC error object. -32000 is the reserved
+// implementation-defined server-error range; there is no standard code for a refusal.
+//
+// id is null because the request was refused before its body was read, and a JSON-RPC
+// error to an unknown id is spelled that way rather than omitted.
+func writeJSONRPCRateLimited(w http.ResponseWriter, msg string) {
+	type rpcError struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+	}
+	writeJSON(w, http.StatusTooManyRequests, struct {
+		JSONRPC string   `json:"jsonrpc"`
+		ID      any      `json:"id"`
+		Error   rpcError `json:"error"`
+	}{
+		JSONRPC: "2.0",
+		ID:      nil,
+		Error:   rpcError{Code: -32000, Message: msg},
+	})
 }
 
 // wholeSeconds rounds UP, and never to zero.

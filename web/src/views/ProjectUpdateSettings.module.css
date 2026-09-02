@@ -1,0 +1,31 @@
+/*
+ * Only the parts this screen adds to the shared settings frame it borrows from
+ * LabelSettings — the field stack, and the line that says a write landed.
+ */
+
+.enter {
+  animation: pageEnter var(--duration-normal) var(--ease-out);
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.fields {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 20rem;
+}
+
+/* Adjacent to the controls it is about, rather than at the top of the page: a confirmation
+   read three sections away from the field is a confirmation about nothing in particular. */
+.saved {
+  min-height: var(--font-size-sm);
+}

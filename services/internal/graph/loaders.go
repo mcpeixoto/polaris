@@ -108,16 +108,37 @@ type milestoneIndex struct {
 
 type loadersKey struct{}
 
+// loaderHandler is the middleware's handler, a named type rather than an
+// http.HandlerFunc so that the wiring can be asserted from outside this package.
+//
+// It exists because the middleware was absent from the production chain for a long time
+// and nothing failed: the fallback in loaders() is deliberately silent, so an unmounted
+// middleware costs latency and never an error. IsLoaderHandler gives cmd/api a gate.
+type loaderHandler struct {
+	svc  *domain.Service
+	next http.Handler
+}
+
+func (h loaderHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx := context.WithValue(r.Context(), loadersKey{}, &Loaders{svc: h.svc})
+	h.next.ServeHTTP(w, r.WithContext(ctx))
+}
+
 // LoaderMiddleware attaches a fresh set of loaders to every request, which is what widens
 // their cache from one resolver call to the whole operation — the difference between a
 // query that asks for issues and their assignees paying for the directory once or twice.
 func LoaderMiddleware(svc *domain.Service) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := context.WithValue(r.Context(), loadersKey{}, &Loaders{svc: svc})
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
+		return loaderHandler{svc: svc, next: next}
 	}
+}
+
+// IsLoaderHandler reports whether h is the loader middleware.
+//
+// For the wiring test in cmd/api. Nothing in production branches on it.
+func IsLoaderHandler(h http.Handler) bool {
+	_, ok := h.(loaderHandler)
+	return ok
 }
 
 // loaders returns the request's loaders, or a private set when the middleware is not
@@ -556,13 +577,19 @@ func (r *Resolver) hydrateIssues(ctx context.Context, p *authz.Principal, sel se
 			return &g, nil
 		}
 
+		// Asked once, above the loop. selection.child re-walks the query AST with
+		// graphql.CollectFields on every call, so asking per row made an O(rows x fields)
+		// tree walk out of two constant answers — on the hottest list path there is. The
+		// pattern is the one project/projectMilestone below already uses.
+		wantAssignee := sel.has("assignee")
+		wantCreator := sel.has("creator")
 		for k, i := range issues {
-			if sel.has("assignee") {
+			if wantAssignee {
 				if out[k].Assignee, err = pick(i.AssigneeID); err != nil {
 					return nil, err
 				}
 			}
-			if sel.has("creator") {
+			if wantCreator {
 				if out[k].Creator, err = pick(i.CreatorID); err != nil {
 					return nil, err
 				}
@@ -570,41 +597,47 @@ func (r *Resolver) hydrateIssues(ctx context.Context, p *authz.Principal, sel se
 		}
 	}
 
-	// Comments and history are one query per issue, so they are fetched only when named.
-	// A list view never asks for them; an issue detail asks for both and pays for two.
+	// Comments, attachments and history are fetched only when named — a list view does not
+	// ask for them and must not pay for them — but when they ARE named it is one query for
+	// the whole page, not one per row.
+	//
+	// They used to be the three exceptions on this type: every other collection below got a
+	// batched `…ForIssues` verb and these looped, with each iteration costing GetIssue +
+	// GetTeam + the listing. The in-code comment that a list view never asks for them was a
+	// hope rather than an enforcement, and the issue-detail screen asks for all three.
 	if child, ok := sel.child("comments", "Comment"); ok {
+		byIssue, err := r.Svc.ListCommentsForIssues(ctx, p, ids)
+		if err != nil {
+			return nil, err
+		}
 		for k, i := range issues {
-			comments, err := r.Svc.ListComments(ctx, p, i.ID)
-			if err != nil {
-				return nil, err
-			}
 			// Through the comment hydrator rather than the bare converter, so that
 			// `comments { issue { … } }` resolves rather than returning null on a non-null
 			// field. It costs nothing unless the query names it: the issue is the one being
 			// hydrated here, so the batched read finds it in the same set.
-			if out[k].Comments, err = r.hydrateComments(ctx, p, child, comments); err != nil {
+			if out[k].Comments, err = r.hydrateComments(ctx, p, child, byIssue[i.ID]); err != nil {
 				return nil, err
 			}
 		}
 	}
 
 	if sel.has("attachments") {
+		byIssue, err := r.Svc.ListAttachmentsForIssues(ctx, p, ids)
+		if err != nil {
+			return nil, err
+		}
 		for k, i := range issues {
-			attachments, err := r.Svc.ListAttachments(ctx, p, i.ID)
-			if err != nil {
-				return nil, err
-			}
-			out[k].Attachments = toAttachments(attachments)
+			out[k].Attachments = toAttachments(byIssue[i.ID])
 		}
 	}
 
 	if sel.has("history") {
+		byIssue, err := r.Svc.ListIssueHistoryForIssues(ctx, p, ids)
+		if err != nil {
+			return nil, err
+		}
 		for k, i := range issues {
-			entries, err := r.Svc.ListIssueHistory(ctx, p, i.ID)
-			if err != nil {
-				return nil, err
-			}
-			if out[k].History, err = toHistory(entries); err != nil {
+			if out[k].History, err = toHistory(byIssue[i.ID]); err != nil {
 				return nil, err
 			}
 		}
@@ -734,25 +767,25 @@ func (r *Resolver) hydrateIssues(ctx context.Context, p *authz.Principal, sel se
 		}
 	}
 
-	if sel.has("relations") {
+	if child, ok := sel.child("relations", "IssueRelation"); ok {
 		relations, err := r.Svc.ListRelationsForIssues(ctx, p, ids)
 		if err != nil {
 			return nil, err
 		}
 		for k, i := range issues {
-			if out[k].Relations, err = toIssueRelations(relations[i.ID]); err != nil {
+			if out[k].Relations, err = r.hydrateIssueRelations(ctx, p, child, relations[i.ID]); err != nil {
 				return nil, err
 			}
 		}
 	}
 
-	if sel.has("blockedBy") {
+	if child, ok := sel.child("blockedBy", "IssueRelation"); ok {
 		blockers, err := r.Svc.ListBlockersForIssues(ctx, p, ids)
 		if err != nil {
 			return nil, err
 		}
 		for k, i := range issues {
-			if out[k].BlockedBy, err = toIssueRelations(blockers[i.ID]); err != nil {
+			if out[k].BlockedBy, err = r.hydrateIssueRelations(ctx, p, child, blockers[i.ID]); err != nil {
 				return nil, err
 			}
 		}
@@ -867,8 +900,28 @@ func (r *Resolver) hydrateComments(
 	if err != nil {
 		return nil, err
 	}
+	if len(out) == 0 {
+		return out, nil
+	}
+
+	// Reactions: one read for the whole page, keyed by comment. Non-null in the schema, so
+	// a comment with none gets an empty slice rather than nil.
+	if sel.has("reactions") {
+		ids := make([]uuid.UUID, 0, len(comments))
+		for _, c := range comments {
+			ids = append(ids, c.ID)
+		}
+		byComment, err := r.Svc.ListReactionsForComments(ctx, p, ids)
+		if err != nil {
+			return nil, err
+		}
+		for k, c := range comments {
+			out[k].Reactions = toReactions(byComment[c.ID])
+		}
+	}
+
 	child, ok := sel.child("issue", "Issue")
-	if !ok || len(out) == 0 {
+	if !ok {
 		return out, nil
 	}
 
@@ -915,6 +968,357 @@ func (r *Resolver) hydrateComments(
 		out[k].Issue = g
 	}
 	return out, nil
+}
+
+// hydrateInitiatives fills in the four relations an initiative declares.
+//
+// `projects: [InitiativeProject!]!` is the one that matters: it is NON-NULL and the
+// converter set it to nil, so gqlgen refused to marshal it and failed the entire
+// `initiatives` / `initiative` field — a client selecting `initiatives { projects { … } }`
+// received data: null and no usable error. owner, leadTeam and creator are nullable and
+// merely degraded to null, which is why nobody noticed the field that did not.
+//
+// An empty slice rather than nil whenever the query names it, which is the rule the rest
+// of this file already follows for a non-null list.
+func (r *Resolver) hydrateInitiatives(
+	ctx context.Context, p *authz.Principal, sel selection, rows []model.Initiative,
+) ([]generated.Initiative, error) {
+	out := make([]generated.Initiative, 0, len(rows))
+	for _, row := range rows {
+		converted, err := toInitiative(row)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, converted)
+	}
+	if len(out) == 0 {
+		return out, nil
+	}
+	l := r.loaders(ctx)
+
+	if sel.has("owner") || sel.has("creator") {
+		users, err := l.allUsers(ctx, p)
+		if err != nil {
+			return nil, err
+		}
+		pick := func(id *uuid.UUID) (*generated.User, error) {
+			if id == nil {
+				return nil, nil
+			}
+			u, ok := users.byID[*id]
+			if !ok {
+				// A departed account leaves the reference behind on purpose; history
+				// that names somebody is not rewritten when they leave.
+				return nil, nil
+			}
+			g, err := toUser(u)
+			if err != nil {
+				return nil, err
+			}
+			return &g, nil
+		}
+		for k, row := range rows {
+			var err error
+			if sel.has("owner") {
+				if out[k].Owner, err = pick(row.OwnerID); err != nil {
+					return nil, err
+				}
+			}
+			if sel.has("creator") {
+				if out[k].Creator, err = pick(row.CreatorID); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+
+	if sel.has("leadTeam") {
+		teams, err := l.allTeams(ctx, p)
+		if err != nil {
+			return nil, err
+		}
+		for k, row := range rows {
+			if row.LeadTeamID == nil {
+				continue
+			}
+			t, ok := teams.byID[*row.LeadTeamID]
+			if !ok {
+				// A private team the reader is not in. Nullable, so this is an answer.
+				continue
+			}
+			g, err := toTeam(t)
+			if err != nil {
+				return nil, err
+			}
+			out[k].LeadTeam = &g
+		}
+	}
+
+	child, wantsProjects := sel.child("projects", "InitiativeProject")
+	if !wantsProjects {
+		return out, nil
+	}
+
+	ids := make([]uuid.UUID, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+	}
+	links, err := r.Svc.ListInitiativeProjectsForInitiatives(ctx, p, ids)
+	if err != nil {
+		return nil, err
+	}
+
+	// InitiativeProject.project is non-null too, so the same failure lives one level down.
+	// The projects behind every link on the page are read and hydrated once between them
+	// rather than once per link.
+	var byProject map[uuid.UUID]*generated.Project
+	if projectSel, wantsProject := child.child("project", "Project"); wantsProject {
+		seen := map[uuid.UUID]struct{}{}
+		projectIDs := make([]uuid.UUID, 0)
+		for _, list := range links {
+			for _, link := range list {
+				if _, dup := seen[link.ProjectID]; dup {
+					continue
+				}
+				seen[link.ProjectID] = struct{}{}
+				projectIDs = append(projectIDs, link.ProjectID)
+			}
+		}
+		flat := make([]model.Project, 0, len(projectIDs))
+		for _, id := range projectIDs {
+			pr, err := l.projectByID(ctx, p, id)
+			if err != nil {
+				return nil, err
+			}
+			if pr != nil {
+				flat = append(flat, *pr)
+			}
+		}
+		hydrated, err := r.hydrateProjects(ctx, p, projectSel, flat)
+		if err != nil {
+			return nil, err
+		}
+		byProject = make(map[uuid.UUID]*generated.Project, len(hydrated))
+		for k := range hydrated {
+			byProject[hydrated[k].ID] = &hydrated[k]
+		}
+	}
+
+	for k, row := range rows {
+		list := links[row.ID]
+		// Minted empty rather than left nil: the field is non-null, and an initiative
+		// with no projects is an ordinary state, not a failure.
+		projects := make([]generated.InitiativeProject, 0, len(list))
+		for _, link := range list {
+			converted := toInitiativeProject(link)
+			if byProject != nil {
+				g, found := byProject[link.ProjectID]
+				if !found {
+					// The link survived the domain's visibility filter but the project
+					// read did not agree. `project` is non-null, so there is nothing
+					// honest to put there; dropping the link beats failing the whole
+					// initiative that carries it.
+					continue
+				}
+				converted.Project = g
+			}
+			projects = append(projects, converted)
+		}
+		out[k].Projects = projects
+	}
+	return out, nil
+}
+
+// hydrateNotifications fills in the issue each inbox row is about.
+//
+// `Notification.issue` is in the schema and the converter never set it. The field is
+// nullable, so it failed silently: the inbox rendered "unknown issue" and every client was
+// pushed into one `issue(id:)` round trip per row — the exact N+1 the field exists to
+// remove.
+//
+// Two reads for the whole inbox, the shape hydrateComments established: the distinct
+// issues in one batched call, then those issues hydrated as one batch of their own.
+// Notifications cluster heavily onto few issues — that is what grouping is for — so the
+// ids are deduplicated before the read rather than after it.
+func (r *Resolver) hydrateNotifications(
+	ctx context.Context, p *authz.Principal, sel selection, rows []model.Notification,
+) ([]generated.Notification, error) {
+	out, err := toNotifications(rows)
+	if err != nil {
+		return nil, err
+	}
+	child, ok := sel.child("issue", "Issue")
+	if !ok || len(out) == 0 {
+		return out, nil
+	}
+
+	ids := make([]uuid.UUID, 0, len(rows))
+	seen := make(map[uuid.UUID]struct{}, len(rows))
+	for _, n := range rows {
+		if n.IssueID == nil {
+			// A workspace-level notification — an invite, a billing notice — is about no
+			// issue, which is why the field is nullable in the first place.
+			continue
+		}
+		if _, dup := seen[*n.IssueID]; dup {
+			continue
+		}
+		seen[*n.IssueID] = struct{}{}
+		ids = append(ids, *n.IssueID)
+	}
+	if len(ids) == 0 {
+		return out, nil
+	}
+
+	issues, err := r.Svc.IssuesByID(ctx, p, ids)
+	if err != nil {
+		return nil, err
+	}
+	flat := make([]model.Issue, 0, len(ids))
+	for _, id := range ids {
+		if issue, found := issues[id]; found {
+			flat = append(flat, issue)
+		}
+	}
+	hydrated, err := r.hydrateIssues(ctx, p, child, flat)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[uuid.UUID]*generated.Issue, len(hydrated))
+	for k := range hydrated {
+		byID[hydrated[k].ID] = &hydrated[k]
+	}
+
+	for k, n := range rows {
+		if n.IssueID == nil {
+			continue
+		}
+		// A miss stays null rather than erroring: an issue can be deleted while its
+		// notification sits in the inbox, and the field is nullable precisely so that row
+		// still renders. Unlike Comment.issue, there is no invariant to break here.
+		out[k].Issue = byID[*n.IssueID]
+	}
+	return out, nil
+}
+
+// hydrateIssueRelations fills in the two issues a link names.
+//
+// The schema declares `issue: Issue!` and `relatedIssue: Issue!`, and the converter set
+// neither — there are no field resolvers on this type, so the generated code read the
+// struct directly and marshalled nil into a non-null position. Any query selecting
+// `relations { relatedIssue { title } }` therefore errored and NULLED THE CONTAINING
+// ISSUE. It was latent only because the web client reads relations out of its own replica
+// and never names these fields; an SDK, an integration or a mobile client hits it at once.
+//
+// Two reads for the whole page whatever its length, the same shape as hydrateComments: the
+// distinct issues on both ends in one batched call, then those issues hydrated as one
+// batch of their own. Both ends are gathered together because a page of relations names
+// the same handful of issues from either side.
+func (r *Resolver) hydrateIssueRelations(
+	ctx context.Context, p *authz.Principal, sel selection, relations []model.IssueRelation,
+) ([]generated.IssueRelation, error) {
+	out, err := toIssueRelations(relations)
+	if err != nil {
+		return nil, err
+	}
+	wantIssue := sel.has("issue")
+	wantRelated := sel.has("relatedIssue")
+	if (!wantIssue && !wantRelated) || len(out) == 0 {
+		return out, nil
+	}
+
+	// The child selections are read separately so that `issue { team { name } }` and
+	// `relatedIssue { assignee { name } }` each get what they asked for. When only one end
+	// is named, only that end's selection exists.
+	issueSel, _ := sel.child("issue", "Issue")
+	relatedSel, _ := sel.child("relatedIssue", "Issue")
+
+	ids := make([]uuid.UUID, 0, len(relations)*2)
+	seen := make(map[uuid.UUID]struct{}, len(relations)*2)
+	add := func(id uuid.UUID) {
+		if _, dup := seen[id]; dup {
+			return
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	for _, rel := range relations {
+		if wantIssue {
+			add(rel.IssueID)
+		}
+		if wantRelated {
+			add(rel.RelatedIssueID)
+		}
+	}
+
+	issues, err := r.Svc.IssuesByID(ctx, p, ids)
+	if err != nil {
+		return nil, err
+	}
+	flat := make([]model.Issue, 0, len(ids))
+	for _, id := range ids {
+		if issue, found := issues[id]; found {
+			flat = append(flat, issue)
+		}
+	}
+
+	// hydrateIssues is called once per end rather than once overall: the two ends carry
+	// different selections, and merging them would serve `issue`'s fields to
+	// `relatedIssue`. The underlying reads are memoised on the request's loaders, so the
+	// second pass costs the conversion and nothing else.
+	byID := func(child selection) (map[uuid.UUID]*generated.Issue, error) {
+		hydrated, err := r.hydrateIssues(ctx, p, child, flat)
+		if err != nil {
+			return nil, err
+		}
+		m := make(map[uuid.UUID]*generated.Issue, len(hydrated))
+		for k := range hydrated {
+			m[hydrated[k].ID] = &hydrated[k]
+		}
+		return m, nil
+	}
+
+	// A relation is visible when the reader is a member of EITHER team — that is the rule
+	// the listing applies and the one relationScope writes onto the change row — so the
+	// far issue can genuinely be one this reader cannot open. The field is non-null, so
+	// there is nothing honest to put there; refusing the link is better than failing the
+	// whole issue that carries it, which is what nil did.
+	drop := make([]bool, len(out))
+
+	if wantIssue {
+		m, err := byID(issueSel)
+		if err != nil {
+			return nil, err
+		}
+		for k, rel := range relations {
+			if g, found := m[rel.IssueID]; found {
+				out[k].Issue = g
+			} else {
+				drop[k] = true
+			}
+		}
+	}
+	if wantRelated {
+		m, err := byID(relatedSel)
+		if err != nil {
+			return nil, err
+		}
+		for k, rel := range relations {
+			if g, found := m[rel.RelatedIssueID]; found {
+				out[k].RelatedIssue = g
+			} else {
+				drop[k] = true
+			}
+		}
+	}
+
+	kept := out[:0]
+	for k := range out {
+		if !drop[k] {
+			kept = append(kept, out[k])
+		}
+	}
+	return kept, nil
 }
 
 // hydrateIssueLabel fills in the label an application points at.

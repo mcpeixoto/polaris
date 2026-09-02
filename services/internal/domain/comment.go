@@ -170,6 +170,19 @@ func (s *Service) UpdateComment(ctx context.Context, p *authz.Principal, id uuid
 		}
 		out = toComment(row)
 
+		// Being named in an edit subscribes you to the thread, exactly as being named in
+		// the original does. The ChangedFields below re-fire the mention rule, so without
+		// this the person got precisely one "you were mentioned" row and then heard
+		// nothing further about the conversation they had just been pulled into.
+		// SubscribeOnAction does not resurrect an explicit unsubscribe.
+		for _, mentioned := range notify.ParseMentions(body) {
+			if err := s.SubscribeOnAction(
+				ctx, q, p, existing.IssueID, mentioned, model.SubscribedMentioned,
+			); err != nil {
+				return err
+			}
+		}
+
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
 			EntityType: "comment", EntityID: id, Op: OpUpsert, TeamID: &issue.TeamID,
 			Scope: authz.TeamScope(issue.TeamID, team.Private), Payload: out,

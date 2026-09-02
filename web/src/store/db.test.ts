@@ -14,9 +14,11 @@ import { ENTITY_TYPES } from './types';
 import type {
   Attachment,
   Comment,
+  CustomerSubscription,
   Dashboard,
   DashboardTile,
   Favorite,
+  InitiativeSubscription,
   Issue,
   IssueLabel,
   IssueRelation,
@@ -24,15 +26,14 @@ import type {
   IssueTemplate,
   Label,
   Notification,
+  ProjectSubscription,
+  Reaction,
   RecurringIssue,
   Team,
   UUID,
   View,
   ViewPreference,
   ViewSubscription,
-  ProjectSubscription,
-  InitiativeSubscription,
-  CustomerSubscription,
   Workspace,
 } from './types';
 
@@ -99,6 +100,17 @@ function comment(id: UUID, issueId: UUID): Comment {
     actor: { type: 'user', id: 'u1' },
     createdAt: NOW,
     updatedAt: NOW,
+  };
+}
+
+function reaction(id: UUID, commentId: UUID): Reaction {
+  return {
+    id,
+    workspaceId: 'w',
+    commentId,
+    userId: 'u1',
+    emoji: '👍',
+    createdAt: NOW,
   };
 }
 
@@ -779,6 +791,7 @@ function oneOfEach(): EntityRow[] {
     { type: 'attachment', entity: attachment('a1', 'i1') },
     { type: 'document', entity: documentRow('d1') },
     { type: 'comment', entity: comment('c1', 'i1') },
+    { type: 'reaction', entity: reaction('r1', 'c1') },
     { type: 'issueSubscription', entity: issueSubscription },
     { type: 'notification', entity: notification },
     { type: 'view', entity: view },

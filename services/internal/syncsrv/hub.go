@@ -26,10 +26,30 @@ const (
 	// server's heap without bound.
 	MaxSessionBacklog = 5000
 
+	// MaxDeltaBytes bounds one frame in bytes as MaxDeltaBatch bounds it in rows. 500
+	// rows is small for issues and multi-megabyte for documents carrying their full text,
+	// and what stalls a client's main thread on parse is the byte count.
+	MaxDeltaBytes = 1 << 20 // 1 MB
+
+	// changeOverheadBytes is a rough per-change cost for everything around the payload —
+	// the version, ids, op and actor. Approximate on purpose: the budget only has to stop
+	// a frame being an order of magnitude too big, not be exact.
+	changeOverheadBytes = 256
+
 	// MaxOutboundFrames is the write queue depth per session. Small on purpose: when a
 	// socket stops draining, the useful signal is "this connection is broken", and
 	// discovering it after four frames is better than after four hundred.
 	MaxOutboundFrames = 32
+
+	// MaxOutboundBytes is the same limit measured in heap rather than in frames, because
+	// frames are not a fixed size and 32 large ones per session is what actually runs the
+	// box out of memory.
+	MaxOutboundBytes = 4 << 20 // 4 MB
+
+	// maxControlFrames is the depth of the priority queue that carries pongs. Tiny: a
+	// control frame that cannot be delivered promptly has no value, and dropping one is
+	// cheaper than queueing it behind anything.
+	maxControlFrames = 8
 
 	// MaxSessionsPerUser caps tabs and devices. The oldest is closed rather than the
 	// newest rejected, because the newest is the window the person is actually looking at.
@@ -47,6 +67,11 @@ const (
 
 	// changeFetchPageSize bounds one read of change_log while catching a room up.
 	changeFetchPageSize = 1000
+
+	// dispatchTimeout bounds one wake of a room. Without it a single stuck connection
+	// freezes a workspace's deltas indefinitely, with every socket still open and every
+	// client still reporting itself online — the one failure mode neither side can see.
+	dispatchTimeout = 10 * time.Second
 )
 
 // Hub owns every live session and fans committed changes out to them.
@@ -60,6 +85,10 @@ type Hub struct {
 
 	mu    sync.RWMutex
 	rooms map[uuid.UUID]*room
+
+	// sessionCap is MaxSessionsPerWorkspace, held as a field so a test can reach the cap
+	// without opening two thousand sockets to observe what happens at it.
+	sessionCap int
 }
 
 func NewHub(svc *domain.Service, log *slog.Logger) *Hub {
@@ -67,6 +96,8 @@ func NewHub(svc *domain.Service, log *slog.Logger) *Hub {
 		svc:   svc,
 		log:   log,
 		rooms: make(map[uuid.UUID]*room),
+
+		sessionCap: MaxSessionsPerWorkspace,
 	}
 }
 
@@ -134,7 +165,24 @@ func (h *Hub) Register(s *Session) error {
 	}
 	h.mu.Unlock()
 
-	return r.add(s)
+	if err := r.add(s); err != nil {
+		// The room was created above and its goroutine started before add could refuse.
+		// Without this the failure path — which is precisely a connection flood — leaves
+		// an empty room and a live goroutine behind on every attempt, forever.
+		h.discardIfEmpty(r)
+		return err
+	}
+	return nil
+}
+
+// discardIfEmpty tears down a room that no longer has any sessions.
+func (h *Hub) discardIfEmpty(r *room) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if cur, ok := h.rooms[r.workspaceID]; ok && cur == r && cur.isEmpty() {
+		delete(h.rooms, r.workspaceID)
+		cur.stop()
+	}
 }
 
 // Unregister removes a session and tears the room down when the last one leaves, so an
@@ -148,13 +196,8 @@ func (h *Hub) Unregister(s *Session) {
 	}
 
 	if empty := r.remove(s); empty {
-		h.mu.Lock()
-		// Re-check under the write lock: somebody may have joined in the gap.
-		if cur, ok := h.rooms[s.Principal().WorkspaceID]; ok && cur == r && cur.isEmpty() {
-			delete(h.rooms, s.Principal().WorkspaceID)
-			cur.stop()
-		}
-		h.mu.Unlock()
+		// Re-checked under the write lock inside: somebody may have joined in the gap.
+		h.discardIfEmpty(r)
 	}
 }
 
@@ -181,8 +224,11 @@ type room struct {
 	// wake is depth-1 and non-blocking: notices coalesce, because a room that is behind
 	// only needs to know that it is behind, not how many times it was told.
 	wake chan struct{}
-	done chan struct{}
-	once sync.Once
+	// refresh is the same shape for principal re-resolution, which happens on its own
+	// goroutine so a workspace's deltas are not blocked behind N account lookups.
+	refresh chan struct{}
+	done    chan struct{}
+	once    sync.Once
 }
 
 func newRoom(h *Hub, workspaceID uuid.UUID) *room {
@@ -191,6 +237,7 @@ func newRoom(h *Hub, workspaceID uuid.UUID) *room {
 		workspaceID: workspaceID,
 		sessions:    make(map[*Session]struct{}),
 		wake:        make(chan struct{}, 1),
+		refresh:     make(chan struct{}, 1),
 		done:        make(chan struct{}),
 	}
 }
@@ -206,7 +253,7 @@ func (r *room) add(s *Session) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if len(r.sessions) >= MaxSessionsPerWorkspace {
+	if len(r.sessions) >= r.hub.sessionCap {
 		return platform.RateLimited("too many live connections for this workspace")
 	}
 
@@ -260,26 +307,86 @@ func (r *room) count() int {
 
 func (r *room) stop() { r.once.Do(func() { close(r.done) }) }
 
+// run is the room's single reader goroutine.
+//
+// It runs outside net/http's per-request handler, where nothing recovers on its behalf: a
+// panic in here would take the process down and with it every socket for every workspace
+// on the box. Recovering and stopping the room costs the workspace its live updates until
+// its sessions reconnect, which is a small fraction of that.
 func (r *room) run() {
-	ctx := context.Background()
+	defer func() {
+		if req := recover(); req != nil {
+			r.hub.log.Error("panic in sync room", "workspace", r.workspaceID, "panic", req)
+			r.stop()
+		}
+	}()
+
+	// Tied to r.done so a dispatch in flight is cancelled when the room is torn down
+	// rather than holding a database connection for a workspace nobody is watching.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		<-r.done
+		cancel()
+	}()
+
+	go r.refreshLoop(ctx)
+
 	for {
 		select {
 		case <-r.done:
 			return
 		case <-r.wake:
-			r.dispatch(ctx)
+			// Bounded, because a single stuck query would otherwise freeze this
+			// workspace's deltas indefinitely with every socket still open and every
+			// client still reporting itself online.
+			dctx, dcancel := context.WithTimeout(ctx, dispatchTimeout)
+			r.dispatch(dctx)
+			dcancel()
 		}
 	}
 }
 
-// dispatch reads everything past the slowest session's cursor and offers it to each one.
-func (r *room) dispatch(ctx context.Context) {
+// refreshLoop re-resolves principals off the dispatch goroutine.
+//
+// It is its own goroutine because the work is one database round trip per distinct
+// account: a workspace at the session cap where an admin toggles one team membership
+// would otherwise block every delta on that workspace behind hundreds of serial queries.
+func (r *room) refreshLoop(ctx context.Context) {
+	defer func() {
+		if req := recover(); req != nil {
+			r.hub.log.Error("panic in sync room refresh", "workspace", r.workspaceID, "panic", req)
+		}
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-r.done:
+			return
+		case <-r.refresh:
+			rctx, cancel := context.WithTimeout(ctx, dispatchTimeout)
+			r.refreshPrincipals(rctx, r.snapshot())
+			cancel()
+		}
+	}
+}
+
+// snapshot is the live session list, copied so callers can iterate without the lock.
+func (r *room) snapshot() []*Session {
 	r.mu.RLock()
+	defer r.mu.RUnlock()
 	sessions := make([]*Session, 0, len(r.sessions))
 	for s := range r.sessions {
 		sessions = append(sessions, s)
 	}
-	r.mu.RUnlock()
+	return sessions
+}
+
+// dispatch reads everything past the slowest session's cursor and offers it to each one.
+func (r *room) dispatch(ctx context.Context) {
+	sessions := r.snapshot()
 	if len(sessions) == 0 {
 		return
 	}
@@ -306,9 +413,18 @@ func (r *room) dispatch(ctx context.Context) {
 	behind := make([]*Session, 0, len(sessions))
 	for _, s := range sessions {
 		if current-s.Cursor() > MaxSessionBacklog {
+			// Twice running means the resync did not take: this session is excluded from
+			// every read window from here on, so no delta will ever reach it again while
+			// the socket stays open and the client keeps calling itself ready. A close is
+			// the honest answer — the client reconnects and bootstraps.
+			if s.markExcluded() {
+				s.closeWith(TypeError, "RESYNC_REQUIRED", "reconnect to bootstrap; this session is too far behind")
+				continue
+			}
 			s.requestResync(ReasonGapTooLarge)
 			continue
 		}
+		s.clearExcluded()
 		behind = append(behind, s)
 	}
 	if len(behind) == 0 {
@@ -326,14 +442,26 @@ func (r *room) dispatch(ctx context.Context) {
 	accessChanged := false
 
 	for lowest < current {
-		changes, err := r.hub.svc.ReadChanges(ctx, r.workspaceID, lowest, current, changeFetchPageSize)
+		changes, scannedThrough, err := r.hub.svc.ReadChangesScanned(ctx, r.workspaceID, lowest, current, changeFetchPageSize)
 		if err != nil {
 			r.hub.log.Error("read changes", "workspace", r.workspaceID, "error", err)
 			return
 		}
 		if len(changes) == 0 {
-			// The watermark moved but no rows are readable — retention pruned them out
-			// from under us. Nobody can be caught up incrementally, so everybody resyncs.
+			if scannedThrough > lowest {
+				// Rows exist, they just could not be read — an unparseable scope, which
+				// ReadChangesScanned has already logged. Stepping the cursor over them is the
+				// only correct move: reading this as a retention gap would resync every
+				// session in the workspace on every subsequent commit, forever, because
+				// the offending row is inside the retention window and never gets pruned.
+				for _, s := range behind {
+					s.advanceCursor(scannedThrough)
+				}
+				lowest = scannedThrough
+				continue
+			}
+			// Nothing at all between the cursor and the watermark: retention pruned
+			// those rows out from under us. Nobody can be caught up incrementally.
 			for _, s := range behind {
 				if s.Cursor() < current {
 					s.requestResync(ReasonGapTooLarge)
@@ -357,7 +485,12 @@ func (r *room) dispatch(ctx context.Context) {
 	}
 
 	if accessChanged {
-		r.refreshPrincipals(ctx, behind)
+		// Handed to the refresh goroutine rather than run here: it is one query per
+		// distinct account, and doing that inline blocks every delta on this workspace.
+		select {
+		case r.refresh <- struct{}{}:
+		default: // one is already queued, and it will see the same result
+		}
 	}
 }
 
@@ -375,9 +508,23 @@ func (r *room) dispatch(ctx context.Context) {
 // have granted it were emitted while the reader still could not see them — so the only
 // honest answer is a fresh snapshot.
 func (r *room) refreshPrincipals(ctx context.Context, sessions []*Session) {
+	// One lookup per distinct account, not per session. Tabs and devices share an
+	// account, and a workspace at the session cap would otherwise do thousands of
+	// sequential round trips for a handful of distinct answers.
+	type resolved struct {
+		p   *authz.Principal
+		err error
+	}
+	byAccount := make(map[uuid.UUID]resolved, len(sessions))
+
 	for _, s := range sessions {
 		old := s.Principal()
-		fresh, err := r.hub.svc.ResolvePrincipal(ctx, old.AccountID, old.WorkspaceID)
+		got, ok := byAccount[old.AccountID]
+		if !ok {
+			got.p, got.err = r.hub.svc.ResolvePrincipal(ctx, old.AccountID, old.WorkspaceID)
+			byAccount[old.AccountID] = got
+		}
+		fresh, err := got.p, got.err
 		if err != nil {
 			// Suspended, or removed from the workspace outright. Either way this socket
 			// must stop being served; the client's reconnect will get the real refusal.
@@ -386,6 +533,11 @@ func (r *room) refreshPrincipals(ctx context.Context, sessions []*Session) {
 			s.closeWith(TypeError, "PERMISSIONS_CHANGED", "your access to this workspace changed")
 			continue
 		}
+		// A copy per session, because one resolved value now serves every tab on the
+		// account and the fields below are the socket's, not the account's.
+		perSession := *fresh
+		fresh = &perSession
+
 		// Carried over rather than re-read: neither is derived from the team graph, and
 		// ResolvePrincipal does not know about the token this socket was opened with.
 		fresh.Scopes = old.Scopes

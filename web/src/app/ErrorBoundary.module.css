@@ -1,0 +1,21 @@
+/*
+ * The crash card fills whatever pane it was mounted in, so the routed boundary reads as one
+ * broken screen inside a working application rather than as a notice pinned to the top of an
+ * otherwise empty page.
+ */
+
+.root {
+  display: flex;
+  min-height: 0;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: center;
+}

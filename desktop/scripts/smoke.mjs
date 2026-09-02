@@ -129,6 +129,10 @@ const PROBE = `(() => {
     url: location.href,
     mounted: root ? root.childElementCount : -1,
     title: document.title,
+    // A debuggable target exists whether or not the window was ever shown, so "it launched"
+    // and "the user can see it" are different claims — and the failure that motivated the
+    // reveal timeout in main.ts is exactly a process with a dock icon and no window.
+    visible: document.visibilityState === 'visible',
     text: (document.body.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 300),
   });
 })()`;
@@ -195,10 +199,14 @@ async function main() {
     console.log(`• title    ${state.title}`);
     console.log(`• mounted  ${state.mounted} element(s) under #root`);
     console.log(`• text     ${state.text || '(nothing)'}`);
+    console.log(`• visible  ${state.visible}`);
     for (const problem of problems) console.log(`• console  ${problem}`);
 
     if (state.mounted <= 0) {
       throw new Error('the window opened but the application never rendered — a blank window');
+    }
+    if (!state.visible) {
+      throw new Error('the renderer is running but its window was never shown to the user');
     }
     // A policy that blocks the app's own bundle is worse than no policy, because it fails
     // only in the packaged build. Any violation here is a release blocker.

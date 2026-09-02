@@ -81,3 +81,18 @@
   gap: var(--space-2);
   min-width: 0;
 }
+
+/*
+ * Why a link was refused, under the form that tried to add it.
+ *
+ * The server turns down a URL it cannot parse and one over 2048 characters, and until now
+ * that ended at a console line while the optimistic card vanished — so the person watching
+ * saw what they had just added disappear and was told nothing. `--text-danger` rather than
+ * the priority ramp: a refused write is not an urgency.
+ */
+.refusal {
+  margin: 0;
+  color: var(--text-danger);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}

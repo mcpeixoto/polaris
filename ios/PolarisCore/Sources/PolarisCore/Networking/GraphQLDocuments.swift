@@ -84,6 +84,78 @@ enum GraphQLDocuments {
     query UnreadCount { unreadNotificationCount }
     """
 
+    /// The inbox. `payload` is deliberately not selected: it is a `JSON` scalar whose shape
+    /// varies by notification type, and everything a row renders is either on the row or on
+    /// the issue it hangs off.
+    ///
+    /// The notification selection is written out in full in each of the three documents that
+    /// need it rather than shared as a fragment, because `scripts/lint-ios-graphql.mjs`
+    /// resolves exactly one interpolation — `issueFields` — and a second one would validate
+    /// something other than what is sent.
+    static let notifications = """
+    query Notifications($includeRead: Boolean, $includeSnoozed: Boolean, $first: Int) {
+      notifications(includeRead: $includeRead, includeSnoozed: $includeSnoozed, first: $first) {
+        id type issueId commentId count readAt snoozedUntil createdAt
+        actor { type id }
+        issue { ...IssueFields }
+      }
+    }
+    \(issueFields)
+    """
+
+    static let search = """
+    query Search($input: SearchInput!) {
+      search(input: $input) {
+        issueCount
+        issues { ...IssueFields }
+      }
+    }
+    \(issueFields)
+    """
+
+    static let markNotificationRead = """
+    mutation MarkNotificationRead($id: UUID!, $read: Boolean!) {
+      markNotificationRead(id: $id, read: $read) {
+        version
+        notification {
+          id type issueId commentId count readAt snoozedUntil createdAt
+          actor { type id }
+          issue { ...IssueFields }
+        }
+      }
+    }
+    \(issueFields)
+    """
+
+    static let snoozeNotification = """
+    mutation SnoozeNotification($id: UUID!, $until: Time) {
+      snoozeNotification(id: $id, until: $until) {
+        version
+        notification {
+          id type issueId commentId count readAt snoozedUntil createdAt
+          actor { type id }
+          issue { ...IssueFields }
+        }
+      }
+    }
+    \(issueFields)
+    """
+
+    static let deleteNotification = """
+    mutation DeleteNotification($id: UUID!) {
+      deleteNotification(id: $id) { version id }
+    }
+    """
+
+    static let archiveIssue = """
+    mutation ArchiveIssue($id: UUID!, $archived: Boolean!, $clientId: UUID, $opId: UUID) {
+      archiveIssue(id: $id, archived: $archived, clientId: $clientId, opId: $opId) {
+        version
+        id
+      }
+    }
+    """
+
     static let createIssue = """
     mutation CreateIssue($input: CreateIssueInput!, $clientId: UUID, $opId: UUID) {
       createIssue(input: $input, clientId: $clientId, opId: $opId) {

@@ -97,6 +97,7 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
         summary: summary.trim() === '' ? undefined : summary.trim(),
         teamIds: [teamId],
         leadId: viewerId ?? undefined,
+        creatorId: viewerId ?? undefined,
         ...(templateId === NO_TEMPLATE ? null : { projectTemplateId: templateId }),
       });
       onClose();

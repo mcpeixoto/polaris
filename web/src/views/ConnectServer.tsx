@@ -72,7 +72,21 @@ export function ConnectServer({ current }: ConnectServerProps) {
     // the same information one step later and about a page the user was going to see anyway.
     setBusy(true);
     setError(null);
-    setDesktopServerUrl(origin);
+    // The window is normally destroyed and rebuilt under this call, so the happy path never
+    // comes back. The unhappy one does — a server address the shell refused, or the one this
+    // installation is already connected to, which is exactly what somebody retypes when they
+    // are trying to fix a connection — and until it did, the button span forever and the only
+    // way out was force-quitting the app.
+    //
+    // Wrapped in Promise.resolve, and the result read defensively: this bundle is loaded by
+    // an Electron shell whose version it does not control, and a shell older than the reply
+    // returns nothing at all. Nothing is the pre-existing behaviour — a window that is about
+    // to be replaced — so it is the right thing to do nothing about.
+    void Promise.resolve(setDesktopServerUrl(origin)).then((result) => {
+      if (result === undefined || result.ok) return;
+      setBusy(false);
+      setError(result.reason ?? 'Polaris could not connect to that server.');
+    });
   };
 
   return (

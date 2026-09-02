@@ -74,3 +74,15 @@
   color: var(--text-tertiary);
   line-height: var(--line-height-none);
 }
+
+/* The day and its granularity are one property, so they share a line and wrap together
+   rather than reading as two unrelated controls stacked in the rail. */
+.dateRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.dateInput {
+  flex: 1 1 9rem;
+}

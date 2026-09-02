@@ -38,14 +38,26 @@ import {
 import {
   matchesDependencyFilter,
   ProjectDependencyFilterSelect,
-  type ProjectDependencyFilter,
 } from '~/features/projects/dependencies';
+import { EntityLoading, useStoreSettled } from '~/features/entity-gate/EntityGate';
 import {
-  DEFAULT_PROJECT_DISPLAY,
+  activeProjectFilterCount,
+  changedProjectDisplayCount,
+  DEFAULT_PROJECT_FILTERS,
+  matchesProjectStatusFilter,
+  PROJECT_FILTER_PARAMS,
   resolveProjectDisplay,
+  resolveProjectFilters,
   toProjectDisplayParams,
+  toProjectFilterParams,
   type ProjectDisplayOptions,
+  type ProjectFilterOptions,
+  type ProjectStatusFilter,
 } from '~/features/projects/display';
+import {
+  PROJECT_STATUS_CATEGORIES,
+  PROJECT_STATUS_CATEGORY_LABELS,
+} from '~/features/projects/statusCategories';
 import { ProjectDisplayMenu } from '~/features/projects/ProjectDisplayMenu';
 import { ProjectTimeline } from '~/features/projects/ProjectTimeline';
 import { updateProject } from '~/features/projects/mutations';
@@ -86,22 +98,30 @@ export function Projects() {
   const { registry, context } = useKeymap();
   const create = () => registry.invoke('project.create', { source: 'menu', context });
   const displayTrigger = useMenuTrigger();
-  const [depFilter, setDepFilter] = useState<ProjectDependencyFilter>('all');
-  const [customerFilter, setCustomerFilter] = useState<ProjectCustomerFilter>('all');
   const [draggingId, setDraggingId] = useState<UUID | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   /** What the last export left out, or null. See the banner below the header. */
   const [exportNote, setExportNote] = useState<string | null>(null);
 
   const display = useMemo(() => resolveProjectDisplay(searchParams), [searchParams]);
-  const displayChanges = useMemo(() => {
-    let count = 0;
-    if (display.layout !== DEFAULT_PROJECT_DISPLAY.layout) count++;
-    if (display.zoom !== DEFAULT_PROJECT_DISPLAY.zoom) count++;
-    if (display.showDependencies !== DEFAULT_PROJECT_DISPLAY.showDependencies) count++;
-    if (display.showMilestones !== DEFAULT_PROJECT_DISPLAY.showMilestones) count++;
-    return count;
-  }, [display]);
+  const displayChanges = changedProjectDisplayCount(display);
+
+  // Filters live in the query string beside the display options, so a reload or a pasted
+  // link shows what the sender was looking at rather than the layout without the filters.
+  const filters = useMemo(() => resolveProjectFilters(searchParams), [searchParams]);
+
+  const setFilters = useCallback(
+    (patch: Partial<ProjectFilterOptions>) => {
+      const next = { ...filters, ...patch };
+      const params = new URLSearchParams(searchParams);
+      for (const key of Object.values(PROJECT_FILTER_PARAMS)) params.delete(key);
+      for (const [key, value] of Object.entries(toProjectFilterParams(next))) {
+        params.set(key, value);
+      }
+      setSearchParams(params, { replace: true });
+    },
+    [filters, searchParams, setSearchParams],
+  );
 
   const setDisplay = useCallback(
     (patch: Partial<ProjectDisplayOptions>) => {
@@ -128,7 +148,7 @@ export function Projects() {
   );
 
   const groups = useLiveQuery(
-    (store) => listProjectGroups(store, team?.id, depFilter, customerFilter),
+    (store) => listProjectGroups(store, team?.id, filters),
     [
       'project',
       'projectStatus',
@@ -144,7 +164,7 @@ export function Projects() {
       'customer',
       'customerRequest',
     ],
-    [team?.id ?? '', depFilter, customerFilter],
+    [team?.id ?? '', filters.dependency, filters.customer, filters.status],
   );
 
   const customerOptions = useLiveQuery(
@@ -156,14 +176,15 @@ export function Projects() {
   const heading = team === null ? 'Projects' : `${team.name} projects`;
   const rowCount = groups.reduce((sum, group) => sum + group.rows.length, 0);
 
-  // Whether the list is empty because there is nothing, or empty because the header's two
+  // An empty replica is not an empty workspace. Until the first sync settles, "No projects
+  // yet" is a claim the client cannot make — and it came with an invitation to create one.
+  const settled = useStoreSettled();
+
+  // Whether the list is empty because there is nothing, or empty because the header's
   // dropdowns excluded everything. Without the distinction the screen tells somebody their
   // projects are gone and offers to make more — see the same flag in IssueList.
-  const filtered = depFilter !== 'all' || customerFilter !== 'all';
-  const clearFilters = useCallback(() => {
-    setDepFilter('all');
-    setCustomerFilter('all');
-  }, []);
+  const filtered = activeProjectFilterCount(filters) > 0;
+  const clearFilters = useCallback(() => setFilters(DEFAULT_PROJECT_FILTERS), [setFilters]);
 
   const onDropOnRow = useCallback(
     async (targetId: UUID) => {
@@ -226,16 +247,33 @@ export function Projects() {
   );
 
   return (
-    <div className={styles.screen}>
+    <div className={`${styles.screen ?? ''} ${styles.enter ?? ''}`}>
       <header className={styles.header}>
         <h1 className={styles.title}>{heading}</h1>
         <div className={styles.headerActions}>
-          <ProjectDependencyFilterSelect value={depFilter} onChange={setDepFilter} />
+          <Select
+            label="Status"
+            value={filters.status}
+            onChange={(event) => setFilters({ status: event.target.value as ProjectStatusFilter })}
+          >
+            <option value="all">All statuses</option>
+            {PROJECT_STATUS_CATEGORIES.map((category) => (
+              <option key={category} value={category}>
+                {PROJECT_STATUS_CATEGORY_LABELS[category]}
+              </option>
+            ))}
+          </Select>
+          <ProjectDependencyFilterSelect
+            value={filters.dependency}
+            onChange={(value) => setFilters({ dependency: value })}
+          />
           {hideCustomers ? null : (
             <Select
               label="Customers"
-              value={customerFilter}
-              onChange={(event) => setCustomerFilter(event.target.value as ProjectCustomerFilter)}
+              value={filters.customer}
+              onChange={(event) =>
+                setFilters({ customer: event.target.value as ProjectCustomerFilter })
+              }
             >
               <option value="all">All customers</option>
               <option value="any">Has customer requests</option>
@@ -292,17 +330,20 @@ export function Projects() {
       {display.layout === 'timeline' ? (
         <ProjectTimeline
           teamId={team?.id}
-          depFilter={depFilter}
-          customerFilter={hideCustomers ? 'all' : customerFilter}
+          depFilter={filters.dependency}
+          customerFilter={hideCustomers ? 'all' : filters.customer}
+          statusFilter={filters.status}
           display={display}
           onClearFilters={clearFilters}
         />
+      ) : rowCount === 0 && !settled ? (
+        <EntityLoading className={styles.loading} label="Loading projects…" lines={6} />
       ) : rowCount === 0 ? (
         <EmptyState
           title={filtered ? 'Nothing matches these filters' : 'No projects yet'}
           description={
             filtered
-              ? 'Every project here is excluded by the dependency or customer filter above.'
+              ? 'Every project here is excluded by the filters above.'
               : 'A project is a unit of work with a clear outcome. Create one, then file issues into it with Shift+P.'
           }
           action={
@@ -479,14 +520,14 @@ function ProjectRowLink({
 function listProjectGroups(
   store: Store,
   teamId: UUID | undefined,
-  depFilter: ProjectDependencyFilter,
-  customerFilter: ProjectCustomerFilter,
+  filters: ProjectFilterOptions,
 ): PriorityGroup[] {
   const projects: Project[] = [];
   for (const project of store.projects.values()) {
     if (project.archivedAt !== undefined || project.deletedAt !== undefined) continue;
-    if (!matchesDependencyFilter(store, project.id, depFilter)) continue;
-    if (!matchesProjectCustomerFilter(store, project.id, customerFilter)) continue;
+    if (!matchesDependencyFilter(store, project.id, filters.dependency)) continue;
+    if (!matchesProjectCustomerFilter(store, project.id, filters.customer)) continue;
+    if (!matchesProjectStatusFilter(store, project.id, filters.status)) continue;
     if (teamId !== undefined) {
       const onTeam = [...store.projectTeamIdsFor(project.id)].some(
         (id) => store.projectTeams.get(id)?.teamId === teamId,

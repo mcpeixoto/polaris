@@ -35,3 +35,9 @@
 .newTab {
   margin-left: var(--space-1);
 }
+
+/* A failed rename, reorder or delete, stated in the tab row rather than swallowed. */
+.error {
+  color: var(--text-danger);
+  font-size: var(--font-size-xs);
+}

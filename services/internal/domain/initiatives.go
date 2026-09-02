@@ -459,6 +459,51 @@ func (s *Service) ListInitiatives(ctx context.Context, p *authz.Principal) ([]mo
 	return out, nil
 }
 
+// ListInitiativeProjectsForInitiatives is ListInitiativeProjects for a page of initiatives.
+//
+// `Initiative.projects` is non-null in the schema and nothing populated it, so gqlgen
+// marshalled a nil slice into a non-null position and failed the ENTIRE initiatives field:
+// any client selecting `initiatives { projects { … } }` received data: null. Hydrating it
+// one initiative at a time would have traded that for a query per row, which is why this
+// exists rather than a loop over the single-initiative verb.
+//
+// The project-visibility filter is the same one ListInitiativeProjects applies, resolved
+// once per distinct project rather than once per link: a workspace's initiatives point at
+// the same handful of projects by design.
+func (s *Service) ListInitiativeProjectsForInitiatives(
+	ctx context.Context, p *authz.Principal, initiativeIDs []uuid.UUID,
+) (map[uuid.UUID][]model.InitiativeProject, error) {
+	out := make(map[uuid.UUID][]model.InitiativeProject, len(initiativeIDs))
+	if len(initiativeIDs) == 0 {
+		return out, nil
+	}
+
+	q := s.db.Queries()
+	rows, err := q.ListInitiativeProjectsForInitiatives(ctx, store.ListInitiativeProjectsForInitiativesParams{
+		InitiativeIds: initiativeIDs,
+		WorkspaceID:   p.WorkspaceID,
+	})
+	if err != nil {
+		return nil, platform.Internal(err)
+	}
+
+	visible := make(map[uuid.UUID]bool, len(rows))
+	for _, row := range rows {
+		if _, decided := visible[row.ProjectID]; !decided {
+			scope, err := s.projectScope(ctx, q, row.ProjectID)
+			if err != nil {
+				return nil, err
+			}
+			visible[row.ProjectID] = p.Role.IsAdmin() || authz.Visible(p, scope)
+		}
+		if !visible[row.ProjectID] {
+			continue
+		}
+		out[row.InitiativeID] = append(out[row.InitiativeID], toInitiativeProject(row))
+	}
+	return out, nil
+}
+
 // ListInitiativeProjects lists curated project links for one initiative.
 func (s *Service) ListInitiativeProjects(
 	ctx context.Context, p *authz.Principal, initiativeID uuid.UUID,

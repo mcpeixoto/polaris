@@ -60,7 +60,7 @@ async function fileIssue(page: Page, title: string): Promise<void> {
   // own button, which invokes the same action in the same context.
   const rows = page.getByRole('listbox', { name: /issues/i });
   if (await rows.isVisible()) {
-    await rows.click({ position: { x: 4, y: 4 } });
+    await rows.focus();
     await page.keyboard.press('c');
   } else {
     await page.getByRole('button', { name: 'Create an issue' }).click();

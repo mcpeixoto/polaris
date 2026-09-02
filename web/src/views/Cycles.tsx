@@ -4,23 +4,41 @@
  * Cycles are minted by cadence, not filed by hand. The ⋯ menu is where dates move,
  * names change, the next window can be pulled forward to today, and the team calendar
  * can be subscribed as ICS.
+ *
+ * Every row answers the same question in the tense that row is in. An upcoming cycle is
+ * asked whether it is over-committed, so it wears the capacity dial; a running or finished
+ * one is asked how much of it is done, so it wears progress. Before this, only the upcoming
+ * rows had an answer and the rest of the list fell through to "12 issues" — a number that
+ * says nothing about a sprint that ended last month.
  */
 
 import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { Button, EmptyState, IconButton, Menu } from '~/components';
+import { Button, ConfirmDialog, EmptyState, IconButton, Menu, Progress } from '~/components';
+import { EntityLoading, useEntityState } from '~/features/entity-gate/EntityGate';
 import { CycleEditModal, isNextUpcoming, phaseOf } from '~/features/cycles/CycleEditModal';
 import { CycleCalendarModal } from '~/features/cycles/CycleCalendarModal';
 import { CycleGraph } from '~/features/cycles/CycleGraph';
 import { CapacityDial } from '~/features/cycles/CapacityDial';
 import { cycleCapacity, type CycleCapacity } from '~/features/cycles/computeCapacity';
+import { buildCycleGraph } from '~/features/cycles/computeCycleGraph';
+import { cycleWindow, daysLeftLabel } from '~/features/cycles/format';
 import { inheritsCycleSchedule } from '~/features/cycles/inherit';
 import { startCycleToday, updateCycle } from '~/features/cycles/mutations';
+import { useNow } from '~/features/cycles/useNow';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import type { Cycle, Store, UUID } from '~/store';
+import type { Cycle, Store, Team, UUID } from '~/store';
+import { ApiError } from '~/sync/api';
 import styles from './Cycles.module.css';
+
+interface CycleProgress {
+  readonly completed: number;
+  readonly scope: number;
+  readonly percent: number;
+  readonly unitLabel: 'issues' | 'points';
+}
 
 type ListRow =
   | {
@@ -31,9 +49,11 @@ type ListRow =
       readonly heading: string;
       readonly window: string;
       readonly issueCount: number;
+      readonly openCount: number;
       readonly phase: 'Current' | 'Upcoming' | 'Previous';
       readonly canStartToday: boolean;
       readonly capacity: CycleCapacity | null;
+      readonly progress: CycleProgress | null;
     }
   | {
       readonly kind: 'gap';
@@ -46,17 +66,19 @@ export function Cycles() {
   const navigate = useNavigate();
   const engine = useEngine();
   const { teamKey = '' } = useParams<{ teamKey: string }>();
+  const now = useNow();
 
   const team = useLiveQuery(
     (store) => [...store.teams.values()].find((candidate) => candidate.key === teamKey) ?? null,
     ['team'],
     [teamKey],
   );
+  const teamState = useEntityState(team);
 
   const rows = useLiveQuery(
-    (store) => (team === null ? [] : listRows(store, team.id, team.cycleCooldownWeeks)),
-    ['cycle', 'issue', 'team'],
-    [team?.id ?? '', team?.cycleCooldownWeeks ?? 0],
+    (store) => (team === null ? [] : listRows(store, team, now)),
+    ['cycle', 'issue', 'team', 'workflowState'],
+    [team?.id ?? '', team?.cycleCooldownWeeks ?? 0, minuteOf(now)],
   );
 
   const allCycles = useLiveQuery(
@@ -88,14 +110,17 @@ export function Cycles() {
   const [editOpen, setEditOpen] = useState(false);
   const [editCycle, setEditCycle] = useState<Cycle | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [startCycle, setStartCycle] = useState<Cycle | null>(null);
+  const [startBusy, setStartBusy] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
 
-  const run = async (work: Promise<void>) => {
-    try {
-      await work;
-    } catch {
-      // The sync layer surfaces API errors; this screen stays on the replica.
-    }
-  };
+  if (teamState === 'loading') {
+    return (
+      <div className={styles.screen}>
+        <EntityLoading label="Loading cycles…" lines={4} />
+      </div>
+    );
+  }
 
   if (team === null) {
     return (
@@ -127,8 +152,9 @@ export function Cycles() {
     closeMenu();
   };
 
-  const menuPhase = menuCycle === null ? 'Previous' : phaseOf(menuCycle, Date.now());
-  const currentId = rows.find((row) => row.kind === 'cycle' && row.phase === 'Current')?.id;
+  const menuPhase = menuCycle === null ? 'Previous' : phaseOf(menuCycle, now);
+  const currentRow = rows.find((row) => row.kind === 'cycle' && row.phase === 'Current');
+  const currentId = currentRow?.id;
 
   return (
     <div className={styles.screen}>
@@ -161,7 +187,12 @@ export function Cycles() {
                 <span className={styles.gapWindow}>{row.window}</span>
               </li>
             ) : (
-              <li key={row.id} className={styles.item}>
+              <li
+                key={row.id}
+                className={[styles.item, row.phase === 'Current' ? styles.currentItem : null]
+                  .filter(Boolean)
+                  .join(' ')}
+              >
                 <Link to={`/cycle/${row.id}`} className={styles.row}>
                   <span className={styles.phase}>{row.heading}</span>
                   <span className={styles.body}>
@@ -171,6 +202,18 @@ export function Cycles() {
                   <span className={styles.count}>
                     {row.capacity !== null ? (
                       <CapacityDial data={row.capacity} compact />
+                    ) : row.progress !== null ? (
+                      <span className={styles.progress}>
+                        <Progress
+                          percent={row.progress.percent}
+                          label={`${row.name} progress`}
+                          detail={`${row.progress.completed} of ${row.progress.scope} ${row.progress.unitLabel} completed`}
+                          size="sm"
+                        />
+                        <span className={styles.ratio}>
+                          {row.progress.completed}/{row.progress.scope}
+                        </span>
+                      </span>
                     ) : row.issueCount === 1 ? (
                       '1 issue'
                     ) : (
@@ -224,14 +267,17 @@ export function Cycles() {
           ...(menuCycle !== null &&
           !inherited &&
           menuPhase === 'Upcoming' &&
-          isNextUpcoming(menuCycle, allCycles, Date.now())
+          isNextUpcoming(menuCycle, allCycles, now)
             ? [
                 {
                   id: 'start-today',
                   label: 'Start cycle today',
                   onSelect: () => {
                     if (menuCycle === null) return;
-                    void run(startCycleToday(engine, menuCycle.id));
+                    // Asked before it happens, because it closes whatever is running and
+                    // moves its open work, and the spec calls that irreversible.
+                    setStartError(null);
+                    setStartCycle(menuCycle);
                     closeMenu();
                   },
                 },
@@ -243,25 +289,56 @@ export function Cycles() {
       <CycleEditModal
         open={editOpen}
         cycle={editCycle}
-        phase={editCycle === null ? 'Previous' : phaseOf(editCycle, Date.now())}
+        phase={editCycle === null ? 'Previous' : phaseOf(editCycle, now)}
+        timezone={team.timezone}
         datesLocked={inherited}
         onClose={() => {
           setEditOpen(false);
           setEditCycle(null);
         }}
-        onSave={(edit) => {
+        onSave={async (edit) => {
           if (editCycle === null) return;
-          void run(
-            updateCycle(engine, editCycle.id, {
-              name: edit.name,
-              description: edit.description,
-              clearDescription: edit.clearDescription,
-              startsAt: edit.startsAt,
-              endsAt: edit.endsAt,
-            }),
-          );
-          setEditOpen(false);
+          await updateCycle(engine, editCycle.id, {
+            name: edit.name,
+            description: edit.description,
+            clearDescription: edit.clearDescription,
+            startsAt: edit.startsAt,
+            endsAt: edit.endsAt,
+          });
           setEditCycle(null);
+        }}
+      />
+      <ConfirmDialog
+        open={startCycle !== null}
+        title={startCycle === null ? 'Start this cycle today?' : `Start ${startCycle.name} today?`}
+        consequence={startConsequence(
+          currentRow?.kind === 'cycle' ? currentRow.name : null,
+          currentRow?.kind === 'cycle' ? currentRow.openCount : 0,
+        )}
+        confirmLabel="Start cycle today"
+        destructive
+        busy={startBusy}
+        error={startError ?? undefined}
+        onClose={() => {
+          setStartCycle(null);
+          setStartError(null);
+        }}
+        onConfirm={() => {
+          if (startCycle === null) return;
+          setStartBusy(true);
+          setStartError(null);
+          void startCycleToday(engine, startCycle.id).then(
+            () => {
+              setStartBusy(false);
+              setStartCycle(null);
+            },
+            (cause: unknown) => {
+              setStartBusy(false);
+              setStartError(
+                cause instanceof ApiError ? cause.message : 'Could not start this cycle.',
+              );
+            },
+          );
         }}
       />
       <CycleCalendarModal
@@ -274,10 +351,32 @@ export function Cycles() {
   );
 }
 
-function listRows(store: Store, teamId: UUID, cooldownWeeks: number): ListRow[] {
-  const now = Date.now();
+/** What starting the next cycle now takes away, named rather than implied. */
+function startConsequence(currentName: string | null, openCount: number): string {
+  if (currentName === null) {
+    return 'The cycle starts at 12:00 AM today in the team’s timezone and the pause before it ends. This cannot be undone.';
+  }
+  const work =
+    openCount === 1 ? '1 open issue moves into it' : `${openCount} open issues move into it`;
+  return `${currentName} is completed immediately and ${work}. This cannot be undone.`;
+}
+
+/**
+ * The minute `now` falls in, as the live query's input.
+ *
+ * The clock ticks so the phases stay honest, and the query only has to be re-asked when
+ * something it can see has changed — which for a boundary measured in days is a minute, not
+ * every render.
+ */
+function minuteOf(now: number): number {
+  return Math.floor(now / 60_000);
+}
+
+function listRows(store: Store, team: Team, now: number): ListRow[] {
+  const zone = team.timezone;
+  const cooldownWeeks = team.cycleCooldownWeeks;
   const cycles: Cycle[] = [];
-  for (const id of store.cycleIdsFor(teamId)) {
+  for (const id of store.cycleIdsFor(team.id)) {
     const cycle = store.cycles.get(id);
     if (cycle === undefined || cycle.archivedAt !== undefined) continue;
     cycles.push(cycle);
@@ -286,7 +385,6 @@ function listRows(store: Store, teamId: UUID, cooldownWeeks: number): ListRow[] 
 
   const rows: ListRow[] = [];
   const cooldownMs = cooldownWeeks * 7 * 24 * 60 * 60 * 1000;
-  const fmt = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 
   for (let index = 0; index < cycles.length; index++) {
     const cycle = cycles[index];
@@ -301,30 +399,53 @@ function listRows(store: Store, teamId: UUID, cooldownWeeks: number): ListRow[] 
           kind: 'gap',
           id: `gap-${prev.id}-${cycle.id}`,
           label: isCooldown ? 'Cooldown' : 'Cycles paused',
-          window: `${fmt.format(new Date(prev.endsAt))} – ${fmt.format(new Date(cycle.startsAt))}`,
+          window: cycleWindow(prev.endsAt, cycle.startsAt, zone, now),
         });
       }
     }
 
     const phase = phaseOf(cycle, now);
+    const window = cycleWindow(cycle.startsAt, cycle.endsAt, zone, now);
+    const graph = phase === 'Upcoming' ? null : buildCycleGraph(store, cycle.id);
     rows.push({
       kind: 'cycle',
       id: cycle.id,
       cycle,
       name: cycle.name,
       heading: phase,
-      window: windowOf(cycle),
+      // How long is left is only a question while the cycle is running; on a finished one
+      // it is noise, and on one that has not begun it is the wrong end of the window.
+      window:
+        phase === 'Current' ? `${window} · ${daysLeftLabel(cycle.endsAt, zone, now)}` : window,
       issueCount: store.index.byCycle(cycle.id).size,
+      openCount: openIssueCount(store, cycle.id),
       phase,
       canStartToday: phase === 'Upcoming' && isNextUpcoming(cycle, cycles, now),
       capacity: phase === 'Upcoming' ? cycleCapacity(store, cycle.id, now) : null,
+      progress:
+        graph === null || graph.totalScope === 0
+          ? null
+          : {
+              completed: graph.totalCompleted,
+              scope: graph.totalScope,
+              percent: Math.round((graph.totalCompleted / graph.totalScope) * 100),
+              unitLabel: graph.unitLabel,
+            },
     });
   }
 
   return rows;
 }
 
-function windowOf(cycle: Cycle): string {
-  const fmt = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
-  return `${fmt.format(new Date(cycle.startsAt))} – ${fmt.format(new Date(cycle.endsAt))}`;
+/** Issues that would move if this cycle were closed now: anything not done or dropped. */
+function openIssueCount(store: Store, cycleId: UUID): number {
+  let open = 0;
+  for (const issueId of store.index.byCycle(cycleId)) {
+    const issue = store.issues.get(issueId);
+    if (issue === undefined || issue.archivedAt !== undefined) continue;
+    const category = store.workflowStates.get(issue.stateId)?.category;
+    if (category === 'completed' || category === 'canceled' || category === 'duplicate') continue;
+    open += 1;
+  }
+  return open;
 }

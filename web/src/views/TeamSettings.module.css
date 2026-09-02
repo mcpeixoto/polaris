@@ -302,3 +302,51 @@
   gap: var(--space-3);
   align-items: stretch;
 }
+
+/*
+ * The roster. A list rather than a table because it is two facts and one action per person,
+ * and a three-column table of six rows is chrome around nothing.
+ */
+.membersHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.memberList {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.member {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control-height-lg);
+  padding-block: var(--space-1);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.member:last-child {
+  border-bottom: none;
+}
+
+.memberName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.addMember {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: end;
+}

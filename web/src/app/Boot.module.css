@@ -99,3 +99,19 @@
     transform: translateY(4px);
   }
 }
+
+/*
+ * The exception's own sentence, under the headline that explains it.
+ *
+ * Quieter and smaller than the message above it, because it is evidence rather than the
+ * statement: the reader needs the headline to know what happened and this only when they are
+ * passing it on. It rides the same entrance as the message — no delay of its own — so the two
+ * arrive as one block rather than as a message that then grew a footnote.
+ */
+.detail {
+  max-width: 48ch;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  text-align: center;
+  animation: messageIn var(--duration-normal) var(--ease-out);
+}

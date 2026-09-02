@@ -178,7 +178,7 @@ test('the relation and sub-issue chords open their forms', async ({ page, worksp
 
   await page.goto(`/issue/${issue.identifier}`);
   const subs = page.getByRole('region', { name: 'Sub-issues' });
-  const links = page.getByRole('region', { name: 'Linked issues' });
+  const links = page.getByRole('region', { name: 'Relations' });
   await subs.waitFor();
   await expect.poll(() => page.evaluate(() => document.readyState)).toBe('complete');
 

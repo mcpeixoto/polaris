@@ -280,6 +280,7 @@
   --text-primary: var(--color-neutral-900);
   --text-secondary: var(--color-neutral-700);
   --text-tertiary: var(--color-neutral-600);
+  --text-danger: var(--color-red-600);
   --text-inverse: var(--color-neutral-50);
 
   --border-subtle: var(--color-neutral-200);
@@ -380,6 +381,7 @@
   --text-primary: var(--color-neutral-100);
   --text-secondary: var(--color-neutral-400);
   --text-tertiary: var(--color-neutral-500);
+  --text-danger: var(--color-red-400);
   --text-inverse: var(--color-neutral-950);
 
   --border-subtle: var(--color-neutral-800);
@@ -451,6 +453,7 @@
     --text-primary: var(--color-neutral-100);
     --text-secondary: var(--color-neutral-400);
     --text-tertiary: var(--color-neutral-500);
+    --text-danger: var(--color-red-400);
     --text-inverse: var(--color-neutral-950);
 
     --border-subtle: var(--color-neutral-800);

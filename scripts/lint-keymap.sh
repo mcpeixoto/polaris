@@ -24,6 +24,7 @@ ALLOWED='^web/src/keys/
 ^web/src/app/keymap\.tsx$
 ^web/src/components/Menu\.tsx$
 ^web/src/components/Modal\.tsx$
+^web/src/hooks/useFocusTrap\.ts$
 ^web/src/app/CommandMenu\.tsx$'
 
 # Comment and blank lines are stripped before matching, so prose that mentions onKeyDown —
@@ -98,3 +99,45 @@ MSG
 fi
 
 echo "keymap discipline: ok"
+
+# --- the other side of the boundary: the native menu ----------------------------------
+#
+# An accelerator on a menu item is registered with the OS and consumed BEFORE the page sees
+# the keystroke. So a chord that exists in both places is not a conflict the registry can
+# detect — the registry never gets the event. That is how `mod+shift+i` came to open
+# devtools on Windows and Linux instead of the Insights panel, with nothing on either side
+# able to notice: the two lists had never been compared.
+#
+# This compares them. Every explicit `accelerator:` in the desktop main process is
+# normalised to the registry's spelling (CommandOrControl → mod, CmdOrCtrl → mod) and looked
+# for in a `keys: [...]` array under web/src.
+#
+# Roles with a default accelerator and no explicit one are NOT checked, because their
+# defaults live in Electron rather than in this repo. The rule that keeps that safe is
+# simpler: give any role whose default might collide an explicit accelerator, which is then
+# checked here.
+MENU=desktop/src/main/main.ts
+
+if [ -f "$MENU" ]; then
+  conflicts=0
+  while IFS= read -r accel; do
+    chord=$(printf '%s' "$accel" \
+      | sed -E "s/CommandOrControl/mod/I; s/CmdOrCtrl/mod/I; s/Command/mod/I" \
+      | tr 'A-Z' 'a-z')
+    # `keys: ['mod+shift+i']` — quoted, exactly, so `mod+k` does not match `mod+shift+k`.
+    hits=$(grep -rn "'$chord'" web/src --include='*.ts' --include='*.tsx' \
+      | grep -E "keys: \[|keys: \[.*" || true)
+    if [ -n "$hits" ]; then
+      echo "FAIL: $MENU registers the accelerator '$accel', which the keymap registry also binds:"
+      echo "$hits" | sed 's/^/  /'
+      echo "      A menu accelerator is consumed before the renderer sees the key, so the"
+      echo "      registered action is unreachable. Move one of the two."
+      conflicts=1
+    fi
+  done < <(grep -oE "accelerator: '[^']+'" "$MENU" | sed -E "s/accelerator: '([^']+)'/\1/" | sort -u)
+
+  if [ $conflicts -ne 0 ]; then
+    exit 1
+  fi
+  echo "menu accelerators: ok"
+fi

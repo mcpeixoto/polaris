@@ -9,11 +9,14 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { useEngine } from '~/app/context';
 import { Button, EmptyState, Input } from '~/components';
 import { createDocument } from '~/features/documents/mutations';
+import { EntityLoading, useStoreSettled } from '~/features/entity-gate/EntityGate';
+import { exact, when } from '~/features/time';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { ApiError } from '~/sync/api';
 import { compareOrderKeys } from '~/store';
 import type { Document, Store, UUID } from '~/store';
 import styles from './Documents.module.css';
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 
 interface DocumentRow {
   readonly id: UUID;
@@ -27,6 +30,12 @@ export function Documents() {
   const { teamKey, projectId } = useParams<{ teamKey?: string; projectId?: string }>();
   const [title, setTitle] = useState('');
   const [creating, setCreating] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  // The empty state's only call to action used to find this field by querying the DOM for
+  // its placeholder text, so localising that one string would have quietly turned the
+  // button into a no-op.
+  const titleRef = useRef<HTMLInputElement>(null);
+  const settled = useStoreSettled();
 
   const team = useLiveQuery(
     (store) =>
@@ -62,6 +71,7 @@ export function Documents() {
     if (trimmed === '' || creating) return;
     if (team === null && project === null) return;
     setCreating(true);
+    setFailure(null);
     try {
       const teamId = team?.id ?? projectTeamId(engine.store, project!.id);
       if (teamId === undefined) return;
@@ -72,6 +82,14 @@ export function Documents() {
       });
       setTitle('');
       void navigate(`/document/${id}`);
+    } catch (error) {
+      // A refused create used to reject a promise nobody held: the button un-spun, the
+      // title stayed in the box, and nothing said whether the document existed.
+      setFailure(
+        error instanceof ApiError && error.message !== ''
+          ? error.message
+          : 'That document could not be created.',
+      );
     } finally {
       setCreating(false);
     }
@@ -83,6 +101,7 @@ export function Documents() {
         <h1 className={styles.title}>{heading}</h1>
         <form className={styles.create} onSubmit={onCreate}>
           <Input
+            ref={titleRef}
             label="New document title"
             hideLabel
             surface="plain"
@@ -96,20 +115,20 @@ export function Documents() {
         </form>
       </header>
 
-      {rows.length === 0 ? (
+      {failure === null ? null : (
+        <p className={styles.error} role="alert">
+          {failure}
+        </p>
+      )}
+
+      {rows.length === 0 && !settled ? (
+        <EntityLoading label="Loading documents…" lines={5} />
+      ) : rows.length === 0 ? (
         <EmptyState
           title="No documents yet"
           description="Team runbooks, project specs and meeting notes live here as markdown until collaborative editing lands."
           action={
-            <Button
-              variant="primary"
-              onClick={() => {
-                const input = document.querySelector<HTMLInputElement>(
-                  'input[placeholder="New document…"]',
-                );
-                input?.focus();
-              }}
-            >
+            <Button variant="primary" onClick={() => titleRef.current?.focus()}>
               Create a document
             </Button>
           }
@@ -120,7 +139,9 @@ export function Documents() {
             <li key={row.id}>
               <Link to={`/document/${row.id}`} className={styles.row}>
                 <span className={styles.name}>{row.title}</span>
-                <span className={styles.meta}>{formatWhen(row.updatedAt)}</span>
+                <time className={styles.meta} dateTime={row.updatedAt} title={exact(row.updatedAt)}>
+                  {when(row.updatedAt)}
+                </time>
               </Link>
             </li>
           ))}
@@ -152,10 +173,4 @@ function projectTeamId(store: Store, projectId: UUID): UUID | undefined {
     if (row !== undefined) return row.teamId;
   }
   return undefined;
-}
-
-function formatWhen(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }

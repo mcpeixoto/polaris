@@ -129,7 +129,7 @@ func (s *Service) mintTemplateSubIssues(
 		if err != nil {
 			return 0, err
 		}
-		siblingOrder, err := s.resolveParent(ctx, q, p, in.TeamID, parentID)
+		siblingOrder, _, err := s.resolveParent(ctx, q, p, in.TeamID, parentID)
 		if err != nil {
 			return 0, err
 		}

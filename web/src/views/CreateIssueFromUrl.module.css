@@ -32,3 +32,24 @@
   white-space: nowrap;
   clip-path: inset(50%);
 }
+
+/*
+ * What is on screen while the replica is still producing a team to file into.
+ *
+ * Placeholder rows rather than an `EmptyState`, because "nothing here" and "not here yet"
+ * are different facts and this route only ever knows the second one. The region carries the
+ * one `role="status"`; the skeletons themselves are silent.
+ */
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-4);
+}
+
+.loadingNote {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}

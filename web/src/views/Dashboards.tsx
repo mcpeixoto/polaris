@@ -6,6 +6,8 @@ import { Link } from 'react-router';
 
 import { useKeymap } from '~/app/keymap';
 import { Button, EmptyState } from '~/components';
+import { EntityLoading, useStoreSettled } from '~/features/entity-gate/EntityGate';
+import { plural } from '~/features/insights/plural';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
 import type { Store, UUID } from '~/store';
@@ -23,6 +25,7 @@ export function Dashboards() {
   const { registry, context } = useKeymap();
   const viewerId = useViewerId();
   const create = () => registry.invoke('dashboard.create', { source: 'menu', context });
+  const settled = useStoreSettled();
 
   const rows = useLiveQuery(
     (store) => listDashboards(store, viewerId),
@@ -39,7 +42,11 @@ export function Dashboards() {
         </Button>
       </header>
 
-      {rows.length === 0 ? (
+      {rows.length === 0 && !settled ? (
+        // "No dashboards yet" is a claim, and on a cold start it was one the client could
+        // not yet make: the list is empty because the snapshot has not landed.
+        <EntityLoading label="Loading dashboards…" lines={4} />
+      ) : rows.length === 0 ? (
         <EmptyState
           title="No dashboards yet"
           description="A dashboard is a page of Insights tiles — issue count, effort, cycle time — over the live replica."
@@ -61,9 +68,7 @@ export function Dashboards() {
                   )}
                 </span>
                 <span className={styles.scope}>{row.scope}</span>
-                <span className={styles.count}>
-                  {row.tileCount === 1 ? '1 tile' : `${row.tileCount} tiles`}
-                </span>
+                <span className={styles.count}>{plural(row.tileCount, 'tiles')}</span>
               </Link>
             </li>
           ))}

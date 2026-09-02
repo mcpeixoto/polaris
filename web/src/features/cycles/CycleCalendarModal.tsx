@@ -3,7 +3,7 @@
  * or rotate a leaked token.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Button, Modal } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
@@ -57,11 +57,23 @@ export function CycleCalendarModal({ open, teamId, teamName, onClose }: CycleCal
     };
   }, [open, teamId]);
 
+  // The confirmation clears itself, so a dialog left open does not keep claiming a copy
+  // made a minute ago is still on the clipboard.
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
+    },
+    [],
+  );
+
   const copy = async () => {
     if (url === null) return;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
+      if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => setCopied(false), 4000);
     } catch {
       setError('Could not copy the feed URL.');
     }
@@ -131,16 +143,30 @@ export function CycleCalendarModal({ open, teamId, teamName, onClose }: CycleCal
             >
               Add to Google Calendar
             </Button>
-            <Button variant="secondary" onClick={() => void copy()}>
-              {copied ? 'Copied feed URL' : 'Copy feed URL'}
-            </Button>
+            {/* The label stays put and the confirmation is announced beside it. A button
+                that renames itself says nothing to a screen reader and takes the word the
+                user is looking for away from them. */}
+            <span className={styles.copyRow}>
+              <Button variant="secondary" onClick={() => void copy()}>
+                Copy feed URL
+              </Button>
+              <span className={styles.copied} role="status" aria-live="polite">
+                {copied ? 'Copied' : ''}
+              </span>
+            </span>
             <Button variant="secondary" onClick={() => void download()}>
               Download .ics
             </Button>
-            <Button variant="danger" onClick={() => setConfirmingRotate(true)}>
-              Rotate feed URL
-            </Button>
             <p className={styles.url}>{url}</p>
+            <div className={styles.rotate}>
+              <p className={styles.rotateCopy}>
+                Rotating mints a new URL and stops the current one. Everyone subscribed has to add
+                the new one.
+              </p>
+              <Button variant="secondary" onClick={() => setConfirmingRotate(true)}>
+                Rotate feed URL
+              </Button>
+            </div>
           </div>
         ) : null}
       </Modal>

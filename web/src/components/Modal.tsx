@@ -13,6 +13,7 @@ import { createPortal } from 'react-dom';
 import { usePresence } from '~/hooks/usePresence';
 
 import { IconButton } from './IconButton';
+import { useOptionalKeyContext } from './keyContext';
 import styles from './Modal.module.css';
 
 export type ModalSize = 'sm' | 'md' | 'lg';
@@ -133,6 +134,12 @@ export function Modal({
   // was pressed, whatever the scrim is doing afterwards.
   const { present, exitProps } = usePresence(open, backdropRef);
 
+  // Escape closes this dialog and stops there. The key handler below already stops the
+  // press propagating to the window listener, but the context is what tells the registry
+  // which layer it is looking at — and the shell's global `app.dismiss` is not the only
+  // Escape binding a screen behind a dialog may have registered.
+  useOptionalKeyContext('modal', open);
+
   // Declared before the focusing effect below, and a layout effect like it, so that what it
   // captures is the element that opened the dialog rather than the dialog's own first
   // field. Effect order is the only thing keeping those two apart.
@@ -196,6 +203,43 @@ export function Modal({
       body.style.overflow = previous;
     };
   }, [present]);
+
+  /**
+   * Hiding the rest of the document, which is the other half of the claim `aria-modal`
+   * makes.
+   *
+   * `aria-modal` alone is honoured unevenly — in Safari with VoiceOver the virtual cursor
+   * still walks the page behind the scrim — and a dialog that traps the keyboard and locks
+   * the scroll but leaves the document readable is one that works for exactly one kind of
+   * user, which is the mistake this component's docstring is about.
+   *
+   * Direct children of `<body>`, because that is where every portal in this product lands.
+   * The one skipped is whichever of them contains this dialog's own backdrop. Previous
+   * values are restored rather than cleared, for the same reason the scroll lock restores
+   * rather than clears: a nested dialog has to hand back the inertness the outer one set.
+   *
+   * Keyed on `open` and not on `present`, unlike the lock above, and the difference matters.
+   * Focus is returned to the trigger from a passive effect that runs on the commit where
+   * `open` flips — while the exit is still playing — and an inert element cannot take focus,
+   * so releasing this on `present` would silently drop the caret on `<body>` every time a
+   * dialog closed. The exiting surface is itself `inert` by then, so nothing is reachable
+   * that should not be; the page behind simply becomes readable a hundred milliseconds
+   * before it becomes visible again.
+   */
+  useLayoutEffect(() => {
+    if (!open) return;
+    const backdrop = backdropRef.current;
+    const inerted: { node: HTMLElement; previous: boolean }[] = [];
+    for (const child of document.body.children) {
+      if (!(child instanceof HTMLElement)) continue;
+      if (backdrop !== null && child.contains(backdrop)) continue;
+      inerted.push({ node: child, previous: child.inert });
+      child.inert = true;
+    }
+    return () => {
+      for (const { node, previous } of inerted) node.inert = previous;
+    };
+  }, [open]);
 
   if (!present) return null;
 

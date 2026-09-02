@@ -78,6 +78,21 @@ func PresentError(ctx context.Context, err error) *gqlerror.Error {
 	// error" and make every client integration harder to debug.
 	var gqlErr *gqlerror.Error
 	if errors.As(err, &gqlErr) {
+		// …but a code they do not always have. gqlgen wraps an argument-coercion failure
+		// with gqlerror.WrapPath, which sets Path and leaves Extensions nil, so every bad
+		// UUID, wrong scalar and malformed JSON argument reached the client with no
+		// extensions.code — the whole client-side validation surface, in the one shape
+		// the comment at the top of this file tells clients never to parse.
+		//
+		// On the client that lands as the INTERNAL fallback, which isRetriable treats as
+		// retriable, so a permanently malformed mutation is retried five times and then
+		// discarded. VALIDATION is both true and terminal.
+		if gqlErr.Extensions == nil {
+			gqlErr.Extensions = map[string]any{}
+		}
+		if _, ok := gqlErr.Extensions["code"]; !ok {
+			gqlErr.Extensions["code"] = string(platform.CodeValidation)
+		}
 		return gqlErr
 	}
 

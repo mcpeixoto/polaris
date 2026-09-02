@@ -9,7 +9,7 @@
 import { useEffect, useRef } from 'react';
 
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import { notify, setBadgeCount } from '~/platform/runtime';
+import { isWindowFocused, notify, setBadgeCount } from '~/platform/runtime';
 import type { Store, UUID } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
 
@@ -33,6 +33,37 @@ export function idsToAnnounce(
     announce.push(id);
   }
   return { announce, seen: next };
+}
+
+/**
+ * One banner per row, or one banner for all of them.
+ *
+ * Reconnecting after a day offline delivers a delta full of ids that were all "new since the
+ * previous snapshot", and firing one notification each is fifty banners for a laptop being
+ * opened. The rule the desktop doc states is the one implemented here: individually up to
+ * five, and above that a single line saying how many.
+ */
+export const NOTIFICATION_BURST_LIMIT = 5;
+
+export function announcements(
+  bodies: readonly { readonly body: string; readonly route: string }[],
+): readonly { title: string; body: string; route?: string }[] {
+  if (bodies.length === 0) return [];
+  if (bodies.length <= NOTIFICATION_BURST_LIMIT) {
+    return bodies.map((row) => ({ title: 'Polaris', body: row.body, route: row.route }));
+  }
+  return [{ title: 'Polaris', body: `${bodies.length} updates`, route: '/inbox' }];
+}
+
+/**
+ * Whether a banner is worth showing at all.
+ *
+ * A comment arriving while the reader is looking at the inbox produces a banner over the
+ * thing it is announcing. Focused *and* on the inbox, because a focused window on an issue
+ * screen is not showing the notification that just arrived — the inbox is.
+ */
+export function shouldAnnounce(focused: boolean, pathname: string): boolean {
+  return !(focused && pathname.startsWith('/inbox'));
 }
 
 /**
@@ -65,11 +96,12 @@ export function useDesktopNotifications(engine: SyncEngine, viewerId: UUID | nul
     seen.current = new Set(next.seen);
     primed.current = true;
     if (!snapshot.desktop) return;
-    for (const id of next.announce) {
-      const row = snapshot.bodies.get(id);
-      if (row === undefined) continue;
-      notify({ title: 'Polaris', body: row.body, route: row.route });
-    }
+    if (!shouldAnnounce(isWindowFocused(), window.location.pathname)) return;
+
+    const rows = next.announce
+      .map((id) => snapshot.bodies.get(id))
+      .filter((row): row is { body: string; route: string } => row !== undefined);
+    for (const payload of announcements(rows)) notify(payload);
   }, [snapshot]);
 }
 

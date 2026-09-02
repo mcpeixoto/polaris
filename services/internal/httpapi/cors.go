@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/peixotolabs/polaris/services/internal/platform"
 )
 
 // CORS, for the desktop app and for nothing else.
@@ -81,7 +83,10 @@ func usableOrigin(raw string) (string, bool) {
 	if u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
 		return "", false
 	}
-	return u.Scheme + "://" + u.Host, true
+	// Lower-cased, because a browser sends the Origin header lower-cased and an operator
+	// writing POLARIS_ALLOWED_ORIGINS=https://App.Example.com would otherwise build an
+	// entry nothing can ever match — with an empty 403 as the only symptom.
+	return u.Scheme + "://" + strings.ToLower(u.Host), true
 }
 
 // CORS answers preflights and attaches the response headers for allowed origins.
@@ -116,7 +121,11 @@ func CORS(extra []string, next http.Handler) http.Handler {
 			// with no CORS headers. Both stop the real request; only one of them tells
 			// whoever is configuring a self-hosted install what went wrong.
 			if origin == "" || !allowed[origin] {
-				w.WriteHeader(http.StatusForbidden)
+				// With a body, which the 403 did not have. The comment above says this
+				// status was chosen so the operator learns what went wrong, and an empty
+				// 403 tells them nothing at all — least of all which setting to edit.
+				writeError(w, r, platform.Forbidden(
+					"this origin is not in POLARIS_ALLOWED_ORIGINS"))
 				return
 			}
 			w.Header().Set("Access-Control-Allow-Methods", allowedMethods)

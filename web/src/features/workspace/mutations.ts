@@ -68,6 +68,22 @@ async function updateWorkspace(
 
   const name = fields.name?.trim();
   const urlKey = fields.urlKey?.trim().toLowerCase();
+
+  /*
+   * A required field cleared is a refusal, not a no-op.
+   *
+   * Dropping an empty name from the patch below and resolving successfully is what let the
+   * settings screen show an empty workspace name for ever: the field was uncontrolled, so
+   * nothing put the old value back, the sidebar kept the name the store still held, and
+   * neither the user nor the screen was told the two disagreed. Rejecting says which field
+   * and lets the view revert it.
+   */
+  if (fields.name !== undefined && name === '') {
+    throw new Error('A workspace needs a name.');
+  }
+  if (fields.urlKey !== undefined && urlKey === '') {
+    throw new Error('A workspace needs an address.');
+  }
   const after: Workspace = {
     ...before,
     ...(name === undefined || name === '' ? null : { name }),

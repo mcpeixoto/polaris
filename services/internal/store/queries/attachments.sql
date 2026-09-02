@@ -64,3 +64,21 @@ WHERE a.workspace_id = sqlc.arg(workspace_id)
   AND a.id > sqlc.arg(after_id)
 ORDER BY a.id
 LIMIT sqlc.arg(page_size);
+
+-- ListAttachmentsForIssues is ListAttachmentsForIssue for a whole page of issues at once,
+-- for the reason ListCommentsForIssues gives.
+--
+-- attachment carries its own team_id, but the issue's team is what decides visibility: the
+-- denormalised column is there for the bootstrap's scoping and follows the issue on a
+-- duplicate merge, so reading it here would answer a slightly different question.
+--
+-- name: ListAttachmentsForIssues :many
+SELECT a.id, a.workspace_id, a.issue_id, a.team_id, a.url, a.title, a.subtitle, a.icon_url,
+       a.metadata, a.creator_id, a.created_at, a.updated_at
+FROM attachment a
+JOIN issue i ON i.id = a.issue_id
+JOIN team  t ON t.id = i.team_id
+WHERE a.issue_id = ANY(sqlc.arg(issue_ids)::uuid[])
+  AND a.workspace_id = sqlc.arg(workspace_id)
+  AND (NOT t.private OR t.id = ANY(sqlc.arg(team_ids)::uuid[]))
+ORDER BY a.issue_id, a.created_at;

@@ -1,4 +1,11 @@
-import { useCallback, useLayoutEffect, useRef, type Ref, type TextareaHTMLAttributes } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type Ref,
+  type TextareaHTMLAttributes,
+} from 'react';
 
 import { Field, fieldDescribedBy, fieldInvalid, useFieldIds } from './Field';
 import { useNativeValue } from './nativeValue';
@@ -119,6 +126,37 @@ export function Textarea({
   // a layout each time a sync delta re-rendered the screen around this field, for an answer
   // that had not moved.
   useLayoutEffect(resize, [resize, value]);
+
+  /**
+   * And again whenever the box itself changes width, which is a different question from
+   * whether the text changed.
+   *
+   * Narrowing the window re-wraps the same string onto more lines, and nothing above notices:
+   * `value` has not moved and no input event fired, so an issue description clips or leaves a
+   * gap until the next keystroke. A ResizeObserver on the element answers the whole family at
+   * once — the window, the sidebar collapsing, a font finishing loading — rather than three
+   * listeners that each cover one of them.
+   *
+   * Only a change of *width* re-measures. `resize` sets this element's height, which the
+   * observer would otherwise see as a resize and answer with another measurement — the
+   * classic observer loop. Width is the only input to how the text wraps, so ignoring the
+   * height it just set is not a guard bolted on, it is the actual question.
+   *
+   * Guarded on the constructor because jsdom has none, and a textarea that cannot be
+   * rendered in a test is a textarea whose autosizing rots.
+   */
+  useEffect(() => {
+    const element = elementRef.current;
+    if (element === null || window.ResizeObserver === undefined) return;
+    let width = element.clientWidth;
+    const observer = new window.ResizeObserver(() => {
+      if (element.clientWidth === width) return;
+      width = element.clientWidth;
+      resize();
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [resize]);
 
   return (
     <Field

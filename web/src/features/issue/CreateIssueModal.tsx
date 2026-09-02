@@ -15,8 +15,9 @@
  * it tabs, it types ahead, it opens as a wheel on a phone, and it needs no focus trap of
  * its own inside a dialog that already has one.
  *
- * Project, cycle and template stay Menu pickers: ranking and typeahead are the whole point of
- * those lists, and a native select cannot do either.
+ * Project, cycle, template and labels stay Menu pickers: ranking and typeahead are the whole
+ * point of those lists, and a native select cannot do either. Labels also draw their own
+ * chips, which is a value a native option cannot render.
  *
  * That split is about *behaviour*, and for a while it was allowed to decide appearance too:
  * the selects were bordered, the pickers were borderless ghost buttons, and half the property
@@ -36,6 +37,7 @@ import {
   Avatar,
   Button,
   Input,
+  LabelChip,
   Modal,
   priorityLabel,
   PriorityIcon,
@@ -46,6 +48,8 @@ import {
   Textarea,
 } from '~/components';
 import { createDraft, deleteDraft, updateDraft } from '~/features/drafts/mutations';
+import { estimateLabel, estimateOptions, estimatesEnabled } from '~/features/estimate';
+import { LabelPicker } from '~/features/labels/LabelPicker';
 import { readIssueComposerDraft, writeIssueComposerDraft } from '~/features/drafts/local';
 import { getPrefs } from '~/features/prefs/prefs';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
@@ -82,8 +86,33 @@ import { today } from '~/features/time';
 import styles from './CreateIssueModal.module.css';
 
 export interface CreateIssueModalProps {
+  /**
+   * Whether the composer is up.
+   *
+   * The shell mounts this component unconditionally and tells it, rather than rendering it
+   * into existence, for the reason `Peek` is mounted the same way: a dialog cannot animate
+   * its own removal from a tree it has already left, so the `scrimOut`/`dialogOut` exit was
+   * dead for the one dialog the product opens most. Everything that would cost something
+   * while shut is gated on this — the modal context, the registered chords and the local
+   * draft's autosave — so a closed composer claims no keys and writes nothing.
+   *
+   * Defaults to true, which is the contract this component had before the prop existed:
+   * something that mounted it meant it.
+   */
+  open?: boolean | undefined;
   onClose: () => void;
   seed?: IssueComposerSeed | undefined;
+  /**
+   * Called with `true` when a create leaves for the server, and with `false` if it comes
+   * back refused.
+   *
+   * The shell drops a second `C` while a composer is up, because a composer that is up is
+   * holding a half-written issue. That stops being true the moment the issue is filed: the
+   * dialog is then a receipt waiting on a round trip, and somebody filing a run of issues
+   * presses `C` inside that window constantly. Without this the shell cannot tell the two
+   * apart and the shortcut looks like it works about half the time.
+   */
+  onFiling?: ((filing: boolean) => void) | undefined;
 }
 
 interface StateOption {
@@ -118,12 +147,24 @@ function isBlankSeed(seed: IssueComposerSeed | undefined): boolean {
   );
 }
 
-export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
+export function CreateIssueModal({ open = true, onClose, seed, onFiling }: CreateIssueModalProps) {
   const engine = useEngine();
   const viewerId = useViewerId();
   const formId = useId();
   const titleRef = useRef<HTMLInputElement>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const local = isBlankSeed(seed) ? readIssueComposerDraft() : null;
+  /**
+   * Whether this sitting owns the single local composer slot.
+   *
+   * There is one `polaris.draft.issue.<ws>` per workspace and it belongs to the blank
+   * composer, which is the only one that reads it back. A seeded sitting — `/new?title=…`,
+   * or a saved draft resumed from Drafts — used to write into it anyway and so destroyed the
+   * half-typed issue somebody had walked away from, without ever having offered to restore
+   * it. Captured once at mount because the seed cannot change under a sitting: the shell
+   * gives each one its own key.
+   */
+  const ownsLocalSlot = useRef(isBlankSeed(seed));
 
   const teams = useLiveQuery(
     (store) =>
@@ -136,6 +177,12 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
           timezone: team.timezone,
           cyclesEnabled: team.cyclesEnabled,
           triageEnabled: team.triageEnabled,
+          // The three settings `estimatesEnabled` and `estimateOptions` read. Carried on the
+          // team row rather than fetched beside it, because the estimate cell exists or does
+          // not exist according to the team the composer is currently pointed at.
+          estimateScale: team.estimateScale,
+          estimateAllowZero: team.estimateAllowZero,
+          estimateExtended: team.estimateExtended,
         }))
         .sort((a, b) => a.key.localeCompare(b.key)),
     ['team'],
@@ -179,8 +226,10 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
   const [cycleId, setCycleId] = useState<UUID | null | undefined>(
     () => seed?.cycleId ?? local?.cycleId ?? undefined,
   );
-  const [labelIds] = useState<readonly UUID[] | undefined>(() => seed?.labelIds);
-  const estimate = seed?.estimate ?? local?.estimate;
+  const [labelIds, setLabelIds] = useState<readonly UUID[]>(() => seed?.labelIds ?? []);
+  const [estimate, setEstimate] = useState<number | undefined>(
+    () => seed?.estimate ?? local?.estimate,
+  );
   const [template, setTemplate] = useState<TemplateDefaults | null>(null);
   const [formTemplate, setFormTemplate] = useState<FormTemplate | null>(null);
   const [formAnswers, setFormAnswers] = useState<FormAnswers>({});
@@ -200,31 +249,22 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
   const [leaving, setLeaving] = useState(false);
   const [draftError, setDraftError] = useState<string | null>(null);
   const [draftBusy, setDraftBusy] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [copyError, setCopyError] = useState<string | null>(null);
   /** How many issues this sitting of the dialog has filed. Only "Create more" moves it. */
   const [filed, setFiled] = useState(0);
   const submitted = useRef(false);
   /** A resumed saved draft is deleted by the first create, not by every one after it. */
   const draftCleared = useRef(false);
   /**
-   * `C` pressed while the create is still in flight: file this one and stay open.
-   *
-   * The dialog does not close on click, it closes when the server answers, and that is a
-   * real window — tens of milliseconds against a server on this machine, a few hundred
-   * against one over a network. Somebody filing a run of issues presses `C` inside it
-   * constantly, and until this ref existed the press was consumed by the shell's
-   * `issue.create`, which set a flag that was already set; the create then resolved and
-   * closed the dialog on top of it. The keystroke matched, ran, and left no trace, which is
-   * the worst version of a shortcut failing.
-   */
-  const stayOpen = useRef(false);
-  /**
    * Whether a create is in the air, as a ref rather than as `saving`.
    *
    * `saving` is state, and state is a frame late: the click handler runs `save` synchronously
-   * up to its `await`, so a `C` arriving in the same tick would find `saving` still false,
-   * this action disabled, and the chord back with the shell — which would answer it by
-   * opening a composer that is already open. The ref flips in the same statement as the
-   * state, so the window the chord is claimed for is the window the create is actually in.
+   * up to its `await`, so a second ⌘⏎ — or a click on "Create issue" in the same tick — would
+   * find `saving` still false, pass the guard, and file a second issue with a second id.
+   * Because `createIssue` is optimistic, both land in the list. The ref is written in the
+   * same statement as the state and read by the guard, so the window a create is refused in
+   * is the window the create is actually in.
    */
   const inFlight = useRef(false);
 
@@ -269,6 +309,7 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
   const formTemplateMenu = useMenuTrigger();
   const projectMenu = useMenuTrigger();
   const cycleMenu = useMenuTrigger();
+  const labelMenu = useMenuTrigger();
 
   const formFields = useLiveQuery(
     (store) => (formTemplate === null ? [] : fieldsForFormTemplate(store, formTemplate.id)),
@@ -297,6 +338,33 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
       resolvedCycleId === null ? null : (store.cycles.get(resolvedCycleId)?.name ?? null),
     ['cycle'],
     [resolvedCycleId ?? ''],
+  );
+
+  /**
+   * The chosen labels, resolved for the trigger's chips and for the copied URL.
+   *
+   * The ids are the form's own state — nothing is filed yet, so there is no issue to read
+   * them off — and this turns them back into the names and colours the chip draws. A label
+   * deleted from another tab drops out of the list rather than rendering as a blank chip.
+   */
+  const chosenLabels = useLiveQuery(
+    (store) =>
+      labelIds.flatMap((id) => {
+        const label = store.labels.get(id);
+        if (label === undefined || label.archivedAt !== undefined) return [];
+        return [{ id: label.id, name: label.name, color: label.color }];
+      }),
+    ['label'],
+    [labelIds.join(',')],
+  );
+
+  const milestoneName = useLiveQuery(
+    (store) =>
+      seed?.projectMilestoneId === undefined
+        ? null
+        : (store.projectMilestones.get(seed.projectMilestoneId)?.name ?? null),
+    ['projectMilestone'],
+    [seed?.projectMilestoneId ?? ''],
   );
 
   /**
@@ -417,6 +485,21 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
   const selectedState = states.find((state) => state.id === stateId);
   const selectedPerson = people.find((person) => person.id === assigneeId);
 
+  /**
+   * `Alt+C`: the composer with the template menu already up.
+   *
+   * Shown once and only once. Re-showing it whenever the flag is still on the seed would
+   * reopen the menu the filer had just dismissed, on the next render that touched the team.
+   */
+  const offeredTemplates = useRef(false);
+  useEffect(() => {
+    if (offeredTemplates.current || !open || seed?.openTemplatePicker !== true || teamId === '') {
+      return;
+    }
+    offeredTemplates.current = true;
+    templateMenu.show();
+  }, [open, seed?.openTemplatePicker, teamId, templateMenu]);
+
   const seededTemplate = useRef(false);
   useEffect(() => {
     if (seededTemplate.current || teamId === '' || seed?.templateId === undefined) return;
@@ -443,8 +526,15 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
     assignedOnce.current = true;
   }, [assigneeId, local, seed?.assigneeId, viewerId]);
 
-  useEffect(() => {
-    if (submitted.current) return;
+  /**
+   * Puts what is on screen into the local slot.
+   *
+   * A function rather than only an effect body because the create path has to be able to put
+   * it back: filing clears the slot before the round trip (see `save`), and a create that
+   * comes back refused leaves a dialog full of words with nothing behind them.
+   */
+  const saveLocalSlot = useCallback(() => {
+    if (!ownsLocalSlot.current) return;
     writeIssueComposerDraft({
       kind: 'issue',
       title,
@@ -474,7 +564,17 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
     title,
   ]);
 
+  useEffect(() => {
+    if (submitted.current || !open) return;
+    saveLocalSlot();
+  }, [open, saveLocalSlot]);
+
   const dirty = title.trim() !== '' || description.trim() !== '';
+
+  /** Clearing the slot is as much an act of ownership as writing it. See `ownsLocalSlot`. */
+  const clearLocalSlot = () => {
+    if (ownsLocalSlot.current) writeIssueComposerDraft(null);
+  };
 
   const leave = () => {
     submitted.current = true;
@@ -485,7 +585,7 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
   const requestClose = () => {
     if (leaving) return;
     if (!dirty) {
-      writeIssueComposerDraft(null);
+      clearLocalSlot();
       leave();
       return;
     }
@@ -494,7 +594,7 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
   };
 
   const discardAndLeave = async () => {
-    writeIssueComposerDraft(null);
+    clearLocalSlot();
     if (seed?.draftId !== undefined) {
       try {
         await deleteDraft(seed.draftId);
@@ -526,7 +626,7 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
     try {
       if (seed?.draftId !== undefined) await updateDraft(seed.draftId, payload);
       else await createDraft({ kind: 'issue', payload });
-      writeIssueComposerDraft(null);
+      clearLocalSlot();
       leave();
     } catch (failure) {
       setDraftBusy(false);
@@ -536,7 +636,16 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
     }
   };
 
-  const copyCreateUrl = () => {
+  /**
+   * Copies a link that reopens this composer as it stands.
+   *
+   * Everything the composer can set goes on it — labels and the milestone included, which it
+   * used to drop, so a URL copied from a labelled composer opened an unlabelled one. And the
+   * write is awaited and answered: `navigator.clipboard` is absent on a non-secure origin and
+   * the promise rejects when the page has lost focus, and both of those used to be a command
+   * that ran, did nothing, and said nothing.
+   */
+  const copyCreateUrl = async () => {
     const team = teams.find((item) => item.id === teamId);
     const state = states.find((item) => item.id === stateId);
     const person = people.find((item) => item.id === assigneeId);
@@ -549,10 +658,21 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
       assignee: person?.name,
       estimate,
       cycle: cycleName ?? undefined,
+      labels: chosenLabels.map((label) => label.name),
       project: projectName ?? undefined,
+      milestone: milestoneName ?? undefined,
       template: templateName ?? undefined,
     });
-    void navigator.clipboard?.writeText(`${window.location.origin}${url}`);
+    setCopied(null);
+    setCopyError(null);
+    try {
+      const clipboard = navigator.clipboard;
+      if (clipboard === undefined) throw new Error('no clipboard');
+      await clipboard.writeText(`${window.location.origin}${url}`);
+      setCopied('Link copied');
+    } catch {
+      setCopyError('The link could not be copied. This browser only allows it over HTTPS.');
+    }
   };
 
   /**
@@ -564,7 +684,7 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
    * deliberately narrow: title, description and any form answers, and nothing else.
    */
   const save = async ({ another = false }: { another?: boolean } = {}) => {
-    if (saving) return;
+    if (inFlight.current) return;
     const trimmed = title.trim();
     const resolvedTitle =
       formTemplate === null
@@ -580,10 +700,32 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
       return;
     }
 
-    setSaving(true);
     inFlight.current = true;
+    setSaving(true);
     setTitleError(null);
     setSaveError(null);
+    /*
+      The words have left the composer, so the local slot lets go of them now rather than
+      when the server answers.
+
+      Both halves matter. The shell is told the sitting is spent, so `C` pressed while this
+      create is in the air opens the next composer instead of being dropped — and that
+      composer reads the local slot as it mounts, which is why the slot has to be empty
+      before the round trip rather than after it. A refused create puts both back.
+    */
+    submitted.current = true;
+    clearLocalSlot();
+    onFiling?.(true);
+    /*
+      The template fills in what the filer left empty, and nothing else.
+
+      Both keys used to be spread twice — the seed's, then the template's — so the later one
+      won and `/new?estimate=XL&labels=bug` filed the template's points and labels instead,
+      silently, on any team with a default template. An explicit ask beats a default; a
+      default is only a default where nothing was asked.
+    */
+    const finalEstimate = estimate ?? template?.estimate;
+    const finalLabelIds = labelIds.length > 0 ? labelIds : template?.labelIds;
     try {
       await createIssue(engine, {
         teamId,
@@ -605,25 +747,21 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
           formTemplate === null
             ? priority
             : priorityFromFormAnswers(formFields, formAnswers, priority),
-        ...(estimate === undefined ? null : { estimate }),
-        ...(labelIds === undefined || labelIds.length === 0 ? null : { labelIds: [...labelIds] }),
+        ...(finalEstimate === undefined ? null : { estimate: finalEstimate }),
+        ...(finalLabelIds === undefined || finalLabelIds.length === 0
+          ? null
+          : { labelIds: [...finalLabelIds] }),
         ...(seed?.projectMilestoneId === undefined
           ? null
           : { projectMilestoneId: seed.projectMilestoneId }),
         ...(resolvedProjectId === null ? null : { projectId: resolvedProjectId }),
         ...(resolvedCycleId === null || !teamRunsCycles ? null : { cycleId: resolvedCycleId }),
         ...(fromTriage ? { fromTriage: true } : null),
-        // The template's own contributions, carried on the create rather than applied
-        // afterwards: three follow-up writes for one filed issue would be three versions on
-        // the stream and three frames in which the issue is not yet what the template says
-        // it is.
-        ...(template === null
-          ? null
-          : {
-              templateId: template.templateId,
-              ...(template.estimate === undefined ? null : { estimate: template.estimate }),
-              ...(template.labelIds.length === 0 ? null : { labelIds: template.labelIds }),
-            }),
+        // The template's own contribution, carried on the create rather than applied
+        // afterwards: a follow-up write for one filed issue would be a second version on the
+        // stream and a frame in which the issue is not yet what the template says it is. Its
+        // estimate and labels are folded into the two values above.
+        ...(template === null ? null : { templateId: template.templateId }),
         ...(formTemplate === null ? null : { formTemplateId: formTemplate.id }),
         ...(templateIntent === 'cleared' ? { skipDefaultTemplate: true } : null),
         ...(cadence === null
@@ -635,17 +773,21 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
             }),
         creatorId: viewerId ?? undefined,
       });
-      writeIssueComposerDraft(null);
+      clearLocalSlot();
       if (seed?.draftId !== undefined && !draftCleared.current) {
         draftCleared.current = true;
         void deleteDraft(seed.draftId);
       }
-      // `another` is the chord that said so up front; `stayOpen` is the `C` that said so
-      // while this create was in the air. They mean the same thing and take the same path.
-      if (another || stayOpen.current) {
-        stayOpen.current = false;
+      // "Create more": ⌘⇧⏎, or the button that names the same command. `C` is not an
+      // alternative to it — the keymap hands a bare letter to the title field the caret is
+      // sitting in, which is what a text field is for.
+      if (another) {
         inFlight.current = false;
         setSaving(false);
+        // The dialog stays, so it goes back to being a composer: it owns the local slot
+        // again and the shell may not replace it out from under a half-written second issue.
+        submitted.current = false;
+        onFiling?.(false);
         // Back to the template's own prompt rather than to blank, when there is one. A
         // template is one of the properties being kept, and keeping it while throwing away
         // the words it prefills would leave the second issue less templated than the first.
@@ -656,19 +798,17 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
         titleRef.current?.focus();
         return;
       }
-      submitted.current = true;
-      // Released before the close, so a `C` in the sliver between the two goes back to the
-      // shell rather than being claimed by a dialog that has stopped listening.
       inFlight.current = false;
       // Closed without waiting for anything else: the issue is already in the list, and the
       // outbox owns the rest of the story.
       onClose();
     } catch (failure) {
-      // The dialog stays open with the error either way, so a `C` pressed during a create
-      // that then failed has nothing left to ask for.
-      stayOpen.current = false;
       inFlight.current = false;
       setSaving(false);
+      // Refused: this is a composer again, holding the only copy of what was typed.
+      submitted.current = false;
+      saveLocalSlot();
+      onFiling?.(false);
       setSaveError(
         failure instanceof ApiError ? failure.message : 'The issue could not be created.',
       );
@@ -683,64 +823,55 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
   const submitAnotherRef = useRef<() => void>(() => {});
   submitAnotherRef.current = () => void save({ another: true });
   const copyRef = useRef<() => void>(() => {});
-  copyRef.current = copyCreateUrl;
+  copyRef.current = () => void copyCreateUrl();
 
   // Everything the dialog covers belongs to the dialog: `J` must not scroll the list behind
   // it, and `C` must not open a second one. Sealing the context is not what does the second
   // one — a chain always ends at `global`, which is what keeps ⌘K and Escape working in here
   // — so `C` does reach the shell's `issue.create`, which drops the request rather than
-  // throwing away a half-written issue. That is the right answer except while a create is in
-  // flight, which is what `issue.createDuringSave` below is for.
-  useKeyContext('modal');
+  // throwing away a half-written issue. That is the right answer: the composer is already
+  // open, and the way to file this one and start the next is ⌘⇧⏎.
+  //
+  // Both of these are gated on `open`, because the component now outlives the dialog. A shut
+  // composer that still pushed `modal` would seal the keyboard over the whole app, and one
+  // that still registered ⌘⏎ would collide with the next modal to claim it.
+  useKeyContext('modal', open);
 
   useActions(
-    [
-      {
-        id: 'issue.submitNew',
-        title: 'Save new issue',
-        keys: ['mod+Enter'],
-        when: 'modal',
-        group: 'Issues',
-        // Hidden from the command menu: it means nothing unless this dialog is open, and the
-        // dialog already offers the same command as a button.
-        hidden: true,
-        run: () => submitRef.current(),
-      },
-      {
-        id: 'issue.submitNewAndAnother',
-        title: 'Save new issue and start another',
-        keys: ['mod+shift+Enter'],
-        when: 'modal',
-        group: 'Issues',
-        // Hidden for the same reason as the one above: outside this dialog it is not a
-        // command, it is a sentence about one.
-        hidden: true,
-        run: () => submitAnotherRef.current(),
-      },
-      {
-        id: 'issue.createDuringSave',
-        title: 'Start another issue',
-        keys: ['c'],
-        when: 'modal',
-        group: 'Issues',
-        // Hidden, and live only while a create is in flight. Outside that window `C` is not
-        // this dialog's to claim: the shell's `issue.create` gets it and finds the dialog
-        // already open, which is the right answer to asking for something you have.
-        hidden: true,
-        enabled: () => inFlight.current,
-        run: () => {
-          stayOpen.current = true;
-        },
-      },
-      {
-        id: 'issue.copyComposerUrl',
-        title: 'Copy pre-filled create URL',
-        when: 'modal',
-        group: 'Issues',
-        run: () => copyRef.current(),
-      },
-    ],
-    [],
+    open
+      ? [
+          {
+            id: 'issue.submitNew',
+            title: 'Save new issue',
+            keys: ['mod+Enter'],
+            when: 'modal',
+            group: 'Issues',
+            // Hidden from the command menu: it means nothing unless this dialog is open, and the
+            // dialog already offers the same command as a button.
+            hidden: true,
+            run: () => submitRef.current(),
+          },
+          {
+            id: 'issue.submitNewAndAnother',
+            title: 'Save new issue and start another',
+            keys: ['mod+shift+Enter'],
+            when: 'modal',
+            group: 'Issues',
+            // Hidden for the same reason as the one above: outside this dialog it is not a
+            // command, it is a sentence about one.
+            hidden: true,
+            run: () => submitAnotherRef.current(),
+          },
+          {
+            id: 'issue.copyComposerUrl',
+            title: 'Copy pre-filled create URL',
+            when: 'modal',
+            group: 'Issues',
+            run: () => copyRef.current(),
+          },
+        ]
+      : [],
+    [open],
   );
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -751,10 +882,14 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
   return (
     <>
       <Modal
-        open
+        open={open}
         onClose={requestClose}
         title="New issue"
         size="lg"
+        // `V`: the same composer, given the window. A class rather than a fourth `ModalSize`,
+        // because "as big as the screen" is this one dialog's answer to a long description
+        // and not a width other dialogs should be able to ask for.
+        className={seed?.fullScreen === true ? styles.fullScreen : undefined}
         initialFocus={titleRef}
         footer={
           /*
@@ -792,9 +927,20 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
               setTitle(event.target.value);
               if (titleError !== null) setTitleError(null);
             }}
+            onKeyDown={
+              /* keymap-lint-allow: intercepts Enter before the form's implicit submission,
+                 which would otherwise file a half-written issue from the title field */
+              (event) => {
+                if (event.key !== 'Enter') return;
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                descriptionRef.current?.focus();
+              }
+            }
           />
 
           <Textarea
+            ref={descriptionRef}
             label="Description"
             hideLabel
             surface="plain"
@@ -816,11 +962,11 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
 
           {/*
             The properties, in a grid of equal columns rather than a wrapping row of 14ch
-            chips, and every one of them labelled. Both are the same decision: eight siblings
-            that name themselves and cannot be sized under their own content. The labels are
-            written here rather than left to `Field` because four of these controls are menu
-            triggers, which have no `Field` around them — one row must not wear two label
-            treatments. See the stylesheet.
+            chips, and every one of them labelled. Both are the same decision: a row of
+            siblings that name themselves and cannot be sized under their own content. The
+            labels are written here rather than left to `Field` because several of these
+            controls are menu triggers, which have no `Field` around them — one row must not
+            wear two label treatments. See the stylesheet.
           */}
           <div className={styles.properties}>
             <div className={styles.property}>
@@ -928,10 +1074,10 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
             </div>
 
             {/*
-              The four menu triggers. A `<span>` and `aria-describedby` rather than a
-              `<label>`, because a button's accessible name is its own text — the value —
-              and a label pointing at one is not an association the platform makes. This is
-              the arrangement the detail rail uses for the same four properties.
+              The menu triggers. A `<span>` and `aria-describedby` rather than a `<label>`,
+              because a button's accessible name is its own text — the value — and a label
+              pointing at one is not an association the platform makes. This is the
+              arrangement the detail rail uses for the same properties.
             */}
             <div className={styles.property}>
               <span className={styles.propertyLabel} id={`${formId}-project`}>
@@ -960,6 +1106,52 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
                 >
                   {cycleName ?? 'No cycle'}
                 </Button>
+              </div>
+            ) : null}
+
+            <div className={styles.property}>
+              <span className={styles.propertyLabel} id={`${formId}-labels`}>
+                Labels
+              </span>
+              <Button
+                {...labelMenu.props}
+                fullWidth
+                className={styles.propertyTrigger}
+                aria-describedby={`${formId}-labels`}
+                disabled={teamId === ''}
+              >
+                {chosenLabels.length === 0
+                  ? 'No labels'
+                  : chosenLabels.map((label) => (
+                      <LabelChip key={label.id} compact name={label.name} color={label.color} />
+                    ))}
+              </Button>
+            </div>
+
+            {/*
+              Only where the team estimates. `none` is not "unset", it is a team saying it
+              does not size work, and an empty points field on such a team is a control that
+              can only produce a value nothing will ever read.
+            */}
+            {team !== undefined && estimatesEnabled(team) ? (
+              <div className={styles.property}>
+                <label className={styles.propertyLabel} htmlFor={`${formId}-estimate`}>
+                  Estimate
+                </label>
+                <Select
+                  id={`${formId}-estimate`}
+                  value={estimate === undefined ? '' : String(estimate)}
+                  onChange={(event) =>
+                    setEstimate(event.target.value === '' ? undefined : Number(event.target.value))
+                  }
+                >
+                  <option value="">No estimate</option>
+                  {estimateOptions(team).map((value) => (
+                    <option key={value} value={value}>
+                      {estimateLabel(value, team.estimateScale)}
+                    </option>
+                  ))}
+                </Select>
               </div>
             ) : null}
 
@@ -1070,6 +1262,26 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
               {`This template does not set ${listOf(template.dropped)} for this team.`}
             </p>
           )}
+          {/*
+          The same courtesy for a link that named something this workspace does not have.
+          A resolver that misses leaves an empty picker, which looks exactly like a picker
+          nobody filled in — so the fields the URL asked for and did not get are named.
+        */}
+          {seed?.unresolved === undefined || seed.unresolved.length === 0 ? null : (
+            <p className={styles.dropped} role="status">
+              {`This link asked for ${listOf(seed.unresolved)}, which is not in this workspace.`}
+            </p>
+          )}
+          {copied === null ? null : (
+            <p className={styles.dropped} role="status">
+              {copied}
+            </p>
+          )}
+          {copyError === null ? null : (
+            <p className={styles.error} role="alert">
+              {copyError}
+            </p>
+          )}
         </form>
 
         <ProjectPicker
@@ -1095,6 +1307,20 @@ export function CreateIssueModal({ onClose, seed }: CreateIssueModalProps) {
           teamId={teamId}
           value={template?.templateId ?? null}
           onSelect={pickTemplate}
+        />
+        <LabelPicker
+          open={labelMenu.open}
+          onClose={labelMenu.hide}
+          trigger={labelMenu.ref}
+          teamId={teamId === '' ? null : teamId}
+          value={labelIds}
+          onApply={(labelId, displaced) =>
+            setLabelIds((current) => [
+              ...current.filter((id) => id !== labelId && !displaced.includes(id)),
+              labelId,
+            ])
+          }
+          onRemove={(labelId) => setLabelIds((current) => current.filter((id) => id !== labelId))}
         />
         <FormTemplatePicker
           open={formTemplateMenu.open}

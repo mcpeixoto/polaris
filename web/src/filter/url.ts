@@ -29,6 +29,7 @@
 
 import {
   DEFAULT_DISPLAY,
+  DISPLAY_PROPERTIES,
   EMPTY_FILTER,
   isFilterClause,
   isFilterField,
@@ -52,11 +53,13 @@ export const FILTER_PARAM = 'filter';
 export const DISPLAY_PARAMS = {
   layout: 'layout',
   groupBy: 'group',
+  subGroupBy: 'sub',
   orderBy: 'order',
   direction: 'dir',
   showSubIssues: 'subissues',
   showCompleted: 'completed',
   showSnoozed: 'snoozed',
+  showEmptyGroups: 'empty',
   properties: 'show',
 } as const;
 
@@ -120,6 +123,7 @@ export function toDisplayParams(display: DisplayOptions): Record<string, string>
 
   put('layout', display.layout ?? DEFAULT_DISPLAY.layout, DEFAULT_DISPLAY.layout);
   put('groupBy', display.groupBy ?? DEFAULT_DISPLAY.groupBy, DEFAULT_DISPLAY.groupBy);
+  put('subGroupBy', display.subGroupBy ?? DEFAULT_DISPLAY.subGroupBy, DEFAULT_DISPLAY.subGroupBy);
   put('orderBy', display.orderBy ?? DEFAULT_DISPLAY.orderBy, DEFAULT_DISPLAY.orderBy);
   put('direction', display.direction ?? DEFAULT_DISPLAY.direction, DEFAULT_DISPLAY.direction);
   put(
@@ -136,6 +140,11 @@ export function toDisplayParams(display: DisplayOptions): Record<string, string>
     'showSnoozed',
     String(display.showSnoozed ?? DEFAULT_DISPLAY.showSnoozed),
     String(DEFAULT_DISPLAY.showSnoozed),
+  );
+  put(
+    'showEmptyGroups',
+    String(display.showEmptyGroups ?? DEFAULT_DISPLAY.showEmptyGroups),
+    String(DEFAULT_DISPLAY.showEmptyGroups),
   );
   if (display.properties !== undefined) {
     const value = display.properties.join(',');
@@ -186,7 +195,13 @@ export function filterSearchString(params: URLSearchParams): string {
     parts.push(
       key === FILTER_PARAM
         ? `${key}=${value.replace(/[%&#+ ]/g, (char) => QUERY_ESCAPES[char] ?? char)}`
-        : `${encodeURIComponent(key)}=${encodeURIComponent(value)}`,
+        : // Every other parameter keeps the serialisation the platform gives it —
+          // `application/x-www-form-urlencoded`, so a space is `+`. Reaching for
+          // `encodeURIComponent` here instead would be a quiet second dialect: `?q=` written
+          // by this function would say `%20` where the same search written by
+          // `URLSearchParams`, by the server, or by a link somebody already saved says `+`.
+          // Only the filter parameter has a reason to leave the standard.
+          new URLSearchParams([[key, value]]).toString(),
     );
   }
   return parts.length === 0 ? '' : `?${parts.join('&')}`;
@@ -233,11 +248,13 @@ export function parseDisplayParams(params: URLSearchParams): DisplayOptions {
   const out: {
     layout?: ViewLayout;
     groupBy?: DisplayGroupBy;
+    subGroupBy?: DisplayGroupBy;
     orderBy?: DisplayOrderBy;
     direction?: DisplayDirection;
     showSubIssues?: boolean;
     showCompleted?: boolean;
     showSnoozed?: boolean;
+    showEmptyGroups?: boolean;
     properties?: DisplayProperty[];
   } = {};
 
@@ -246,6 +263,9 @@ export function parseDisplayParams(params: URLSearchParams): DisplayOptions {
 
   const groupBy = params.get(DISPLAY_PARAMS.groupBy);
   if (groupBy !== null && isGroupBy(groupBy)) out.groupBy = groupBy;
+
+  const subGroupBy = params.get(DISPLAY_PARAMS.subGroupBy);
+  if (subGroupBy !== null && isGroupBy(subGroupBy)) out.subGroupBy = subGroupBy;
 
   const orderBy = params.get(DISPLAY_PARAMS.orderBy);
   if (orderBy !== null && isOrderBy(orderBy)) out.orderBy = orderBy;
@@ -261,6 +281,9 @@ export function parseDisplayParams(params: URLSearchParams): DisplayOptions {
 
   const snoozed = params.get(DISPLAY_PARAMS.showSnoozed);
   if (snoozed === 'true' || snoozed === 'false') out.showSnoozed = snoozed === 'true';
+
+  const empty = params.get(DISPLAY_PARAMS.showEmptyGroups);
+  if (empty === 'true' || empty === 'false') out.showEmptyGroups = empty === 'true';
 
   const properties = params.get(DISPLAY_PARAMS.properties);
   if (properties === '') {
@@ -303,18 +326,14 @@ const ORDER_BY: ReadonlySet<string> = new Set<string>([
   'customerCount',
 ]);
 
-const PROPERTIES: ReadonlySet<string> = new Set<string>([
-  'priority',
-  'assignee',
-  'labels',
-  'estimate',
-  'dueDate',
-  'state',
-  'team',
-  'createdAt',
-  'updatedAt',
-  'progress',
-]);
+/**
+ * Built from the union's own list rather than typed out again.
+ *
+ * It was typed out again, and it had drifted: five names here that `DisplayProperty` did
+ * not have, so `isDisplayProperty` — a type predicate — was telling the compiler a link
+ * could not carry what a link could carry. Deriving it is what makes the predicate true.
+ */
+const PROPERTIES: ReadonlySet<string> = new Set<string>(DISPLAY_PROPERTIES);
 
 function isGroupBy(value: string): value is DisplayGroupBy {
   return GROUP_BY.has(value);

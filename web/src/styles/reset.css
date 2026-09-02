@@ -37,6 +37,13 @@ html {
    */
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
+
+  /* The gutter is reserved whether or not anything is scrolling, so that taking the page's
+   * scrollbar away does not move the page. Modal locks body scroll on open, and on any
+   * platform with classic overlay-free scrollbars that used to snap everything behind the
+   * scrim about fifteen pixels sideways and back again on close. One declaration, and it
+   * covers every overlay written after it as well. */
+  scrollbar-gutter: stable;
 }
 
 html,

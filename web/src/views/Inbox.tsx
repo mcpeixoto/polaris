@@ -35,7 +35,9 @@ import {
   type MenuNode,
 } from '~/components';
 import { browserTimezone } from '~/features/locale';
-import { when } from '~/features/time';
+import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
+import { updateIssues, type IssueFields } from '~/features/issue/mutations';
+import { exact, when } from '~/features/time';
 import {
   coalescedTail,
   dayKeyOf,
@@ -58,6 +60,7 @@ import {
   report,
   snoozeNotification,
 } from '~/features/inbox/mutations';
+import { useViewerId } from '~/hooks/useViewer';
 import type { Store, UUID } from '~/store';
 import styles from './Inbox.module.css';
 
@@ -73,6 +76,23 @@ interface Row {
   readonly href: string | undefined;
   readonly avatarName: string;
   readonly haystack: string;
+  /**
+   * The issue the row is about, when there is one.
+   *
+   * Carried on the row rather than looked up when the contextual menu opens, because the
+   * menu offers property updates and every one of them needs the current value to draw its
+   * tick — and a lookup at open time would be a second read of a store this screen has
+   * already walked.
+   */
+  readonly issue: RowIssue | null;
+}
+
+interface RowIssue {
+  readonly id: UUID;
+  readonly teamId: UUID;
+  readonly stateId: UUID;
+  readonly assigneeId: UUID | null;
+  readonly priority: number;
 }
 
 interface InboxAnswer {
@@ -98,11 +118,25 @@ export function Inbox() {
   const timezone = browserTimezone();
 
   const [cursor, setCursor] = useState(0);
-  const snoozeTrigger = useRef<HTMLButtonElement>(null);
   const findRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  /**
+   * What a menu opened from this screen hangs off: the row it is about.
+   *
+   * It used to be a hidden button parked at the bottom of the screen. `Menu` positions
+   * itself against its trigger and hands focus back to it on close, and neither works on an
+   * element with `hidden` — the menu opened at the top-left corner of the window, and
+   * closing it dropped focus to `<body>`, which took the keyboard out of the inbox
+   * altogether the moment somebody snoozed a row. A real element from the list is both the
+   * right place to draw a menu and a place focus can go.
+   */
+  const anchor = useRef<HTMLElement | null>(null);
   const [snoozeFor, setSnoozeFor] = useState<UUID | null>(null);
+  const [contextFor, setContextFor] = useState<Row | null>(null);
+  const [picker, setPicker] = useState<'status' | 'assignee' | 'priority' | null>(null);
   const [display, setDisplay] = useState<InboxDisplay>(DEFAULT_INBOX_DISPLAY);
   const [query, setQuery] = useState('');
+  const viewerId = useViewerId();
 
   // The backfill. Everything after this arrives as a delta, so this runs once and is not a
   // refresh the user can trigger — a button that refetches a stream that is already live
@@ -186,6 +220,16 @@ export function Inbox() {
             snoozedUntil: notification.snoozedUntil,
             issueIdentifier: identifier,
             href: notificationHref(notification.type, notification.payload, notification.issueId),
+            issue:
+              issue === undefined
+                ? null
+                : {
+                    id: issue.id,
+                    teamId: issue.teamId,
+                    stateId: issue.stateId,
+                    assigneeId: issue.assigneeId ?? null,
+                    priority: issue.priority,
+                  },
             haystack: [
               actorName,
               event,
@@ -239,6 +283,64 @@ export function Inbox() {
     },
     [engine, navigate],
   );
+
+  /*
+   * The cursor is followed by the scroller as well as by the list's ARIA.
+   *
+   * This screen manages its cursor with `aria-activedescendant` rather than by moving focus,
+   * which is the right model for a listbox and takes the browser's own scroll-on-focus away
+   * with it. Without this, `J` down a full inbox moved an invisible cursor and Enter opened a
+   * notification the reader had never seen. The same three lines as Search and Menu, for the
+   * same reason.
+   */
+  useEffect(() => {
+    if (current === undefined) return;
+    const node = rowNode(current.id);
+    // Guarded because this is decoration, not behaviour: jsdom lays nothing out and does not
+    // implement scrollIntoView, and a cursor that cannot scroll is still a cursor.
+    if (node !== null && typeof node.scrollIntoView === 'function') {
+      node.scrollIntoView({ block: 'nearest' });
+    }
+  }, [current]);
+
+  /** Opens a menu about `row`, hung off the row itself. */
+  const openOn = useCallback((row: Row | undefined, show: (row: Row) => void) => {
+    if (row === undefined) return;
+    anchor.current = rowNode(row.id);
+    show(row);
+  }, []);
+
+  /**
+   * Where focus goes when a menu closes.
+   *
+   * Not back to the trigger, which is the row the menu was about and which a snooze has just
+   * taken off the screen. The list owns the cursor, so the list is where the keyboard belongs
+   * — and it can hold focus because it carries `aria-activedescendant`, which is the whole
+   * point of that attribute.
+   */
+  const returnToList = useCallback(() => listRef.current?.focus(), []);
+
+  /**
+   * Whether the contextual menu is closing because it is handing over to a picker.
+   *
+   * `Menu` closes itself after an item is chosen, and three of its items exist only to open
+   * another menu about the same row. Without this the handover would clear the row the
+   * picker was about in the same tick it was chosen, and the picker would open on nothing.
+   */
+  const handingOver = useRef(false);
+
+  const closePicker = useCallback(() => {
+    setPicker(null);
+    setContextFor(null);
+    returnToList();
+  }, [returnToList]);
+
+  const updateIssue = (fields: IssueFields) => {
+    const issueId = contextFor?.issue?.id;
+    setPicker(null);
+    setContextFor(null);
+    if (issueId !== undefined) updateIssues(engine, [issueId], fields, viewerId).catch(report);
+  };
 
   // The inbox is a list screen, and its shortcuts belong to the list context rather than to
   // the whole application.
@@ -294,9 +396,7 @@ export function Inbox() {
         keys: ['h'],
         when: 'list',
         group: 'Inbox',
-        run: () => {
-          if (current !== undefined) setSnoozeFor(current.id);
-        },
+        run: () => openOn(current, (row) => setSnoozeFor(row.id)),
       },
       {
         id: 'inbox.dismiss',
@@ -346,7 +446,7 @@ export function Inbox() {
         },
       },
     ],
-    [rows.length, current, engine, open, query],
+    [rows.length, current, engine, open, openOn, query],
   );
 
   const days = groupByDay(rows, timezone);
@@ -462,11 +562,16 @@ export function Inbox() {
         </div>
       ) : (
         <ul
+          ref={listRef}
           className={styles.list}
           // A listbox rather than a plain list: the cursor is managed here rather than by
           // the browser's focus, so the active row has to be announced as such.
           role="listbox"
           aria-label="Notifications"
+          // Focusable so a menu opened from a row has somewhere to hand the keyboard back to
+          // when that row has been snoozed out from under it. Not in the tab order: the rows
+          // are buttons and are already reachable.
+          tabIndex={-1}
           aria-activedescendant={current === undefined ? undefined : `notification-${current.id}`}
         >
           {days.map(([day, dayRows]) => (
@@ -491,6 +596,15 @@ export function Inbox() {
                         setCursor(rows.indexOf(row));
                         open(row);
                       }}
+                      // The contextual menu the spec asks for, on the row the pointer is
+                      // over rather than on the cursor's row: right-clicking a notification
+                      // is a statement about that one, so the cursor moves to it first and
+                      // the menu then acts on the cursor like every other command here.
+                      onContextMenu={(event) => {
+                        event.preventDefault();
+                        setCursor(rows.indexOf(row));
+                        openOn(row, setContextFor);
+                      }}
                     >
                       <span className={styles.dot} aria-hidden="true" />
                       {/* The dot is a picture, so it says nothing to a screen reader, and
@@ -504,9 +618,13 @@ export function Inbox() {
                         <span className={styles.event}>{row.event}</span>
                         {row.tail === null ? null : <span className={styles.tail}>{row.tail}</span>}
                       </span>
-                      <span className={styles.when} title={row.createdAt}>
+                      <time
+                        className={styles.when}
+                        dateTime={row.createdAt}
+                        title={exact(row.createdAt)}
+                      >
                         {when(row.createdAt)}
-                      </span>
+                      </time>
                       {row.snoozedUntil === undefined ? null : (
                         <span className={styles.snoozed}>Snoozed</span>
                       )}
@@ -519,19 +637,125 @@ export function Inbox() {
         </ul>
       )}
 
-      <button type="button" ref={snoozeTrigger} hidden aria-hidden="true" tabIndex={-1} />
       <Menu
         open={snoozeFor !== null}
-        onClose={() => setSnoozeFor(null)}
-        trigger={snoozeTrigger}
+        onClose={() => {
+          setSnoozeFor(null);
+          returnToList();
+        }}
+        trigger={anchor}
         label="Snooze until"
         items={snoozeOptions((until) => {
           if (snoozeFor !== null) snoozeNotification(engine, snoozeFor, until).catch(report);
           setSnoozeFor(null);
         })}
       />
+      <Menu
+        open={contextFor !== null && picker === null}
+        onClose={() => {
+          if (handingOver.current) {
+            handingOver.current = false;
+            return;
+          }
+          setContextFor(null);
+          returnToList();
+        }}
+        trigger={anchor}
+        label="Notification"
+        items={contextItems(contextFor, {
+          open: () => open(contextFor ?? undefined),
+          toggleRead: () => {
+            if (contextFor !== null) {
+              markNotificationRead(engine, contextFor.id, contextFor.unread).catch(report);
+            }
+          },
+          snooze: () => {
+            if (contextFor !== null) setSnoozeFor(contextFor.id);
+          },
+          dismiss: () => {
+            if (contextFor !== null) dismissNotification(engine, contextFor.id).catch(report);
+          },
+          pick: (kind) => {
+            handingOver.current = true;
+            setPicker(kind);
+          },
+        })}
+      />
+      {/* The issue behind the notification, edited from the inbox — the half of the
+          contextual menu the spec names explicitly. The pickers hang off the same row the
+          menu did, and closing one puts the keyboard back in the list rather than on a row
+          that may have been read, snoozed or dismissed in the meantime. */}
+      <StatusPicker
+        open={picker === 'status' && contextFor?.issue != null}
+        onClose={closePicker}
+        trigger={anchor}
+        teamId={contextFor?.issue?.teamId ?? ''}
+        value={contextFor?.issue?.stateId}
+        onSelect={(stateId) => updateIssue({ stateId })}
+      />
+      <AssigneePicker
+        open={picker === 'assignee' && contextFor?.issue != null}
+        onClose={closePicker}
+        trigger={anchor}
+        value={contextFor?.issue?.assigneeId}
+        onSelect={(assigneeId) => updateIssue({ assigneeId })}
+      />
+      <PriorityPicker
+        open={picker === 'priority' && contextFor?.issue != null}
+        onClose={closePicker}
+        trigger={anchor}
+        value={contextFor?.issue?.priority}
+        onSelect={(priority) => updateIssue({ priority })}
+      />
     </div>
   );
+}
+
+/** The row's element. Stable per row, because `aria-activedescendant` has to name one. */
+function rowNode(id: UUID): HTMLElement | null {
+  return document.getElementById(`notification-${id}`);
+}
+
+/**
+ * The contextual menu for one notification.
+ *
+ * Every entry is a command that already exists on this screen, with the key it is bound to
+ * beside it — a right-click is a way of discovering the keyboard rather than a second,
+ * pointer-only set of behaviours. The issue properties are the half the spec names
+ * explicitly ("including issue property updates") and are offered only for a notification
+ * that is about an issue: a Pulse digest or a project update has no status to change.
+ */
+function contextItems(
+  row: Row | null,
+  commands: {
+    open: () => void;
+    toggleRead: () => void;
+    snooze: () => void;
+    dismiss: () => void;
+    pick: (kind: 'status' | 'assignee' | 'priority') => void;
+  },
+): MenuNode[] {
+  if (row === null) return [];
+  const items: MenuNode[] = [
+    { id: 'open', label: 'Open notification', keys: 'Enter', onSelect: commands.open },
+    {
+      id: 'read',
+      label: row.unread ? 'Mark read' : 'Mark unread',
+      keys: 'u',
+      onSelect: commands.toggleRead,
+    },
+    { id: 'snooze', label: 'Snooze', keys: 'h', onSelect: commands.snooze },
+    { id: 'dismiss', label: 'Dismiss', keys: 'Backspace', onSelect: commands.dismiss },
+  ];
+  if (row.issue === null) return items;
+  return [
+    ...items,
+    { kind: 'separator' },
+    { kind: 'heading', label: row.issueIdentifier ?? 'Issue' },
+    { id: 'status', label: 'Change status', onSelect: () => commands.pick('status') },
+    { id: 'assignee', label: 'Assign to', onSelect: () => commands.pick('assignee') },
+    { id: 'priority', label: 'Set priority', onSelect: () => commands.pick('priority') },
+  ];
 }
 
 /**

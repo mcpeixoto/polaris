@@ -16,11 +16,19 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { Button, Spinner } from '~/components';
 import { formatEur, PRO_MONTHLY_CENTS, annualMonthlyCents } from '~/features/pricing/plans';
+import { exact } from '~/features/time';
 import { useViewer } from '~/hooks/useViewer';
 import { openExternalUrl } from '~/platform/runtime';
 import { ApiError, billing, type BillingState } from '~/sync/api';
 
 import styles from './BillingSettings.module.css';
+
+/** The plan's name as a name, not as the enum the wire carries. */
+const PLAN_LABELS: Readonly<Record<string, string>> = {
+  free: 'Free',
+  pro: 'Pro',
+  enterprise: 'Enterprise',
+};
 
 /** How a subscription status reads to somebody who is not an accountant. */
 const STATUS_LABELS: Readonly<Record<string, string>> = {
@@ -76,6 +84,11 @@ export function BillingSettings() {
       openExternalUrl(await open());
     } catch (cause: unknown) {
       setError(cause instanceof ApiError ? cause.message : 'Stripe could not be reached.');
+    } finally {
+      // `finally`, not the catch alone. `openExternalUrl` hands off to a new tab or to the
+      // desktop shell and resolves nothing, so clearing `busy` only on failure left every
+      // button on this page permanently dead the moment one of them worked — and a reload
+      // was the only cure.
       setBusy(false);
     }
   }, []);
@@ -123,7 +136,7 @@ export function BillingSettings() {
           <dl className={styles.facts}>
             <div>
               <dt>Plan</dt>
-              <dd className={styles.plan}>{plan}</dd>
+              <dd className={styles.plan}>{PLAN_LABELS[plan] ?? plan}</dd>
             </div>
             <div>
               <dt>People</dt>
@@ -141,7 +154,7 @@ export function BillingSettings() {
             {state?.currentPeriodEnd == null ? null : (
               <div>
                 <dt>{state.status === 'canceled' ? 'Access until' : 'Renews'}</dt>
-                <dd>{new Date(state.currentPeriodEnd).toLocaleDateString()}</dd>
+                <dd>{exact(state.currentPeriodEnd)}</dd>
               </div>
             )}
           </dl>
@@ -166,18 +179,18 @@ export function BillingSettings() {
               <>
                 <Button
                   variant="primary"
-                  disabled={busy}
+                  loading={busy}
                   onClick={() => void go(() => billing.checkout('monthly'))}
                 >
                   Upgrade to Pro
                 </Button>
-                <Button disabled={busy} onClick={() => void go(() => billing.checkout('yearly'))}>
+                <Button loading={busy} onClick={() => void go(() => billing.checkout('yearly'))}>
                   Pay yearly
                 </Button>
               </>
             )}
             {state?.canManage !== true ? null : (
-              <Button disabled={busy} onClick={() => void go(() => billing.portal())}>
+              <Button loading={busy} onClick={() => void go(() => billing.portal())}>
                 Manage billing
               </Button>
             )}
