@@ -33,10 +33,11 @@ it looks.
 **Semantic tokens only.** A component stylesheet may reference `--text-secondary` and may
 not reference `--color-neutral-700`, and may never contain a literal colour. The primitive
 ramps exist for the token file to build semantics out of. A component that reaches past the
-semantic layer has hard-coded an assumption a custom theme cannot reach. The three standing
-exceptions are documented in place — `Button`'s destructive red, `Field`'s error red and
-`Avatar`'s identity ramp — and each carries its reasoning; do not add a fourth without
-writing one.
+semantic layer has hard-coded an assumption a custom theme cannot reach. The two standing
+exceptions are documented in place — `Button`'s destructive red and `Avatar`'s identity
+ramp — and each carries its reasoning; do not add a third without writing one. `Field`'s
+error red used to be the third, until `--text-danger` gave the role a token; error text
+everywhere takes that token, never the priority ramp.
 
 **Never style outside your own subtree.** No `:global()` selector in a feature stylesheet
 that matches a bare element (`input`, `button`, `a`, `select`). If a specific element needs
