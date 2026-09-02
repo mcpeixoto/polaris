@@ -12,11 +12,10 @@ import XCTest
 /// write failure, long text, seeded comments — so that states the stock fixture cannot produce
 /// are reachable without a server.
 ///
-/// NOT YET OBSERVED GREEN. This suite compiles and installs, but no run has reached a first
-/// frame on this host: every app launch hangs inside dyld before any app code runs, so
-/// XCUITest times out waiting for the app to idle and then fails with
-/// `kAXErrorServerNotFound`. The repo's own SmokeTests fail identically, so the cause is the
-/// machine, not this file. Re-run once launches work.
+/// Prefer an accessibility identifier over a label wherever the app ships one. The property
+/// rows are `Menu`s whose label is the row read out whole — "Status, In Progress" — so a
+/// lookup by the word "Status" finds nothing, and one by the current value stops working the
+/// moment the test changes it.
 final class DetailAndSettingsTests: XCTestCase {
     private let hugeType = [
         "-UIPreferredContentSizeCategoryName",
@@ -82,8 +81,14 @@ final class DetailAndSettingsTests: XCTestCase {
         let app = launch()
         openFirstIssue(app)
 
-        let title = app.staticTexts["Sync drops a comment on reconnect"]
+        // The title is an editable `TextField` now, not a label, so it carries its text as a
+        // value under the identifier rather than as the name of a static text.
+        let title = app.textFields["issue.title"]
         XCTAssertTrue(title.waitForExistence(timeout: 20), "detail should open seeded")
+        XCTAssertEqual(
+            title.value as? String, "Sync drops a comment on reconnect",
+            "the detail screen should open on the row that was tapped"
+        )
         snap("01-detail-open")
         dump(app, "DETAIL-OPEN")
 

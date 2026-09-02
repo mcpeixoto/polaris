@@ -26,6 +26,7 @@ import {
   issueIdentifier,
   type Change,
   type Comment,
+  type Reaction,
   type Attachment,
   type Document,
   type Cycle,
@@ -309,6 +310,7 @@ export class Store {
   readonly notificationIndex = new NotificationIndex();
 
   private readonly commentIssue = new SetIndex<UUID>();
+  private readonly reactionComment = new SetIndex<UUID>();
   private readonly attachmentIssue = new SetIndex<UUID>();
   private readonly documentTeam = new SetIndex<UUID>();
   private readonly documentProject = new SetIndex<UUID>();
@@ -708,6 +710,17 @@ export class Store {
 
   commentIdsFor(issueId: UUID): ReadonlySet<UUID> {
     return this.commentIssue.get(issueId);
+  }
+
+  /**
+   * The reactions on one comment.
+   *
+   * Indexed rather than scanned because a thread renders this once per comment: a workspace's
+   * reactions outnumber its comments, and a filter over the whole table per row is the shape
+   * this file exists to keep off the render path.
+   */
+  reactionIdsFor(commentId: UUID): ReadonlySet<UUID> {
+    return this.reactionComment.get(commentId);
   }
 
   /**
@@ -1206,6 +1219,7 @@ export class Store {
     this.relationIndex.clear();
     this.notificationIndex.clear();
     this.commentIssue.clear();
+    this.reactionComment.clear();
     this.attachmentIssue.clear();
     this.documentTeam.clear();
     this.documentProject.clear();
@@ -1515,6 +1529,14 @@ export class Store {
           this.commentIssue.remove(before.issueId, before.id);
         }
         this.commentIssue.add(comment.issueId, comment.id);
+        break;
+      }
+      case 'reaction': {
+        // A reaction is never edited, so the `previous` branch the other cases carry has no
+        // case here — except the one that put it there: a stand-in retired against the
+        // server's row is a delete and an insert, and both go through the index by id.
+        const reaction = next as Reaction;
+        this.reactionComment.add(reaction.commentId, reaction.id);
         break;
       }
       case 'attachment': {
@@ -1847,6 +1869,11 @@ export class Store {
       case 'comment': {
         const comment = entity as Comment;
         this.commentIssue.remove(comment.issueId, comment.id);
+        break;
+      }
+      case 'reaction': {
+        const reaction = entity as Reaction;
+        this.reactionComment.remove(reaction.commentId, reaction.id);
         break;
       }
       case 'attachment': {

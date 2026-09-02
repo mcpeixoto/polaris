@@ -32,8 +32,28 @@ import { prefetchViewerId } from '~/hooks/useViewer';
 import { pageNeedsNoSession, shouldAttemptDevSession } from '~/sync/endpoint';
 import { SyncEngine, type EngineStatus } from '~/sync/engine';
 import { isOutdatedClientMessage } from '~/sync/outdated-client';
+import { dropDatabase, dropStaleDatabases, isReplicaFailureMessage } from '~/store';
 import { EngineProvider } from './context';
 import styles from './Boot.module.css';
+
+/**
+ * Throws away this workspace's replica, every schema version of it.
+ *
+ * Both calls, because the database that cannot be opened is not necessarily the one this
+ * build names: a browser holding a replica from an older schema is exactly the case that
+ * produced the failure this recovers from. Best-effort — a delete that fails must still
+ * let the retry happen, since the bootstrap may well succeed anyway.
+ */
+async function rebuildReplica(): Promise<void> {
+  const workspaceId = currentWorkspace();
+  if (workspaceId === null || workspaceId === undefined) return;
+  try {
+    await dropDatabase(workspaceId);
+    await dropStaleDatabases(workspaceId);
+  } catch {
+    // Nothing to say to the user here: the retry below is the message.
+  }
+}
 
 type Phase =
   /**
@@ -289,6 +309,11 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
 
     case 'failed': {
       const outdated = isOutdatedClientMessage(phase.error);
+      // A replica this build cannot open is the one failure where "Try again" is a lie:
+      // the next attempt opens the same database and fails the same way, and the person is
+      // left pressing a button forever. The replica is a cache of the server, so throwing
+      // it away costs one bootstrap and is always safe to offer.
+      const replicaBroken = !outdated && isReplicaFailureMessage(phase.error);
       return (
         <Splash
           tone="failure"
@@ -297,7 +322,11 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
           // — but underneath a written headline rather than as the whole of the interface.
           // "Failed to fetch" is a fact about a function call, not something to say to a
           // person.
-          detail={phase.error}
+          detail={
+            replicaBroken
+              ? `${phase.error} Your offline copy of this workspace is unusable. Rebuilding it downloads the workspace again; nothing you have written is lost.`
+              : phase.error
+          }
           action={
             <Button
               className={styles.retry}
@@ -306,10 +335,14 @@ export function Boot({ renderSignedOut, renderNoWorkspace, children }: BootProps
                   location.reload();
                   return;
                 }
+                if (replicaBroken) {
+                  void rebuildReplica().then(() => enter());
+                  return;
+                }
                 void enter();
               }}
             >
-              {outdated ? 'Reload' : 'Try again'}
+              {outdated ? 'Reload' : replicaBroken ? 'Rebuild offline data' : 'Try again'}
             </Button>
           }
         />

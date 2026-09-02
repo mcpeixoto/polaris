@@ -17,14 +17,42 @@
   min-height: 0;
 }
 
+/*
+ * One row of controls — and in the triage split, one row of controls in half a screen.
+ *
+ * Every item in here carries `white-space: nowrap`, which makes a flex item's automatic
+ * minimum its whole label: none of them shrinks, so a single line simply ran off the end of
+ * the pane. Insights, Display and the four team links were drawn over the issue beside them
+ * and the trailing padding went with them. Giving `.title` a floor fixed the heading and left
+ * that untouched, because the heading was never what overflowed.
+ *
+ * These are product strings, so truncating them is not on offer — the row wraps instead. The
+ * name and the count keep the first line, the controls take a second, and the header grows by
+ * a row rather than posting its tail into the next pane. `min-height` plus the block padding
+ * hold the same --header-height it has always had for as long as one line fits: one 28px
+ * control, --space-1 above and below and the hairline is 37px, so the minimum is what decides
+ * a single-line header and the pane below it does not move by a pixel.
+ */
 .header {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-3);
   flex: none;
-  height: var(--header-height);
+  min-height: var(--header-height);
+  padding-block: var(--space-1);
   padding-inline: var(--space-4);
   border-bottom: 1px solid var(--border-subtle);
+}
+
+/*
+ * Layout only, and only for this row's own children. Stated rather than relied upon: a header
+ * item keeps the width of its label instead of being squeezed into it, whether or not it
+ * happens to bring its own `nowrap`. The heading and the spacer are the two that are supposed
+ * to flex, and they are excluded here rather than left to win an equal-specificity tie.
+ */
+.header > *:not(.title, .spacer) {
+  flex: none;
 }
 
 /*

@@ -16,6 +16,7 @@
  */
 
 export { CLIENT_SCHEMA, databaseName, dropDatabase, dropStaleDatabases, PolarisDB } from './db';
+export { isReplicaFailureMessage } from './replica-error';
 export type { EntityRef, EntityRow, Meta, Snapshot, WriteBatch } from './db';
 
 export {
@@ -109,6 +110,7 @@ export type {
   NotificationType,
   Op,
   Project,
+  Reaction,
   ProjectMember,
   ProjectMilestone,
   Initiative,

@@ -1,14 +1,23 @@
 #!/usr/bin/env bash
 # Keep-alive launcher for the local Polaris stack.
 #
-#   Vite  http://localhost:5173/  and  http://127.0.0.1:5173/
-#   API   http://127.0.0.1:8088/healthz
-#   sync  :8089
+#   Vite    http://localhost:5173/  and  http://127.0.0.1:5173/
+#   API     http://127.0.0.1:8088/healthz
+#   sync    :8089
+#   worker  no port — background jobs
+#
+# The worker is part of the stack, not an extra. Inbox rows are not written by
+# the mutation that causes them: domain.FanOutAll reads the change stream on a
+# ticker in cmd/worker and nothing else calls it, so without this process the
+# inbox, the unread badge and every notification setting are inert. That used to
+# be the difference between a `make dev` stack and CI, which does start it — so
+# the Playwright inbox specs passed there and failed here, silently, every time.
 #
 # Processes are daemonized into their own session (setsid) so they survive the
 # agent terminal that started them. Each service runs under a supervisor that
 # respawns on crash. A 10s watchdog brings Vite back if :5173 is dead, and
-# restarts API/sync the same way if those ports die.
+# restarts API/sync the same way if those ports die. The worker listens on
+# nothing, so its watchdog check is its supervisor being alive.
 #
 # Do NOT SIGTERM these PIDs during migrate. Migrations talk to Postgres only;
 # they do not need Vite, the API, or sync to stop. Restart the API by replacing
@@ -30,6 +39,7 @@ STOPFILE="$ROOT/.dev-stop"
 LOGDIR="$ROOT/.dev-logs"
 BIN_API="${POLARIS_API_BIN:-/tmp/polaris-api}"
 BIN_SYNC="${POLARIS_SYNC_BIN:-/tmp/polaris-sync}"
+BIN_WORKER="${POLARIS_WORKER_BIN:-/tmp/polaris-worker}"
 
 mkdir -p "$LOGDIR"
 
@@ -46,14 +56,14 @@ export DATABASE_URL="$DB_URL"
 log() { printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*"; }
 
 compile_in_flight() {
-  pgrep -f 'go build .*/cmd/api|go build .*/cmd/sync|go build -o /tmp/polaris-api|go build -o /tmp/polaris-sync' >/dev/null 2>&1
+  pgrep -f 'go build .*/cmd/api|go build .*/cmd/sync|go build .*/cmd/worker|go build -o /tmp/polaris-api|go build -o /tmp/polaris-sync|go build -o /tmp/polaris-worker' >/dev/null 2>&1
 }
 
 wait_for_compile() {
   local n=0
   while compile_in_flight; do
     if [ "$n" -eq 0 ]; then
-      log "go build of api/sync already in flight — waiting rather than interrupting"
+      log "go build of api/sync/worker already in flight — waiting rather than interrupting"
     fi
     n=$((n + 1))
     if [ "$n" -gt 90 ]; then
@@ -146,13 +156,14 @@ ensure_infra() {
 ensure_binaries() {
   wait_for_compile
   local need=0
-  if [ ! -x "$BIN_API" ] || [ ! -x "$BIN_SYNC" ]; then
+  if [ ! -x "$BIN_API" ] || [ ! -x "$BIN_SYNC" ] || [ ! -x "$BIN_WORKER" ]; then
     need=1
   fi
   if [ "$need" -eq 1 ]; then
-    log "building api and sync…"
+    log "building api, sync and worker…"
     (cd "$ROOT/services" && go build -o "$BIN_API" ./cmd/api)
     (cd "$ROOT/services" && go build -o "$BIN_SYNC" ./cmd/sync)
+    (cd "$ROOT/services" && go build -o "$BIN_WORKER" ./cmd/worker)
   fi
 }
 
@@ -197,6 +208,11 @@ cmd_supervise_api() {
 cmd_supervise_sync() {
   wait_for_compile
   supervise_loop SYNC "$BIN_SYNC"
+}
+
+cmd_supervise_worker() {
+  wait_for_compile
+  supervise_loop WORKER "$BIN_WORKER"
 }
 
 ensure_supervisor() {
@@ -246,6 +262,18 @@ cmd_watchdog() {
       log "watchdog: :8089 is dead — respawning sync"
       ensure_supervisor SYNC supervise-sync "$LOGDIR/sync.log"
     fi
+    # The worker binds no port, so there is nothing to probe: its liveness is its
+    # supervisor. A crashing child is the supervisor's job; this catches the
+    # supervisor itself being gone (kill -9, a lost session), which is the case
+    # where the inbox quietly stops filling and nothing on screen says so.
+    if ! pid_alive "$(read_pid WORKER_SUPERVISOR)"; then
+      if compile_in_flight; then
+        log "watchdog: worker down but go build in flight — waiting"
+        continue
+      fi
+      log "watchdog: worker supervisor is dead — respawning worker"
+      ensure_supervisor WORKER supervise-worker "$LOGDIR/worker.log"
+    fi
   done
 }
 
@@ -275,17 +303,25 @@ cmd_respawn_api() {
   kill_child_only API
 }
 
-cmd_respawn_api_sync() {
+# Every Go process the stack owns, replaced from the binaries on disk. The worker
+# is in here for the same reason it is in `up`: a rebuild that leaves it running
+# the previous binary is a stack that is not the code you just wrote.
+cmd_respawn_services() {
   kill_child_only API
   kill_child_only SYNC
+  kill_child_only WORKER
 }
 
 wait_healthy() {
   local i
   for i in $(seq 1 60); do
+    # The worker answers no request, so "healthy" for it is a running child. It is
+    # checked here rather than assumed: a worker that crash-loops on boot leaves a
+    # stack where everything looks up and no notification ever arrives.
     if http_ok "http://127.0.0.1:5173/" \
       && http_ok "http://localhost:5173/" \
-      && http_ok "http://127.0.0.1:8088/healthz"; then
+      && http_ok "http://127.0.0.1:8088/healthz" \
+      && pid_alive "$(read_pid WORKER)"; then
       return 0
     fi
     sleep 1
@@ -301,16 +337,18 @@ cmd_up() {
   ensure_supervisor VITE supervise-vite "$LOGDIR/vite.log"
   ensure_supervisor API supervise-api "$LOGDIR/api.log"
   ensure_supervisor SYNC supervise-sync "$LOGDIR/sync.log"
+  ensure_supervisor WORKER supervise-worker "$LOGDIR/worker.log"
   ensure_watchdog
   wait_healthy
   log "stack up"
   echo
-  echo "  Vite   http://localhost:5173/   http://127.0.0.1:5173/"
-  echo "  API    http://127.0.0.1:8088/healthz"
-  echo "  sync   :8089"
-  echo "  PIDs   $PIDFILE"
-  echo "  logs   $LOGDIR/"
-  echo "  login  dev@polaris.local / polaris-dev-password"
+  echo "  Vite    http://localhost:5173/   http://127.0.0.1:5173/"
+  echo "  API     http://127.0.0.1:8088/healthz"
+  echo "  sync    :8089"
+  echo "  worker  no port — notifications, cycles, digests, webhooks"
+  echo "  PIDs    $PIDFILE"
+  echo "  logs    $LOGDIR/"
+  echo "  login   dev@polaris.local / polaris-dev-password"
   echo
   echo "  Keep-alive: supervisors ignore SIGTERM unless $STOPFILE exists."
   echo "  Migrate without killing anything. Restart API: make stack (rebuild + respawn-api)."
@@ -323,13 +361,14 @@ cmd_status() {
   printf "5173 "; http_ok "http://127.0.0.1:5173/" && echo ok || echo down
   printf "8088 "; http_ok "http://127.0.0.1:8088/healthz" && echo ok || echo down
   printf "8089 "; port_up 8089 && echo listen || echo down
+  printf "worker "; pid_alive "$(read_pid WORKER)" && echo running || echo down
 }
 
 # Exit 0 if this keep-alive stack still owns the processes (Makefile uses this
 # so `make stack` / `make stack-stop` do not SIGTERM Vite).
 cmd_keepalive_running() {
   local key pid
-  for key in WATCHDOG VITE_SUPERVISOR API_SUPERVISOR SYNC_SUPERVISOR; do
+  for key in WATCHDOG VITE_SUPERVISOR API_SUPERVISOR SYNC_SUPERVISOR WORKER_SUPERVISOR; do
     pid="$(read_pid "$key")"
     if pid_alive "$pid"; then
       exit 0
@@ -346,10 +385,13 @@ case "${1:-up}" in
   supervise-vite) cmd_supervise_vite ;;
   supervise-api) cmd_supervise_api ;;
   supervise-sync) cmd_supervise_sync ;;
+  supervise-worker) cmd_supervise_worker ;;
   respawn-api) cmd_respawn_api ;;
-  respawn-api-sync) cmd_respawn_api_sync ;;
+  # respawn-api-sync is the old name, kept so an older Makefile or a shell someone
+  # still has open keeps working; it does what respawn-services does.
+  respawn-services | respawn-api-sync) cmd_respawn_services ;;
   *)
-    echo "usage: $0 [up|status|keepalive-running|respawn-api|respawn-api-sync]" >&2
+    echo "usage: $0 [up|status|keepalive-running|respawn-api|respawn-services]" >&2
     exit 2
     ;;
 esac

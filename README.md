@@ -53,8 +53,11 @@ Measured, not asserted: filter/group/sort with four active clauses over **5,000 
 make up          # postgres + valkey
 make migrate
 make seed        # a realistic workspace
-make api         # and, in other terminals: make sync, make web
+make dev         # api :8088, sync :8089, worker, Vite :5173 — supervised
 ```
+
+(Or one per terminal: `make api`, `make sync`, `make worker`, `make web`. The worker
+is what turns changes into inbox notifications; skip it and the inbox stays empty.)
 
 On http://localhost:5173/ the tracker opens as the seed account — no login form.
 

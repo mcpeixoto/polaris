@@ -9,13 +9,25 @@ make migrate
 make seed        # a realistic workspace: 3 teams, ~2000 issues, 9 people
 ```
 
-Then, in separate terminals:
+Then:
+
+```bash
+make dev         # all four below, supervised and daemonized; make dev-down to stop
+```
+
+or, in separate terminals:
 
 ```bash
 make api         # GraphQL API on :8088
 make sync        # WebSocket hub on :8089
+make worker      # background jobs — no port
 make web         # Vite on :5173, proxying both
 ```
+
+`make worker` is not optional if you are touching anything you expect a notification
+from. Inbox rows are derived from the change stream by `cmd/worker` and by nothing
+else, so without it the inbox stays empty, the unread badge stays at zero, and the
+end-to-end notification specs fail on your machine while passing in CI.
 
 Open http://localhost:5173/. On loopback the API signs you in as `dev@polaris.local`
 (after `make seed`) and the login form does not appear. Off localhost, or on a

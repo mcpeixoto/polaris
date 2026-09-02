@@ -157,11 +157,15 @@ One image, three commands — `command: ["/usr/local/bin/sync"]` in compose sele
 ## Local development
 
 ```bash
-make dev     # docker compose -f compose.dev.yml up: postgres, redis, minio, meili
-make api     # go run ./cmd/api with air-style reload
-make web     # vite dev server, proxying /graphql and /sync to localhost
+make up      # docker compose -f compose.dev.yml up: postgres, redis, minio, meili
+make dev     # the whole app stack, supervised: api :8088, sync :8089, worker, vite :5173
 make desktop # electron pointing at the vite dev server
 ```
+
+`make dev` starts four processes; `make dev-down` stops them. To run one by hand
+instead: `make api`, `make sync`, `make worker`, `make web`. The worker holds no
+port and is easy to forget, and forgetting it is not subtle — notification fan-out
+lives only there, so an inbox on a stack without it is empty forever.
 
 Dev compose **does** publish ports (it's not the VPS). Production compose never does.
 
