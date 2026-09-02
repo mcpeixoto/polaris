@@ -195,7 +195,13 @@ export function filterSearchString(params: URLSearchParams): string {
     parts.push(
       key === FILTER_PARAM
         ? `${key}=${value.replace(/[%&#+ ]/g, (char) => QUERY_ESCAPES[char] ?? char)}`
-        : `${encodeURIComponent(key)}=${encodeURIComponent(value)}`,
+        : // Every other parameter keeps the serialisation the platform gives it —
+          // `application/x-www-form-urlencoded`, so a space is `+`. Reaching for
+          // `encodeURIComponent` here instead would be a quiet second dialect: `?q=` written
+          // by this function would say `%20` where the same search written by
+          // `URLSearchParams`, by the server, or by a link somebody already saved says `+`.
+          // Only the filter parameter has a reason to leave the standard.
+          new URLSearchParams([[key, value]]).toString(),
     );
   }
   return parts.length === 0 ? '' : `?${parts.join('&')}`;

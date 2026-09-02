@@ -27,8 +27,16 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
+/*
+ * The screen's name, and the last thing in the header allowed to give up space — but it may
+ * not give up all of it. `overflow: hidden` drops a flex item's automatic minimum to zero, so
+ * in a narrow pane (the triage split, where the list gets half a screen) the heading was
+ * squeezed to a zero-width box: the one element on the header that says what is being looked
+ * at was the first to disappear. The floor keeps a name and an ellipsis there instead.
+ */
 .title {
   margin: 0;
+  min-width: 4rem;
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);

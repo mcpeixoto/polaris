@@ -294,22 +294,13 @@ export function DocumentDetail() {
            * The document as it reads, laid over the field that holds its source.
            *
            * A document was stored as markdown and shown as markdown, so every reader saw
-           * `## Heading` where a heading belonged. This is the read side of that; the first
-           * click puts the caret back in the textarea, which is why the rendered copy is
-           * `aria-hidden` and carries no focus stops of its own — the textarea below is the
-           * field, and duplicating it in the accessibility tree would announce the body
-           * twice. mousedown rather than click so focus lands before the browser starts a
-           * selection in a layer that is about to disappear.
+           * `## Heading` where a heading belonged. This is the read side of that: it is
+           * `aria-hidden`, carries no focus stops of its own and is transparent to the
+           * pointer, so the textarea underneath is still the field in every sense — a click
+           * lands on it and focuses it natively, which is what swaps this layer away.
+           * Duplicating the body in the accessibility tree would announce it twice.
            */
-          <div
-            className={styles.reader}
-            aria-hidden="true"
-            onMouseDown={(event) => {
-              event.preventDefault();
-              setEditing(true);
-              bodyRef.current?.focus();
-            }}
-          >
+          <div className={styles.reader} aria-hidden="true">
             {body.trim() === '' ? (
               <p className={styles.placeholder}>Empty. Click to write.</p>
             ) : (

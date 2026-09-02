@@ -62,8 +62,8 @@ test.describe('project dependencies', () => {
 
     await signIn(page, workspace.account);
     await page.goto(`/project/${blocked.id}`);
-    // One panel in the overview body, one in the properties sidebar.
-    await expect(page.getByRole('heading', { name: 'Blocked by' })).toHaveCount(2);
+    // A single panel, in the properties sidebar.
+    await expect(page.getByRole('heading', { name: 'Blocked by' })).toHaveCount(1);
 
     // The mutation is really sent and the server really commits it; only the answer is kept
     // from the client, which is the state a reload finds when the network is slow.
@@ -90,36 +90,36 @@ test.describe('project dependencies', () => {
 
     // The stand-in is on screen and the op is in the outbox, waiting for an answer that is
     // not coming. This is the window under test.
-    await expect(page.getByRole('link', { name: 'Platform work' })).toHaveCount(2);
+    await expect(page.getByRole('link', { name: 'Platform work' })).toHaveCount(1);
     await expect.poll(() => sent, { timeout: 30_000 }).toBe(true);
 
     await page.unroute('**/graphql');
     await page.reload();
-    await expect(page.getByRole('heading', { name: 'Blocked by' })).toHaveCount(2);
+    await expect(page.getByRole('heading', { name: 'Blocked by' })).toHaveCount(1);
 
     // The replay has to have happened for this to be the assertion it looks like, so wait for
     // the row to be the server's rather than reading the moment the page paints.
-    await expect(page.getByRole('link', { name: 'Platform work' })).toHaveCount(2, {
+    await expect(page.getByRole('link', { name: 'Platform work' })).toHaveCount(1, {
       timeout: 30_000,
     });
     await page.waitForTimeout(1_000);
     // Read once, not polled: a retrying assertion would wait out the duplicate and report the
-    // bug as fixed. Two links, because two panels list the one blocker.
+    // bug as fixed. One link, because the single panel lists the one blocker.
     expect(
       await page.getByRole('link', { name: 'Platform work' }).count(),
-      'one blocker was added, so each panel lists it once',
-    ).toBe(2);
+      'one blocker was added, so the panel lists it once',
+    ).toBe(1);
 
     // And a stand-in that survived into the replica would still be there on the next boot.
     await page.reload();
-    await expect(page.getByRole('heading', { name: 'Blocked by' })).toHaveCount(2);
+    await expect(page.getByRole('heading', { name: 'Blocked by' })).toHaveCount(1);
     await page.waitForTimeout(1_000);
-    expect(await page.getByRole('link', { name: 'Platform work' }).count()).toBe(2);
+    expect(await page.getByRole('link', { name: 'Platform work' }).count()).toBe(1);
 
     // The far end agrees, and lists it once as well.
     await page.getByRole('link', { name: 'Platform work' }).first().click();
-    await expect(page.getByRole('heading', { name: 'Blocking' })).toHaveCount(2);
-    await expect(page.getByRole('link', { name: 'Mobile relaunch' })).toHaveCount(2);
+    await expect(page.getByRole('heading', { name: 'Blocking' })).toHaveCount(1);
+    await expect(page.getByRole('link', { name: 'Mobile relaunch' })).toHaveCount(1);
 
     expect(problems).toEqual([]);
   });

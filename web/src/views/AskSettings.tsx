@@ -5,8 +5,8 @@
  *
  * A form's link is the credential — `AskFormPage` works signed out, and the token in the URL
  * is the whole of the authorisation. That is why deleting one is confirmed the way revoking
- * an API key is, and why the link is rendered in a read-only field with a copy button rather
- * than as a run of text somebody has to select by hand.
+ * an API key is, and why the link is shown in full beside a copy button rather than hidden
+ * behind one — it is the thing people read out, screenshot and paste.
  */
 
 import { useRef, useState, type FormEvent } from 'react';
@@ -234,21 +234,37 @@ export function AskSettings() {
  * One form's public link, and the three things a hand-rolled copy button keeps getting wrong.
  *
  * The shape is `components/SecretField`'s, which is the right one and is not reused directly
- * only because every control on this page needs to name its own row. A copy that fails —
- * no `navigator.clipboard`, or an insecure origin — leaves the value selected so the
- * platform's own copy is one keystroke away, instead of the button doing nothing at all. The
+ * only because every control on this page needs to name its own row. The URL is real text
+ * rather than an input value, because the link is the one thing on this row somebody reads
+ * out, screenshots or copies out of the page — and a value that only exists as a form
+ * control's `value` is invisible to selection, to find-in-page and to anything reading the
+ * document. It is still focusable and still selects itself on focus, so ⌘C works without a
+ * mouse. A copy that fails — no `navigator.clipboard`, or an insecure origin — leaves the
+ * text selected so the platform's own copy is one keystroke away, rather than the button
+ * doing nothing at all. The
  * outcome goes in a live region rather than into the button's label, so the button is still
  * called "Copy link" a minute later and the confirmation is actually announced. And the
  * region reserves its width, so confirming does not shove the button out from under the
  * pointer that just pressed it.
  */
 function AskLink({ name, url }: { name: string; url: string }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const valueRef = useRef<HTMLElement>(null);
   const [outcome, setOutcome] = useState<'idle' | 'copied' | 'selected'>('idle');
+
+  /** Selects the whole URL, so the platform's own copy is one keystroke away. */
+  const selectValue = () => {
+    const node = valueRef.current;
+    const selection = window.getSelection?.();
+    if (node === null || !selection) return;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  };
 
   const copy = () => {
     const select = () => {
-      inputRef.current?.select();
+      selectValue();
       setOutcome('selected');
     };
     const clipboard: Clipboard | undefined = navigator.clipboard;
@@ -261,16 +277,15 @@ function AskLink({ name, url }: { name: string; url: string }) {
 
   return (
     <div className={styles.link}>
-      <input
-        ref={inputRef}
+      <code
+        ref={valueRef}
         className={styles.linkValue}
-        value={url}
-        readOnly
+        tabIndex={0}
         aria-label={`Link for ${name}`}
-        onFocus={(event) => event.currentTarget.select()}
-        autoComplete="off"
-        spellCheck={false}
-      />
+        onFocus={selectValue}
+      >
+        {url}
+      </code>
       <Button size="sm" aria-label={`Copy the link for ${name}`} onClick={copy}>
         Copy link
       </Button>

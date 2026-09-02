@@ -41,6 +41,23 @@ describe('ToastHost', () => {
     expect(status.textContent).not.toContain("Couldn't update issue");
   });
 
+  // The regions stay in the document, because a live region inserted already populated is
+  // often never announced — but an empty one must not be named. A permanent `role="alert"`
+  // is an alert on every screen in the product, saying nothing.
+  it('names neither region until it has something to say', () => {
+    render(<ToastHost />);
+
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+
+    raise(() => showToast({ title: 'Copied link' }));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('status').textContent).toContain('Copied link');
+
+    raise(() => clearToasts());
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
   it('shows several failures at once rather than replacing the first', () => {
     render(<ToastHost />);
 

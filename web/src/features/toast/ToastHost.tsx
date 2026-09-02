@@ -167,13 +167,28 @@ export function ToastHost() {
       onFocusCapture={pause}
       onBlurCapture={resume}
     >
-      {/* Two regions rather than one, and both permanently mounted — see the note above. */}
-      <div className={styles.region} role="status" aria-live="polite">
+      {/* Two regions rather than one, and both permanently mounted — see the note above.
+
+        `aria-live` is what does the announcing, and it is unconditional: the node has to be
+        in the document before the message lands in it. The `role`, which only names the node
+        for anything reading the accessibility tree, is not — an empty region carrying
+        `role="alert"` is an alert that says nothing, and it is one a screen-reader user can
+        land on and one that answers "is anything wrong on this screen?" with yes. So the
+        role appears with the first message and leaves with the last. */}
+      <div
+        className={styles.region}
+        role={statuses.length === 0 ? undefined : 'status'}
+        aria-live="polite"
+      >
         {statuses.map((toast) => (
           <ToastCard key={toast.id} toast={toast} />
         ))}
       </div>
-      <div className={styles.region} role="alert" aria-live="assertive">
+      <div
+        className={styles.region}
+        role={alerts.length === 0 ? undefined : 'alert'}
+        aria-live="assertive"
+      >
         {alerts.map((toast) => (
           <ToastCard key={toast.id} toast={toast} />
         ))}

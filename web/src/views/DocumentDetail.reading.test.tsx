@@ -98,7 +98,11 @@ describe('DocumentDetail reading', () => {
   it('swaps to the editor when the reader clicks the body', async () => {
     const { user, view } = renderReading('## Runbook');
 
-    await user.click(view.container.querySelector('h3')!);
+    // The rendered copy is laid over the field and is transparent to the pointer, so the
+    // click a reader aims at the document is delivered by the browser to the textarea
+    // underneath it. jsdom does no hit testing and honours no `pointer-events`, so the
+    // click is aimed at the element a real browser would have chosen.
+    await user.click(screen.getByLabelText('Body'));
 
     // The rendered copy is gone and the caret is in the field that holds the markdown.
     expect(view.container.querySelector('h3')).toBeNull();

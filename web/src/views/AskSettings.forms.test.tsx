@@ -163,3 +163,24 @@ describe('Ask form rows', () => {
     );
   });
 });
+
+/**
+ * The link, as text in the row.
+ *
+ * It lived in a read-only `<input>`, which draws the same and is invisible to everything that
+ * reads the document: selection, find-in-page, a screen reader walking the row, and anything
+ * that has to check what a settings screen actually put on the page. This is a URL people
+ * read out loud and paste into a wiki, so it is a run of text — focusable, and selecting
+ * itself on focus, which is what the input was there for.
+ */
+describe('the public link', () => {
+  it('is text in the row, not a form control the row only appears to show', () => {
+    renderAsks();
+
+    const link = screen.getByLabelText('Link for Bug report');
+    expect(link.tagName).toBe('CODE');
+    expect(link.textContent).toBe(`${window.location.origin}/ask/tok-1`);
+    // Reachable from the keyboard, so ⌘C is one Tab away for somebody with no mouse.
+    expect(link.getAttribute('tabindex')).toBe('0');
+  });
+});

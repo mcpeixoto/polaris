@@ -222,6 +222,15 @@ describe('the query string a filter goes into', () => {
     expect(filterSearchString(params)).toBe('?group=assignee&show=priority%2Clabels');
     expect(filterSearchString(new URLSearchParams())).toBe('');
   });
+
+  // A search written by this function has to be the same string as the same search written
+  // by anything else — `URLSearchParams`, the server, a link somebody saved last week.
+  // `encodeURIComponent` here would spell a space `%20` and quietly fork the dialect.
+  it('spells a space the way a query string does everywhere else', () => {
+    const params = new URLSearchParams({ q: 'json parser bug' });
+    expect(filterSearchString(params)).toBe('?q=json+parser+bug');
+    expect(new URLSearchParams(filterSearchString(params)).get('q')).toBe('json parser bug');
+  });
 });
 
 describe('display options in a URL', () => {

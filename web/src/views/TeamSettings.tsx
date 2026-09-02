@@ -21,7 +21,7 @@
  */
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import {
@@ -179,7 +179,19 @@ export function TeamSettings() {
   const { teamKey = '' } = useParams<{ teamKey: string }>();
   const engine = useEngine();
   const navigate = useNavigate();
-  const [error, setError] = useState<string | null>(null);
+  const location = useLocation();
+  /*
+    Seeded from the history entry, because a refused key change arrives *after* this
+    component has been thrown away.
+
+    The save redirects optimistically — see `onSave` below — so a refusal has to walk the
+    redirect back, and the shell keys the routed pane on the pathname, so walking it back
+    re-mounts this screen with fresh state. `setError` on the way out therefore wrote to a
+    component that was gone by the next commit, and the user got a flicker to another team
+    and back with nothing said about why their save did not take. The sentence rides on the
+    navigation instead, which is the only thing that survives the remount.
+  */
+  const [error, setError] = useState<string | null>(routedError(location.state));
 
   const team = useLiveQuery(
     (store) => readTeam(store, teamKey),
@@ -196,13 +208,20 @@ export function TeamSettings() {
     return groups;
   }, [team]);
 
-  const run = (work: Promise<unknown>, onSuccess?: () => void, onFailure?: () => void) => {
+  const run = (
+    work: Promise<unknown>,
+    onSuccess?: () => void,
+    /** Given the sentence, so a handler that navigates can carry it to the new screen. */
+    onFailure?: (message: string) => void,
+  ) => {
     setError(null);
     work
       .then(() => onSuccess?.())
       .catch((failure: unknown) => {
-        onFailure?.();
-        setError(failure instanceof ApiError ? failure.message : 'That change could not be saved.');
+        const message =
+          failure instanceof ApiError ? failure.message : 'That change could not be saved.';
+        onFailure?.(message);
+        setError(message);
       });
   };
 
@@ -270,8 +289,13 @@ export function TeamSettings() {
               const from = team.key;
               const moving = fields.key !== '' && fields.key !== from;
               if (moving) void navigate(`/team/${fields.key}/settings`, { replace: true });
-              run(updateTeam(engine, team.id, fields), undefined, () => {
-                if (moving) void navigate(`/team/${from}/settings`, { replace: true });
+              run(updateTeam(engine, team.id, fields), undefined, (message) => {
+                if (moving) {
+                  void navigate(`/team/${from}/settings`, {
+                    replace: true,
+                    state: { error: message },
+                  });
+                }
               });
             }}
           />
@@ -1927,4 +1951,17 @@ function readTeam(store: Store, teamKey: string): TeamView | null {
     recurring,
     statuses,
   };
+}
+
+/**
+ * The refusal a redirect is carrying, if it is carrying one.
+ *
+ * `history.state` is anything at all — another screen's, a back button's, a reload's — so it
+ * is read defensively rather than cast. Exported for its test: this is the half of the
+ * walk-back that has no UI to drive it through.
+ */
+export function routedError(state: unknown): string | null {
+  if (typeof state !== 'object' || state === null) return null;
+  const message = (state as { error?: unknown }).error;
+  return typeof message === 'string' && message !== '' ? message : null;
 }

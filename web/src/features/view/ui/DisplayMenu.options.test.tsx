@@ -52,7 +52,7 @@ describe('sub-grouping', () => {
   it('writes a patch naming only the sub-grouping', async () => {
     const { user, onChange } = renderMenu({ groupBy: 'state' });
 
-    await user.selectOptions(screen.getByLabelText('Sub-grouping'), 'assignee');
+    await user.selectOptions(screen.getByLabelText('Swimlanes'), 'assignee');
 
     expect(onChange).toHaveBeenCalledWith({ subGroupBy: 'assignee' });
   });
@@ -65,7 +65,7 @@ describe('sub-grouping', () => {
   it('does not offer the dimension the list is already grouped by', () => {
     renderMenu({ groupBy: 'assignee' });
 
-    const select = screen.getByLabelText('Sub-grouping');
+    const select = screen.getByLabelText('Swimlanes');
     const options = within(select)
       .getAllByRole('option')
       .map((option) => option.textContent);
@@ -77,7 +77,7 @@ describe('sub-grouping', () => {
   // A swimlane inside no group is simply a grouping, which the control above already is.
   it('is inert with no grouping to slice', () => {
     renderMenu({ groupBy: 'none' });
-    expect(screen.getByLabelText('Sub-grouping')).toHaveProperty('disabled', true);
+    expect(screen.getByLabelText('Swimlanes')).toHaveProperty('disabled', true);
     expect(screen.getByText('Choose a grouping first')).toBeTruthy();
   });
 
@@ -85,7 +85,7 @@ describe('sub-grouping', () => {
   // drawing a choice nobody could have made.
   it('reads a sub-grouping equal to the grouping as none', () => {
     renderMenu({ groupBy: 'priority', subGroupBy: 'priority' });
-    expect(screen.getByLabelText('Sub-grouping')).toHaveProperty('value', 'none');
+    expect(screen.getByLabelText('Swimlanes')).toHaveProperty('value', 'none');
     // One change — the grouping — and not two: a sub-grouping that means nothing is not a
     // decision somebody took, so the header must not offer to reset it as if it were.
     expect(screen.getByText('1 changed')).toBeTruthy();

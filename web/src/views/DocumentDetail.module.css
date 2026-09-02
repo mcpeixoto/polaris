@@ -80,13 +80,17 @@
   min-height: 0;
 }
 
+/* Transparent to the pointer: the rendered copy is a picture of the field beneath it, so a
+ * click has to reach the textarea itself rather than a layer that catches it and forwards
+ * the focus by hand. Letting the browser do it puts the caret where the pointer landed and
+ * keeps the field reachable by anything that drives the page by its label. */
 .reader {
   position: absolute;
   inset: 0;
   padding: var(--space-2) 0;
   background-color: var(--bg-primary);
   overflow-y: auto;
-  cursor: text;
+  pointer-events: none;
 }
 
 .placeholder {

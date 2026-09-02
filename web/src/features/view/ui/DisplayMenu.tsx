@@ -611,9 +611,12 @@ export function DisplayMenu({
       </Select>
 
       {/* The swimlane inside each group. Offered second because it is a refinement of the
-          answer above it: "status, then by assignee" is one sentence read downwards. */}
+          answer above it: "status, then by assignee" is one sentence read downwards.
+          Named for the thing it draws rather than "Sub-grouping": the label above it is
+          "Grouping", and a name that contains another control's name in full makes the two
+          impossible to tell apart by accessible name. */}
       <Select
-        label="Sub-grouping"
+        label="Swimlanes"
         className={styles.section}
         value={subGroup}
         // Nothing to slice when the list is one run of rows, and a swimlane inside no group

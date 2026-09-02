@@ -131,3 +131,70 @@ function issueTemplate(): IssueTemplate {
     updatedAt: AT,
   };
 }
+
+/**
+ * The reply is a GraphQL team, not a replica team.
+ *
+ * `estimateScale` is `FIBONACCI` on the wire and `fibonacci` in the store, and nothing but
+ * this merge has ever had the chance to confuse the two. When it did, the estimate ladder
+ * had no key called `FIBONACCI`, `estimateOptions` returned `undefined`, and the create-issue
+ * dialog — which is mounted in the shell on every screen — took the whole application down.
+ * So the assertion is on the fields that are *not* copied, which is the part that regressed.
+ */
+describe('what the reply is allowed to write', () => {
+  it('takes the address and the flag, and none of the row around them', async () => {
+    const store = engine.store;
+    mutate.mockImplementation(
+      async (input: { optimistic?: Parameters<Store['applyOptimistic']>[0] }) => {
+        if (input.optimistic !== undefined) store.applyOptimistic(input.optimistic);
+        return {
+          updateTeamEmailIntake: {
+            team: {
+              ...team(),
+              // As GraphQL spells them: enums in SCREAMING_CASE, unset optionals as null.
+              estimateScale: 'FIBONACCI',
+              cycleStartDay: 'MONDAY',
+              retiredAt: null,
+              archivedAt: null,
+              emailIntakeEnabled: true,
+              emailIntakeAddress: 'abc@inbound.example',
+            },
+          },
+        };
+      },
+    );
+
+    await updateTeamEmailIntake(engine, TEAM, true);
+
+    const next = engine.store.get('team', TEAM);
+    expect(next?.emailIntakeAddress).toBe('abc@inbound.example');
+    expect(next?.emailIntakeEnabled).toBe(true);
+    // The scale the replica already held, unchanged — not the wire's spelling of it.
+    expect(next?.estimateScale).toBe('none');
+    expect(next?.cycleStartDay).toBe('monday');
+    // And an absence stays an absence: `retiredAt !== undefined` is how the client asks
+    // whether a team is retired, so a `null` here retires every team that turns on intake.
+    expect(next?.retiredAt).toBeUndefined();
+    expect(next?.archivedAt).toBeUndefined();
+  });
+
+  it('turning intake off clears the address rather than storing an empty one', async () => {
+    const store = engine.store;
+    mutate.mockImplementation(
+      async (input: { optimistic?: Parameters<Store['applyOptimistic']>[0] }) => {
+        if (input.optimistic !== undefined) store.applyOptimistic(input.optimistic);
+        return {
+          updateTeamEmailIntake: {
+            team: { ...team(), emailIntakeEnabled: false, emailIntakeAddress: null },
+          },
+        };
+      },
+    );
+
+    await updateTeamEmailIntake(engine, TEAM, false);
+
+    const next = engine.store.get('team', TEAM);
+    expect(next?.emailIntakeEnabled).toBe(false);
+    expect(next?.emailIntakeAddress).toBeUndefined();
+  });
+});

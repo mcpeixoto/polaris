@@ -75,20 +75,26 @@
 }
 
 /*
- * Read-only rather than static text, so focus selects the whole URL and ⌘C works without a
- * mouse — and so the fallback when the clipboard is refused has something to select.
+ * Real text rather than an input value, so the link can be read, found and selected in the
+ * page — and focusable, so focus still selects the whole URL and ⌘C works without a mouse.
+ * A URL has no spaces to wrap at, so it scrolls inside its own box instead of stretching
+ * the row.
  */
 .linkValue {
+  display: flex;
   flex: 1;
+  align-items: center;
   min-width: 0;
   height: var(--control-height-md);
   padding-inline: var(--space-2);
+  overflow-x: auto;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   background-color: var(--bg-secondary);
   color: var(--text-secondary);
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
+  white-space: nowrap;
 }
 
 .linkValue:focus-visible {

@@ -267,7 +267,7 @@ test.describe('keyboard model', () => {
     // Subsequence matching: "cri" should find "Create issue". If this fails the ranking
     // has regressed to substring matching, which is not how people type into these.
     await page.getByRole('combobox').fill('cri');
-    await expect(page.getByRole('option', { name: /create issue/i })).toBeVisible();
+    await expect(page.getByRole('option', { name: /create issue/i }).first()).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(menu).toBeHidden();
 

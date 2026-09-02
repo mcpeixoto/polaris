@@ -102,6 +102,17 @@ export interface CreateIssueModalProps {
   open?: boolean | undefined;
   onClose: () => void;
   seed?: IssueComposerSeed | undefined;
+  /**
+   * Called with `true` when a create leaves for the server, and with `false` if it comes
+   * back refused.
+   *
+   * The shell drops a second `C` while a composer is up, because a composer that is up is
+   * holding a half-written issue. That stops being true the moment the issue is filed: the
+   * dialog is then a receipt waiting on a round trip, and somebody filing a run of issues
+   * presses `C` inside that window constantly. Without this the shell cannot tell the two
+   * apart and the shortcut looks like it works about half the time.
+   */
+  onFiling?: ((filing: boolean) => void) | undefined;
 }
 
 interface StateOption {
@@ -136,7 +147,7 @@ function isBlankSeed(seed: IssueComposerSeed | undefined): boolean {
   );
 }
 
-export function CreateIssueModal({ open = true, onClose, seed }: CreateIssueModalProps) {
+export function CreateIssueModal({ open = true, onClose, seed, onFiling }: CreateIssueModalProps) {
   const engine = useEngine();
   const viewerId = useViewerId();
   const formId = useId();
@@ -515,8 +526,15 @@ export function CreateIssueModal({ open = true, onClose, seed }: CreateIssueModa
     assignedOnce.current = true;
   }, [assigneeId, local, seed?.assigneeId, viewerId]);
 
-  useEffect(() => {
-    if (submitted.current || !open || !ownsLocalSlot.current) return;
+  /**
+   * Puts what is on screen into the local slot.
+   *
+   * A function rather than only an effect body because the create path has to be able to put
+   * it back: filing clears the slot before the round trip (see `save`), and a create that
+   * comes back refused leaves a dialog full of words with nothing behind them.
+   */
+  const saveLocalSlot = useCallback(() => {
+    if (!ownsLocalSlot.current) return;
     writeIssueComposerDraft({
       kind: 'issue',
       title,
@@ -538,7 +556,6 @@ export function CreateIssueModal({ open = true, onClose, seed }: CreateIssueModa
     assigneeId,
     description,
     estimate,
-    open,
     priority,
     resolvedCycleId,
     resolvedProjectId,
@@ -546,6 +563,11 @@ export function CreateIssueModal({ open = true, onClose, seed }: CreateIssueModa
     teamId,
     title,
   ]);
+
+  useEffect(() => {
+    if (submitted.current || !open) return;
+    saveLocalSlot();
+  }, [open, saveLocalSlot]);
 
   const dirty = title.trim() !== '' || description.trim() !== '';
 
@@ -683,6 +705,18 @@ export function CreateIssueModal({ open = true, onClose, seed }: CreateIssueModa
     setTitleError(null);
     setSaveError(null);
     /*
+      The words have left the composer, so the local slot lets go of them now rather than
+      when the server answers.
+
+      Both halves matter. The shell is told the sitting is spent, so `C` pressed while this
+      create is in the air opens the next composer instead of being dropped — and that
+      composer reads the local slot as it mounts, which is why the slot has to be empty
+      before the round trip rather than after it. A refused create puts both back.
+    */
+    submitted.current = true;
+    clearLocalSlot();
+    onFiling?.(true);
+    /*
       The template fills in what the filer left empty, and nothing else.
 
       Both keys used to be spread twice — the seed's, then the template's — so the later one
@@ -750,6 +784,10 @@ export function CreateIssueModal({ open = true, onClose, seed }: CreateIssueModa
       if (another) {
         inFlight.current = false;
         setSaving(false);
+        // The dialog stays, so it goes back to being a composer: it owns the local slot
+        // again and the shell may not replace it out from under a half-written second issue.
+        submitted.current = false;
+        onFiling?.(false);
         // Back to the template's own prompt rather than to blank, when there is one. A
         // template is one of the properties being kept, and keeping it while throwing away
         // the words it prefills would leave the second issue less templated than the first.
@@ -760,7 +798,6 @@ export function CreateIssueModal({ open = true, onClose, seed }: CreateIssueModa
         titleRef.current?.focus();
         return;
       }
-      submitted.current = true;
       inFlight.current = false;
       // Closed without waiting for anything else: the issue is already in the list, and the
       // outbox owns the rest of the story.
@@ -768,6 +805,10 @@ export function CreateIssueModal({ open = true, onClose, seed }: CreateIssueModa
     } catch (failure) {
       inFlight.current = false;
       setSaving(false);
+      // Refused: this is a composer again, holding the only copy of what was typed.
+      submitted.current = false;
+      saveLocalSlot();
+      onFiling?.(false);
       setSaveError(
         failure instanceof ApiError ? failure.message : 'The issue could not be created.',
       );

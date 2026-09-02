@@ -88,6 +88,7 @@ export interface AppShellProps {
     open: boolean;
     onClose: () => void;
     seed?: IssueComposerSeed;
+    onFiling: (filing: boolean) => void;
   }) => ReactNode;
   /**
    * Same split as create-issue: the action is global (command menu from any screen) and
@@ -185,6 +186,16 @@ export function AppShell({
    * start the next sitting, which is the original bug wearing a different hat.
    */
   const composerUp = useRef(false);
+  /**
+   * Whether the composer on screen has already filed its issue and is waiting on the answer.
+   *
+   * The guard below drops a second `C` because a composer that is up is holding a
+   * half-written issue. Between the submit and the close it is holding nothing — the words
+   * are already in the list — and a filer working through a backlog presses `C` in that
+   * window every time. Told by the composer rather than inferred, because the shell has no
+   * other way to know the difference, and put back if the create is refused.
+   */
+  const composerFiling = useRef(false);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [createInitiativeOpen, setCreateInitiativeOpen] = useState(false);
   const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
@@ -401,8 +412,9 @@ export function AppShell({
       // the dialog on screen keeps the floor. The caller is told, because a screen that opened
       // this on the user's behalf — `/new` — is otherwise left claiming a composer it did not
       // get.
-      if (composerUp.current) return false;
+      if (composerUp.current && !composerFiling.current) return false;
       composerUp.current = true;
+      composerFiling.current = false;
       currentSitting.current += 1;
       onComposerClosed.current = options?.onClosed;
       setSitting(currentSitting.current);
@@ -419,6 +431,7 @@ export function AppShell({
       // dialog they are looking at is not the one asking to close.
       if (closing !== currentSitting.current) return;
       composerUp.current = false;
+      composerFiling.current = false;
       setCreateOpen(false);
       setCreateSeed(undefined);
       const closed = onComposerClosed.current;
@@ -1461,6 +1474,9 @@ export function AppShell({
             open: createOpen,
             onClose: () => closeCreate(sitting),
             seed: createSeed,
+            onFiling: (filing: boolean) => {
+              composerFiling.current = filing;
+            },
           })}
         </Fragment>
         {createProjectOpen && renderCreateProject?.({ onClose: () => setCreateProjectOpen(false) })}
