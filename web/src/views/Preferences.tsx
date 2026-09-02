@@ -60,7 +60,7 @@ export function Preferences() {
               onChange={(event) => write({ homeView: event.target.value as HomeView })}
             >
               <option value="team">First team’s issues</option>
-              <option value="my-issues">My Issues</option>
+              <option value="my-issues">My issues</option>
               <option value="inbox">Inbox</option>
               <option value="drafts">Drafts</option>
             </Select>

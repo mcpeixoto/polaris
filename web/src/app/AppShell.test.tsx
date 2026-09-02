@@ -457,7 +457,7 @@ describe('the settings navigation', () => {
     renderShell(seeded(), SETTINGS);
     expect(screen.getByRole('navigation', { name: 'Settings' })).toBeTruthy();
     expect(screen.queryByRole('navigation', { name: 'Workspace' })).toBeNull();
-    expect(screen.queryByRole('link', { name: 'My Issues' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'My issues' })).toBeNull();
   });
 
   /**

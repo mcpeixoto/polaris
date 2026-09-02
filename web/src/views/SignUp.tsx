@@ -27,7 +27,7 @@ import { Link } from 'react-router';
 import { Button, Input } from '~/components';
 import { SocialSignIn } from '~/features/auth/SocialSignIn';
 import { ApiError, auth } from '~/sync/api';
-import { AuthError, AuthForm, AuthLayout } from './AuthLayout';
+import { AuthError, AuthForm, AuthLayout, authSubmitClass } from './AuthLayout';
 import styles from './AuthLayout.module.css';
 
 export interface SignUpProps {
@@ -140,7 +140,13 @@ export function SignUp({ onSignedIn }: SignUpProps) {
             if (mismatch !== null) setMismatch(null);
           }}
         />
-        <Button type="submit" variant="primary" fullWidth loading={busy}>
+        <Button
+          type="submit"
+          variant="primary"
+          fullWidth
+          loading={busy}
+          className={authSubmitClass}
+        >
           Create account
         </Button>
       </AuthForm>

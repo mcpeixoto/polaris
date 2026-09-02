@@ -565,7 +565,7 @@ describe('IssueList over an assignee', () => {
       <MemoryRouter initialEntries={['/my-issues']}>
         <KeymapProvider>
           <EngineProvider engine={engine} status={{ phase: 'idle' }}>
-            <IssueList source={{ kind: 'assignee', userId: ADA }} heading="My Issues" />
+            <IssueList source={{ kind: 'assignee', userId: ADA }} heading="My issues" />
           </EngineProvider>
         </KeymapProvider>
       </MemoryRouter>,
@@ -575,7 +575,7 @@ describe('IssueList over an assignee', () => {
 
   it("shows one person's work from every team they are in", () => {
     renderMine();
-    expect(screen.getByRole('heading', { name: 'My Issues' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'My issues' })).toBeTruthy();
     expect(screen.getByText('Mine in ENG')).toBeTruthy();
     expect(screen.getByText('Mine in DES')).toBeTruthy();
     // Somebody else's issues are not this person's work.
@@ -590,7 +590,7 @@ describe('IssueList over an assignee', () => {
   it('refuses a bulk status change across teams, from the toolbar and the keyboard', async () => {
     const { user } = renderMine();
 
-    const listbox = screen.getByRole('listbox', { name: 'My Issues issues' });
+    const listbox = screen.getByRole('listbox', { name: 'My issues issues' });
     listbox.focus();
     // Select-all rather than two toggles: it is one keystroke, it cannot half-apply, and
     // "everything assigned to me" is exactly the selection somebody makes before trying a
@@ -609,7 +609,7 @@ describe('IssueList over an assignee', () => {
   it('allows a status change once the selection is inside one team', async () => {
     const { user } = renderMine();
 
-    const listbox = screen.getByRole('listbox', { name: 'My Issues issues' });
+    const listbox = screen.getByRole('listbox', { name: 'My issues issues' });
     listbox.focus();
     await user.keyboard('{j}{x}');
 

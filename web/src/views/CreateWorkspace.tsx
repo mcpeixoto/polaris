@@ -26,7 +26,7 @@ import { useRef, useState, type FormEvent } from 'react';
 
 import { Button, Input } from '~/components';
 import { ApiError, auth } from '~/sync/api';
-import { AuthError, AuthFieldPair, AuthForm, AuthLayout } from './AuthLayout';
+import { AuthError, AuthFieldPair, AuthForm, AuthLayout, authSubmitClass } from './AuthLayout';
 
 export interface CreateWorkspaceProps {
   /** Called once the workspace exists. The boot sequence opens it. */
@@ -214,7 +214,13 @@ export function CreateWorkspace({ onCreated }: CreateWorkspaceProps) {
           />
         </AuthFieldPair>
 
-        <Button type="submit" variant="primary" fullWidth loading={busy}>
+        <Button
+          type="submit"
+          variant="primary"
+          fullWidth
+          loading={busy}
+          className={authSubmitClass}
+        >
           Create workspace
         </Button>
       </AuthForm>

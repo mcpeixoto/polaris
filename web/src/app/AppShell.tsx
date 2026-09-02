@@ -413,7 +413,7 @@ export function AppShell({
         : []),
       {
         id: 'nav.myIssues',
-        title: 'Go to My Issues',
+        title: 'Go to my issues',
         keys: ['g m'],
         group: 'Navigation',
         run: () => navigate('/my-issues'),
@@ -977,7 +977,7 @@ export function AppShell({
             <div className={navStyles.section}>
               <NavLink to="/my-issues" className={navClass}>
                 <NavGlyph name="issues" />
-                <span className={navStyles.navLabel}>My Issues</span>
+                <span className={navStyles.navLabel}>My issues</span>
               </NavLink>
               <NavLink to="/inbox" className={navClass}>
                 <NavGlyph name="inbox" />
