@@ -21,8 +21,31 @@ export function newNonce(): string {
 }
 
 const GOOGLE_SDK = 'https://accounts.google.com/gsi/client';
+
 const APPLE_SDK =
   'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js';
+
+/**
+ * The Google SDK URL, with the page's language pinned to it.
+ *
+ * Unpinned, Google renders its button in the visitor's *browser* language, so a Portuguese
+ * browser produced a card reading "Continuar com a Google" under an English heading, beside
+ * an English "Continue with Apple". Nothing else in this product is translated, so that
+ * button was not offering a localised experience — it was the only translated string on the
+ * screen, and it looked like a bug because it was one.
+ *
+ * `hl` on the script URL is the only lever that works: `locale` passed to `renderButton` is
+ * accepted and ignored, which was verified against the live client id with the browser
+ * forced to pt-PT — the button stayed Portuguese, and only rewriting the script URL turned
+ * it. Apple's SDK is already pinned the same way, in the `/en_US/` segment of APPLE_SDK.
+ *
+ * Read off `<html lang>` rather than hardcoded, so this follows the document if this product
+ * is ever localised instead of pinning Google to English for good.
+ */
+function googleSdkUrl(): string {
+  const lang = document.documentElement.lang || 'en';
+  return `${GOOGLE_SDK}?hl=${encodeURIComponent(lang)}`;
+}
 
 /** Scripts already requested, so two buttons on one page do not load the SDK twice. */
 const loading = new Map<string, Promise<void>>();
@@ -126,7 +149,7 @@ export async function mountGoogleButton(
   onAssertion: (assertion: Assertion) => void,
   onError: (message: string) => void,
 ): Promise<void> {
-  await loadScript(GOOGLE_SDK);
+  await loadScript(googleSdkUrl());
   const google = window.google;
   if (google === undefined) {
     onError('Google sign-in is unavailable right now.');
