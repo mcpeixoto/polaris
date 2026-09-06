@@ -21,6 +21,22 @@ public struct PolarisEnvironment: Sendable, Hashable {
         self.allowsDevSession = allowsDevSession
     }
 
+    /// The sync stream's WebSocket, derived from the API origin the way
+    /// web/src/sync/endpoint.ts does it: http becomes ws, https becomes wss, and the path is
+    /// `/sync`. Deriving the scheme rather than storing a second URL is what stops a
+    /// configuration where the API is TLS and the socket is not.
+    public var syncSocketURL: URL {
+        var components = URLComponents(url: apiBaseURL, resolvingAgainstBaseURL: false)
+            ?? URLComponents()
+        components.scheme = apiBaseURL.scheme?.lowercased() == "https" ? "wss" : "ws"
+        components.path = "/sync"
+        components.query = nil
+        components.fragment = nil
+        // A base URL this type was built from is a URL already; the only way this fails is a
+        // host that is not one, and then the API URL was never reachable either.
+        return components.url ?? apiBaseURL
+    }
+
     /// A `make dev` stack on the same machine. Points at the API directly rather than through
     /// Vite: one fewer moving part, and the app has no use for the SPA's origin.
     public static let localDevelopment = PolarisEnvironment(

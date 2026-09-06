@@ -14,6 +14,18 @@ public enum PolarisNotificationType: String, Codable, Sendable, Hashable {
     case comment = "COMMENT"
     case mention = "MENTION"
     case subIssueCompleted = "SUB_ISSUE_COMPLETED"
+    case viewIssueAdded = "VIEW_ISSUE_ADDED"
+    case viewIssueCompleted = "VIEW_ISSUE_COMPLETED"
+    case pulseDigest = "PULSE_DIGEST"
+    case projectIssueAdded = "PROJECT_ISSUE_ADDED"
+    case projectIssueCompleted = "PROJECT_ISSUE_COMPLETED"
+    case projectUpdate = "PROJECT_UPDATE"
+    case initiativeIssueAdded = "INITIATIVE_ISSUE_ADDED"
+    case initiativeIssueCompleted = "INITIATIVE_ISSUE_COMPLETED"
+    case initiativeUpdate = "INITIATIVE_UPDATE"
+    case customerRequestAdded = "CUSTOMER_REQUEST_ADDED"
+    case customerRequestImportant = "CUSTOMER_REQUEST_IMPORTANT"
+    case customerRequestCompleted = "CUSTOMER_REQUEST_COMPLETED"
     case other = "OTHER"
 
     /// The server's enum is far longer than the cases this client renders differently, and it
@@ -34,6 +46,18 @@ public enum PolarisNotificationType: String, Codable, Sendable, Hashable {
         case .comment: "bubble.left"
         case .mention: "at"
         case .subIssueCompleted: "checkmark.circle"
+        case .viewIssueAdded: "line.3.horizontal.decrease.circle"
+        case .viewIssueCompleted: "line.3.horizontal.decrease.circle.fill"
+        case .pulseDigest: "newspaper"
+        case .projectIssueAdded: "folder.badge.plus"
+        case .projectIssueCompleted: "folder.badge.checkmark"
+        case .projectUpdate: "folder"
+        case .initiativeIssueAdded: "flag.badge.ellipsis"
+        case .initiativeIssueCompleted: "flag.checkered"
+        case .initiativeUpdate: "flag"
+        case .customerRequestAdded: "person.2"
+        case .customerRequestImportant: "person.2.badge.gearshape"
+        case .customerRequestCompleted: "person.2.badge.gearshape.fill"
         case .other: "bell"
         }
     }
@@ -50,6 +74,18 @@ public enum PolarisNotificationType: String, Codable, Sendable, Hashable {
         case .comment: String(localized: "New comment")
         case .mention: String(localized: "You were mentioned")
         case .subIssueCompleted: String(localized: "Sub-issue completed")
+        case .viewIssueAdded: String(localized: "Added to a view you follow")
+        case .viewIssueCompleted: String(localized: "Completed in a view you follow")
+        case .pulseDigest: String(localized: "Your project digest")
+        case .projectIssueAdded: String(localized: "Added to a project you follow")
+        case .projectIssueCompleted: String(localized: "Completed in a project you follow")
+        case .projectUpdate: String(localized: "Project update posted")
+        case .initiativeIssueAdded: String(localized: "Added to an initiative you follow")
+        case .initiativeIssueCompleted: String(localized: "Completed in an initiative you follow")
+        case .initiativeUpdate: String(localized: "Initiative update posted")
+        case .customerRequestAdded: String(localized: "New customer request")
+        case .customerRequestImportant: String(localized: "Customer request marked important")
+        case .customerRequestCompleted: String(localized: "Customer request completed")
         case .other: String(localized: "Update")
         }
     }
