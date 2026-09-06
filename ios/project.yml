@@ -53,6 +53,12 @@ targets:
       properties:
         com.apple.developer.applesignin:
           - Default
+        # Universal Links and password autofill. The other half is
+        # web/public/.well-known/apple-app-site-association, which names this app id;
+        # the domain here and the app id there must agree or iOS silently opens Safari.
+        com.apple.developer.associated-domains:
+          - applinks:polaris.peixotolabs.com
+          - webcredentials:polaris.peixotolabs.com
 
     info:
       path: Polaris/Info.plist

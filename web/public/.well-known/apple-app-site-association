@@ -1,0 +1,29 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["H874DPF6H5.com.peixotolabs.polaris"],
+        "components": [
+          { "/": "/", "exclude": true, "comment": "landing page" },
+          { "/": "/welcome", "exclude": true, "comment": "landing page" },
+          { "/": "/pricing", "exclude": true, "comment": "public marketing page" },
+          { "/": "/signin", "exclude": true, "comment": "the app has its own sign-in" },
+          { "/": "/signup", "exclude": true, "comment": "the app has its own sign-in" },
+          { "/": "/invite/*", "exclude": true, "comment": "accepting an invite is a web flow" },
+          { "/": "/ask/*", "exclude": true, "comment": "public Asks intake form, no account" },
+          { "/": "/oauth/*", "exclude": true, "comment": "consent screen for third-party clients" },
+          { "/": "/issue/*" },
+          { "/": "/team/*" },
+          { "/": "/inbox" },
+          { "/": "/my-issues" },
+          { "/": "/search" },
+          { "/": "/projects" },
+          { "/": "/project/*" }
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["H874DPF6H5.com.peixotolabs.polaris"]
+  }
+}

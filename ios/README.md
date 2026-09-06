@@ -137,10 +137,38 @@ Set the Apple side up with:
 uv run --with "pyjwt[crypto]" --with requests python ios/scripts/asc-setup.py
 ```
 
-It is idempotent. It registers the bundle id, reuses the team's single Apple Distribution
-certificate rather than minting a second one (an Individual team is capped, and burning one
-per app is how you end up unable to sign anything), creates the App Store provisioning profile
-and installs it.
+It is idempotent. It registers the bundle id, enables the capabilities that match the
+entitlements in `project.yml` (Sign in with Apple, Associated Domains), reuses the team's single
+Apple Distribution certificate rather than minting a second one (an Individual team is capped,
+and burning one per app is how you end up unable to sign anything), creates the App Store
+provisioning profile and installs it. Enabling a capability invalidates the existing profile,
+so the script deletes and remakes it under the same name; `project.yml` references it by name,
+so nothing else changes.
+
+## Universal links
+
+An `https://polaris.peixotolabs.com/issue/ENG-123` link opens in the app rather than Safari.
+Two halves have to agree:
+
+- The app's `com.apple.developer.associated-domains` entitlement (declared in `project.yml`)
+  names the domain: `applinks:polaris.peixotolabs.com` and
+  `webcredentials:polaris.peixotolabs.com` (password autofill).
+- The site serves `/.well-known/apple-app-site-association`, which names the app id
+  `H874DPF6H5.com.peixotolabs.polaris` and lists which paths the app handles. It lives in
+  `web/public/.well-known/` and is served as a static file by the web container's nginx, which
+  sets `application/json` on it — the file has no extension, and Apple's CDN refuses any other
+  type. `web/src/app/appSiteAssociation.test.ts` keeps it valid JSON with the right paths.
+
+The production edge is a hand-written nginx block on the fleet box that proxies only
+`/.well-known/oauth-*` to the API; every other `/.well-known/*` path falls through to the web
+container, and `apple-app-site-association` must keep doing so. The bundled `Caddyfile` has an
+explicit `handle` for it above the `/.well-known/*` → api block for the same reason. The deploy
+job asserts the path answers as JSON, because a manifest served as `index.html` fails with no
+error anywhere — every link simply keeps opening Safari.
+
+Apple's CDN caches the file, so a change to it reaches devices on the next install or
+after a delay, not on the next deploy. Debug builds can bypass the CDN with the
+`?mode=developer` component, which is not set here on purpose.
 
 Then archive, export and upload:
 
