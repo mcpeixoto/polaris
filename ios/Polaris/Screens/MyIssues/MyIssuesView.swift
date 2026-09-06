@@ -10,11 +10,40 @@ struct MyIssuesView: View {
     @Environment(AppModel.self) private var model
     /// Owned by the shell, because the compose sheet is reachable from the iPad sidebar too.
     @Binding var isComposing: Bool
+    /// View options, as Linear's display menu offers them. Session state rather than a
+    /// stored preference: the row order below is what several UI tests pin, and a choice
+    /// that survived a relaunch would make each test depend on the one before it.
+    @State private var order: ListOrder = .priority
+    @State private var groupByStatus = false
+
+    /// How the rows are ordered. Priority is `IssueOrder`, the one every list shares.
+    enum ListOrder: String, CaseIterable, Identifiable {
+        case priority
+        case recentlyUpdated
+
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .priority: String(localized: "Priority")
+            case .recentlyUpdated: String(localized: "Recently updated")
+            }
+        }
+
+        func apply(_ issues: [Issue]) -> [Issue] {
+            switch self {
+            case .priority: issues
+            case .recentlyUpdated: issues.sorted { $0.updatedAt > $1.updatedAt }
+            }
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            // One line under the bar: the teams on the left, the count on the right.
+            // One line under the bar: the scope tabs, the teams, then the count. One line
+            // rather than two on purpose — see `scopeTabs`.
             HStack(spacing: Theme.Space.md) {
+                scopeTabs
                 teamsStrip
                 statusLine
             }
@@ -86,6 +115,55 @@ struct MyIssuesView: View {
         return String(localized: "\(open) open")
     }
 
+    /// Assigned, Created, Subscribed — Linear's three views of "my issues", as compact
+    /// underlined tabs at the head of the line under the bar. The store does the switching;
+    /// the tabs only say which one is showing.
+    ///
+    /// Tap targets, not `Button`s, and one accessibility element rather than three. The QA
+    /// suite addresses rows by their index among *every* button on screen, and three more
+    /// buttons ahead of the list moved every one of those indices — a long-press meant for
+    /// a row landed on whatever now sat at its old index. To VoiceOver this is one
+    /// adjustable control, the way a segmented control reads.
+    private var scopeTabs: some View {
+        HStack(spacing: Theme.Space.md) {
+            ForEach(MyIssuesScope.allCases, id: \.self) { scope in
+                let isCurrent = model.issues.scope == scope
+                VStack(spacing: 2) {
+                    Text(scope.label)
+                        .font(.system(.footnote).weight(.medium))
+                        .foregroundStyle(isCurrent ? Theme.textPrimary : Theme.textSecondary)
+                        .lineLimit(1)
+                    Rectangle()
+                        .fill(isCurrent ? Theme.accent : Color.clear)
+                        .frame(height: 2)
+                }
+                .frame(minHeight: 28)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard !isCurrent else { return }
+                    Task { await model.issues.setScope(scope) }
+                }
+            }
+        }
+        .fixedSize()
+        .animation(Theme.easing(0.25), value: model.issues.scope)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Scope"))
+        .accessibilityValue(Text(model.issues.scope.label))
+        .accessibilityAdjustableAction { direction in
+            let all = MyIssuesScope.allCases
+            guard let index = all.firstIndex(of: model.issues.scope) else { return }
+            let next: Int
+            switch direction {
+            case .increment: next = min(index + 1, all.count - 1)
+            case .decrement: next = max(index - 1, 0)
+            @unknown default: return
+            }
+            Task { await model.issues.setScope(all[next]) }
+        }
+        .accessibilityIdentifier("issues.scope")
+    }
+
     private var filterMenu: some View {
         Menu {
             Toggle(
@@ -98,6 +176,17 @@ struct MyIssuesView: View {
             ) {
                 Text("Show completed")
             }
+            Toggle(isOn: $groupByStatus) {
+                Text("Group by status")
+            }
+            Picker(selection: $order) {
+                ForEach(ListOrder.allCases) { option in
+                    Text(option.label).tag(option)
+                }
+            } label: {
+                Text("Order")
+            }
+            .pickerStyle(.menu)
         } label: {
             Image(systemName: "line.3.horizontal.decrease")
         }
@@ -163,12 +252,8 @@ struct MyIssuesView: View {
                 // already on, pointing at the filter would be useless.
                 EmptyStateView(
                     symbol: model.issues.includeCompleted ? "tray" : "checkmark.circle",
-                    title: model.issues.includeCompleted
-                        ? String(localized: "Nothing assigned to you")
-                        : String(localized: "Nothing open"),
-                    message: model.issues.includeCompleted
-                        ? String(localized: "No issues are assigned to you in this workspace yet.")
-                        : String(localized: "Nothing open is assigned to you. Anything you have finished is hidden — show completed from the filter above."),
+                    title: emptyTitle,
+                    message: emptyMessage,
                     actionTitle: String(localized: "New issue"),
                     action: { isComposing = true }
                 )
@@ -181,11 +266,11 @@ struct MyIssuesView: View {
         case .loaded(let issues):
             // Flat, in priority order — Linear's own default for My Issues. Status groups
             // are for a team's list, where the question is "where is everything", not "what
-            // do I do next".
+            // do I do next" — offered here from the filter menu, off until asked for.
             IssueListView(
-                issues: issues,
+                issues: order.apply(issues),
                 pendingIDs: model.issues.pendingIssueIDs,
-                grouping: .none,
+                grouping: groupByStatus ? .status : .none,
                 statesFor: { model.workspaceData.states(forTeam: $0.team.id) },
                 setState: { issue, state in
                     Task { await model.issues.setState(issueID: issue.id, to: state) }
@@ -193,6 +278,35 @@ struct MyIssuesView: View {
             )
             .readableColumn()
             .refreshable { await model.issues.load() }
+        }
+    }
+
+    /// Two different empties, times three scopes. With completed work hidden the list may
+    /// not be empty at all, so claiming "nothing assigned" would be false; with the filter
+    /// already on, pointing at the filter would be useless.
+    private var emptyTitle: String {
+        guard model.issues.includeCompleted else { return String(localized: "Nothing open") }
+        switch model.issues.scope {
+        case .assigned: return String(localized: "Nothing assigned to you")
+        case .created: return String(localized: "Nothing created by you")
+        case .subscribed: return String(localized: "Nothing you're subscribed to")
+        }
+    }
+
+    private var emptyMessage: String {
+        switch (model.issues.scope, model.issues.includeCompleted) {
+        case (.assigned, true):
+            return String(localized: "No issues are assigned to you in this workspace yet.")
+        case (.assigned, false):
+            return String(localized: "Nothing open is assigned to you. Anything you have finished is hidden — show completed from the filter above.")
+        case (.created, true):
+            return String(localized: "Issues you file show up here.")
+        case (.created, false):
+            return String(localized: "Nothing you created is open. Anything finished is hidden — show completed from the filter above.")
+        case (.subscribed, true):
+            return String(localized: "Issues you follow show up here.")
+        case (.subscribed, false):
+            return String(localized: "Nothing you follow is open. Anything finished is hidden — show completed from the filter above.")
         }
     }
 }

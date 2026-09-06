@@ -7,31 +7,49 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var isConfirmingSignOut = false
     @State private var switchError: PolarisError?
+    /// The account as this screen shows it. Seeded from the viewer and written by the profile
+    /// screen on save, so a renamed reader sees the new name here at once rather than after
+    /// the next viewer load — which nothing on this screen triggers.
+    @State private var user: User
     @AppStorage(AppearancePreference.storageKey) private var appearance: AppearancePreference = .system
+
+    /// Where feedback goes. The address the web client's pricing page uses, with a subject
+    /// that says which client it came from.
+    private static let feedbackURL = URL(string: "mailto:hello@peixotolabs.com?subject=Polaris%20for%20iOS")!
+
+    init(viewer: Viewer) {
+        self.viewer = viewer
+        _user = State(initialValue: viewer.user)
+    }
 
     var body: some View {
         List {
             Section {
-                HStack(spacing: Theme.Space.md) {
-                    // Hidden here: AvatarView's label reads "Assigned to …", which is right
-                    // on an issue row and wrong on your own account. The name and email
-                    // beside it already say who this is.
-                    AvatarView(user: viewer.user, size: 40)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: Theme.Space.xxs) {
-                        Text(viewer.user.displayName)
-                            .font(.system(.subheadline).weight(.semibold))
-                            .foregroundStyle(Theme.textPrimary)
-                        if let email = viewer.user.email {
-                            Text(email)
-                                .font(PolarisText.caption)
-                                .foregroundStyle(Theme.textSecondary)
+                NavigationLink {
+                    ProfileView(user: $user)
+                } label: {
+                    HStack(spacing: Theme.Space.md) {
+                        // Hidden here: AvatarView's label reads "Assigned to …", which is
+                        // right on an issue row and wrong on your own account. The name and
+                        // email beside it already say who this is.
+                        AvatarView(user: user, size: 40)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: Theme.Space.xxs) {
+                            Text(user.displayName)
+                                .font(.system(.subheadline).weight(.semibold))
+                                .foregroundStyle(Theme.textPrimary)
+                            if let email = user.email {
+                                Text(email)
+                                    .font(PolarisText.caption)
+                                    .foregroundStyle(Theme.textSecondary)
+                            }
                         }
+                        Spacer(minLength: 0)
                     }
-                    Spacer(minLength: 0)
+                    .padding(.vertical, Theme.Space.xs)
                 }
-                .padding(.vertical, Theme.Space.xs)
                 .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("settings.profile")
             } header: {
                 header("Account")
             }
@@ -51,7 +69,34 @@ struct SettingsView: View {
             }
 
             Section {
+                NavigationLink {
+                    NotificationSettingsView()
+                } label: {
+                    HStack {
+                        Text("Notifications")
+                            .font(PolarisText.body)
+                            .foregroundStyle(Theme.textPrimary)
+                        Spacer()
+                    }
+                }
+                .accessibilityIdentifier("settings.notifications")
                 appearanceRow
+                // In Preferences rather than an About section of its own: the extra header
+                // pushed Sign out under the tab bar on a phone, and a settings screen whose
+                // last row needs a scroll to find is one people give up on.
+                Link(destination: Self.feedbackURL) {
+                    HStack {
+                        Text("Send feedback")
+                            .font(PolarisText.body)
+                            .foregroundStyle(Theme.textPrimary)
+                        Spacer()
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Theme.textTertiary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .accessibilityIdentifier("settings.feedback")
             } header: {
                 header(String(localized: "Preferences"))
             }
@@ -81,6 +126,8 @@ struct SettingsView: View {
         .background(Theme.background.ignoresSafeArea())
         .navigationTitle(Text("Settings"))
         .navigationBarTitleDisplayMode(.inline)
+        // A workspace switch hands this screen a new viewer under the same identity.
+        .onChange(of: viewer.user) { _, fresh in user = fresh }
         .confirmationDialog(
             Text("Sign out of Polaris?"),
             isPresented: $isConfirmingSignOut,
