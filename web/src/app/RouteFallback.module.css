@@ -1,0 +1,221 @@
+/*
+ * The pane's stand-in while a route chunk is still on the wire.
+ *
+ * Two rules do most of the work here, and both are about *not* being seen. The delay below
+ * keeps a warm chunk — most of them, most of the time — from painting anything at all: a
+ * skeleton that appears and disappears inside three frames reads as a flicker, i.e. as a
+ * bug, and is strictly worse than the pane simply staying put for 60ms. And the shapes are
+ * the destination's shapes, so when content lands it replaces the placeholder in place
+ * instead of re-laying the pane out under the reader's eye.
+ *
+ * The delay is an `animation-delay` with `backwards` rather than a timer, which is the trick
+ * Boot.module.css:41 already uses for the splash: the fill keeps frame zero's `opacity: 0`
+ * for the whole delay, so there is no second render, no timer to clear, and nothing to get
+ * wrong when the chunk resolves mid-flight and the element unmounts.
+ */
+
+.fallback {
+  /* Component-local, because it is a threshold rather than a design token: the point below
+     which a human reads a change as instant. Long enough to swallow a warm chunk, short
+     enough that a cold one does not look frozen first. */
+  --fallback-delay: 160ms;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  animation: fallbackIn var(--duration-normal) var(--ease-out) var(--fallback-delay) backwards;
+}
+
+@keyframes fallbackIn {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---- list ---- */
+
+/* The toolbar every list wears: the same 44px bar and the same inline padding as
+   IssueList.module.css:30, so the header does not move when the real one arrives. */
+.listHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  height: var(--header-height);
+  padding-inline: var(--space-4) var(--space-3);
+}
+
+.listActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* One issue row: status dot, identifier, title, assignee. Full row height and no gap, the
+   way the list draws them — a stack of gapped bars is a different rhythm from a list. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  height: var(--row-height);
+  padding-inline: var(--space-4);
+}
+
+.rowTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 34ch;
+}
+
+.rowEnd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+}
+
+/* ---- detail ---- */
+
+/* IssueDetail.module.css:149 — the same grid, so the properties column does not jump in
+   from the right once the issue is there. */
+.detailBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 960px) {
+  .detailBody {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.detailMain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  max-width: calc(720px + 68px + var(--space-6));
+  padding: var(--space-10) var(--space-6) var(--space-10) 68px;
+}
+
+@media (max-width: 960px) {
+  .detailMain {
+    padding-inline: var(--space-6);
+  }
+}
+
+/* The description block: a few lines of prose, the last one short, because that is what
+   prose does and a stack of equal bars does not. */
+.paragraph {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.detailSide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-10) var(--space-6) var(--space-10) var(--space-4);
+  border-inline-start: 1px solid var(--border-subtle);
+}
+
+@media (max-width: 960px) {
+  .detailSide {
+    display: none;
+  }
+}
+
+.property {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ---- settings ---- */
+
+/* SettingsPage.module.css:.body — the same measure, the same 80px above the title. A
+   settings page is a document; its skeleton is a document too. */
+.settingsBody {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: calc(680px + 2 * var(--space-6));
+  margin-inline: auto;
+  padding: var(--space-16) var(--space-6);
+  padding-top: 80px;
+}
+
+.settingsHeader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-8);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-elevated);
+  overflow: hidden;
+}
+
+/* 64px, the one settings row height — SettingsSection.module.css:.row. */
+.settingsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  min-height: 64px;
+  padding: var(--space-3) var(--space-4);
+  box-sizing: border-box;
+}
+
+.settingsRow + .settingsRow {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.settingsLabel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 30ch;
+}
+
+/*
+ * The same exception Skeleton and Spinner take, and for the same reason: tokens.css folds
+ * every duration to 1ms under this preference, and a fade at 1ms is not a calmer fade, it is
+ * a pop with a delay in front of it. Keep the delay — that part is not motion, it is the
+ * reason a fast navigation shows nothing — and drop the fade.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .fallback {
+    animation-name: fallbackAppear;
+    animation-duration: 1ms;
+    animation-timing-function: linear;
+  }
+}
+
+@keyframes fallbackAppear {
+  from {
+    visibility: hidden;
+  }
+}

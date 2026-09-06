@@ -15,14 +15,32 @@
   /* The sweep is drawn as a moving highlight over that ground rather than as an opacity
      pulse, because a pulse at list scale flashes the whole pane at once. */
   background-image: linear-gradient(
-    90deg,
+    100deg,
     transparent 0%,
+    transparent 38%,
     var(--bg-elevated) 50%,
+    transparent 62%,
     transparent 100%
   );
   background-repeat: no-repeat;
-  background-size: 40% 100%;
-  animation: sweep calc(var(--duration-normal) * 6) var(--ease-in-out) infinite;
+  /*
+   * The highlight is sized and anchored to the viewport, not to the block.
+   *
+   * This is the one line that separates a set of placeholders from a screen that is loading.
+   * With the gradient attached to each element, every block runs its own little sweep, in
+   * lockstep and at its own scale — twenty bars blinking together, and a 40px-wide one
+   * blinking twenty times faster than the 400px one beside it. Attached to the viewport they
+   * all sample the same moving gradient, so one wave crosses the pane and each block simply
+   * shows the part of it that passes over it. It is also why the shape variants need no
+   * per-row `animation-delay`: the offset is geometry, and the geometry is already right.
+   *
+   * The 100deg tilt is what makes the wave read as travelling rather than as a shutter: a
+   * vertical edge crossing a list arrives at every row at the same instant, which is the one
+   * thing light does not do.
+   */
+  background-attachment: fixed;
+  background-size: 180vw 100vh;
+  animation: sweep calc(var(--duration-normal) * 7) var(--ease-in-out) infinite;
 }
 
 .sm {
@@ -45,11 +63,11 @@
 
 @keyframes sweep {
   from {
-    background-position: -60% 0;
+    background-position: -90vw 0;
   }
 
   to {
-    background-position: 160% 0;
+    background-position: 180vw 0;
   }
 }
 
