@@ -547,6 +547,7 @@ correct.
 | `/asks/*` | `api` `:8088` | Public Asks intake. Token in the path is the credential. |
 | `/calendars/*` | `api` `:8088` | Public cycle ICS feeds. Token in the path is the credential. |
 | `/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server` | `api` `:8088` | MCP OAuth discovery, including the `/mcp`-suffixed spellings some clients probe. Match the `oauth-` prefix, not all of `/.well-known/` — ACME's challenge lives there and certificate renewal has to keep working. |
+| `/.well-known/apple-app-site-association` | web `:8080` | The iOS app's Universal Links manifest, a static file in the web image. Must not be swallowed by a `/.well-known/*` → api rule. |
 | `/healthz`, `/readyz` | `api` `:8088` | Or wherever you want your uptime check to land |
 | everything else | web `:8080` | The SPA, which handles its own client-side routing |
 

@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// The frame every auth screen sits in.
+/// The frame every auth screen sits in: a small caption, a plain headline, the form, and the
+/// call to action pinned under it all.
 ///
 /// The footer is deliberately OUTSIDE the scroll view. When the CTA lived inside, a large
 /// Dynamic Type setting pushed it below the fold and the only way to submit the form was to
@@ -25,22 +26,22 @@ struct AuthScaffold<Content: View, Footer: View>: View {
                         VStack(spacing: 0) {
                             Spacer(minLength: 0)
 
-                            MonoEyebrow(text: eyebrow, color: Theme.accentBright)
-                                .staggerRise(0)
+                            Text(eyebrow)
+                                .font(PolarisText.sectionTitle)
+                                .foregroundStyle(Theme.textSecondary)
 
-                            (
-                                Text(title).foregroundStyle(Theme.textPrimary)
-                                    + Text(accent).foregroundStyle(Theme.accentBright)
-                            )
-                            .displayFont(28, weight: .semibold)
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.top, 10)
-                            .staggerRise(1)
+                            // One `Text` rather than two views, so the headline wraps as a
+                            // single paragraph. The two halves are the same colour now; the
+                            // accent word was the last of the editorial flourishes.
+                            (Text(title) + Text(accent))
+                                .font(PolarisText.screenTitle)
+                                .foregroundStyle(Theme.textPrimary)
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.top, Theme.Space.sm)
 
                             content()
-                                .padding(.top, 26)
-                                .staggerRise(2)
+                                .padding(.top, Theme.Space.xxl)
 
                             Spacer(minLength: 0)
                         }
@@ -52,14 +53,12 @@ struct AuthScaffold<Content: View, Footer: View>: View {
                 }
 
                 footer()
-                    .padding(.top, 8)
-                    .staggerRise(3)
+                    .padding(.top, Theme.Space.sm)
             }
             .frame(maxWidth: 460)
-            .padding(.horizontal, 26)
-            .padding(.bottom, 24)
+            .padding(.horizontal, Theme.Space.xxl)
+            .padding(.bottom, Theme.Space.xxl)
         }
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.hidden, for: .navigationBar)
     }
 }

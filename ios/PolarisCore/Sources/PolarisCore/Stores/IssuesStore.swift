@@ -13,6 +13,8 @@ import Observation
 public final class IssuesStore {
     public private(set) var issues: Loadable<[Issue]> = .idle
     public private(set) var includeCompleted = false
+    /// Which relationship the list is about. Assigned by default, as it always was.
+    public private(set) var scope: MyIssuesScope = .assigned
     /// Set while a write is in flight so a row can show it is settling without the whole list
     /// dropping back to a spinner.
     public private(set) var pendingIssueIDs: Set<String> = []
@@ -28,7 +30,10 @@ public final class IssuesStore {
 
     private let api: any PolarisAPI
     private let cache: (any IssueCache)?
-    private var lastSeenVersion: Int?
+    /// The `syncVersion` the last successful load observed. Read by the realtime coordinator
+    /// as the point to resume the sync socket from, so a reconnect replays what was missed as
+    /// one signal instead of losing it.
+    public private(set) var lastSeenVersion: Int?
 
     public init(api: any PolarisAPI, cache: (any IssueCache)? = nil) {
         self.api = api
@@ -49,14 +54,14 @@ public final class IssuesStore {
     public func load() async {
         if issues.value == nil { issues = .loading }
         do {
-            let fetched = try await api.myIssues(includeCompleted: includeCompleted)
+            let fetched = try await api.myIssues(scope: scope, includeCompleted: includeCompleted)
             issues = .loaded(sort(fetched))
             isShowingCachedIssues = false
             lastRefreshError = nil
-            // Only the unfiltered list is cached. Persisting a filtered one would restore
-            // "everything including completed" as if it were the whole truth on the next cold
-            // start, under a filter that is off.
-            if includeCompleted == false { cache?.write(fetched) }
+            // Only the unfiltered, assigned list is cached. Persisting a filtered one would
+            // restore "everything including completed" — or "everything I created" — as if it
+            // were the whole truth on the next cold start, under a filter that is off.
+            if includeCompleted == false, scope == .assigned { cache?.write(fetched) }
             lastSeenVersion = try? await api.syncVersion()
         } catch {
             let mapped = PolarisError.mapped(error)
@@ -75,6 +80,14 @@ public final class IssuesStore {
         // Deliberately NOT `issues = .loading`. Blanking to a spinner throws away a list the
         // reader is looking at, and it defeats the protection `load()` implements: with no
         // value held, a refetch that fails turns a populated list into a full-screen error.
+        await load()
+    }
+
+    /// Switches between assigned, created and subscribed. Same rule as the completed toggle:
+    /// the list on screen stays until the new one answers.
+    public func setScope(_ newValue: MyIssuesScope) async {
+        guard newValue != scope else { return }
+        scope = newValue
         await load()
     }
 

@@ -32,6 +32,10 @@ public final class AppModel {
     public private(set) var issues: IssuesStore
     public private(set) var workspaceData: WorkspaceDataStore
     public private(set) var inbox: InboxStore
+    /// The socket-or-poll freshness machinery. One per model, not per session: it is pointed
+    /// at a workspace after sign-in and away from one on sign-out, and the shell tells it
+    /// whether the app is in front.
+    public let realtime: RealtimeCoordinator
     /// A workspace switch is a whole-app reload, and it can fail. Held here because the only
     /// screen that can start one — Settings — is not the only screen it affects.
     public private(set) var isSwitchingWorkspace = false
@@ -55,10 +59,16 @@ public final class AppModel {
     /// in-memory one, and so the fixture app does not write to the host's disk.
     private let cache: (any IssueCache)?
 
+    /// - Parameter socketConnector: How the sync socket is opened. Nil means it never is —
+    ///   the fixture app passes nil, because `FixturePolarisClient.syncSocketURL()` is a real
+    ///   localhost address and a UI test that dials it is a UI test that depends on what else
+    ///   is running on the machine. The poll still runs, so nothing is less fresh than before.
     public init(
         environment: PolarisEnvironment,
         api: (any PolarisAPI)? = nil,
-        cache: (any IssueCache)? = nil
+        cache: (any IssueCache)? = nil,
+        socketConnector: (any SyncConnecting)? = URLSessionSyncConnector(),
+        pollInterval: Duration = .seconds(30)
     ) {
         let client = api ?? LivePolarisClient(environment: environment)
         self.environment = environment
@@ -67,6 +77,9 @@ public final class AppModel {
         self.issues = IssuesStore(api: client, cache: cache)
         self.workspaceData = WorkspaceDataStore(api: client)
         self.inbox = InboxStore(api: client)
+        self.realtime = RealtimeCoordinator(
+            api: client, connector: socketConnector, pollInterval: pollInterval
+        )
         wireStores()
     }
 
@@ -196,6 +209,9 @@ public final class AppModel {
     }
 
     public func signOut(reason: PolarisError? = nil) async {
+        // First, so a signal racing the sign-out cannot refetch into a store that is about to
+        // be thrown away — or worse, into the fresh one below with the old session's token.
+        realtime.detach()
         let failure = await api.signOut()
         // A logout the server refused is worth saying — the refresh token outlives the local
         // session. It is not worth *replacing* the reason the user is being signed out with,
@@ -238,10 +254,63 @@ public final class AppModel {
             await workspaceData.load()
             await issues.load()
             await inbox.load()
+            // After the first load, not before: the socket resumes from the version that load
+            // observed, and a resume from nil is a resume from zero, which the server answers
+            // with a `ready` ahead of us and a refetch we have just done.
+            realtime.attach(workspaceId: viewer.workspace.id, hooks: realtimeHooks())
             return nil
         } catch {
             return PolarisError.mapped(error)
         }
+    }
+
+    /// What a sync signal does: refetch the issue list, and the inbox if it has been opened —
+    /// the badge alone otherwise, because a list nobody has looked at is not worth a request
+    /// per signal. Returns the list's read failure, which is what the connectivity pill shows.
+    public func refreshOnSignal() async -> PolarisError? {
+        await issues.load()
+        if inbox.notifications.value != nil {
+            await inbox.load()
+        } else {
+            await inbox.refreshBadge()
+        }
+        return issues.lastRefreshError
+    }
+
+    /// What a poll tick does while the socket is down: the cheap `syncVersion` check, and a
+    /// refetch only if it moved. This is the whole of the pre-socket freshness story.
+    public func pollForFreshness() async -> PolarisError? {
+        await issues.refreshIfStale()
+        await inbox.refreshBadge()
+        return issues.lastRefreshError
+    }
+
+    /// The unread count for the app icon, from a background launch that has no scene.
+    ///
+    /// `start()` is not run for a `BGAppRefreshTask`: there is no view to `.task` it from, and
+    /// loading every store to read one number would be most of a cold start on a budget of a
+    /// few seconds. This restores the session directly when there is none and asks for the
+    /// scalar. Nil means the count could not be had, and the caller leaves the badge alone.
+    public func unreadCountForBadge() async -> Int? {
+        if case .ready = phase {
+            await inbox.refreshBadge()
+            return inbox.unreadCount
+        }
+        guard let session = try? await api.restoreSession(),
+              let workspace = session.workspaces.first
+        else { return nil }
+        await api.useWorkspace(id: workspace.id)
+        return try? await api.unreadNotificationCount()
+    }
+
+    private func realtimeHooks() -> RealtimeCoordinator.Hooks {
+        // `weak self` throughout: the coordinator is owned by the model, and a hook that owned
+        // the model back would keep both alive after the window went away.
+        RealtimeCoordinator.Hooks(
+            lastSeenVersion: { [weak self] in self?.issues.lastSeenVersion },
+            refresh: { [weak self] _ in await self?.refreshOnSignal() ?? nil },
+            poll: { [weak self] in await self?.pollForFreshness() ?? nil }
+        )
     }
 
     private func finishSignIn(_ session: Session) async {
@@ -267,6 +336,7 @@ public final class AppModel {
             await workspaceData.load()
             await issues.load()
             await inbox.load()
+            realtime.attach(workspaceId: viewer.workspace.id, hooks: realtimeHooks())
         } catch let error as PolarisError {
             phase = .signedOut(error)
         } catch {

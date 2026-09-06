@@ -8,11 +8,11 @@ struct LoadingView: View {
     var label: String = "Loading"
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: Theme.Space.md) {
             ProgressView()
-                .tint(Theme.accentBright)
+                .tint(Theme.textSecondary)
             Text(label)
-                .bodyFont(13, weight: .medium)
+                .font(PolarisText.caption)
                 .foregroundStyle(Theme.textSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -22,9 +22,9 @@ struct LoadingView: View {
     }
 }
 
-/// A dashed border over a translucent fill, so an empty collection reads as "nothing here
-/// yet" rather than as an error. A solid card says something went wrong; a dashed slot says
-/// something is missing.
+/// An empty collection, said quietly in the middle of the space it would have filled. No
+/// box around it: a bordered slot draws the eye to the absence, and the absence is not the
+/// point — the action under it is.
 struct EmptyStateView: View {
     let symbol: String
     let title: String
@@ -33,21 +33,21 @@ struct EmptyStateView: View {
     var action: (() -> Void)?
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: Theme.Space.sm) {
             Group {
                 Image(systemName: symbol)
-                    .font(.system(size: 30, weight: .light))
-                    .foregroundStyle(Theme.accentBright.opacity(0.8))
-                    .padding(.bottom, 2)
+                    .font(.system(size: 26, weight: .light))
+                    .foregroundStyle(Theme.textTertiary)
+                    .padding(.bottom, Theme.Space.xs)
                     // Inside the combined group, VoiceOver announced the SF Symbol's name
                     // ahead of the title. Its siblings — ErrorStateView, InlineErrorLabel —
                     // both hide theirs.
                     .accessibilityHidden(true)
                 Text(title)
-                    .displayFont(20)
+                    .font(.system(.subheadline).weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
                 Text(message)
-                    .bodyFont(12.5)
+                    .font(PolarisText.caption)
                     .foregroundStyle(Theme.textSecondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(2)
@@ -59,27 +59,25 @@ struct EmptyStateView: View {
             if let actionTitle, let action {
                 Button(action: action) {
                     Text(actionTitle)
-                        .bodyFont(12.5, weight: .semibold)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(Theme.accent)
-                        .clipShape(Capsule())
+                        .font(.system(.footnote).weight(.medium))
+                        .foregroundStyle(Theme.textPrimary)
+                        .padding(.horizontal, Theme.Space.md)
+                        .frame(minHeight: 30)
+                        .background(Theme.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous)
+                                .stroke(Theme.border, lineWidth: 1)
+                        )
                         .hitTarget(minWidth: 0)
                 }
                 .buttonStyle(PressableStyle())
-                .padding(.top, 6)
+                .padding(.top, Theme.Space.xs)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 24)
-        .padding(.vertical, 30)
-        .background(Theme.card)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(Theme.border, style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
-        )
+        .padding(.horizontal, Theme.Space.xxl)
+        .padding(.vertical, Theme.Space.xxxl)
     }
 }
 
@@ -88,13 +86,13 @@ struct ErrorStateView: View {
     var retry: (() -> Void)?
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: Theme.Space.md) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 30, weight: .light))
+                .font(.system(size: 26, weight: .light))
                 .foregroundStyle(Theme.warn)
                 .accessibilityHidden(true)
             Text(error.displayMessage)
-                .bodyFont(14)
+                .font(PolarisText.body)
                 .foregroundStyle(Theme.textPrimary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(2)
@@ -103,19 +101,22 @@ struct ErrorStateView: View {
             if error.isRetryable, let retry {
                 Button(action: retry) {
                     Text("Try again")
-                        .bodyFont(12.5, weight: .semibold)
+                        .font(.system(.footnote).weight(.medium))
                         .foregroundStyle(Theme.textPrimary)
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 10)
-                        .background(Theme.card)
-                        .clipShape(Capsule())
-                        .overlay(Capsule().stroke(Theme.border, lineWidth: 1))
+                        .padding(.horizontal, Theme.Space.md)
+                        .frame(minHeight: 30)
+                        .background(Theme.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous)
+                                .stroke(Theme.border, lineWidth: 1)
+                        )
                         .hitTarget(minWidth: 0)
                 }
                 .buttonStyle(PressableStyle())
             }
         }
-        .padding(32)
+        .padding(Theme.Space.xxxl)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
@@ -130,21 +131,21 @@ struct InlineErrorLabel: View {
     var onRetry: (() -> Void)?
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: Theme.Space.sm) {
             Image(systemName: "exclamationmark.circle.fill")
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.danger)
                 .padding(.top, 1)
                 .accessibilityHidden(true)
             Text(text)
-                .bodyFont(12.5, weight: .medium)
+                .font(.system(.footnote).weight(.medium))
                 .foregroundStyle(Theme.danger)
                 .fixedSize(horizontal: false, vertical: true)
                 .multilineTextAlignment(.leading)
             if let retryLabel, let onRetry {
                 Button(action: onRetry) {
                     Text(retryLabel)
-                        .bodyFont(12.5, weight: .semibold)
+                        .font(.system(.footnote).weight(.semibold))
                         .underline()
                         .foregroundStyle(Theme.accentBright)
                 }

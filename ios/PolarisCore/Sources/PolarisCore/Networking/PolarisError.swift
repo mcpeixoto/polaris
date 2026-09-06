@@ -67,6 +67,13 @@ public enum PolarisError: Error, Equatable, Sendable {
         return .badResponse
     }
 
+    /// What a client that does not implement an operation throws. A 501, because that is
+    /// what it is; `.server` rather than a new case, so nothing switching on this enum has
+    /// to change.
+    static func unsupported(_ what: String) -> PolarisError {
+        .server(status: 501, message: "This client cannot handle \(what).")
+    }
+
     static func from(urlError: URLError) -> PolarisError {
         switch urlError.code {
         case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed:

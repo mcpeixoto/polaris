@@ -97,6 +97,12 @@ WebSocket, JSON (binary/CBOR later if payload size bites), one connection per wo
 { "t": "hello", "token": "<jwt>", "workspace": "<uuid>",
   "resume": 148213, "clientSchema": 7, "clientId": "<uuid>" }
 
+// A thin client — the iOS app — that keeps no replica and only wants to know *that*
+// something changed. `signalOnly` skips the client-schema check (there are no rows to
+// corrupt) and the server strips `payload` from its deltas.
+{ "t": "hello", "token": "<jwt>", "workspace": "<uuid>",
+  "resume": 148213, "clientSchema": 0, "clientId": "<uuid>", "signalOnly": true }
+
 { "t": "ping" }                                  // every 30s, required
 { "t": "subscribe", "channels": ["presence:issue:<id>"] }
 ```

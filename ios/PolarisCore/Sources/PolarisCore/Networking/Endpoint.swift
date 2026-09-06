@@ -9,6 +9,13 @@ import Foundation
 public struct PolarisEnvironment: Sendable, Hashable {
     public let apiBaseURL: URL
     public let allowsDevSession: Bool
+    /// Where the sync hub is when it is not `/sync` on the API origin.
+    ///
+    /// Behind the production proxy it is: nginx routes `/sync` to the hub. `make dev` runs the
+    /// hub as its own process on :8089 with nothing in front of it — the web dev server
+    /// proxies `/sync` there (web/vite.config.ts), and this app, which talks to the ports
+    /// directly, needs the address. Nil means derive from the API origin.
+    public let syncHubURL: URL?
 
     /// What to show a reader beside their chosen URL key. A self-hoster on their own domain
     /// was previously shown `polaris.app/`, which is not their address and not ours to claim.
@@ -16,16 +23,34 @@ public struct PolarisEnvironment: Sendable, Hashable {
         (apiBaseURL.host ?? "polaris").replacingOccurrences(of: "^www\\.", with: "", options: .regularExpression)
     }
 
-    public init(apiBaseURL: URL, allowsDevSession: Bool) {
+    public init(apiBaseURL: URL, allowsDevSession: Bool, syncHubURL: URL? = nil) {
         self.apiBaseURL = apiBaseURL
         self.allowsDevSession = allowsDevSession
+        self.syncHubURL = syncHubURL
+    }
+
+    /// The sync stream's WebSocket, derived from the API origin the way
+    /// web/src/sync/endpoint.ts does it: http becomes ws, https becomes wss, and the path is
+    /// `/sync`. Deriving the scheme rather than storing a second URL is what stops a
+    /// configuration where the API is TLS and the socket is not.
+    public var syncSocketURL: URL {
+        var components = URLComponents(url: apiBaseURL, resolvingAgainstBaseURL: false)
+            ?? URLComponents()
+        components.scheme = apiBaseURL.scheme?.lowercased() == "https" ? "wss" : "ws"
+        components.path = "/sync"
+        components.query = nil
+        components.fragment = nil
+        // A base URL this type was built from is a URL already; the only way this fails is a
+        // host that is not one, and then the API URL was never reachable either.
+        return components.url ?? apiBaseURL
     }
 
     /// A `make dev` stack on the same machine. Points at the API directly rather than through
     /// Vite: one fewer moving part, and the app has no use for the SPA's origin.
     public static let localDevelopment = PolarisEnvironment(
         apiBaseURL: URL(string: "http://localhost:8088")!,
-        allowsDevSession: true
+        allowsDevSession: true,
+        syncHubURL: URL(string: "ws://localhost:8089/sync")!
     )
 
     public static let hosted = PolarisEnvironment(

@@ -40,6 +40,12 @@ type Session struct {
 	clientID  uuid.UUID
 	log       *slog.Logger
 
+	// signalOnly is set from Hello.SignalOnly before the session is registered and never
+	// changes afterwards. Deltas to such a session carry no payloads: the client does not
+	// read them, and a document body it will never look at is the largest thing this
+	// socket ever sends.
+	signalOnly bool
+
 	startedAt time.Time
 
 	// cursor is the highest version this client is known to hold.
@@ -138,13 +144,17 @@ func (s *Session) offer(changes []domain.SyncChange) {
 		if !c.Visible(principal) {
 			continue
 		}
+		payload := c.Payload
+		if s.signalOnly {
+			payload = nil
+		}
 		visible = append(visible, Change{
 			Version:    c.Version,
 			EntityType: c.EntityType,
 			EntityID:   c.EntityID,
 			Op:         c.Op,
 			Actor:      Actor{Type: c.ActorType, ID: c.ActorID},
-			Payload:    c.Payload,
+			Payload:    payload,
 		})
 	}
 
