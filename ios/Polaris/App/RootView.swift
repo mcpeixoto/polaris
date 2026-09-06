@@ -335,7 +335,17 @@ struct PolarisNavigation<Content: View>: View {
                     IssueDetailView(issue: issue)
                         .issueTransitionDestination(issue.id, in: issueTransition)
                 }
-                .navigationDestination(for: Team.self) { TeamIssuesView(team: $0) }
+                .navigationDestination(for: Team.self) { TeamHubView(team: $0) }
+                .navigationDestination(for: Project.self) { ProjectDetailView(project: $0) }
+                .navigationDestination(for: Cycle.self) { CycleDetailView(cycle: $0) }
+                .navigationDestination(for: TeamListRoute.self) { route in
+                    switch route {
+                    case .issues(let team, let kind): TeamIssuesView(team: team, kind: kind)
+                    case .triage(let team): TriageView(team: team)
+                    case .cycles(let team): CyclesView(team: team)
+                    case .projects(let team): ProjectsView(team: team)
+                    }
+                }
         }
         .environment(\.issueTransitionNamespace, issueTransition)
     }
