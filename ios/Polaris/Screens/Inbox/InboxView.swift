@@ -16,6 +16,9 @@ struct InboxView: View {
     @Environment(AppModel.self) private var model
     @State private var actions = 0
     @State private var failures = 0
+    /// Linear's "Unread only" switch. Client-side: the list is already on the phone, and a
+    /// second request for a subset of it would be a request for nothing new.
+    @State private var unreadOnly = false
 
     private var inbox: InboxStore { model.inbox }
 
@@ -33,7 +36,8 @@ struct InboxView: View {
         .navigationTitle(Text("Inbox"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                filterMenu
                 Button {
                     actions += 1
                     Task { await inbox.markAllRead() }
@@ -51,6 +55,23 @@ struct InboxView: View {
         .onChange(of: inbox.actionError == nil) { _, isClear in
             if !isClear { failures += 1 }
         }
+    }
+
+    /// Everything, or only what is still unread.
+    private var filterMenu: some View {
+        Menu {
+            Picker(selection: $unreadOnly) {
+                Text("All").tag(false)
+                Text("Unread only").tag(true)
+            } label: {
+                Text("Show")
+            }
+            .pickerStyle(.inline)
+        } label: {
+            Image(systemName: unreadOnly ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+        }
+        .accessibilityLabel(Text("Filter"))
+        .accessibilityIdentifier("inbox.filter")
     }
 
     @ViewBuilder
@@ -78,7 +99,25 @@ struct InboxView: View {
             .scrollIndicators(.hidden)
             .refreshable { await inbox.load() }
 
-        case .loaded(let rows):
+        case .loaded(let all) where unreadOnly && !all.contains(where: { !$0.isRead }):
+            // A filter that hides everything must say so, or it reads as an empty inbox with
+            // the badge still lit.
+            ScrollView {
+                EmptyStateView(
+                    symbol: "envelope.open",
+                    title: String(localized: "Nothing unread"),
+                    message: String(localized: "Everything here has been read. Show all from the filter above."),
+                    actionTitle: String(localized: "Show all"),
+                    action: { unreadOnly = false }
+                )
+                .padding(.top, Theme.Space.xxxl)
+                .readableColumn()
+            }
+            .scrollIndicators(.hidden)
+            .refreshable { await inbox.load() }
+
+        case .loaded(let all):
+            let rows = unreadOnly ? all.filter { !$0.isRead } : all
             List {
                 ForEach(DayGrouping.group(rows, date: \.createdAt)) { day in
                     Section {
@@ -108,6 +147,12 @@ struct InboxView: View {
             if let issue = row.issue {
                 InboxRow(notification: row, actor: actor(for: row), opensIssue: true)
                     .background(NavigationLink(value: issue) { EmptyView() }.opacity(0))
+                    // Opening the issue is reading the notification — Linear marks it read
+                    // on the way in. Simultaneous, so the link behind the row still fires.
+                    .simultaneousGesture(TapGesture().onEnded {
+                        guard !row.isRead else { return }
+                        Task { await inbox.markRead(row) }
+                    })
             } else {
                 // No issue means the row outlived what it pointed at. Rendered, because it is
                 // still a thing that happened, but not tappable — a link to nothing is worse
@@ -143,13 +188,44 @@ struct InboxView: View {
             }
             Button {
                 actions += 1
-                // A day, which is the only snooze a phone screen has room to offer without a
-                // date picker nobody wants in a swipe action.
-                Task { await inbox.snooze(row, until: Date().addingTimeInterval(24 * 60 * 60)) }
+                // Tomorrow morning, the one snooze a swipe can offer without a menu. The
+                // other two are in the context menu.
+                Task { await inbox.snooze(row, until: SnoozeOption.tomorrow.date()) }
             } label: {
                 SwiftUI.Label("Snooze", systemImage: "clock")
             }
             .tint(Theme.warn)
+        }
+        .contextMenu {
+            Button {
+                actions += 1
+                Task { await inbox.markRead(row, read: !row.isRead) }
+            } label: {
+                SwiftUI.Label(
+                    row.isRead ? String(localized: "Mark unread") : String(localized: "Mark read"),
+                    systemImage: row.isRead ? "envelope.badge" : "envelope.open"
+                )
+            }
+            if row.snoozedUntil == nil {
+                SnoozeMenu { until in
+                    actions += 1
+                    Task { await inbox.snooze(row, until: until) }
+                }
+            } else {
+                Button {
+                    actions += 1
+                    Task { await inbox.snooze(row, until: nil) }
+                } label: {
+                    SwiftUI.Label("Unsnooze", systemImage: "clock.badge.xmark")
+                }
+            }
+            Divider()
+            Button(role: .destructive) {
+                actions += 1
+                Task { await inbox.delete(row) }
+            } label: {
+                SwiftUI.Label("Delete", systemImage: "trash")
+            }
         }
         .accessibilityIdentifier("inbox.row.\(row.id)")
     }
@@ -210,7 +286,7 @@ private struct InboxRow: View {
             .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: Theme.Space.xxs + 1) {
-                Text(notification.type.summary)
+                Text(sentence)
                     .font(.system(.subheadline).weight(notification.isRead ? .regular : .medium))
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
@@ -219,9 +295,9 @@ private struct InboxRow: View {
                     .foregroundStyle(Theme.textSecondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                if notification.snoozedUntil != nil {
+                if let until = notification.snoozedUntil {
                     SwiftUI.Label {
-                        Text("Snoozed")
+                        Text("Snoozed until \(until, format: .dateTime.weekday(.abbreviated).hour().minute())")
                     } icon: {
                         Image(systemName: "clock")
                     }
@@ -247,10 +323,12 @@ private struct InboxRow: View {
         .accessibilityAddTraits(opensIssue ? .isButton : [])
     }
 
+    private var sentence: String { InboxSentence.text(for: notification, actor: actor) }
+
     private var spokenLabel: String {
         let state = notification.isRead
             ? String(localized: "Read")
             : String(localized: "Unread")
-        return "\(state), \(notification.type.summary), \(notification.subtitle)"
+        return "\(state), \(sentence), \(notification.subtitle)"
     }
 }
