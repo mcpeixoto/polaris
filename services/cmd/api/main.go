@@ -22,6 +22,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/vektah/gqlparser/v2/ast"
 
+	"github.com/peixotolabs/polaris/services/internal/agent"
 	"github.com/peixotolabs/polaris/services/internal/domain"
 	"github.com/peixotolabs/polaris/services/internal/entitlement"
 	"github.com/peixotolabs/polaris/services/internal/graph"
@@ -29,6 +30,7 @@ import (
 	"github.com/peixotolabs/polaris/services/internal/httpapi"
 	ghclient "github.com/peixotolabs/polaris/services/internal/integrations/github"
 	glclient "github.com/peixotolabs/polaris/services/internal/integrations/gitlab"
+	"github.com/peixotolabs/polaris/services/internal/llm"
 	"github.com/peixotolabs/polaris/services/internal/platform"
 	"github.com/peixotolabs/polaris/services/internal/store"
 )
@@ -87,12 +89,26 @@ func run() error {
 		log.Warn("per-caller rate limiting is disabled by configuration")
 	}
 
+	// The executor exists whether or not a provider is configured: approving work the
+	// agent already planned must keep working on a deployment that has since turned the
+	// agent off, or a pending proposal becomes permanently unapprovable.
+	var agentRunner *agent.Runner
+	if cfg.AgentEnabled() {
+		agentRunner = agent.NewRunner(svc,
+			llm.NewAnthropic(cfg.AIAPIKey, cfg.AIModel, cfg.AIBaseURL, nil))
+	}
+	// The domain only needs to know whether the agent exists, so that "@polaris" in a
+	// comment is a trigger here and simply text on a deployment without a provider.
+	svc.SetAgentEnabled(cfg.AgentEnabled())
+	svc.SetAgentMetered(cfg.AICreditsEnabled)
+
 	router := httpapi.NewRouter(httpapi.Deps{
-		Service: svc,
-		Tokens:  tokens,
-		Config:  cfg,
-		GraphQL: newGraphQLHandler(svc, cfg),
-		Limits:  limits,
+		Service:     svc,
+		Tokens:      tokens,
+		Config:      cfg,
+		GraphQL:     newGraphQLHandler(svc, cfg),
+		Limits:      limits,
+		AgentRunner: agentRunner,
 	})
 
 	srv := &http.Server{
@@ -133,6 +149,15 @@ func run() error {
 }
 
 func newGraphQLHandler(svc *domain.Service, cfg platform.Config) http.Handler {
+	// The executor exists whether or not a provider is configured: approving work the
+	// agent already planned must keep working on a deployment that has since turned the
+	// agent off, or a pending proposal becomes permanently unapprovable.
+	agentExec := agent.NewExecutor(svc)
+	agentModel := ""
+	if cfg.AgentEnabled() {
+		agentModel = cfg.AIModel
+	}
+
 	es := generated.NewExecutableSchema(generated.Config{
 		Resolvers: &graph.Resolver{
 			Svc:                    svc,
@@ -140,6 +165,8 @@ func newGraphQLHandler(svc *domain.Service, cfg platform.Config) http.Handler {
 			GitHubOAuthConfigured:  cfg.GitHubOAuthConfigured(),
 			SlackSigningConfigured: strings.TrimSpace(cfg.SlackSigningSecret) != "",
 			SlackBotConfigured:     strings.TrimSpace(cfg.SlackBotToken) != "",
+			Agent:                  agentExec,
+			AgentProvider:          agentModel,
 		},
 		Directives: graph.Directives(),
 	})

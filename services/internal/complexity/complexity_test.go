@@ -238,6 +238,7 @@ func TestNoPaginationArgumentGoesUnrecognised(t *testing.T) {
 		"updateReminderIntervalDays":        "per-project reminder interval in days, not a row count",
 		"updateReminderWeekday":             "per-project reminder weekday 0-6, not a row count",
 		"updateReminderHour":                "per-project reminder hour 0-23, not a row count",
+		"micros":                            "AI credit, in millionths of a dollar, not a row count",
 		"revenue":                           "customer revenue, not a row count",
 		"size":                              "customer employee count, not a row count",
 		"durationMinutes":                   "SLA duration in minutes, not a row count",

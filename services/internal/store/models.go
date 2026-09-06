@@ -51,6 +51,65 @@ type AccountSession struct {
 	UpdatedAt  time.Time
 }
 
+type AgentIdentity struct {
+	WorkspaceID uuid.UUID
+	UserID      uuid.UUID
+	CreatedAt   time.Time
+}
+
+type AgentMessage struct {
+	ID            uuid.UUID
+	WorkspaceID   uuid.UUID
+	SessionID     uuid.UUID
+	Role          string
+	Body          string
+	ToolCalls     json.RawMessage
+	Proposal      []byte
+	ProposalState *string
+	InputTokens   int32
+	OutputTokens  int32
+	CreatedAt     time.Time
+}
+
+type AgentPreference struct {
+	UserID      uuid.UUID
+	WorkspaceID uuid.UUID
+	AutoApply   bool
+	UpdatedAt   time.Time
+}
+
+type AgentSession struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	UserID      uuid.UUID
+	Title       string
+	Status      string
+	Error       *string
+	Origin      string
+	IssueID     *uuid.UUID
+	CommentID   *uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type AiCreditBalance struct {
+	WorkspaceID uuid.UUID
+	Micros      int64
+	UpdatedAt   time.Time
+}
+
+type AiCreditLedger struct {
+	ID           uuid.UUID
+	WorkspaceID  uuid.UUID
+	Micros       int64
+	Reason       string
+	SessionID    *uuid.UUID
+	Model        *string
+	InputTokens  int32
+	OutputTokens int32
+	CreatedAt    time.Time
+}
+
 type ApiKey struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID

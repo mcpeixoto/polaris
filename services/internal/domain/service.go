@@ -28,6 +28,8 @@ type Service struct {
 	// path, not a host.
 	PublicURL string
 
+	agentEnabled   bool
+	agentMetered   bool
 	githubComments GitHubCommentPoster
 	gitlabComments GitLabCommentPoster
 
@@ -54,6 +56,15 @@ type Service struct {
 
 func NewService(db *store.DB) *Service {
 	return &Service{db: db, now: time.Now, audit: newAuditRecorder()}
+}
+
+// SetAgentEnabled tells the domain whether a model provider is configured.
+//
+// It exists so that a deployment with the agent turned off does not turn every "@polaris"
+// in a comment into a queued run that can only fail. The mention is simply not a trigger
+// there, which is the honest behaviour: nothing was promised, so nothing is owed.
+func (s *Service) SetAgentEnabled(enabled bool) {
+	s.agentEnabled = enabled
 }
 
 // SetGitHubCommentPoster is how the API process posts linkbacks. Tests inject a recorder.
