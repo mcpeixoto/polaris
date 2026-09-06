@@ -314,6 +314,16 @@ type Documents = {
     "\n  \n  mutation SetUserRole($userId: UUID!, $role: UserRole!) {\n    setUserRole(userId: $userId, role: $role) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n": typeof types.SetUserRoleDocument,
     "\n  \n  mutation SuspendUser($userId: UUID!, $suspended: Boolean!) {\n    suspendUser(userId: $userId, suspended: $suspended) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n": typeof types.SuspendUserDocument,
     "\n  \n  mutation UpdateProfile($input: UpdateProfileInput!) {\n    updateProfile(input: $input) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n": typeof types.UpdateProfileDocument,
+    "\n  fragment AgentSessionFields on AgentSession {\n    id\n    title\n    status\n    error\n    origin\n    issueId\n    commentId\n    createdAt\n    updatedAt\n  }\n": typeof types.AgentSessionFieldsFragmentDoc,
+    "\n  fragment AgentMessageFields on AgentMessage {\n    id\n    sessionId\n    role\n    body\n    toolCalls {\n      name\n      summary\n      isError\n    }\n    proposal {\n      summary\n      steps {\n        tool\n        description\n        arguments\n      }\n    }\n    proposalState\n    inputTokens\n    outputTokens\n    createdAt\n  }\n": typeof types.AgentMessageFieldsFragmentDoc,
+    "\n  query AgentConfig {\n    agentConfig {\n      enabled\n      model\n      creditsRemaining\n    }\n  }\n": typeof types.AgentConfigDocument,
+    "\n  \n  \n  query AgentThread($sessionId: UUID!, $limit: Int) {\n    agentSessions(limit: $limit) {\n      ...AgentSessionFields\n    }\n    agentMessages(sessionId: $sessionId) {\n      ...AgentMessageFields\n    }\n  }\n": typeof types.AgentThreadDocument,
+    "\n  \n  query AgentSessions($limit: Int) {\n    agentSessions(limit: $limit) {\n      ...AgentSessionFields\n    }\n  }\n": typeof types.AgentSessionsDocument,
+    "\n  \n  \n  mutation CreateAgentSession($input: CreateAgentSessionInput!) {\n    createAgentSession(input: $input) {\n      version\n      session {\n        ...AgentSessionFields\n      }\n      message {\n        ...AgentMessageFields\n      }\n    }\n  }\n": typeof types.CreateAgentSessionDocument,
+    "\n  \n  mutation SendAgentMessage($sessionId: UUID!, $body: String!) {\n    sendAgentMessage(sessionId: $sessionId, body: $body) {\n      version\n      message {\n        ...AgentMessageFields\n      }\n    }\n  }\n": typeof types.SendAgentMessageDocument,
+    "\n  \n  mutation ApplyAgentProposal($messageId: UUID!) {\n    applyAgentProposal(messageId: $messageId) {\n      version\n      message {\n        ...AgentMessageFields\n      }\n      applied\n    }\n  }\n": typeof types.ApplyAgentProposalDocument,
+    "\n  \n  mutation RejectAgentProposal($messageId: UUID!) {\n    rejectAgentProposal(messageId: $messageId) {\n      version\n      message {\n        ...AgentMessageFields\n      }\n    }\n  }\n": typeof types.RejectAgentProposalDocument,
+    "\n  mutation DeleteAgentSession($id: UUID!) {\n    deleteAgentSession(id: $id) {\n      version\n      id\n    }\n  }\n": typeof types.DeleteAgentSessionDocument,
 };
 const documents: Documents = {
     "\n  query EnterpriseAuditLog($first: Int, $after: UUID) {\n    auditLog(first: $first, after: $after) {\n      id\n      actorUserId\n      actorType\n      actorLabel\n      action\n      targetType\n      targetId\n      targetLabel\n      ip\n      userAgent\n      createdAt\n    }\n  }\n": types.EnterpriseAuditLogDocument,
@@ -616,6 +626,16 @@ const documents: Documents = {
     "\n  \n  mutation SetUserRole($userId: UUID!, $role: UserRole!) {\n    setUserRole(userId: $userId, role: $role) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n": types.SetUserRoleDocument,
     "\n  \n  mutation SuspendUser($userId: UUID!, $suspended: Boolean!) {\n    suspendUser(userId: $userId, suspended: $suspended) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n": types.SuspendUserDocument,
     "\n  \n  mutation UpdateProfile($input: UpdateProfileInput!) {\n    updateProfile(input: $input) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n": types.UpdateProfileDocument,
+    "\n  fragment AgentSessionFields on AgentSession {\n    id\n    title\n    status\n    error\n    origin\n    issueId\n    commentId\n    createdAt\n    updatedAt\n  }\n": types.AgentSessionFieldsFragmentDoc,
+    "\n  fragment AgentMessageFields on AgentMessage {\n    id\n    sessionId\n    role\n    body\n    toolCalls {\n      name\n      summary\n      isError\n    }\n    proposal {\n      summary\n      steps {\n        tool\n        description\n        arguments\n      }\n    }\n    proposalState\n    inputTokens\n    outputTokens\n    createdAt\n  }\n": types.AgentMessageFieldsFragmentDoc,
+    "\n  query AgentConfig {\n    agentConfig {\n      enabled\n      model\n      creditsRemaining\n    }\n  }\n": types.AgentConfigDocument,
+    "\n  \n  \n  query AgentThread($sessionId: UUID!, $limit: Int) {\n    agentSessions(limit: $limit) {\n      ...AgentSessionFields\n    }\n    agentMessages(sessionId: $sessionId) {\n      ...AgentMessageFields\n    }\n  }\n": types.AgentThreadDocument,
+    "\n  \n  query AgentSessions($limit: Int) {\n    agentSessions(limit: $limit) {\n      ...AgentSessionFields\n    }\n  }\n": types.AgentSessionsDocument,
+    "\n  \n  \n  mutation CreateAgentSession($input: CreateAgentSessionInput!) {\n    createAgentSession(input: $input) {\n      version\n      session {\n        ...AgentSessionFields\n      }\n      message {\n        ...AgentMessageFields\n      }\n    }\n  }\n": types.CreateAgentSessionDocument,
+    "\n  \n  mutation SendAgentMessage($sessionId: UUID!, $body: String!) {\n    sendAgentMessage(sessionId: $sessionId, body: $body) {\n      version\n      message {\n        ...AgentMessageFields\n      }\n    }\n  }\n": types.SendAgentMessageDocument,
+    "\n  \n  mutation ApplyAgentProposal($messageId: UUID!) {\n    applyAgentProposal(messageId: $messageId) {\n      version\n      message {\n        ...AgentMessageFields\n      }\n      applied\n    }\n  }\n": types.ApplyAgentProposalDocument,
+    "\n  \n  mutation RejectAgentProposal($messageId: UUID!) {\n    rejectAgentProposal(messageId: $messageId) {\n      version\n      message {\n        ...AgentMessageFields\n      }\n    }\n  }\n": types.RejectAgentProposalDocument,
+    "\n  mutation DeleteAgentSession($id: UUID!) {\n    deleteAgentSession(id: $id) {\n      version\n      id\n    }\n  }\n": types.DeleteAgentSessionDocument,
 };
 
 /**
@@ -1832,6 +1852,46 @@ export function graphql(source: "\n  \n  mutation SuspendUser($userId: UUID!, $s
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  \n  mutation UpdateProfile($input: UpdateProfileInput!) {\n    updateProfile(input: $input) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation UpdateProfile($input: UpdateProfileInput!) {\n    updateProfile(input: $input) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment AgentSessionFields on AgentSession {\n    id\n    title\n    status\n    error\n    origin\n    issueId\n    commentId\n    createdAt\n    updatedAt\n  }\n"): (typeof documents)["\n  fragment AgentSessionFields on AgentSession {\n    id\n    title\n    status\n    error\n    origin\n    issueId\n    commentId\n    createdAt\n    updatedAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment AgentMessageFields on AgentMessage {\n    id\n    sessionId\n    role\n    body\n    toolCalls {\n      name\n      summary\n      isError\n    }\n    proposal {\n      summary\n      steps {\n        tool\n        description\n        arguments\n      }\n    }\n    proposalState\n    inputTokens\n    outputTokens\n    createdAt\n  }\n"): (typeof documents)["\n  fragment AgentMessageFields on AgentMessage {\n    id\n    sessionId\n    role\n    body\n    toolCalls {\n      name\n      summary\n      isError\n    }\n    proposal {\n      summary\n      steps {\n        tool\n        description\n        arguments\n      }\n    }\n    proposalState\n    inputTokens\n    outputTokens\n    createdAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  query AgentConfig {\n    agentConfig {\n      enabled\n      model\n      creditsRemaining\n    }\n  }\n"): (typeof documents)["\n  query AgentConfig {\n    agentConfig {\n      enabled\n      model\n      creditsRemaining\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  \n  query AgentThread($sessionId: UUID!, $limit: Int) {\n    agentSessions(limit: $limit) {\n      ...AgentSessionFields\n    }\n    agentMessages(sessionId: $sessionId) {\n      ...AgentMessageFields\n    }\n  }\n"): (typeof documents)["\n  \n  \n  query AgentThread($sessionId: UUID!, $limit: Int) {\n    agentSessions(limit: $limit) {\n      ...AgentSessionFields\n    }\n    agentMessages(sessionId: $sessionId) {\n      ...AgentMessageFields\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  query AgentSessions($limit: Int) {\n    agentSessions(limit: $limit) {\n      ...AgentSessionFields\n    }\n  }\n"): (typeof documents)["\n  \n  query AgentSessions($limit: Int) {\n    agentSessions(limit: $limit) {\n      ...AgentSessionFields\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  \n  mutation CreateAgentSession($input: CreateAgentSessionInput!) {\n    createAgentSession(input: $input) {\n      version\n      session {\n        ...AgentSessionFields\n      }\n      message {\n        ...AgentMessageFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  \n  mutation CreateAgentSession($input: CreateAgentSessionInput!) {\n    createAgentSession(input: $input) {\n      version\n      session {\n        ...AgentSessionFields\n      }\n      message {\n        ...AgentMessageFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation SendAgentMessage($sessionId: UUID!, $body: String!) {\n    sendAgentMessage(sessionId: $sessionId, body: $body) {\n      version\n      message {\n        ...AgentMessageFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation SendAgentMessage($sessionId: UUID!, $body: String!) {\n    sendAgentMessage(sessionId: $sessionId, body: $body) {\n      version\n      message {\n        ...AgentMessageFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation ApplyAgentProposal($messageId: UUID!) {\n    applyAgentProposal(messageId: $messageId) {\n      version\n      message {\n        ...AgentMessageFields\n      }\n      applied\n    }\n  }\n"): (typeof documents)["\n  \n  mutation ApplyAgentProposal($messageId: UUID!) {\n    applyAgentProposal(messageId: $messageId) {\n      version\n      message {\n        ...AgentMessageFields\n      }\n      applied\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation RejectAgentProposal($messageId: UUID!) {\n    rejectAgentProposal(messageId: $messageId) {\n      version\n      message {\n        ...AgentMessageFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation RejectAgentProposal($messageId: UUID!) {\n    rejectAgentProposal(messageId: $messageId) {\n      version\n      message {\n        ...AgentMessageFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation DeleteAgentSession($id: UUID!) {\n    deleteAgentSession(id: $id) {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation DeleteAgentSession($id: UUID!) {\n    deleteAgentSession(id: $id) {\n      version\n      id\n    }\n  }\n"];
 
 export function graphql(source: string) {
   return (documents as any)[source] ?? {};

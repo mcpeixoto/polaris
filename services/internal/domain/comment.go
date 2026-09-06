@@ -126,7 +126,11 @@ func (s *Service) CreateComment(ctx context.Context, p *authz.Principal, in Crea
 		} else if v != 0 {
 			version = v
 		}
-		return nil
+
+		// Naming the agent in a comment is how it is summoned onto an issue. In the same
+		// transaction as the comment, so a mention and the run it starts cannot disagree
+		// about whether it happened.
+		return s.maybeSummonAgent(ctx, q, p, issue, out)
 	})
 	return out, version, err
 }

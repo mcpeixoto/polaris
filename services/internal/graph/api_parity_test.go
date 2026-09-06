@@ -43,6 +43,29 @@ var notInTheAPI = map[string]string{
 	// Auth is REST, not GraphQL: sign-in has to set an HttpOnly cookie, and a GraphQL
 	// mutation that sets cookies as a side effect is both surprising and impossible to
 	// express in the schema.
+	// Both agent writes are reachable, just not under these names. Approving and declining
+	// a proposal are applyAgentProposal and rejectAgentProposal, which go through the
+	// executor so the approved steps actually run — a mutation that only flipped the
+	// column would mark work done without doing it. The sweep is a cron.
+	"MarkAgentProposal":  "reached as applyAgentProposal / rejectAgentProposal (see composite below)",
+	"SweepAgentSessions": "worker cron: retention, and requeueing runs that died mid-turn",
+	// The agent's internals. None is a write a caller performs: the run claims a
+	// conversation, resolves whose permissions it acts with, mints the agent's own user
+	// row on first use, and is told at start-up whether a provider exists at all.
+	// Credit accounting. A charge is a consequence of a run rather than something a caller
+	// asks for, the pre-flight check is a read the run performs on itself, and the metering
+	// switch is process config. Adding credits IS a caller action, and is grantAgentCredits.
+	"ChargeAgentRun":          "internal: charged from the provider's reported usage after a turn",
+	"CheckAgentCredits":       "internal: the run's own pre-flight, before any model call",
+	"SetAgentMetered":         "process config: whether this deployment meters, set at start-up",
+	"StartAgentRunFor":        "internal: the interactive claim, taken by the streaming endpoint",
+	"EnsureAgentIdentity":     "internal: mints the workspace's agent user on first use",
+	"ResolvePrincipalForUser": "internal: a queued run has a user id and no request to resolve one from",
+	"SetAgentEnabled":         "process config: whether a model provider is configured, set at start-up",
+	"AddAgentTurn":            "written by a run, not a request: internal/agent stores what the model answered",
+	"MarkAgentSessionFailed":  "written by a run when it gives up; there is no turn to show, only a reason",
+	"StartQueuedAgentRun":     "worker claim: takes the oldest queued conversation, FOR UPDATE SKIP LOCKED",
+
 	// Registration is unauthenticated by specification (RFC 7591): the client is asking
 	// for an identity before anybody has signed in, so there is no session for a GraphQL
 	// request to carry. The sweep behind it is a cron, like SweepLapsedPlans above.
@@ -91,7 +114,7 @@ var mutatingPrefixes = []string{
 	"Create", "Update", "Delete", "Archive", "Set", "Add", "Remove", "Clear",
 	"Suspend", "Resolve", "Accept", "Decline", "Snooze", "Mark", "Revoke", "Invite", "Register", "Login",
 	"Rotate", "Prune", "Ensure", "Refresh", "Purge", "Restore", "Retire", "Unretire", "Move", "Start", "Link", "Merge",
-	"Leave", "Apply", "Sweep",
+	"Leave", "Apply", "Sweep", "Send", "Grant",
 }
 
 func TestAPIParity_EveryDomainMutationIsReachableOverGraphQL(t *testing.T) {
@@ -155,6 +178,11 @@ func TestAPIParity_EverySchemaMutationHasADomainMethod(t *testing.T) {
 	// mapping one-to-one.
 	composite := map[string]string{
 		"archiveworkflowstate": "domain.ArchiveWorkflowState",
+		// Both go through domain.MarkAgentProposal and then run the approved steps via
+		// internal/agent's executor. A mutation that only flipped the column would record
+		// the work as done without doing it, so the composition is the point.
+		"applyagentproposal":  "domain.MarkAgentProposal + agent.Executor",
+		"rejectagentproposal": "domain.MarkAgentProposal",
 	}
 
 	for _, f := range schema.Mutation.Fields {

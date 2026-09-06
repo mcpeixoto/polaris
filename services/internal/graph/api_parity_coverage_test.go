@@ -45,7 +45,7 @@ import (
 // to close.
 var readPrefixes = []string{
 	"Get", "List", "Read", "Search", "My", "Stream", "Unread", "SubIssues", "IssuesByID",
-	"WorkspaceVersion", "Oldest", "Entitlement", "IssueProgress", "Listen",
+	"WorkspaceVersion", "Oldest", "Entitlement", "IssueProgress", "Listen", "AgentAutoApply", "AgentCreditsRemaining", "AgentMetered",
 }
 
 // serverSideOnly names exported methods that are neither reads nor part of the public API,

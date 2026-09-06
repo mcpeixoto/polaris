@@ -16,6 +16,7 @@ package graph
 import (
 	"context"
 
+	"github.com/peixotolabs/polaris/services/internal/agent"
 	"github.com/peixotolabs/polaris/services/internal/authz"
 	"github.com/peixotolabs/polaris/services/internal/domain"
 	"github.com/peixotolabs/polaris/services/internal/platform"
@@ -35,6 +36,14 @@ type Resolver struct {
 	GitHubOAuthConfigured  bool
 	SlackSigningConfigured bool
 	SlackBotConfigured     bool
+
+	// Agent carries out approved proposals. Never nil: approving work the agent already
+	// planned must keep working on a deployment with no model provider configured, so the
+	// executor exists whether or not the agent can start a new run.
+	Agent *agent.Executor
+	// AgentProvider names the model answering, empty when none is configured. The chat
+	// surface reads it to decide whether to offer itself at all.
+	AgentProvider string
 }
 
 // principalFrom returns the caller, or the error every resolver returns when there is not

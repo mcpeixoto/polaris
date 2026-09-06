@@ -1085,6 +1085,115 @@ type ReactionPayload implements MutationResult {
   reaction: Reaction!
 }
 
+
+"""
+A conversation with the in-app agent.
+
+Private to its owner. Unlike every other entity here, an agent session is never visible to
+a teammate: it holds what somebody asked and what they were told, which is nearer a draft
+than a comment. The change rows carry a user scope, and every read is filtered by the
+caller's own id.
+"""
+type AgentSession {
+  id: UUID!
+  workspaceId: UUID!
+  userId: UUID!
+  """Taken from the opening message. A chat you must name before using is a chat nobody starts."""
+  title: String!
+  """idle, queued, working, or failed."""
+  status: String!
+  """Why the last run stopped, when status is failed."""
+  error: String
+  """chat, or comment when the agent was summoned by a mention."""
+  origin: String!
+  issueId: UUID
+  commentId: UUID
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+"""One turn. A tool result is not a turn — it belongs to the assistant turn that called for it."""
+type AgentMessage {
+  id: UUID!
+  workspaceId: UUID!
+  sessionId: UUID!
+  """user or assistant."""
+  role: String!
+  body: String!
+  """What the model ran to produce this turn, so the transcript can show the work."""
+  toolCalls: [AgentToolCall!]!
+  """The writes this turn wants to make, held until somebody approves them."""
+  proposal: AgentProposal
+  """pending, applied, or rejected. Null when the turn proposes nothing."""
+  proposalState: String
+  inputTokens: Int!
+  outputTokens: Int!
+  createdAt: Time!
+}
+
+type AgentToolCall {
+  name: String!
+  summary: String!
+  isError: Boolean!
+}
+
+"""
+Writes the agent wants to perform, recorded so that what a person approves is exactly what
+runs. Asking the model again at apply time would let it answer differently and make the
+confirmation a decoration.
+"""
+type AgentProposal {
+  summary: String!
+  steps: [AgentProposalStep!]!
+}
+
+type AgentProposalStep {
+  tool: String!
+  description: String!
+  arguments: JSON!
+}
+
+type AgentSessionPayload implements MutationResult {
+  version: Int!
+  session: AgentSession!
+  message: AgentMessage!
+}
+
+type AgentMessagePayload implements MutationResult {
+  version: Int!
+  message: AgentMessage!
+}
+
+type AgentProposalPayload implements MutationResult {
+  version: Int!
+  message: AgentMessage!
+  """The entities the approved steps created or changed, as a summary line each."""
+  applied: [String!]!
+}
+
+"""Whether the deployment can run the agent at all, and what it costs to."""
+type AgentConfig {
+  """False when no model provider is configured. The UI offers nothing rather than failing on send."""
+  enabled: Boolean!
+  """The model answering, for the settings screen. Empty when disabled."""
+  model: String!
+  """Credits left, in whole micros. Null when this deployment does not meter."""
+  creditsRemaining: Int
+  """
+  Whether this person has turned the confirmation step off. Off by default: the
+  confirmation is the second line of defence against a model talked into something by text
+  it read in an issue.
+  """
+  autoApply: Boolean!
+}
+
+input CreateAgentSessionInput {
+  body: String!
+  """Set together to summon the agent onto an issue rather than open a chat."""
+  issueId: UUID
+  commentId: UUID
+}
+
 """
 The activity feed. Distinct from the change log that drives sync: this one is curated,
 permanent, and folds a run of edits by one person into a single entry.
@@ -3377,6 +3486,13 @@ type Query {
   """The caller's own keys. Never anybody else's, and never the tokens."""
   apiKeys: [ApiKey!]!
 
+  """This person's agent conversations, newest first. Never anybody else's."""
+  agentSessions(limit: Int): [AgentSession!]!
+  """One transcript, oldest first."""
+  agentMessages(sessionId: UUID!): [AgentMessage!]!
+  """Whether the agent can run here, and what is left to spend."""
+  agentConfig: AgentConfig!
+
   """The caller's own live sessions. Never anybody else's, and never the tokens."""
   accountSessions: [AccountSession!]!
 
@@ -3513,6 +3629,23 @@ type Mutation {
   Add your own emoji to a comment. Adding one you already added is a no-op that succeeds.
   """
   addReaction(commentId: UUID!, emoji: String!, clientId: UUID, opId: UUID): ReactionPayload! @idempotent
+
+  """Open a conversation with the agent. The first message is required."""
+  createAgentSession(input: CreateAgentSessionInput!, clientId: UUID, opId: UUID): AgentSessionPayload! @idempotent
+  """Ask a follow-up. Refused while a run on the same conversation is still in flight."""
+  sendAgentMessage(sessionId: UUID!, body: String!, clientId: UUID, opId: UUID): AgentMessagePayload! @idempotent
+  """Carry out the writes a turn proposed, exactly as they were shown."""
+  applyAgentProposal(messageId: UUID!): AgentProposalPayload!
+  """Decline them. The turn stays in the transcript, marked rejected."""
+  rejectAgentProposal(messageId: UUID!): AgentMessagePayload!
+  deleteAgentSession(id: UUID!): DeletePayload!
+  """Turn the approval step off, or back on. Applies to this person only."""
+  setAgentAutoApply(enabled: Boolean!): AgentConfig!
+  """
+  Add AI credits to this workspace, in micros of a dollar. Admin only. Never writes a
+  plan — plan state belongs to billing alone.
+  """
+  grantAgentCredits(micros: Int!, reason: String): AgentConfig!
   """
   Remove your own emoji from a comment. You may only remove your own, admins included: a
   reaction is a signature, and an admin who can delete the comment deletes them with it.

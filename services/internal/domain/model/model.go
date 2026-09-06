@@ -1018,6 +1018,62 @@ type Comment struct {
 // The smallest entity in the product: no body, no edit, no soft delete. Adding is an
 // insert and removing is a delete, so there is nothing to reconcile and no last-writer-wins
 // question — which is why it carries no updatedAt.
+// AgentSession is one conversation with the in-app agent. Private to its owner: the change
+// rows carry authz.UserScope, and nothing here is readable by a teammate.
+type AgentSession struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspaceId"`
+	UserID      uuid.UUID  `json:"userId"`
+	Title       string     `json:"title"`
+	Status      string     `json:"status"`
+	Error       *string    `json:"error,omitempty"`
+	Origin      string     `json:"origin"`
+	IssueID     *uuid.UUID `json:"issueId,omitempty"`
+	CommentID   *uuid.UUID `json:"commentId,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+}
+
+// AgentMessage is one turn. Role is user or assistant; a tool result is not a turn, it is
+// part of the assistant turn that called for it, and rides in ToolCalls.
+type AgentMessage struct {
+	ID            uuid.UUID       `json:"id"`
+	WorkspaceID   uuid.UUID       `json:"workspaceId"`
+	SessionID     uuid.UUID       `json:"sessionId"`
+	Role          string          `json:"role"`
+	Body          string          `json:"body"`
+	ToolCalls     []AgentToolCall `json:"toolCalls"`
+	Proposal      *AgentProposal  `json:"proposal,omitempty"`
+	ProposalState *string         `json:"proposalState,omitempty"`
+	InputTokens   int             `json:"inputTokens"`
+	OutputTokens  int             `json:"outputTokens"`
+	CreatedAt     time.Time       `json:"createdAt"`
+}
+
+// AgentToolCall is one tool the model ran, kept so the transcript can show the work rather
+// than only the summary. Display data: never replayed to the model as instruction.
+type AgentToolCall struct {
+	Name    string `json:"name"`
+	Summary string `json:"summary"`
+	IsError bool   `json:"isError"`
+}
+
+// AgentProposal is the writes a turn wants to perform, held until somebody approves them.
+//
+// Stored rather than re-derived at approval time, so that what a person approved is exactly
+// what runs. Asking the model again on apply would let it answer differently and make the
+// confirmation a decoration.
+type AgentProposal struct {
+	Summary string              `json:"summary"`
+	Steps   []AgentProposalStep `json:"steps"`
+}
+
+type AgentProposalStep struct {
+	Tool        string         `json:"tool"`
+	Description string         `json:"description"`
+	Arguments   map[string]any `json:"arguments"`
+}
+
 type Reaction struct {
 	ID          uuid.UUID `json:"id"`
 	WorkspaceID uuid.UUID `json:"workspaceId"`

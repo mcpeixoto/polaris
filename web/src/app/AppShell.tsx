@@ -23,6 +23,8 @@ import {
 } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 
+import { AgentPanel } from '~/features/agent/AgentPanel';
+import { useAgentPanel } from '~/features/agent/useAgentPanel';
 import { useDesktopNotifications, useUnreadBadge } from '~/features/inbox/desktop';
 import { unreadCount, useWakingQuery } from '~/features/inbox/inbox';
 import { offerError } from '~/features/toast/ToastHost';
@@ -399,9 +401,14 @@ export function AppShell({
     [],
   );
 
+  // The agent rail owns its own openness and its own chord; the shell needs it here so that
+  // Escape's dismiss reaches it like everything else on top of the page.
+  const { open: agentOpen, close: closeAgent } = useAgentPanel();
+
   const closeAll = useCallback(() => {
     setCommandOpen(false);
     setHelpOpen(false);
+    closeAgent();
     composerUp.current = false;
     setCreateOpen(false);
     setCreateSeed(undefined);
@@ -410,7 +417,8 @@ export function AppShell({
     setCreateCustomerOpen(false);
     setCreateCustomerRequestOpen(false);
     setCreateDashboardOpen(false);
-  }, []);
+    // `closeAgent` is stable, so this list still never changes.
+  }, [closeAgent]);
 
   /** What the current sitting's opener asked to be told when the composer shuts. */
   const onComposerClosed = useRef<(() => void) | undefined>(undefined);
@@ -1559,6 +1567,8 @@ export function AppShell({
         <UpdateBanner />
         <CommandMenu open={commandOpen} onClose={() => setCommandOpen(false)} />
         <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
+        {/* Mounted whether or not it is open, and told which, so it can animate out. */}
+        <AgentPanel open={agentOpen} onClose={closeAgent} />
         {/*
           Mounted whether or not it is open, and told which it is, the way `Peek` is mounted
           by the list. A dialog cannot animate its own removal from a tree it has already

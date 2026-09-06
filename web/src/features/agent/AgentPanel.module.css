@@ -1,0 +1,345 @@
+/*
+ * The agent rail.
+ *
+ * Fixed to the right edge and over the page rather than laid out beside it, because it is
+ * opened from anywhere by a chord: a panel that took a column would reflow whatever screen
+ * happened to be underneath, and re-measure a virtualised list, every time somebody asked a
+ * question. Peek is a drawer inside one screen and can afford to be a flex item; this is
+ * application chrome and cannot.
+ *
+ * It slides from the edge it is attached to, on --duration-fast, for the reason Peek gives:
+ * a drawer that materialises in place has stopped reading as having come from the side.
+ */
+.panel {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-end: 0;
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  width: min(420px, 100vw);
+  border-left: 1px solid var(--border-subtle);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-lg);
+  animation: agentIn var(--duration-fast) var(--ease-out);
+}
+
+@keyframes agentIn {
+  from {
+    opacity: 0;
+    transform: translateX(var(--space-4));
+  }
+}
+
+@keyframes agentOut {
+  to {
+    opacity: 0;
+    transform: translateX(var(--space-4));
+  }
+}
+
+.panel[data-exiting] {
+  animation: agentOut var(--duration-instant) var(--ease-in) forwards;
+}
+
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--header-height);
+  padding-inline: var(--space-3) var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.back {
+  /* The chevron points right at rest; back is the other way. */
+  transform: rotate(180deg);
+}
+
+.title {
+  flex: 1;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.notConfigured {
+  margin: auto;
+  padding: var(--space-6);
+}
+
+/* The scroller. Everything above and below it is fixed, so only the talk moves. */
+.log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-4);
+}
+
+/* --- turns ------------------------------------------------------------------------- */
+
+.userTurn,
+.agentTurn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+}
+
+/*
+ * A question is tinted and an answer is not, which is the whole visual difference between
+ * them — plus the label above each, because a tint is not readable to everybody and a
+ * transcript in which you cannot tell who said what is not a transcript.
+ */
+.userTurn {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+
+.role {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.body {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+  /* The model writes newlines and means them; nothing here renders markdown yet. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * The work behind an answer, compressed to one line each: "read 3 issues". The server
+ * writes the sentence — this only has to make it read as machinery rather than as speech,
+ * so it is small, quiet, and monospaced enough to look like a log without being one.
+ */
+.tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tool,
+.toolFailed {
+  padding-inline-start: var(--space-3);
+  border-left: 2px solid var(--border-subtle);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+}
+
+.toolFailed {
+  border-left-color: var(--text-danger);
+  color: var(--text-danger);
+}
+
+/* --- proposal ---------------------------------------------------------------------- */
+
+/*
+ * The one thing on this surface with a real edge. Everything else in the transcript is
+ * talk; this is the only part that will change the workspace, and it has to be told apart
+ * from the sentence above it at a glance.
+ */
+.proposal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+}
+
+.proposalSummary {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-normal);
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+}
+
+.stepTool {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-none);
+}
+
+.stepDescription {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.proposalActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* A decision already taken. Stated, not drawn as a control — there is nothing left to press. */
+.proposalSettled {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-none);
+}
+
+.appliedList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.appliedLine {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+}
+
+/* --- status ------------------------------------------------------------------------ */
+
+.working {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-none);
+}
+
+.runError,
+.failure {
+  margin: 0;
+  color: var(--text-danger);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.failure {
+  flex: none;
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* --- conversation list -------------------------------------------------------------- */
+
+.sessions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.session {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.sessionOpen {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+}
+
+.sessionOpen:hover {
+  background: var(--bg-hover);
+}
+
+.sessionOpen:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.sessionTitle {
+  flex: 1;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sessionWhen {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-none);
+}
+
+/* --- composer ------------------------------------------------------------------------ */
+
+.composer {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.composerField {
+  width: 100%;
+}
+
+.composerFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.composerHint {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-none);
+}

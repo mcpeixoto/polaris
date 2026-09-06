@@ -597,3 +597,159 @@ export const UPDATE_PROFILE = /* GraphQL */ `
     }
   }
 `;
+
+/**
+ * The in-app agent.
+ *
+ * These entities are deliberately absent from the replica: a session holds what one person
+ * asked and what they were told, it is never visible to a teammate, and there is no delta
+ * stream behind it. So the panel queries them directly and holds the answers in React
+ * state, and these documents are the whole of its read path rather than a boot-time
+ * projection of it.
+ *
+ * `AgentSessionFields` and `AgentMessageFields` end in `Fields` like every other fragment
+ * here, and mean the same thing: everything the type has. They are not checked by
+ * gql/fragments.test.ts, which only knows about entities the store replicates.
+ */
+export const AGENT_SESSION_FIELDS = /* GraphQL */ `
+  fragment AgentSessionFields on AgentSession {
+    id
+    title
+    status
+    error
+    origin
+    issueId
+    commentId
+    createdAt
+    updatedAt
+  }
+`;
+
+export const AGENT_MESSAGE_FIELDS = /* GraphQL */ `
+  fragment AgentMessageFields on AgentMessage {
+    id
+    sessionId
+    role
+    body
+    toolCalls {
+      name
+      summary
+      isError
+    }
+    proposal {
+      summary
+      steps {
+        tool
+        description
+        arguments
+      }
+    }
+    proposalState
+    inputTokens
+    outputTokens
+    createdAt
+  }
+`;
+
+export const AGENT_CONFIG = /* GraphQL */ `
+  query AgentConfig {
+    agentConfig {
+      enabled
+      model
+      creditsRemaining
+    }
+  }
+`;
+
+/**
+ * The conversation list and one transcript in a single round trip.
+ *
+ * They are asked for together because they are polled together: a run finishes on the
+ * session's `status`, and the turn that finished it is in `agentMessages`, so fetching one
+ * without the other leaves the panel showing a settled session with the last answer
+ * missing, or the answer with a spinner still over it.
+ */
+export const AGENT_THREAD = /* GraphQL */ `
+  ${AGENT_SESSION_FIELDS}
+  ${AGENT_MESSAGE_FIELDS}
+  query AgentThread($sessionId: UUID!, $limit: Int) {
+    agentSessions(limit: $limit) {
+      ...AgentSessionFields
+    }
+    agentMessages(sessionId: $sessionId) {
+      ...AgentMessageFields
+    }
+  }
+`;
+
+/** The list on its own, for a panel opening with no conversation chosen yet. */
+export const AGENT_SESSIONS = /* GraphQL */ `
+  ${AGENT_SESSION_FIELDS}
+  query AgentSessions($limit: Int) {
+    agentSessions(limit: $limit) {
+      ...AgentSessionFields
+    }
+  }
+`;
+
+export const CREATE_AGENT_SESSION = /* GraphQL */ `
+  ${AGENT_SESSION_FIELDS}
+  ${AGENT_MESSAGE_FIELDS}
+  mutation CreateAgentSession($input: CreateAgentSessionInput!) {
+    createAgentSession(input: $input) {
+      version
+      session {
+        ...AgentSessionFields
+      }
+      message {
+        ...AgentMessageFields
+      }
+    }
+  }
+`;
+
+export const SEND_AGENT_MESSAGE = /* GraphQL */ `
+  ${AGENT_MESSAGE_FIELDS}
+  mutation SendAgentMessage($sessionId: UUID!, $body: String!) {
+    sendAgentMessage(sessionId: $sessionId, body: $body) {
+      version
+      message {
+        ...AgentMessageFields
+      }
+    }
+  }
+`;
+
+export const APPLY_AGENT_PROPOSAL = /* GraphQL */ `
+  ${AGENT_MESSAGE_FIELDS}
+  mutation ApplyAgentProposal($messageId: UUID!) {
+    applyAgentProposal(messageId: $messageId) {
+      version
+      message {
+        ...AgentMessageFields
+      }
+      applied
+    }
+  }
+`;
+
+export const REJECT_AGENT_PROPOSAL = /* GraphQL */ `
+  ${AGENT_MESSAGE_FIELDS}
+  mutation RejectAgentProposal($messageId: UUID!) {
+    rejectAgentProposal(messageId: $messageId) {
+      version
+      message {
+        ...AgentMessageFields
+      }
+    }
+  }
+`;
+
+export const DELETE_AGENT_SESSION = /* GraphQL */ `
+  mutation DeleteAgentSession($id: UUID!) {
+    deleteAgentSession(id: $id) {
+      version
+      id
+    }
+  }
+`;

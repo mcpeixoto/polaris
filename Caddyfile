@@ -65,6 +65,14 @@
 		reverse_proxy api:8088
 	}
 
+	# The agent's token stream. Long-lived and unbuffered: a buffered proxy turns a stream
+	# into one delivery at the end, which is the same as not streaming at all.
+	handle /agent/* {
+		reverse_proxy api:8088 {
+			flush_interval -1
+		}
+	}
+
 	handle /asks/* {
 		reverse_proxy api:8088
 	}

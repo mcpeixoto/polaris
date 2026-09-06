@@ -53,6 +53,7 @@ type Querier interface {
 	//
 	AddReaction(ctx context.Context, arg AddReactionParams) ([]Reaction, error)
 	AddTeamMember(ctx context.Context, arg AddTeamMemberParams) (TeamMembership, error)
+	AdjustAiCreditBalance(ctx context.Context, arg AdjustAiCreditBalanceParams) (int64, error)
 	// Advanced only after the batch's rows commit, so a crash re-processes rather than skips.
 	// The guard makes the advance monotonic: two workers racing on one workspace can otherwise
 	// rewind the watermark, and everything between the two positions is delivered twice.
@@ -81,6 +82,8 @@ type Querier interface {
 	// creations in the same team.
 	//
 	AllocateIssueNumber(ctx context.Context, id uuid.UUID) (int64, error)
+	// The ledger row and the running total move together or not at all.
+	AppendAiCreditEntry(ctx context.Context, arg AppendAiCreditEntryParams) (uuid.UUID, error)
 	AppendChange(ctx context.Context, arg AppendChangeParams) error
 	AppendIssueHistory(ctx context.Context, arg AppendIssueHistoryParams) error
 	// ApplyWorkspacePlan is the one statement in the product that sets a workspace's plan.
@@ -170,6 +173,10 @@ type Querier interface {
 	// of 200 of each, while keeping the sequence gapless.
 	//
 	BumpWorkspaceVersionBy(ctx context.Context, arg BumpWorkspaceVersionByParams) (int64, error)
+	// The interactive claim: this conversation, if it is still waiting. Distinct from the
+	// worker's claim, which takes whatever is oldest — here somebody is watching one session
+	// and the answer belongs to them.
+	ClaimAgentSessionByID(ctx context.Context, arg ClaimAgentSessionByIDParams) (AgentSession, error)
 	// ClaimIdempotencyKey is the first statement of every mutation.
 	//
 	// ON CONFLICT DO NOTHING means a concurrent duplicate loses the race and returns no row;
@@ -202,6 +209,10 @@ type Querier interface {
 	// at scan time, at runtime, on the one row nobody has in their test fixture.
 	//
 	ClaimNotificationsForEmail(ctx context.Context, arg ClaimNotificationsForEmailParams) ([]ClaimNotificationsForEmailRow, error)
+	// The worker's claim. SKIP LOCKED so two ticks overlapping take different rows rather than
+	// one waiting on the other, and LIMIT 1 because a run holds its transaction open for as
+	// long as the model takes to answer.
+	ClaimQueuedAgentSession(ctx context.Context) (AgentSession, error)
 	// ClearDefaultProjectStatuses must run immediately before setting a new default, in the
 	// same transaction: project_status_workspace_default_key is a partial unique index, so
 	// doing it the other way round fails.
@@ -332,6 +343,14 @@ type Querier interface {
 	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (CreateAPIKeyRow, error)
 	CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error)
 	CreateAccountCredential(ctx context.Context, arg CreateAccountCredentialParams) (AccountCredential, error)
+	CreateAgentIdentity(ctx context.Context, arg CreateAgentIdentityParams) (uuid.UUID, error)
+	CreateAgentMessage(ctx context.Context, arg CreateAgentMessageParams) (AgentMessage, error)
+	// The in-app agent's conversations and turns.
+	//
+	// Sessions are read by owner, never by workspace: these rows are private to one person and
+	// every query here carries the user id so that a missing WHERE clause is a compile error
+	// rather than a disclosure.
+	CreateAgentSession(ctx context.Context, arg CreateAgentSessionParams) (AgentSession, error)
 	CreateAskForm(ctx context.Context, arg CreateAskFormParams) (AskForm, error)
 	CreateAttachment(ctx context.Context, arg CreateAttachmentParams) (Attachment, error)
 	CreateComment(ctx context.Context, arg CreateCommentParams) (Comment, error)
@@ -439,6 +458,7 @@ type Querier interface {
 	CreateWebhook(ctx context.Context, arg CreateWebhookParams) (CreateWebhookRow, error)
 	CreateWorkflowState(ctx context.Context, arg CreateWorkflowStateParams) (WorkflowState, error)
 	CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) (Workspace, error)
+	DeleteAgentSession(ctx context.Context, arg DeleteAgentSessionParams) (uuid.UUID, error)
 	DeleteAttachment(ctx context.Context, id uuid.UUID) error
 	DeleteCustomerDomains(ctx context.Context, customerID uuid.UUID) error
 	DeleteCustomerRequest(ctx context.Context, id uuid.UUID) (CustomerRequest, error)
@@ -522,6 +542,12 @@ type Querier interface {
 	GetAccount(ctx context.Context, id uuid.UUID) (Account, error)
 	GetAccountByEmail(ctx context.Context, email string) (Account, error)
 	GetAccountCredential(ctx context.Context, arg GetAccountCredentialParams) (AccountCredential, error)
+	// The workspace's built-in agent identity, created on first use.
+	GetAgentIdentity(ctx context.Context, workspaceID uuid.UUID) (uuid.UUID, error)
+	GetAgentMessage(ctx context.Context, arg GetAgentMessageParams) (AgentMessage, error)
+	GetAgentPreference(ctx context.Context, userID uuid.UUID) (bool, error)
+	GetAgentSession(ctx context.Context, arg GetAgentSessionParams) (AgentSession, error)
+	GetAiCreditBalance(ctx context.Context, workspaceID uuid.UUID) (int64, error)
 	GetArchivedInitiativeLabel(ctx context.Context, id uuid.UUID) (GetArchivedInitiativeLabelRow, error)
 	// GetArchivedLabel reads a label the ordinary path treats as gone.
 	//
@@ -754,6 +780,8 @@ type Querier interface {
 	//
 	ListAPIKeysForUser(ctx context.Context, userID uuid.UUID) ([]ListAPIKeysForUserRow, error)
 	ListActiveRecurringIssues(ctx context.Context) ([]ListActiveRecurringIssuesRow, error)
+	ListAgentMessages(ctx context.Context, arg ListAgentMessagesParams) ([]AgentMessage, error)
+	ListAgentSessionsForUser(ctx context.Context, arg ListAgentSessionsForUserParams) ([]AgentSession, error)
 	ListArchivedCyclesForTeam(ctx context.Context, teamID uuid.UUID) ([]Cycle, error)
 	ListArchivedIssuesForTeam(ctx context.Context, teamID uuid.UUID) ([]ListArchivedIssuesForTeamRow, error)
 	// Archived projects linked to this team. A project belongs to the workspace, but the
@@ -1236,6 +1264,9 @@ type Querier interface {
 	// re-bootstrap rather than silently miss changes.
 	//
 	OldestRetainedVersion(ctx context.Context, workspaceID uuid.UUID) (int64, error)
+	// Retention. An agent conversation is a working note, not a record: the transcripts are
+	// large, they are the most sensitive rows in the schema, and nobody scrolls back a year.
+	PruneAgentSessions(ctx context.Context, cutoff time.Time) (int64, error)
 	PruneChangeLogBefore(ctx context.Context, before time.Time) (int64, error)
 	PruneDrafts(ctx context.Context, before time.Time) (int64, error)
 	PruneWebhookDeliveries(ctx context.Context, before time.Time) (int64, error)
@@ -1322,6 +1353,10 @@ type Querier interface {
 	// it would silently unattribute years of it.
 	//
 	RemoveUserFromWorkspace(ctx context.Context, id uuid.UUID) (User, error)
+	// A run that was claimed and never finished — the process died mid-turn. Returned to the
+	// queue rather than left working forever, which would otherwise be a session that renders
+	// as busy and never moves again.
+	RequeueStaleAgentSessions(ctx context.Context, cutoff time.Time) (int64, error)
 	// RestoreIssue returns the row because a restore puts the issue back on the sync stream,
 	// and the payload has to be the issue as it is now — not as the client last saw it before
 	// the delete.
@@ -1403,6 +1438,8 @@ type Querier interface {
 	//
 	RotateSessionToken(ctx context.Context, arg RotateSessionTokenParams) (AccountSession, error)
 	SetAccountPassword(ctx context.Context, arg SetAccountPasswordParams) error
+	SetAgentMessageProposalState(ctx context.Context, arg SetAgentMessageProposalStateParams) (AgentMessage, error)
+	SetAgentPreference(ctx context.Context, arg SetAgentPreferenceParams) (bool, error)
 	SetCommentResolution(ctx context.Context, arg SetCommentResolutionParams) (Comment, error)
 	SetDefaultWorkflowState(ctx context.Context, id uuid.UUID) error
 	SetGitHubConnectionAccessToken(ctx context.Context, arg SetGitHubConnectionAccessTokenParams) error
@@ -1763,6 +1800,7 @@ type Querier interface {
 	// not members must not keep receiving notifications for work they can no longer reach.
 	//
 	UnsubscribeNonMembersFromTeamIssues(ctx context.Context, teamID uuid.UUID) ([]IssueSubscription, error)
+	UpdateAgentSessionStatus(ctx context.Context, arg UpdateAgentSessionStatusParams) (AgentSession, error)
 	UpdateAskForm(ctx context.Context, arg UpdateAskFormParams) (AskForm, error)
 	UpdateAttachment(ctx context.Context, arg UpdateAttachmentParams) (Attachment, error)
 	UpdateCommentBody(ctx context.Context, arg UpdateCommentBodyParams) (Comment, error)

@@ -271,6 +271,137 @@ func (r *mutationResolver) AddReaction(ctx context.Context, commentID uuid.UUID,
 	return &generated.ReactionPayload{Version: int(version), Reaction: &out}, nil
 }
 
+// CreateAgentSession is the resolver for the createAgentSession field.
+func (r *mutationResolver) CreateAgentSession(ctx context.Context, input generated.CreateAgentSessionInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.AgentSessionPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := domain.CreateAgentSessionInput{
+		Body:      input.Body,
+		IssueID:   input.IssueID,
+		CommentID: input.CommentID,
+	}
+	type created struct {
+		session model.AgentSession
+		message model.AgentMessage
+	}
+	out, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
+		func(ctx context.Context) (created, int64, error) {
+			session, message, v, err := r.Svc.CreateAgentSession(ctx, p, in)
+			return created{session: session, message: message}, v, err
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	session := toAgentSession(out.session)
+	message := toAgentMessage(out.message)
+	return &generated.AgentSessionPayload{
+		Version: int(version),
+		Session: &session,
+		Message: &message,
+	}, nil
+}
+
+// SendAgentMessage is the resolver for the sendAgentMessage field.
+func (r *mutationResolver) SendAgentMessage(ctx context.Context, sessionID uuid.UUID, body string, clientID *uuid.UUID, opID *uuid.UUID) (*generated.AgentMessagePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	message, version, err := idempotent(ctx, r.Svc, p, clientID, opID,
+		struct {
+			SessionID uuid.UUID
+			Body      string
+		}{sessionID, body},
+		func(ctx context.Context) (model.AgentMessage, int64, error) {
+			return r.Svc.SendAgentMessage(ctx, p, sessionID, body)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toAgentMessage(message)
+	return &generated.AgentMessagePayload{Version: int(version), Message: &out}, nil
+}
+
+// ApplyAgentProposal is the resolver for the applyAgentProposal field.
+func (r *mutationResolver) ApplyAgentProposal(ctx context.Context, messageID uuid.UUID) (*generated.AgentProposalPayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	message, applied, version, err := r.Agent.ApplyProposal(ctx, p, messageID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toAgentMessage(message)
+	return &generated.AgentProposalPayload{
+		Version: int(version),
+		Message: &out,
+		Applied: applied,
+	}, nil
+}
+
+// RejectAgentProposal is the resolver for the rejectAgentProposal field.
+func (r *mutationResolver) RejectAgentProposal(ctx context.Context, messageID uuid.UUID) (*generated.AgentMessagePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	message, version, err := r.Agent.RejectProposal(ctx, p, messageID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toAgentMessage(message)
+	return &generated.AgentMessagePayload{Version: int(version), Message: &out}, nil
+}
+
+// DeleteAgentSession is the resolver for the deleteAgentSession field.
+func (r *mutationResolver) DeleteAgentSession(ctx context.Context, id uuid.UUID) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	deleted, version, err := r.Svc.DeleteAgentSession(ctx, p, id)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: deleted}, nil
+}
+
+// SetAgentAutoApply is the resolver for the setAgentAutoApply field.
+func (r *mutationResolver) SetAgentAutoApply(ctx context.Context, enabled bool) (*generated.AgentConfig, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	on, err := r.Svc.SetAgentAutoApply(ctx, p, enabled)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return r.Resolver.agentConfig(ctx, p, on)
+}
+
+// GrantAgentCredits is the resolver for the grantAgentCredits field.
+func (r *mutationResolver) GrantAgentCredits(ctx context.Context, micros int, reason *string) (*generated.AgentConfig, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	because := ""
+	if reason != nil {
+		because = *reason
+	}
+	if _, err := r.Svc.GrantAgentCredits(ctx, p, int64(micros), because); err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	auto, err := r.Svc.AgentAutoApply(ctx, p.UserID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return r.Resolver.agentConfig(ctx, p, auto)
+}
+
 // RemoveReaction is the resolver for the removeReaction field.
 func (r *mutationResolver) RemoveReaction(ctx context.Context, commentID uuid.UUID, emoji string, clientID *uuid.UUID, opID *uuid.UUID) (*generated.DeletePayload, error) {
 	p, err := principalFrom(ctx)
@@ -5305,6 +5436,52 @@ func (r *queryResolver) APIKeys(ctx context.Context) ([]generated.APIKey, error)
 		return nil, PresentError(ctx, err)
 	}
 	return toAPIKeys(keys), nil
+}
+
+// AgentSessions is the resolver for the agentSessions field.
+func (r *queryResolver) AgentSessions(ctx context.Context, limit *int) ([]generated.AgentSession, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	n := 0
+	if limit != nil {
+		n = *limit
+	}
+	sessions, err := r.Svc.ListAgentSessions(ctx, p, n)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toAgentSessions(sessions), nil
+}
+
+// AgentMessages is the resolver for the agentMessages field.
+func (r *queryResolver) AgentMessages(ctx context.Context, sessionID uuid.UUID) ([]generated.AgentMessage, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	messages, err := r.Svc.ListAgentMessages(ctx, p, sessionID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toAgentMessages(messages), nil
+}
+
+// AgentConfig is the resolver for the agentConfig field.
+func (r *queryResolver) AgentConfig(ctx context.Context) (*generated.AgentConfig, error) {
+	if _, err := principalFrom(ctx); err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	auto, err := r.Svc.AgentAutoApply(ctx, p.UserID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return r.Resolver.agentConfig(ctx, p, auto)
 }
 
 // AccountSessions is the resolver for the accountSessions field.

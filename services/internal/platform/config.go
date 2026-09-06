@@ -223,6 +223,24 @@ type Config struct {
 	// and POST /webhooks/stripe refuses everything because an empty signing secret verifies
 	// nothing. A deployment that sets the secret key and not the signing secret can take
 	// money and never hear that it did, which is why BillingEnabled demands both.
+	// The in-app agent's model provider. Absent means the agent is off: the chat surface
+	// reports itself unavailable rather than offering a box that fails on send.
+	//
+	// A self-hosted deployment brings its own key and pays its own provider directly,
+	// which is the arrangement docs/06-product-model/02-plans-and-packaging.md commits to.
+	// Our cloud sets the same three variables and meters what they spend.
+	AIProvider string `envconfig:"POLARIS_AI_PROVIDER" default:"anthropic"`
+	AIAPIKey   string `envconfig:"POLARIS_AI_API_KEY"`
+	AIModel    string `envconfig:"POLARIS_AI_MODEL" default:"claude-opus-5"`
+	// AICreditsEnabled turns credit accounting on. Our cloud sets it; a self-hosted install
+	// leaves it off, because it brought its own key and pays its provider directly —
+	// metering it would be charging for something we did not provide.
+	AICreditsEnabled bool `envconfig:"POLARIS_AI_CREDITS_ENABLED" default:"false"`
+
+	// AIBaseURL overrides the provider's endpoint. Tests point it at a local server; a
+	// deployment behind a proxy points it at the proxy.
+	AIBaseURL string `envconfig:"POLARIS_AI_BASE_URL"`
+
 	StripeSecretKey     string `envconfig:"POLARIS_STRIPE_SECRET_KEY"`
 	StripeWebhookSecret string `envconfig:"POLARIS_STRIPE_WEBHOOK_SECRET"`
 
@@ -311,6 +329,13 @@ func (c Config) BillingEnabled() bool {
 	return strings.TrimSpace(c.StripeSecretKey) != "" &&
 		strings.TrimSpace(c.StripeWebhookSecret) != "" &&
 		strings.TrimSpace(c.StripePriceProMonthly) != ""
+}
+
+// AgentEnabled reports whether the in-app agent can run here. A key is the whole test:
+// without one there is no provider to call, and the surface says so up front instead of
+// accepting a question it cannot answer.
+func (c Config) AgentEnabled() bool {
+	return strings.TrimSpace(c.AIAPIKey) != "" && strings.TrimSpace(c.AIModel) != ""
 }
 
 // OpenSignupAllowed reports whether anybody may create an account.

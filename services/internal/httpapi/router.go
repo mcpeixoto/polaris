@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/peixotolabs/polaris/services/internal/agent"
 	"github.com/peixotolabs/polaris/services/internal/auth/oidc"
 	"github.com/peixotolabs/polaris/services/internal/authz"
 	"github.com/peixotolabs/polaris/services/internal/domain"
@@ -32,6 +33,11 @@ type Deps struct {
 	// sign-in path can be exercised against a fake issuer whose keys the test controls.
 	// Production leaves it nil and gets the two constants in internal/auth/oidc.
 	SocialProviders map[string]oidc.Provider
+
+	// AgentRunner answers the in-app agent's conversations on the request, where somebody
+	// is watching. Nil when no model provider is configured, and the streaming endpoint
+	// says so rather than hanging.
+	AgentRunner *agent.Runner
 
 	// Limits carries the per-caller budgets. Passed in rather than built here because the
 	// GraphQL handler needs the same instance: the complexity budget is charged from inside
@@ -243,6 +249,11 @@ func NewRouter(d Deps) http.Handler {
 	// Public ICS: the token in the path is the credential. Anonymous budget, because
 	// a guessed-token loop would otherwise be free.
 	mux.Handle("GET /calendars/cycles/{token}", d.Limits.Anonymous(http.HandlerFunc(calendars.feed)))
+
+	agents := &agentHandlers{svc: d.Service, runner: d.AgentRunner}
+	// RequireAuth, not the anonymous budget: this runs a model on somebody's account.
+	mux.Handle("GET /agent/sessions/{id}/stream",
+		RequireWorkspace(d.Limits.GraphQL(http.HandlerFunc(agents.stream))))
 
 	oauth := &oauthHandlers{svc: d.Service}
 	mux.Handle("POST /oauth/token", d.Limits.Anonymous(http.HandlerFunc(oauth.token)))

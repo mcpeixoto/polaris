@@ -43,6 +43,107 @@ type Actor struct {
 	ID   *uuid.UUID `json:"id,omitempty"`
 }
 
+// Whether the deployment can run the agent at all, and what it costs to.
+type AgentConfig struct {
+	// False when no model provider is configured. The UI offers nothing rather than failing on send.
+	Enabled bool `json:"enabled"`
+	// The model answering, for the settings screen. Empty when disabled.
+	Model string `json:"model"`
+	// Credits left, in whole micros. Null when this deployment does not meter.
+	CreditsRemaining *int `json:"creditsRemaining,omitempty"`
+	// Whether this person has turned the confirmation step off. Off by default: the
+	// confirmation is the second line of defence against a model talked into something by text
+	// it read in an issue.
+	AutoApply bool `json:"autoApply"`
+}
+
+// One turn. A tool result is not a turn — it belongs to the assistant turn that called for it.
+type AgentMessage struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	SessionID   uuid.UUID `json:"sessionId"`
+	// user or assistant.
+	Role string `json:"role"`
+	Body string `json:"body"`
+	// What the model ran to produce this turn, so the transcript can show the work.
+	ToolCalls []AgentToolCall `json:"toolCalls"`
+	// The writes this turn wants to make, held until somebody approves them.
+	Proposal *AgentProposal `json:"proposal,omitempty"`
+	// pending, applied, or rejected. Null when the turn proposes nothing.
+	ProposalState *string   `json:"proposalState,omitempty"`
+	InputTokens   int       `json:"inputTokens"`
+	OutputTokens  int       `json:"outputTokens"`
+	CreatedAt     time.Time `json:"createdAt"`
+}
+
+type AgentMessagePayload struct {
+	Version int           `json:"version"`
+	Message *AgentMessage `json:"message"`
+}
+
+func (AgentMessagePayload) IsMutationResult() {}
+
+// Writes the agent wants to perform, recorded so that what a person approves is exactly what
+// runs. Asking the model again at apply time would let it answer differently and make the
+// confirmation a decoration.
+type AgentProposal struct {
+	Summary string              `json:"summary"`
+	Steps   []AgentProposalStep `json:"steps"`
+}
+
+type AgentProposalPayload struct {
+	Version int           `json:"version"`
+	Message *AgentMessage `json:"message"`
+	// The entities the approved steps created or changed, as a summary line each.
+	Applied []string `json:"applied"`
+}
+
+func (AgentProposalPayload) IsMutationResult() {}
+
+type AgentProposalStep struct {
+	Tool        string          `json:"tool"`
+	Description string          `json:"description"`
+	Arguments   json.RawMessage `json:"arguments"`
+}
+
+// A conversation with the in-app agent.
+//
+// Private to its owner. Unlike every other entity here, an agent session is never visible to
+// a teammate: it holds what somebody asked and what they were told, which is nearer a draft
+// than a comment. The change rows carry a user scope, and every read is filtered by the
+// caller's own id.
+type AgentSession struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	UserID      uuid.UUID `json:"userId"`
+	// Taken from the opening message. A chat you must name before using is a chat nobody starts.
+	Title string `json:"title"`
+	// idle, queued, working, or failed.
+	Status string `json:"status"`
+	// Why the last run stopped, when status is failed.
+	Error *string `json:"error,omitempty"`
+	// chat, or comment when the agent was summoned by a mention.
+	Origin    string     `json:"origin"`
+	IssueID   *uuid.UUID `json:"issueId,omitempty"`
+	CommentID *uuid.UUID `json:"commentId,omitempty"`
+	CreatedAt time.Time  `json:"createdAt"`
+	UpdatedAt time.Time  `json:"updatedAt"`
+}
+
+type AgentSessionPayload struct {
+	Version int           `json:"version"`
+	Session *AgentSession `json:"session"`
+	Message *AgentMessage `json:"message"`
+}
+
+func (AgentSessionPayload) IsMutationResult() {}
+
+type AgentToolCall struct {
+	Name    string `json:"name"`
+	Summary string `json:"summary"`
+	IsError bool   `json:"isError"`
+}
+
 // A personal API key. Acts as its owner — never more.
 //
 // A key that could do more than the person who made it is a privilege-escalation path, and
@@ -246,6 +347,13 @@ type CommentPayload struct {
 }
 
 func (CommentPayload) IsMutationResult() {}
+
+type CreateAgentSessionInput struct {
+	Body string `json:"body"`
+	// Set together to summon the agent onto an issue rather than open a chat.
+	IssueID   *uuid.UUID `json:"issueId,omitempty"`
+	CommentID *uuid.UUID `json:"commentId,omitempty"`
+}
 
 type CreateAPIKeyInput struct {
 	Name string `json:"name"`

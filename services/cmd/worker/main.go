@@ -12,7 +12,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/peixotolabs/polaris/services/internal/agent"
 	"github.com/peixotolabs/polaris/services/internal/domain"
+	"github.com/peixotolabs/polaris/services/internal/llm"
 	"github.com/peixotolabs/polaris/services/internal/mailer"
 	"github.com/peixotolabs/polaris/services/internal/platform"
 	"github.com/peixotolabs/polaris/services/internal/store"
@@ -65,6 +67,15 @@ func run() error {
 	if err != nil {
 		return err
 	}
+
+	// Nil when no provider is configured, and the queue job then does nothing — the domain
+	// refuses to enqueue on such a deployment anyway, so the queue stays empty.
+	var runner *agent.Runner
+	if cfg.AgentEnabled() {
+		runner = agent.NewRunner(svc, llm.NewAnthropic(cfg.AIAPIKey, cfg.AIModel, cfg.AIBaseURL, nil))
+	}
+	svc.SetAgentEnabled(cfg.AgentEnabled())
+	svc.SetAgentMetered(cfg.AICreditsEnabled)
 
 	jobs := []job{
 		{
@@ -141,6 +152,43 @@ func run() error {
 				n, err := svc.PruneIdempotencyKeys(ctx)
 				if err == nil && n > 0 {
 					log.Debug("pruned idempotency keys", "rows", n)
+				}
+				return err
+			},
+		},
+		{
+			// The queue the api does not drain: a conversation summoned by a mention has
+			// nobody watching a stream, so it is answered here.
+			//
+			// One session per tick on purpose. A run holds a model call open for as long
+			// as the model takes, and this process has four connections in its pool — the
+			// queue is drained steadily rather than all at once.
+			name:   "run queued agent sessions",
+			every:  2 * time.Second,
+			atBoot: true,
+			run: func(ctx context.Context) error {
+				if runner == nil {
+					return nil
+				}
+				session, ok, err := svc.StartQueuedAgentRun(ctx)
+				if err != nil || !ok {
+					return err
+				}
+				log.Info("running agent session", "session", session.ID, "origin", session.Origin)
+				return runner.Run(ctx, session, nil)
+			},
+		},
+		{
+			// Two jobs in one pass, because both are about runs that are no longer
+			// running: a conversation nobody came back to is deleted, and a run whose
+			// process died mid-turn goes back on the queue instead of rendering as busy
+			// forever.
+			name:  "sweep agent sessions",
+			every: 10 * time.Minute,
+			run: func(ctx context.Context) error {
+				n, err := svc.SweepAgentSessions(ctx)
+				if err == nil && n > 0 {
+					log.Info("pruned agent sessions", "rows", n)
 				}
 				return err
 			},
