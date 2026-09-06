@@ -3,8 +3,8 @@ import SwiftUI
 /// The press response, on every interactive control in the app.
 ///
 /// 0.98 is deliberately small: enough that a tap feels answered, not so much that a list of
-/// them looks like it is breathing. Applied to buttons, cards-as-buttons, chips and rows —
-/// the only opt-out is `.plain` for inline text links.
+/// them looks like it is breathing. Applied to buttons, chips and rows — the only opt-out is
+/// `.plain` for inline text links.
 struct PressableStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -13,68 +13,17 @@ struct PressableStyle: ButtonStyle {
     }
 }
 
-/// Fade-and-rise entrance, staggered by position.
+/// The small heading over a group of things.
 ///
-/// The index cap matters: without it a 200-row list animates for ten seconds and the last
-/// rows arrive long after the reader has started scrolling. Twelve rows is roughly one
-/// screenful, which is all anyone sees on the first frame anyway.
-struct StaggerRise: ViewModifier {
-    let index: Int
-    /// False once this row has already made its entrance. Owned by the caller, because a
-    /// `LazyVStack` destroys off-screen rows: `@State` alone is torn down with them, so
-    /// scrolling back replayed the animation and left a re-entering row blank for as long as
-    /// its staggered delay — up to 0.6s of nothing where content used to be.
-    var isEnabled: Bool = true
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var shown = false
-
-    func body(content: Content) -> some View {
-        content
-            .opacity(shown ? 1 : 0)
-            .offset(y: shown ? 0 : 14)
-            .onAppear {
-                // Reduce Motion means arrive, not slide in. PolarisMark honoured this and
-                // this modifier did not — and it is applied to every row and section of every
-                // screen, so it was by far the larger omission of the two.
-                guard isEnabled, !reduceMotion else {
-                    shown = true
-                    return
-                }
-                withAnimation(Theme.easing(0.5).delay(Double(min(index, 12)) * 0.05)) {
-                    shown = true
-                }
-            }
-    }
-}
-
-extension View {
-    func staggerRise(_ index: Int, isEnabled: Bool = true) -> some View {
-        modifier(StaggerRise(index: index, isEnabled: isEnabled))
-    }
-}
-
-/// The small uppercase label that sits above almost every headline in the app.
-///
-/// Tracking is proportional to the size (0.14em) rather than a fixed point value, so it stays
-/// correct when Dynamic Type grows the text.
-struct MonoEyebrow: View {
+/// Plain, sentence-case, tertiary. It replaced a tracked uppercase monospace eyebrow: a label
+/// that has to be decoded is a label that slows the scan, and the scan is what a list is for.
+struct SectionLabel: View {
     let text: String
     var color: Color = Theme.eyebrowText
-    var size: CGFloat = 11
-
-    /// Tracking has to grow with the text.
-    ///
-    /// `.tracking(size * 0.14)` used the *design* size, so the letters grew under Dynamic Type
-    /// and the space between them did not — which reads as progressively tighter spacing the
-    /// larger the setting, and is what the accessibility audit means by "Dynamic Type font
-    /// sizes are partially unsupported". A `@ScaledMetric` gives the scaled value.
-    @ScaledMetric(relativeTo: .caption2) private var trackingUnit: CGFloat = 1
 
     var body: some View {
         Text(text)
-            .monoFont(size, weight: .medium)
-            .tracking(size * 0.14 * trackingUnit)
-            .textCase(.uppercase)
+            .font(PolarisText.sectionTitle)
             .foregroundStyle(color)
             .accessibilityAddTraits(.isHeader)
     }
@@ -90,29 +39,28 @@ struct HairlineDivider: View {
     }
 }
 
-/// The surface everything sits on. Callers own their inner padding, because a card wrapping a
-/// dense row and a card wrapping a form want different insets and baking one in makes the
-/// other wrong.
+/// A grouped surface: one step up from the page, hairline edge, small radius. Callers own
+/// their inner padding, because a card wrapping a dense row and a card wrapping a form want
+/// different insets and baking one in makes the other wrong.
 struct Card<Content: View>: View {
-    var radius: CGFloat = 20
+    var radius: CGFloat = Theme.Radius.lg
     @ViewBuilder var content: () -> Content
 
     var body: some View {
         content()
-            .background(Theme.card)
+            .background(Theme.surface)
             .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .stroke(Theme.border, lineWidth: 1)
+                    .stroke(Theme.hairline, lineWidth: 1)
             )
     }
 }
 
-/// The primary call to action.
+/// The primary call to action: a flat accent fill at the row height, nothing under it.
 ///
-/// The coloured glow — a shadow whose y-offset exceeds its blur radius — is what separates a
-/// designed CTA from `.borderedProminent`. `isBusy` swaps the label for a spinner in place
-/// rather than disabling into ambiguity, so the button never changes size mid-tap.
+/// `isBusy` swaps the label for a spinner in place rather than disabling into ambiguity, so
+/// the button never changes size mid-tap.
 struct PrimaryButton: View {
     let title: String
     var isBusy: Bool = false
@@ -123,55 +71,70 @@ struct PrimaryButton: View {
         Button(action: action) {
             ZStack {
                 Text(title)
-                    .bodyFont(15, weight: .bold)
+                    .font(.system(.subheadline).weight(.semibold))
                     .opacity(isBusy ? 0 : 1)
                 if isBusy {
-                    ProgressView().tint(.white)
+                    ProgressView().tint(Theme.accentContrast)
                 }
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(Theme.accentContrast)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
+            .frame(minHeight: Theme.rowHeight)
             .background(Theme.accent.opacity(isEnabled && !isBusy ? 1 : 0.55))
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            // Blurred more than it is offset, so the glow stays under the button instead of
-            // pooling on whatever sits below it. The previous values (radius 15, y 16) put the
-            // densest part of the wash directly behind the secondary link on the welcome
-            // screen, which is exactly where small secondary text is least able to afford it.
-            .shadow(
-                color: Theme.accent.opacity(isEnabled && !isBusy ? 0.38 : 0),
-                radius: 18, x: 0, y: 10
-            )
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.lg, style: .continuous))
         }
         .buttonStyle(PressableStyle())
         .disabled(!isEnabled || isBusy)
     }
 }
 
-/// A field on a dark surface.
+/// A secondary action: bordered, on the surface colour, the same height as the primary.
+struct SecondaryButton: View {
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(.subheadline).weight(.medium))
+                .foregroundStyle(Theme.textPrimary)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: Theme.rowHeight)
+                .background(Theme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.lg, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Theme.Radius.lg, style: .continuous)
+                        .stroke(Theme.border, lineWidth: 1)
+                )
+        }
+        .buttonStyle(PressableStyle())
+    }
+}
+
+/// A field on the page.
 ///
 /// `prompt:` rather than the bare `TextField("Email", …)` label, because only the prompt form
 /// lets the placeholder colour be set — the default is near-invisible here.
 struct DarkFieldStyle: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .bodyFont(16, weight: .medium)
+            .font(.system(.body))
             .foregroundStyle(Theme.textPrimary)
             .tint(Theme.accentBright)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(.horizontal, Theme.Space.md)
+            .padding(.vertical, Theme.Space.md)
             // The fill is drawn *behind* the text rather than clipped around it. `.clipShape`
             // on the field itself trims whatever does not fit the padded frame, so at larger
             // Dynamic Type sizes the text was cut off inside its own box — which the
             // accessibility audit reports as "Text clipped". A background shape has no such
             // effect: the field grows and the text stays whole.
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: Theme.Radius.lg, style: .continuous)
                     .fill(Theme.fieldFill)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Theme.fieldStroke, lineWidth: 1)
+                RoundedRectangle(cornerRadius: Theme.Radius.lg, style: .continuous)
+                    .stroke(Theme.border, lineWidth: 1)
             )
     }
 }
@@ -180,64 +143,109 @@ extension View {
     func darkField() -> some View { modifier(DarkFieldStyle()) }
 }
 
-/// The Polaris mark: a star that breathes, inside a ring that pulses outward.
-///
-/// Two off-phase loops rather than one — a single synchronised animation reads as a progress
-/// indicator, which is exactly what this must not look like. Both are ambient and slow (2.4s
-/// and 3.4s); a fast idle animation is the thing that makes an app feel cheap.
-///
-/// Honoured `accessibilityReduceMotion`: the marks holds still rather than animating, because
-/// a permanently-moving element is precisely what that setting exists to stop.
-struct PolarisMark: View {
-    var size: CGFloat = 132
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var breathe = false
-    @State private var ringOut = false
+/// A property pill: an icon and a value, bordered, at the pill height. The detail screen's
+/// status, priority and assignee are these; so are the composer's.
+struct PropertyChip<Icon: View>: View {
+    let text: String
+    var tint: Color = Theme.textPrimary
+    @ViewBuilder var icon: () -> Icon
 
     var body: some View {
-        ZStack {
-            Circle()
-                .stroke(Theme.accent, lineWidth: 2)
-                .frame(width: size, height: size)
-                .scaleEffect(ringOut ? 1.15 : 0.9)
-                .opacity(ringOut ? 0 : 0.6)
-                .animation(
-                    reduceMotion ? nil : .easeOut(duration: 2.4).repeatForever(autoreverses: false),
-                    value: ringOut
-                )
+        HStack(spacing: Theme.Space.xs + 2) {
+            icon()
+            Text(text)
+                .font(.system(.footnote).weight(.medium))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, Theme.Space.sm + 2)
+        .frame(minHeight: 30)
+        .background(Theme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous)
+                .stroke(Theme.border, lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+    }
+}
 
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Theme.accentBright, Theme.accentDark],
-                        center: UnitPoint(x: 0.35, y: 0.28),
-                        startRadius: 0,
-                        endRadius: size * 0.6
-                    )
-                )
-                .frame(width: size * 0.82, height: size * 0.82)
-                .scaleEffect(breathe ? 1.04 : 0.97)
-                .animation(
-                    reduceMotion ? nil : .easeInOut(duration: 3.4).repeatForever(autoreverses: true),
-                    value: breathe
-                )
-                .overlay(
-                    Image(systemName: "sparkle")
-                        .font(.system(size: size * 0.34, weight: .light))
-                        .foregroundStyle(.white)
-                )
-                // Tightened from radius 24 / y 10, which reached the eyebrow below the mark.
-                .shadow(color: Theme.accent.opacity(0.4), radius: 16, x: 0, y: 4)
+/// The Polaris mark: a flat accent tile with the star cut into it.
+///
+/// It breathes very slightly — two off-phase loops rather than one, so it does not read as a
+/// progress indicator — and it holds still under Reduce Motion, because a permanently-moving
+/// element is precisely what that setting exists to stop. No glow: a shadow that leaks onto
+/// the copy beneath is the one thing a welcome screen cannot afford.
+struct PolarisMark: View {
+    var size: CGFloat = 64
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var breathe = false
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+            .fill(Theme.accent)
+            .frame(width: size, height: size)
+            .overlay(
+                Image(systemName: "sparkle")
+                    .font(.system(size: size * 0.42, weight: .medium))
+                    .foregroundStyle(Theme.accentContrast)
+            )
+            .scaleEffect(breathe ? 1.03 : 1)
+            .animation(
+                reduceMotion ? nil : .easeInOut(duration: 3.4).repeatForever(autoreverses: true),
+                value: breathe
+            )
+            .accessibilityHidden(true)
+            .onAppear {
+                // Under Reduce Motion this stays false: the animation is nil there, so setting
+                // it would snap the tile to its end scale rather than hold it still.
+                guard !reduceMotion else { return }
+                breathe = true
+            }
+    }
+}
+
+/// Lays its children out left to right and wraps to a new line when the width runs out.
+///
+/// For the property chips on the detail screen and the pills in the composer: a fixed grid
+/// would leave holes where a chip is absent, and an `HStack` would push the last chip off
+/// the edge on a narrow phone.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = Theme.Space.sm
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? .infinity
+        return place(in: width, subviews: subviews).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let layout = place(in: bounds.width, subviews: subviews)
+        for (subview, origin) in zip(subviews, layout.origins) {
+            subview.place(
+                at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y),
+                proposal: .unspecified
+            )
         }
-        .frame(width: size * 1.15, height: size * 1.15)
-        .accessibilityHidden(true)
-        .onAppear {
-            // Under Reduce Motion these must stay false. The animations are nil there, so
-            // setting them would snap each layer to its END state — and the ring's end state
-            // is opacity 0, which deletes it. "Holds still" has to mean the start pose.
-            guard !reduceMotion else { return }
-            breathe = true
-            ringOut = true
+    }
+
+    private func place(in width: CGFloat, subviews: Subviews) -> (size: CGSize, origins: [CGPoint]) {
+        var origins: [CGPoint] = []
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var lineHeight: CGFloat = 0
+        var maxX: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width {
+                x = 0
+                y += lineHeight + spacing
+                lineHeight = 0
+            }
+            origins.append(CGPoint(x: x, y: y))
+            lineHeight = max(lineHeight, size.height)
+            x += size.width + spacing
+            maxX = max(maxX, x - spacing)
         }
+        return (CGSize(width: maxX, height: y + lineHeight), origins)
     }
 }

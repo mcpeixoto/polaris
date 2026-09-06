@@ -70,13 +70,13 @@ struct CreateWorkspaceView: View {
                                 if focused == .urlKey { urlKeyEdited = true }
                             }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
+                    .padding(.horizontal, Theme.Space.md)
+                    .padding(.vertical, Theme.Space.md)
                     .background(Theme.fieldFill)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.lg, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Theme.fieldStroke, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: Theme.Radius.lg, style: .continuous)
+                            .stroke(Theme.border, lineWidth: 1)
                     )
                 }
 
@@ -132,7 +132,7 @@ struct CreateWorkspaceView: View {
     @ViewBuilder
     private func labelled<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            MonoEyebrow(text: label)
+            SectionLabel(text: label, color: Theme.textSecondary)
             content()
         }
     }

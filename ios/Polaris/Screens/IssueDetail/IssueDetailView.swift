@@ -1,6 +1,9 @@
 import SwiftUI
 import PolarisCore
 
+/// One issue: where it is, what it says, its properties as a row of pills, and the thread
+/// under it. The bar carries the identifier; the body carries everything else, flat, with
+/// the composer pinned under it.
 struct IssueDetailView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -32,7 +35,6 @@ struct IssueDetailView: View {
         }
         .navigationTitle(seed.identifier)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
             if let store { ToolbarItem(placement: .topBarTrailing) { overflowMenu(store: store) } }
         }
@@ -64,22 +66,10 @@ struct IssueDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: Theme.Space.md) {
-                    HStack(spacing: Theme.Space.sm) {
-                        StateIcon(state: issue.state, size: 16)
-                            .symbolEffect(.bounce, value: issue.state.id)
-                        Text(issue.state.name)
-                            .monoFont(11, weight: .medium)
-                            .foregroundStyle(Theme.stateColor(issue.state))
-                        Text(verbatim: "·").foregroundStyle(Theme.eyebrowText)
-                        Text(verbatim: "\(issue.team.key) · \(issue.team.name)")
-                            .monoFont(11)
-                            .foregroundStyle(Theme.eyebrowText)
-                    }
-
+                    breadcrumb(issue: issue)
                     titleField(store: store, issue: issue)
                     descriptionBlock(issue: issue)
                 }
-                .staggerRise(0)
 
                 VStack(alignment: .leading, spacing: Theme.Space.sm) {
                     properties(issue: issue, store: store)
@@ -87,15 +77,13 @@ struct IssueDetailView: View {
                         InlineErrorLabel(text: error.displayMessage)
                     }
                 }
-                .padding(.top, Theme.Space.xxl)
-                .staggerRise(1)
+                .padding(.top, Theme.Space.xl)
 
                 comments(store: store)
-                    .padding(.top, Theme.Space.xxl)
-                    .staggerRise(2)
+                    .padding(.top, Theme.Space.xl)
             }
-            .padding(.horizontal, Theme.Space.xl)
-            .padding(.top, Theme.Space.sm)
+            .padding(.horizontal, Theme.Space.lg)
+            .padding(.top, Theme.Space.md)
             .padding(.bottom, Theme.Space.xxl)
             .readableColumn()
         }
@@ -105,11 +93,14 @@ struct IssueDetailView: View {
         // Out of the ScrollView, which is where it used to live: on an issue with twenty
         // comments you had to scroll to the end of the thread before you could reply.
         .safeAreaInset(edge: .bottom) {
-            composer(store: store)
-                .padding(.horizontal, Theme.Space.xl)
-                .padding(.vertical, Theme.Space.sm)
-                .background(.bar)
-                .readableColumn()
+            VStack(spacing: 0) {
+                HairlineDivider()
+                composer(store: store)
+                    .padding(.horizontal, Theme.Space.lg)
+                    .padding(.vertical, Theme.Space.sm)
+                    .readableColumn()
+            }
+            .background(Theme.background)
         }
         .onChange(of: store.propertyError == nil) { _, isClear in
             if !isClear { writeFailures += 1 }
@@ -150,6 +141,26 @@ struct IssueDetailView: View {
         }
     }
 
+    /// Where the issue lives: the team's mark, then the identifier. One `Text`, so it is one
+    /// thing to VoiceOver — and so it is not a second element whose label is the identifier
+    /// the bar already carries.
+    private func breadcrumb(issue: Issue) -> some View {
+        HStack(spacing: Theme.Space.sm) {
+            Text(issue.team.key)
+                .font(.system(.caption).weight(.semibold))
+                .foregroundStyle(Theme.textSecondary)
+                .padding(.horizontal, Theme.Space.xs + 1)
+                .frame(minHeight: 20)
+                .background(Theme.raised)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous))
+            Text(verbatim: "\(issue.team.name) › \(issue.identifier)")
+                .font(PolarisText.caption)
+                .foregroundStyle(Theme.textSecondary)
+                .lineLimit(1)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
     /// The title, editable in place.
     ///
     /// Committed on return *and* on focus loss, because a phone has no other moment that
@@ -164,7 +175,7 @@ struct IssueDetailView: View {
             axis: .vertical
         )
         .lineLimit(1...4)
-        .displayFont(24, weight: .semibold)
+        .font(PolarisText.issueTitle)
         .foregroundStyle(Theme.textPrimary)
         .tint(Theme.accentBright)
         .focused($titleFocused)
@@ -198,12 +209,12 @@ struct IssueDetailView: View {
                     Text("Add a description")
                     Spacer(minLength: 0)
                 }
-                .bodyFont(14)
+                .font(PolarisText.body)
                 .foregroundStyle(Theme.placeholder)
             } else {
                 Text(issue.description)
-                    .bodyFont(14)
-                    .foregroundStyle(Theme.textSecondary)
+                    .font(PolarisText.body)
+                    .foregroundStyle(Theme.textPrimary)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -216,60 +227,59 @@ struct IssueDetailView: View {
         .accessibilityIdentifier("issue.description")
     }
 
+    /// The properties as a wrapping row of pills, the way Linear lays them out on a phone:
+    /// status, priority, assignee, then whatever else the issue carries.
     private func properties(issue: Issue, store: IssueDetailStore) -> some View {
         VStack(alignment: .leading, spacing: Theme.Space.sm) {
-            MonoEyebrow(text: String(localized: "Properties"))
-            Card {
-                VStack(spacing: 0) {
-                    statusRow(issue: issue, store: store)
-                    HairlineDivider().padding(.horizontal, Theme.Space.lg)
-                    priorityRow(issue: issue, store: store)
-                    HairlineDivider().padding(.horizontal, Theme.Space.lg)
-                    assigneeRow(issue: issue)
-                    if !issue.labels.isEmpty {
-                        HairlineDivider().padding(.horizontal, Theme.Space.lg)
-                        HStack {
-                            Text("Labels")
-                                .bodyFont(14)
-                                .foregroundStyle(Theme.textSecondary)
-                            Spacer()
-                            HStack(spacing: Theme.Space.xs) {
-                                ForEach(issue.labels) { LabelChip(label: $0) }
-                            }
-                        }
-                        .padding(Theme.Space.lg)
+            SectionLabel(text: String(localized: "Properties"))
+            FlowLayout(spacing: Theme.Space.sm) {
+                statusChip(issue: issue, store: store)
+                priorityChip(issue: issue, store: store)
+                assigneeChip(issue: issue)
+                ForEach(issue.labels) { LabelChip(label: $0) }
+                if let dueDate = issue.dueDate, let due = DueDateFormat.present(dueDate) {
+                    PropertyChip(text: due.text, tint: due.isOverdue ? Theme.danger : Theme.textPrimary) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 12))
+                            .foregroundStyle(due.isOverdue ? Theme.danger : Theme.textSecondary)
                     }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text(due.isOverdue ? "Overdue, due \(due.text)" : "Due \(due.text)"))
+                }
+                if let estimate = issue.estimate {
+                    PropertyChip(text: "\(estimate)") {
+                        Image(systemName: "number")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text("Estimate \(estimate)"))
                 }
             }
         }
     }
 
     @ViewBuilder
-    private func statusRow(issue: Issue, store: IssueDetailStore) -> some View {
+    private func statusChip(issue: Issue, store: IssueDetailStore) -> some View {
         let states = model.workspaceData.states(forTeam: issue.team.id)
         if states.isEmpty {
             // A disabled control that explains nothing is worse than an absent one. The two
             // reasons need different sentences, and only one of them is worth retrying.
-            HStack {
-                Text("Status").bodyFont(14).foregroundStyle(Theme.textSecondary)
-                Spacer()
-                if model.workspaceData.statesFailedForTeam.contains(issue.team.id) {
-                    Button {
-                        Task { await model.workspaceData.load() }
-                    } label: {
-                        Text("Couldn't load — retry")
-                            .bodyFont(12.5, weight: .semibold)
-                            .underline()
-                            .foregroundStyle(Theme.accentBright)
+            if model.workspaceData.statesFailedForTeam.contains(issue.team.id) {
+                Button {
+                    Task { await model.workspaceData.load() }
+                } label: {
+                    PropertyChip(text: String(localized: "Status: couldn't load — retry"), tint: Theme.accentBright) {
+                        StateIcon(state: issue.state, size: 14)
                     }
-                    .buttonStyle(.plain)
-                } else {
-                    Text("No statuses in this team")
-                        .bodyFont(12.5)
-                        .foregroundStyle(Theme.eyebrowText)
                 }
+                .buttonStyle(.plain)
+            } else {
+                PropertyChip(text: String(localized: "No statuses in this team"), tint: Theme.textSecondary) {
+                    StateIcon(state: issue.state, size: 14)
+                }
+                .accessibilityLabel(Text("Status: no statuses in this team"))
             }
-            .padding(Theme.Space.lg)
         } else {
             Menu {
                 ForEach(states) { state in
@@ -280,22 +290,18 @@ struct IssueDetailView: View {
                     }
                 }
             } label: {
-                PropertyRow(label: String(localized: "Status")) {
-                    HStack(spacing: Theme.Space.sm) {
-                        StateIcon(state: issue.state)
-                        Text(issue.state.name)
-                            .bodyFont(14, weight: .medium)
-                            .foregroundStyle(Theme.textPrimary)
-                    }
+                PropertyChip(text: issue.state.name) {
+                    StateIcon(state: issue.state, size: 14)
                 }
             }
+            .accessibilityLabel(Text("Status, \(issue.state.name)"))
             .accessibilityIdentifier("issue.status")
             // The one control whose whole job is to show change should say so on the wrist.
             .sensoryFeedback(.impact(weight: .light), trigger: issue.state.id)
         }
     }
 
-    private func priorityRow(issue: Issue, store: IssueDetailStore) -> some View {
+    private func priorityChip(issue: Issue, store: IssueDetailStore) -> some View {
         Menu {
             ForEach(Priority.allCases, id: \.self) { value in
                 Button {
@@ -305,34 +311,27 @@ struct IssueDetailView: View {
                 }
             }
         } label: {
-            PropertyRow(label: String(localized: "Priority")) {
-                HStack(spacing: Theme.Space.sm) {
-                    PriorityIcon(priority: issue.priority)
-                    Text(issue.priority.label)
-                        .bodyFont(14, weight: .medium)
-                        .foregroundStyle(Theme.textPrimary)
-                }
+            PropertyChip(text: issue.priority.label) {
+                PriorityIcon(priority: issue.priority, size: 14)
             }
         }
+        .accessibilityLabel(Text("Priority, \(issue.priority.label)"))
         .accessibilityIdentifier("issue.priority")
     }
 
     /// A sheet rather than a menu: a workspace's people list is unbounded, and a menu of two
     /// hundred names is not a picker.
-    private func assigneeRow(issue: Issue) -> some View {
+    private func assigneeChip(issue: Issue) -> some View {
         Button {
             assigneePickerOpen = true
         } label: {
-            PropertyRow(label: String(localized: "Assignee")) {
-                HStack(spacing: Theme.Space.sm) {
-                    AvatarView(user: issue.assignee, size: 22)
-                    Text(issue.assignee?.displayName ?? String(localized: "Unassigned"))
-                        .bodyFont(14, weight: .medium)
-                        .foregroundStyle(Theme.textPrimary)
-                }
+            PropertyChip(text: issue.assignee?.displayName ?? String(localized: "Unassigned")) {
+                AvatarView(user: issue.assignee, size: 16)
+                    .accessibilityHidden(true)
             }
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(Text("Assignee, \(issue.assignee?.displayName ?? String(localized: "Unassigned"))"))
         .accessibilityIdentifier("issue.assignee")
     }
 
@@ -357,7 +356,7 @@ struct IssueDetailView: View {
                 SwiftUI.Label("Archive", systemImage: "archivebox")
             }
         } label: {
-            Image(systemName: "ellipsis.circle")
+            Image(systemName: "ellipsis")
         }
         .accessibilityLabel(Text("Issue actions"))
         .accessibilityIdentifier("issue.menu")
@@ -366,14 +365,14 @@ struct IssueDetailView: View {
     @ViewBuilder
     private func comments(store: IssueDetailStore) -> some View {
         VStack(alignment: .leading, spacing: Theme.Space.sm) {
-            MonoEyebrow(text: String(localized: "Comments"))
+            SectionLabel(text: String(localized: "Comments"))
 
             switch store.comments {
             case .idle, .loading:
                 HStack(spacing: Theme.Space.md) {
-                    ProgressView().controlSize(.small).tint(Theme.accentBright)
+                    ProgressView().controlSize(.small).tint(Theme.textSecondary)
                     Text("Loading comments")
-                        .bodyFont(12.5)
+                        .font(PolarisText.caption)
                         .foregroundStyle(Theme.textSecondary)
                 }
                 .padding(.vertical, Theme.Space.sm)
@@ -387,14 +386,15 @@ struct IssueDetailView: View {
 
             case .loaded(let comments) where comments.isEmpty:
                 Text("No comments yet.")
-                    .bodyFont(12.5)
-                    .foregroundStyle(Theme.eyebrowText)
+                    .font(PolarisText.caption)
+                    .foregroundStyle(Theme.textTertiary)
                     .padding(.vertical, Theme.Space.xs)
 
             case .loaded(let comments):
-                VStack(spacing: Theme.Space.sm) {
-                    ForEach(comments) { comment in
-                        CommentCard(
+                VStack(spacing: 0) {
+                    ForEach(Array(comments.enumerated()), id: \.element.id) { index, comment in
+                        if index > 0 { HairlineDivider() }
+                        CommentRow(
                             comment: comment,
                             author: author(for: comment),
                             name: authorName(for: comment)
@@ -410,15 +410,27 @@ struct IssueDetailView: View {
     }
 
     private func composer(store: IssueDetailStore) -> some View {
-        HStack(spacing: Theme.Space.sm) {
+        HStack(alignment: .bottom, spacing: Theme.Space.sm) {
             TextField(
                 "",
                 text: $draftComment,
-                prompt: Text("Add a comment").foregroundStyle(Theme.placeholder),
+                prompt: Text("Leave a comment…").foregroundStyle(Theme.placeholder),
                 axis: .vertical
             )
             .lineLimit(1...4)
-            .darkField()
+            .font(PolarisText.body)
+            .foregroundStyle(Theme.textPrimary)
+            .tint(Theme.accentBright)
+            .padding(.horizontal, Theme.Space.md)
+            .padding(.vertical, Theme.Space.sm + 1)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.Radius.lg, style: .continuous)
+                    .fill(Theme.fieldFill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Radius.lg, style: .continuous)
+                    .stroke(Theme.border, lineWidth: 1)
+            )
             .focused($commentFocused)
             .accessibilityIdentifier("issue.commentField")
 
@@ -437,11 +449,12 @@ struct IssueDetailView: View {
                 }
             } label: {
                 Image(systemName: "arrow.up")
-                    .font(.system(size: 15, weight: .bold))
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(Theme.accentContrast)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 34, height: 34)
                     .background(Theme.accent)
-                    .clipShape(Circle())
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.lg, style: .continuous))
+                    .hitTarget(minWidth: 34)
             }
             .buttonStyle(PressableStyle())
             .disabled(isComposerEmpty || store.isPostingComment)
@@ -475,68 +488,44 @@ struct IssueDetailView: View {
     }
 }
 
-/// A property row's chrome: the label on the left, the current value and a chevron on the
-/// right. Shared by three rows that used to be three differently-configured `Picker`s.
-private struct PropertyRow<Value: View>: View {
-    let label: String
-    @ViewBuilder var value: () -> Value
-
-    var body: some View {
-        HStack {
-            Text(label)
-                .bodyFont(14)
-                .foregroundStyle(Theme.textSecondary)
-            Spacer(minLength: Theme.Space.md)
-            value()
-            Image(systemName: "chevron.up.chevron.down")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Theme.eyebrowText)
-                .accessibilityHidden(true)
-        }
-        .padding(Theme.Space.lg)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-    }
-}
-
-private struct CommentCard: View {
+/// One comment in the thread: avatar, name and time on a line, the body under them. Flat;
+/// the hairline between rows is the only separation the thread gets.
+private struct CommentRow: View {
     let comment: Comment
     let author: User?
     let name: String
     @State private var showsAbsoluteDate = false
 
     var body: some View {
-        Card(radius: Theme.Radius.md) {
-            HStack(alignment: .top, spacing: Theme.Space.md) {
-                AvatarView(user: author, size: 26)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: Theme.Space.xs) {
-                    HStack(spacing: Theme.Space.sm) {
-                        Text(name)
-                            .bodyFont(12.5, weight: .bold)
-                            .foregroundStyle(Theme.textPrimary)
-                        // Relative by default, because "2h ago" is what a thread is read in.
-                        // The absolute date is a tap away rather than gone.
-                        Group {
-                            if showsAbsoluteDate {
-                                Text(comment.createdAt.formatted(date: .abbreviated, time: .shortened))
-                            } else {
-                                Text(comment.createdAt, format: .relative(presentation: .numeric))
-                            }
+        HStack(alignment: .top, spacing: Theme.Space.sm + 2) {
+            AvatarView(user: author, size: 24)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                HStack(spacing: Theme.Space.sm) {
+                    Text(name)
+                        .font(.system(.footnote).weight(.semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                    // Relative by default, because "2h ago" is what a thread is read in.
+                    // The absolute date is a tap away rather than gone.
+                    Group {
+                        if showsAbsoluteDate {
+                            Text(comment.createdAt.formatted(date: .abbreviated, time: .shortened))
+                        } else {
+                            Text(comment.createdAt, format: .relative(presentation: .numeric))
                         }
-                        .monoFont(10)
-                        .foregroundStyle(Theme.eyebrowText)
                     }
-                    Text(comment.body)
-                        .bodyFont(13.5)
-                        .foregroundStyle(Theme.textSecondary)
-                        .lineSpacing(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    .font(PolarisText.captionSmall)
+                    .foregroundStyle(Theme.textTertiary)
                 }
+                Text(comment.body)
+                    .font(PolarisText.body)
+                    .foregroundStyle(Theme.textPrimary)
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(Theme.Space.lg)
         }
+        .padding(.vertical, Theme.Space.md)
         .contentShape(Rectangle())
         .onTapGesture { withAnimation(Theme.easing(0.25)) { showsAbsoluteDate.toggle() } }
         .contextMenu {
@@ -577,10 +566,10 @@ private struct DescriptionEditor: View {
                     axis: .vertical
                 )
                 .lineLimit(6...30)
-                .bodyFont(14)
+                .font(PolarisText.body)
                 .foregroundStyle(Theme.textPrimary)
                 .tint(Theme.accentBright)
-                .padding(Theme.Space.xl)
+                .padding(Theme.Space.lg)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .accessibilityIdentifier("issue.descriptionEditor")
             }
@@ -596,7 +585,7 @@ private struct DescriptionEditor: View {
                         onSave(draft)
                         dismiss()
                     } label: {
-                        Text("Save").bodyFont(15, weight: .bold)
+                        Text("Save").font(.system(.body).weight(.semibold))
                     }
                     .tint(Theme.accentBright)
                 }
@@ -632,6 +621,8 @@ private struct AssigneePicker: View {
                 }
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
             .navigationTitle(Text("Assignee"))
             .navigationBarTitleDisplayMode(.inline)
         }
@@ -641,18 +632,19 @@ private struct AssigneePicker: View {
 
     private func row(name: String, user: User?, isSelected: Bool) -> some View {
         HStack(spacing: Theme.Space.md) {
-            AvatarView(user: user, size: 26)
+            AvatarView(user: user, size: 24)
                 .accessibilityHidden(true)
             Text(name)
-                .bodyFont(15)
+                .font(PolarisText.body)
                 .foregroundStyle(Theme.textPrimary)
             Spacer(minLength: 0)
             if isSelected {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Theme.accentBright)
             }
         }
+        .frame(minHeight: Theme.rowHeight - Theme.Space.lg)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])

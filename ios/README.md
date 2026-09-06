@@ -79,6 +79,14 @@ Screens are content only. `PolarisNavigation` owns the `NavigationStack` and dec
 issue and team destinations, so the same view renders as a tab on a phone and as the detail
 column on an iPad without knowing which it is in.
 
+Every screen uses the system navigation bar with an inline title and plain toolbar glyphs. An
+issue row is one 44pt line — priority glyph, identifier, status glyph, title, then label dots,
+due date and assignee — with a hairline under it and no card around it. A team's list and a
+search result are grouped by workflow state (`IssueListView(grouping: .status)`), started work
+first and closed work last; My Issues stays flat in priority order, which is also Linear's
+default for that view. The inbox is grouped by day, the detail screen lays its properties out
+as a wrapping row of pills, and Settings is a standard inset-grouped list.
+
 ### The inbox is pull-only, and that is a backend gap
 
 The server has no push infrastructure at all — no device-token schema, no APNs sender — so
@@ -99,6 +107,12 @@ pinned to dark, which cost two things: the web client ships all three, so the cl
 disagreed about what Polaris looks like; and `LaunchBackground`'s light appearance was pure
 white, so every cold start on a phone in Light mode flashed white before snapping to a
 near-black app.
+
+The look follows the web client's Linear parity pass: the system face at 13–15pt, a flat
+`bgPrimary` page, hairline separators, radii of 4–8pt, and no gradients, glows or serif
+display type. `StateIcon` and `PriorityIcon` draw the same glyphs as `web/src/components` —
+a ring whose fill encodes the state category, and a three-bar scale with a filled square for
+urgent — so the two clients say the same thing with the same shapes.
 
 ## Offline
 

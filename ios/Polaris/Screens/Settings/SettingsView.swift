@@ -1,6 +1,7 @@
 import SwiftUI
 import PolarisCore
 
+/// Settings, as the platform draws them: inset grouped sections on the page colour.
 struct SettingsView: View {
     let viewer: Viewer
     @Environment(AppModel.self) private var model
@@ -9,100 +10,77 @@ struct SettingsView: View {
     @AppStorage(AppearancePreference.storageKey) private var appearance: AppearancePreference = .system
 
     var body: some View {
-        ZStack {
-            Theme.background.ignoresSafeArea()
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    header.staggerRise(0)
-
-                    section("Account") {
-                        HStack(spacing: 12) {
-                            // Hidden here: AvatarView's label reads "Assigned to …",
-                            // which is right on an issue row and wrong on your own
-                            // account. The name and email beside it already say who this
-                            // is.
-                            AvatarView(user: viewer.user, size: 44)
-                                .accessibilityHidden(true)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(viewer.user.displayName)
-                                    .bodyFont(15, weight: .semibold)
-                                    .foregroundStyle(Theme.textPrimary)
-                                if let email = viewer.user.email {
-                                    Text(email)
-                                        .bodyFont(12.5)
-                                        .foregroundStyle(Theme.textSecondary)
-                                }
-                            }
-                            Spacer(minLength: 0)
-                        }
-                        .padding(16)
-                        .accessibilityElement(children: .combine)
-                    }
-                    .padding(.top, 22)
-                    .staggerRise(1)
-
-                    section("Workspace") {
-                        VStack(spacing: 0) {
-                            row("Name", viewer.workspace.name)
-                            HairlineDivider().padding(.horizontal, 16)
-                            row("Address", viewer.workspace.urlKey)
-                            HairlineDivider().padding(.horizontal, 16)
-                            planRow
-                            if viewer.workspaces.count > 1 {
-                                HairlineDivider().padding(.horizontal, 16)
-                                workspaceSwitcher
-                            }
+        List {
+            Section {
+                HStack(spacing: Theme.Space.md) {
+                    // Hidden here: AvatarView's label reads "Assigned to …", which is right
+                    // on an issue row and wrong on your own account. The name and email
+                    // beside it already say who this is.
+                    AvatarView(user: viewer.user, size: 40)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: Theme.Space.xxs) {
+                        Text(viewer.user.displayName)
+                            .font(.system(.subheadline).weight(.semibold))
+                            .foregroundStyle(Theme.textPrimary)
+                        if let email = viewer.user.email {
+                            Text(email)
+                                .font(PolarisText.caption)
+                                .foregroundStyle(Theme.textSecondary)
                         }
                     }
-                    .padding(.top, 18)
-                    .staggerRise(2)
-
-                    if let switchError {
-                        InlineErrorLabel(text: switchError.displayMessage)
-                            .padding(.top, Theme.Space.sm)
-                    }
-
-                    section(String(localized: "Preferences")) {
-                        appearanceRow
-                    }
-                    .padding(.top, 18)
-                    .staggerRise(3)
-
-                    section(String(localized: "Session")) {
-                        Button {
-                            isConfirmingSignOut = true
-                        } label: {
-                            HStack {
-                                Text("Sign out")
-                                    .bodyFont(14, weight: .semibold)
-                                    .foregroundStyle(Theme.danger)
-                                Spacer()
-                            }
-                            .padding(16)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("settings.signOut")
-                    }
-                    .padding(.top, 18)
-                    .staggerRise(4)
-
-                    Text("Polaris \(Bundle.main.shortVersion) (\(Bundle.main.buildNumber))")
-                        .monoFont(10.5)
-                        .foregroundStyle(Theme.eyebrowText)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.top, 26)
-                        .staggerRise(5)
+                    Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 32)
-                .readableColumn()
+                .padding(.vertical, Theme.Space.xs)
+                .accessibilityElement(children: .combine)
+            } header: {
+                header("Account")
             }
-            .scrollIndicators(.hidden)
+
+            Section {
+                row("Name", viewer.workspace.name)
+                row("Address", viewer.workspace.urlKey)
+                planRow
+                if viewer.workspaces.count > 1 {
+                    workspaceSwitcher
+                }
+                if let switchError {
+                    InlineErrorLabel(text: switchError.displayMessage)
+                }
+            } header: {
+                header("Workspace")
+            }
+
+            Section {
+                appearanceRow
+            } header: {
+                header(String(localized: "Preferences"))
+            }
+
+            Section {
+                Button {
+                    isConfirmingSignOut = true
+                } label: {
+                    Text("Sign out")
+                        .font(PolarisText.body)
+                        .foregroundStyle(Theme.danger)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("settings.signOut")
+            } footer: {
+                Text("Polaris \(Bundle.main.shortVersion) (\(Bundle.main.buildNumber))")
+                    .font(PolarisText.captionSmall.monospacedDigit())
+                    .foregroundStyle(Theme.textTertiary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, Theme.Space.sm)
+            }
         }
-        .toolbar(.hidden, for: .navigationBar)
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(Theme.background.ignoresSafeArea())
+        .navigationTitle(Text("Settings"))
+        .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog(
             Text("Sign out of Polaris?"),
             isPresented: $isConfirmingSignOut,
@@ -119,13 +97,13 @@ struct SettingsView: View {
         }
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            MonoEyebrow(text: viewer.workspace.planLabel)
-            Text("Settings")
-                .displayFont(30, weight: .bold)
-                .foregroundStyle(Theme.textPrimary)
-        }
+    /// Sentence case, not the platform's uppercase: the web's section headings are sentence
+    /// case and the two clients should read the same way.
+    private func header(_ title: String) -> some View {
+        Text(title)
+            .font(PolarisText.sectionTitle)
+            .foregroundStyle(Theme.textTertiary)
+            .textCase(nil)
     }
 
     /// The plan, with the accent reserved for a paid tier.
@@ -135,18 +113,17 @@ struct SettingsView: View {
     private var planRow: some View {
         HStack {
             Text("Plan")
-                .bodyFont(14)
+                .font(PolarisText.body)
                 .foregroundStyle(Theme.textSecondary)
             Spacer()
             Text(viewer.workspace.planLabel)
-                .bodyFont(12.5, weight: .bold)
+                .font(.system(.caption).weight(.semibold))
                 .foregroundStyle(isPaid ? Theme.accentBright : Theme.textPrimary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(Capsule().fill(isPaid ? Theme.accentTint : Theme.chipInactive))
-                .overlay(Capsule().stroke(isPaid ? Theme.accent.opacity(0.4) : Theme.border, lineWidth: 1))
+                .padding(.horizontal, Theme.Space.sm)
+                .frame(minHeight: 22)
+                .background(isPaid ? Theme.accentTint : Theme.raised)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous))
         }
-        .padding(16)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Plan: \(viewer.workspace.planLabel)")
     }
@@ -177,22 +154,21 @@ struct SettingsView: View {
         } label: {
             HStack {
                 Text("Workspace")
-                    .bodyFont(14)
+                    .font(PolarisText.body)
                     .foregroundStyle(Theme.textSecondary)
                 Spacer()
                 if model.isSwitchingWorkspace {
-                    ProgressView().controlSize(.small).tint(Theme.accentBright)
+                    ProgressView().controlSize(.small).tint(Theme.textSecondary)
                 } else {
                     Text(viewer.workspace.name)
-                        .bodyFont(14, weight: .medium)
-                        .foregroundStyle(Theme.accentBright)
+                        .font(PolarisText.body)
+                        .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Theme.eyebrowText)
+                        .foregroundStyle(Theme.textTertiary)
                 }
             }
-            .padding(Theme.Space.lg)
             .contentShape(Rectangle())
         }
         .disabled(model.isSwitchingWorkspace)
@@ -209,14 +185,15 @@ struct SettingsView: View {
     private var appearanceRow: some View {
         Picker(selection: $appearance) {
             ForEach(AppearancePreference.allCases) { option in
-                SwiftUI.Label(option.label, systemImage: option.symbolName).tag(option)
+                Text(option.label).tag(option)
             }
         } label: {
-            Text("Appearance").bodyFont(14).foregroundStyle(Theme.textSecondary)
+            Text("Appearance")
+                .font(PolarisText.body)
+                .foregroundStyle(Theme.textSecondary)
         }
-        .tint(Theme.accentBright)
-        .padding(.horizontal, Theme.Space.lg)
-        .padding(.vertical, Theme.Space.xs)
+        .pickerStyle(.menu)
+        .tint(Theme.textPrimary)
         .accessibilityIdentifier("settings.appearance")
     }
 
@@ -227,28 +204,16 @@ struct SettingsView: View {
     private func row(_ label: String, _ value: String) -> some View {
         HStack {
             Text(label)
-                .bodyFont(14)
+                .font(PolarisText.body)
                 .foregroundStyle(Theme.textSecondary)
             Spacer()
             Text(value)
-                .bodyFont(14, weight: .medium)
+                .font(PolarisText.body)
                 .foregroundStyle(Theme.textPrimary)
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
-        .padding(16)
         .accessibilityElement(children: .combine)
-    }
-
-    @ViewBuilder
-    private func section<Content: View>(
-        _ title: String,
-        @ViewBuilder content: @escaping () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            MonoEyebrow(text: title)
-            Card { content() }
-        }
     }
 }
 

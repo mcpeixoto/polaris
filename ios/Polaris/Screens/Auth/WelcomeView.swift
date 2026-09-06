@@ -55,8 +55,8 @@ struct WelcomeView: View {
                 // Auth screens are a column of text and two buttons; letting that run the full
                 // width of an iPad gives a 1000pt-wide button with dead space around it.
                 .frame(maxWidth: 460)
-                .padding(.horizontal, 26)
-                .padding(.bottom, 24)
+                .padding(.horizontal, Theme.Space.xxl)
+                .padding(.bottom, Theme.Space.xxl)
             }
             .navigationDestination(item: $route) { destination in
                 switch destination {
@@ -70,58 +70,40 @@ struct WelcomeView: View {
     private var heroContent: some View {
         VStack(spacing: 0) {
             PolarisMark()
-                        .staggerRise(0)
 
-                    MonoEyebrow(text: "Polaris", color: Theme.accentBright)
-                        .padding(.top, 28)
-                        .staggerRise(1)
+            Text("Polaris")
+                .font(PolarisText.sectionTitle)
+                .foregroundStyle(Theme.textSecondary)
+                .padding(.top, Theme.Space.xl)
 
-                    // Two-tone headline: the roman lead-in carries the sentence, the serif
-                    // italic run carries the name. One `Text` concatenation rather than two
-                    // views, so it wraps as a single paragraph.
-                    (
-                        Text("The issue tracker that keeps up with ")
-                            .foregroundStyle(Theme.textPrimary)
-                            + Text("your team")
-                            .foregroundStyle(Theme.accentBright)
-                    )
-                    .displayFont(30, weight: .semibold)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 12)
-                    .padding(.horizontal, 8)
-                    .staggerRise(2)
+            Text("The issue tracker that keeps up with your team")
+                .font(PolarisText.screenTitle)
+                .foregroundStyle(Theme.textPrimary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, Theme.Space.sm)
+                .padding(.horizontal, Theme.Space.sm)
 
-                    Text("Issues, projects and cycles, on the same API your team already uses on the web.")
-                        .bodyFont(14)
-                        .foregroundStyle(Theme.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(3)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 14)
-                        .staggerRise(3)
+            Text("Issues, projects and cycles, on the same API your team already uses on the web.")
+                .font(PolarisText.body)
+                .foregroundStyle(Theme.textSecondary)
+                .multilineTextAlignment(.center)
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, Theme.Space.md)
 
             if let error {
                 InlineErrorLabel(text: error.displayMessage)
-                    .padding(.top, 18)
+                    .padding(.top, Theme.Space.lg)
             }
         }
     }
 
     private var footer: some View {
-        // 18, not 12: the CTA's glow needs somewhere to fall that is not on top of the link.
-        VStack(spacing: 18) {
+        VStack(spacing: Theme.Space.sm) {
             PrimaryButton(title: "Create an account") { route = .signUp }
-            Button { route = .signIn } label: {
-                Text("I already have an account")
-                    .bodyFont(13, weight: .semibold)
-                    .foregroundStyle(Theme.textSecondary)
-                    .hitTarget(minWidth: 0)
-            }
-            .buttonStyle(.plain)
+            SecondaryButton(title: "I already have an account") { route = .signIn }
         }
-        .padding(.top, 8)
-        .staggerRise(4)
+        .padding(.top, Theme.Space.sm)
     }
 }
