@@ -11,13 +11,29 @@ import Foundation
 /// is impossible to provoke against a real server without breaking one.
 public actor FixturePolarisClient: PolarisAPI {
     public private(set) var storedIssues: [Issue]
+    /// Sub-issues, kept apart from `storedIssues` on purpose. The default list is exactly the
+    /// four rows the UI tests count, so the children of ENG-1 are reachable through
+    /// `issueDetail` and `issue(id:)` but never appear in a team or My-issues list.
+    public private(set) var storedChildren: [Issue]
     public private(set) var storedComments: [String: [Comment]]
     public private(set) var storedNotifications: [PolarisNotification]
+    public private(set) var storedLabels: [Label]
+    public private(set) var storedProjects: [Project]
+    public private(set) var storedProjectStatuses: [ProjectStatus]
+    public private(set) var storedCycles: [Cycle]
+    public private(set) var storedFavorites: [Favorite]
+    public private(set) var storedAttachments: [String: [Attachment]]
+    public private(set) var storedRelations: [IssueRelation]
+    public private(set) var storedSubscriptions: [String: [IssueSubscription]]
+    public private(set) var storedHistory: [String: [IssueHistoryEntry]]
+    public private(set) var storedPrefs: NotificationPrefs
     /// Comments already accepted, keyed by the caller's `opId`. The server is idempotent on
     /// this key and so is the double, because a retry posting twice is the bug the key exists
     /// to prevent.
     private var commentsByOpId: [String: Comment] = [:]
-    private let people: [User]
+    /// Same rule for issues: a retried `createIssue` with the same `opId` is the same issue.
+    private var issuesByOpId: [String: Issue] = [:]
+    private var people: [User]
     private let allTeams: [Team]
     private let states: [WorkflowState]
 
@@ -41,8 +57,19 @@ public actor FixturePolarisClient: PolarisAPI {
         people: [User] = FixtureData.users,
         teams: [Team] = [FixtureData.team],
         states: [WorkflowState] = FixtureData.states,
-        comments: [String: [Comment]] = QAFixtureSwitches.seededComments,
-        notifications: [PolarisNotification] = FixtureData.notifications
+        comments: [String: [Comment]] = FixtureData.comments,
+        notifications: [PolarisNotification] = FixtureData.notifications,
+        children: [Issue] = FixtureData.children,
+        labels: [Label] = FixtureData.labels,
+        projects: [Project] = FixtureData.projects,
+        projectStatuses: [ProjectStatus] = FixtureData.projectStatuses,
+        cycles: [Cycle] = FixtureData.cycles,
+        favorites: [Favorite] = FixtureData.favorites,
+        attachments: [String: [Attachment]] = FixtureData.attachments,
+        relations: [IssueRelation] = FixtureData.relations,
+        subscriptions: [String: [IssueSubscription]] = FixtureData.subscriptions,
+        history: [String: [IssueHistoryEntry]] = FixtureData.history,
+        notificationPrefs: NotificationPrefs = FixtureData.notificationPrefs
     ) {
         self.signedIn = signedIn
         self.hasWorkspace = hasWorkspace
@@ -52,6 +79,21 @@ public actor FixturePolarisClient: PolarisAPI {
         self.states = states
         self.storedComments = comments
         self.storedNotifications = notifications
+        // The children only make sense beside the parent they hang off. A test that hands in
+        // its own issue list gets no strays from the stock one.
+        self.storedChildren = children.filter { child in
+            issues.contains { $0.id == child.parentId }
+        }
+        self.storedLabels = labels
+        self.storedProjects = projects
+        self.storedProjectStatuses = projectStatuses
+        self.storedCycles = cycles
+        self.storedFavorites = favorites
+        self.storedAttachments = attachments
+        self.storedRelations = relations
+        self.storedSubscriptions = subscriptions
+        self.storedHistory = history
+        self.storedPrefs = notificationPrefs
         if let armed = QAFixtureSwitches.armedWriteFailure { self.failNextWrite = armed }
     }
 
@@ -146,15 +188,56 @@ public actor FixturePolarisClient: PolarisAPI {
         includeCompleted ? storedIssues : storedIssues.filter { $0.state.category.isOpen }
     }
 
+    public func myIssues(scope: MyIssuesScope, includeCompleted: Bool) async throws -> [Issue] {
+        let me = people[0].id
+        let picked: [Issue]
+        switch scope {
+        case .assigned:
+            return try await myIssues(includeCompleted: includeCompleted)
+        case .created:
+            picked = storedIssues.filter { $0.creator?.id == me }
+        case .subscribed:
+            picked = storedIssues.filter { issue in
+                (storedSubscriptions[issue.id] ?? []).contains { $0.userId == me && $0.isActive }
+            }
+        }
+        return includeCompleted ? picked : picked.filter { $0.state.category.isOpen }
+    }
+
     public func issues(teamId: String) async throws -> [Issue] {
         storedIssues.filter { $0.team.id == teamId }
     }
 
     public func issue(id: String) async throws -> Issue {
-        guard let match = storedIssues.first(where: { $0.id == id }) else {
+        guard let match = storedIssues.first(where: { $0.id == id })
+            ?? storedChildren.first(where: { $0.id == id })
+        else { throw PolarisError.notFound }
+        return match
+    }
+
+    public func issueByIdentifier(_ identifier: String) async throws -> Issue {
+        let wanted = identifier.uppercased()
+        guard let match = (storedIssues + storedChildren).first(where: { $0.identifier == wanted }) else {
             throw PolarisError.notFound
         }
         return match
+    }
+
+    public func issueDetail(id: String) async throws -> IssueDetail {
+        let issue = try await issue(id: id)
+        return IssueDetail(
+            issue: issue,
+            children: storedChildren.filter { $0.parentId == id },
+            attachments: storedAttachments[id] ?? [],
+            relations: storedRelations.filter { $0.issue?.id == id },
+            // The same rows read from the other end, as the server does it.
+            blockedBy: storedRelations.filter { $0.relatedIssue.id == id && $0.type == .blocks },
+            subscribers: storedSubscriptions[id] ?? []
+        )
+    }
+
+    public func issueHistory(issueId: String) async throws -> [IssueHistoryEntry] {
+        storedHistory[issueId] ?? []
     }
 
     public func comments(issueId: String) async throws -> [Comment] {
@@ -166,6 +249,26 @@ public actor FixturePolarisClient: PolarisAPI {
         QAFixtureSwitches.noStates ? [] : states
     }
     public func users() async throws -> [User] { people }
+    public func labels() async throws -> [Label] { storedLabels }
+    public func projects() async throws -> [Project] { storedProjects }
+    public func projectStatuses() async throws -> [ProjectStatus] { storedProjectStatuses }
+
+    public func project(id: String) async throws -> Project {
+        guard let match = storedProjects.first(where: { $0.id == id }) else { throw PolarisError.notFound }
+        return match
+    }
+
+    public func cycles(teamId: String) async throws -> [Cycle] {
+        storedCycles.filter { $0.teamId == teamId }
+    }
+
+    public func cycle(id: String) async throws -> Cycle {
+        guard let match = storedCycles.first(where: { $0.id == id }) else { throw PolarisError.notFound }
+        return match
+    }
+
+    public func favorites() async throws -> [Favorite] { storedFavorites }
+    public func notificationPrefs() async throws -> NotificationPrefs { storedPrefs }
 
     public func unreadNotificationCount() async throws -> Int {
         storedNotifications.filter { !$0.isRead }.count
@@ -204,13 +307,23 @@ public actor FixturePolarisClient: PolarisAPI {
         return SearchResults(issues: hits, issueCount: total)
     }
 
+    /// The filter is accepted and ignored: the double has no evaluator for the grammar, and
+    /// pretending to have one would let a store pass against a filter the server refuses.
+    public func search(query: String, teamId: String?, first: Int?, filter: JSONValue?) async throws -> SearchResults {
+        try await search(query: query, teamId: teamId, first: first)
+    }
+
     // MARK: - Writes
 
     public func createIssue(_ draft: IssueDraft) async throws -> Issue {
+        if let existing = issuesByOpId[draft.opId] { return existing }
         try consumeFailure()
+        let parent = draft.parentId.flatMap { id in storedIssues.first { $0.id == id } }
         let created = FixtureData.issue(
             id: draft.id,
-            identifier: "ENG-\(storedIssues.count + 1)",
+            // Top-level issues count up from the list, as the UI tests expect; sub-issues
+            // continue from ENG-92 so the two sequences never meet.
+            identifier: parent == nil ? "ENG-\(storedIssues.count + 1)" : "ENG-\(90 + storedChildren.count + 1)",
             title: draft.title,
             priority: draft.priority,
             state: states.first(where: { $0.id == draft.stateId }) ?? states[0],
@@ -218,34 +331,90 @@ public actor FixturePolarisClient: PolarisAPI {
             // creator precisely because MyIssues filters on assignee — a double that ignores
             // the field cannot show whether that default works, which is the whole point of
             // the test that exercises it.
-            assignee: draft.assigneeId.flatMap { id in people.first { $0.id == id } }
+            assignee: draft.assigneeId.flatMap { id in people.first { $0.id == id } },
+            creator: people[0],
+            description: draft.description,
+            labels: storedLabels.filter { draft.labelIds.contains($0.id) },
+            estimate: draft.estimate,
+            dueDate: draft.dueDate,
+            parent: parent?.ref,
+            project: draft.projectId.flatMap { id in storedProjects.first { $0.id == id } }?.ref,
+            cycle: draft.cycleId.flatMap { id in storedCycles.first { $0.id == id } }?.ref
         )
-        storedIssues.append(created)
+        issuesByOpId[draft.opId] = created
+        // A sub-issue joins the parent's children, not the lists — see `storedChildren`.
+        if parent != nil {
+            storedChildren.append(created)
+        } else {
+            storedIssues.append(created)
+        }
         return created
     }
 
     public func updateIssue(_ change: IssueChange) async throws -> Issue {
         try consumeFailure()
-        guard let index = storedIssues.firstIndex(where: { $0.id == change.id }) else {
-            throw PolarisError.notFound
-        }
         // Mutated, not rebuilt. Rebuilding through FixtureData.issue silently dropped
         // description, labels, estimate, dueDate and timestamps, so any property change made
         // the description vanish — which reads as a product bug and is a defect in the double.
-        var updated = storedIssues[index]
-        if let stateId = change.stateId, let next = states.first(where: { $0.id == stateId }) {
-            updated.state = next
+        return try mutateIssue(id: change.id) { updated in
+            if let title = change.title { updated.title = title }
+            if let description = change.description { updated.description = description }
+            if let stateId = change.stateId, let next = states.first(where: { $0.id == stateId }) {
+                updated.state = next
+            }
+            if let priority = change.priority {
+                updated.priority = priority
+            }
+            if change.clearAssignee {
+                updated.assignee = nil
+            } else if let assigneeId = change.assigneeId {
+                updated.assignee = people.first { $0.id == assigneeId }
+            }
+            if change.clearEstimate { updated.estimate = nil } else if let estimate = change.estimate {
+                updated.estimate = estimate
+            }
+            if change.clearDueDate { updated.dueDate = nil } else if let dueDate = change.dueDate {
+                updated.dueDate = dueDate
+            }
+            if change.clearParent {
+                updated.parentId = nil
+                updated.parent = nil
+            } else if let parentId = change.parentId {
+                updated.parentId = parentId
+                updated.parent = storedIssues.first { $0.id == parentId }?.ref
+            }
+            if change.clearProject {
+                updated.projectId = nil
+                updated.project = nil
+            } else if let projectId = change.projectId {
+                updated.projectId = projectId
+                updated.project = storedProjects.first { $0.id == projectId }?.ref
+            }
+            if change.clearCycle {
+                updated.cycleId = nil
+                updated.cycle = nil
+            } else if let cycleId = change.cycleId {
+                updated.cycleId = cycleId
+                updated.cycle = storedCycles.first { $0.id == cycleId }?.ref
+            }
         }
-        if let priority = change.priority {
-            updated.priority = priority
+    }
+
+    /// Applies an edit to an issue wherever it is held and hands back the result.
+    private func mutateIssue(id: String, _ edit: (inout Issue) -> Void) throws -> Issue {
+        if let index = storedIssues.firstIndex(where: { $0.id == id }) {
+            var updated = storedIssues[index]
+            edit(&updated)
+            storedIssues[index] = updated
+            return updated
         }
-        if change.clearAssignee {
-            updated.assignee = nil
-        } else if let assigneeId = change.assigneeId {
-            updated.assignee = people.first { $0.id == assigneeId }
+        if let index = storedChildren.firstIndex(where: { $0.id == id }) {
+            var updated = storedChildren[index]
+            edit(&updated)
+            storedChildren[index] = updated
+            return updated
         }
-        storedIssues[index] = updated
-        return updated
+        throw PolarisError.notFound
     }
 
     /// Idempotent on `opId`, like the server.
@@ -261,12 +430,206 @@ public actor FixturePolarisClient: PolarisAPI {
         return comment
     }
 
+    public func updateComment(id: String, body: String, opId: String) async throws -> Comment {
+        try consumeFailure()
+        for (issueId, list) in storedComments {
+            guard let index = list.firstIndex(where: { $0.id == id }) else { continue }
+            var updated = list[index]
+            updated.body = body
+            updated.editedAt = Date()
+            storedComments[issueId]?[index] = updated
+            return updated
+        }
+        throw PolarisError.notFound
+    }
+
+    public func deleteComment(id: String, opId: String) async throws {
+        try consumeFailure()
+        for (issueId, list) in storedComments where list.contains(where: { $0.id == id }) {
+            storedComments[issueId]?.removeAll { $0.id == id }
+            return
+        }
+        throw PolarisError.notFound
+    }
+
+    /// Adding an emoji already there is a no-op that returns it, as the schema promises.
+    public func addReaction(commentId: String, emoji: String, opId: String) async throws -> Reaction {
+        let me = people[0].id
+        for (issueId, list) in storedComments {
+            guard let index = list.firstIndex(where: { $0.id == commentId }) else { continue }
+            if let existing = list[index].reactions.first(where: { $0.emoji == emoji && $0.userId == me }) {
+                return existing
+            }
+            try consumeFailure()
+            let reaction = Reaction(
+                id: UUIDv7.string(), commentId: commentId, userId: me, emoji: emoji, createdAt: Date()
+            )
+            storedComments[issueId]?[index].reactions.append(reaction)
+            return reaction
+        }
+        throw PolarisError.notFound
+    }
+
+    public func removeReaction(commentId: String, emoji: String, opId: String) async throws {
+        try consumeFailure()
+        let me = people[0].id
+        for (issueId, list) in storedComments {
+            guard let index = list.firstIndex(where: { $0.id == commentId }) else { continue }
+            storedComments[issueId]?[index].reactions.removeAll { $0.emoji == emoji && $0.userId == me }
+            return
+        }
+        throw PolarisError.notFound
+    }
+
     public func archiveIssue(id: String, archived: Bool, opId: String) async throws {
         try consumeFailure()
         guard let index = storedIssues.firstIndex(where: { $0.id == id }) else {
             throw PolarisError.notFound
         }
         if archived { storedIssues.remove(at: index) }
+    }
+
+    public func deleteIssue(id: String, opId: String) async throws {
+        try consumeFailure()
+        if let index = storedIssues.firstIndex(where: { $0.id == id }) {
+            storedIssues.remove(at: index)
+            // Sub-issues are orphaned rather than deleted — `parent_id` is ON DELETE SET NULL.
+            storedChildren = storedChildren.map { child in
+                guard child.parentId == id else { return child }
+                var orphan = child
+                orphan.parentId = nil
+                orphan.parent = nil
+                return orphan
+            }
+            return
+        }
+        if let index = storedChildren.firstIndex(where: { $0.id == id }) {
+            storedChildren.remove(at: index)
+            return
+        }
+        throw PolarisError.notFound
+    }
+
+    public func addIssueLabel(issueId: String, labelId: String, opId: String) async throws -> Label {
+        guard let label = storedLabels.first(where: { $0.id == labelId }) else { throw PolarisError.notFound }
+        let current = try await issue(id: issueId)
+        // Already there is a success, not a duplicate — an upsert of one row server-side.
+        if current.labels.contains(where: { $0.id == labelId }) { return label }
+        try consumeFailure()
+        _ = try mutateIssue(id: issueId) { $0.labels.append(label) }
+        return label
+    }
+
+    public func removeIssueLabel(issueId: String, labelId: String, opId: String) async throws {
+        try consumeFailure()
+        _ = try mutateIssue(id: issueId) { $0.labels.removeAll { $0.id == labelId } }
+    }
+
+    public func setIssueSubscription(issueId: String, subscribed: Bool) async throws -> IssueSubscription {
+        try consumeFailure()
+        _ = try await issue(id: issueId)
+        let me = people[0].id
+        var rows = storedSubscriptions[issueId] ?? []
+        rows.removeAll { $0.userId == me }
+        // An unsubscribe is a flagged row, not a missing one — otherwise the next comment
+        // would re-subscribe the reader, as the schema comment warns.
+        let row = IssueSubscription(userId: me, unsubscribed: !subscribed, reason: "MANUAL")
+        rows.append(row)
+        storedSubscriptions[issueId] = rows
+        return row
+    }
+
+    public func acceptTriageIssue(id: String, opId: String) async throws -> Issue {
+        try consumeFailure()
+        guard let target = states.first(where: { $0.category == .unstarted }) ?? states.first else {
+            throw PolarisError.validation(message: "This team has no status to accept into", field: nil)
+        }
+        return try mutateIssue(id: id) { $0.state = target }
+    }
+
+    public func declineTriageIssue(id: String, opId: String) async throws -> Issue {
+        try consumeFailure()
+        guard let target = states.first(where: { $0.category == .canceled })
+            ?? states.first(where: { !$0.category.isOpen })
+        else {
+            throw PolarisError.validation(message: "This team has no status to decline into", field: nil)
+        }
+        return try mutateIssue(id: id) { $0.state = target }
+    }
+
+    public func createIssueRelation(
+        issueId: String,
+        relatedIssueId: String,
+        type: RelationType,
+        opId: String
+    ) async throws -> IssueRelation {
+        let subject = try await issue(id: issueId)
+        let object = try await issue(id: relatedIssueId)
+        if let existing = storedRelations.first(where: {
+            $0.issue?.id == issueId && $0.relatedIssue.id == relatedIssueId && $0.type == type
+        }) { return existing }
+        try consumeFailure()
+        let relation = IssueRelation(id: UUIDv7.string(), type: type, issue: subject.ref, relatedIssue: object.ref)
+        storedRelations.append(relation)
+        return relation
+    }
+
+    public func deleteIssueRelation(id: String, opId: String) async throws {
+        try consumeFailure()
+        guard storedRelations.contains(where: { $0.id == id }) else { throw PolarisError.notFound }
+        storedRelations.removeAll { $0.id == id }
+    }
+
+    /// URL-idempotent, like the server: the same URL on the same issue is one card.
+    public func createAttachment(issueId: String, url: String, title: String?, opId: String) async throws -> Attachment {
+        _ = try await issue(id: issueId)
+        if let existing = (storedAttachments[issueId] ?? []).first(where: { $0.url == url }) { return existing }
+        try consumeFailure()
+        let attachment = Attachment(
+            id: UUIDv7.string(),
+            url: url,
+            title: title?.isEmpty == false ? title! : url,
+            subtitle: nil,
+            iconUrl: nil,
+            createdAt: Date()
+        )
+        storedAttachments[issueId, default: []].append(attachment)
+        return attachment
+    }
+
+    public func addFavorite(kind: FavoriteKind, targetId: String) async throws -> Favorite {
+        if let existing = storedFavorites.first(where: { $0.kind == kind && $0.targetId == targetId }) {
+            return existing
+        }
+        try consumeFailure()
+        let favorite = Favorite(id: UUIDv7.string(), kind: kind, targetId: targetId, name: nil)
+        storedFavorites.append(favorite)
+        return favorite
+    }
+
+    public func removeFavorite(kind: FavoriteKind, targetId: String) async throws {
+        try consumeFailure()
+        storedFavorites.removeAll { $0.kind == kind && $0.targetId == targetId }
+    }
+
+    public func updateProfile(_ change: ProfileChange) async throws -> User {
+        try consumeFailure()
+        let current = people[0]
+        let updated = FixtureData.user(
+            id: current.id,
+            name: change.name ?? current.name,
+            displayName: change.displayName ?? current.displayName,
+            avatarUrl: change.avatarUrl ?? current.avatarUrl,
+            email: current.email
+        )
+        people[0] = updated
+        return updated
+    }
+
+    public func updateNotificationPrefs(_ prefs: NotificationPrefs) async throws -> NotificationPrefs {
+        try consumeFailure()
+        storedPrefs = prefs
+        return prefs
     }
 
     public func markNotificationRead(id: String, read: Bool) async throws -> PolarisNotification {
@@ -298,6 +661,11 @@ public actor FixturePolarisClient: PolarisAPI {
         }
         storedNotifications.removeAll { $0.id == id }
     }
+
+    // MARK: - Sync socket
+
+    public func accessToken() async throws -> String { "fixture" }
+    public nonisolated func syncSocketURL() -> URL { PolarisEnvironment.localDevelopment.syncSocketURL }
 }
 
 /// Canned entities.
@@ -315,20 +683,85 @@ public enum FixtureData {
     // Delimited with ##"…"## rather than #"…"#: the colour value starts with `#` directly
     // after a quote, and `"#` would otherwise close the literal in the middle of the JSON.
     public static let team: Team = decoded(
-        ##"{"id":"t1","key":"ENG","name":"Engineering","icon":null,"color":"#5B8DEF"}"##
+        ##"{"id":"t1","key":"ENG","name":"Engineering","icon":null,"color":"#5B8DEF","triageEnabled":true,"cyclesEnabled":true}"##
     )
 
+    /// The four original states keep their indices — fixtures address them by position — and
+    /// the two the parity screens need come after: Triage sorts first by position and
+    /// Canceled last, which is where a picker ordered by position puts them.
     public static let states: [WorkflowState] = decoded("""
     [{"id":"s1","name":"Backlog","color":"#9AA0A6","category":"BACKLOG","position":"a"},
      {"id":"s2","name":"Todo","color":"#9AA0A6","category":"UNSTARTED","position":"b"},
      {"id":"s3","name":"In Progress","color":"#F5B700","category":"STARTED","position":"c"},
-     {"id":"s4","name":"Done","color":"#3FB950","category":"COMPLETED","position":"d"}]
+     {"id":"s4","name":"Done","color":"#3FB950","category":"COMPLETED","position":"d"},
+     {"id":"s5","name":"Triage","color":"#B65BEF","category":"TRIAGE","position":"0"},
+     {"id":"s6","name":"Canceled","color":"#8A8F98","category":"CANCELED","position":"e"}]
     """)
 
     public static let users: [User] = decoded("""
     [{"id":"u1","name":"miguel","displayName":"Miguel Peixoto","avatarUrl":null,"email":"dev@polaris.local"},
      {"id":"u2","name":"ana","displayName":"Ana Silva","avatarUrl":null,"email":null}]
     """)
+
+    public static func user(id: String, name: String, displayName: String, avatarUrl: String?, email: String?) -> User {
+        decoded("""
+        {"id":"\(id)","name":"\(name)","displayName":"\(displayName)",
+         "avatarUrl":\(avatarUrl.map { "\"\($0)\"" } ?? "null"),"email":\(email.map { "\"\($0)\"" } ?? "null")}
+        """)
+    }
+
+    /// Five workspace labels — `teamId` null — so every team's picker offers them.
+    public static let labels: [Label] = decoded("""
+    [{"id":"lab1","name":"backend","color":"#5B8DEF","teamId":null,"parentId":null,"isGroup":false},
+     {"id":"lab2","name":"needs-design","color":"#F5B700","teamId":null,"parentId":null,"isGroup":false},
+     {"id":"lab3","name":"regression","color":"#3FB950","teamId":null,"parentId":null,"isGroup":false},
+     {"id":"lab4","name":"customer-reported","color":"#EF5B5B","teamId":null,"parentId":null,"isGroup":false},
+     {"id":"lab5","name":"p0-escalation","color":"#B65BEF","teamId":null,"parentId":null,"isGroup":false}]
+    """)
+
+    public static let projectStatuses: [ProjectStatus] = decoded("""
+    [{"id":"ps1","name":"Backlog","color":"#9AA0A6","category":"BACKLOG"},
+     {"id":"ps2","name":"Planned","color":"#5B8DEF","category":"PLANNED"},
+     {"id":"ps3","name":"In Progress","color":"#F5B700","category":"STARTED"},
+     {"id":"ps4","name":"Completed","color":"#3FB950","category":"COMPLETED"},
+     {"id":"ps5","name":"Canceled","color":"#8A8F98","category":"CANCELED"}]
+    """)
+
+    public static let projects: [Project] = decoded("""
+    [{"id":"p1","name":"Mobile parity","summary":"Everything the phone can do that the web can.",
+      "description":"","icon":"iphone","color":"#5B8DEF","priority":2,"leadId":"u1",
+      "startDate":"2026-08-01","targetDate":"2026-10-15",
+      "status":{"id":"ps3","name":"In Progress","color":"#F5B700","category":"STARTED"},
+      "lead":{"id":"u1","name":"miguel","displayName":"Miguel Peixoto","avatarUrl":null,"email":"dev@polaris.local"},
+      "teams":[{"team":{"id":"t1","key":"ENG","name":"Engineering","icon":null,"color":"#5B8DEF","triageEnabled":true,"cyclesEnabled":true}}],
+      "milestones":[{"id":"m1","name":"Issue detail","targetDate":"2026-09-20"},
+                    {"id":"m2","name":"Projects and cycles","targetDate":"2026-10-10"}]},
+     {"id":"p2","name":"Sync v2","summary":null,"description":"Replace the poll with the delta stream.",
+      "icon":null,"color":"#B65BEF","priority":3,"leadId":"u2",
+      "startDate":null,"targetDate":"2026-12-01",
+      "status":{"id":"ps2","name":"Planned","color":"#5B8DEF","category":"PLANNED"},
+      "lead":{"id":"u2","name":"ana","displayName":"Ana Silva","avatarUrl":null,"email":null},
+      "teams":[{"team":{"id":"t1","key":"ENG","name":"Engineering","icon":null,"color":"#5B8DEF","triageEnabled":true,"cyclesEnabled":true}}],
+      "milestones":[]}]
+    """)
+
+    /// One cycle running now and one after it. Dated relative to the clock rather than fixed,
+    /// because "active" is a property of today and a fixture pinned to a week in August is a
+    /// fixture that stops being active in September.
+    public static let cycles: [Cycle] = {
+        let day: TimeInterval = 86_400
+        let now = Date()
+        func at(_ days: Double) -> String { PolarisJSON.rfc3339(now.addingTimeInterval(days * day)) }
+        return decoded("""
+        [{"id":"cy1","teamId":"t1","number":7,"name":"","description":"Ship the detail screen.",
+          "startsAt":"\(at(-7))","endsAt":"\(at(7))","completedAt":null},
+         {"id":"cy2","teamId":"t1","number":8,"name":"Hardening","description":null,
+          "startsAt":"\(at(7))","endsAt":"\(at(21))","completedAt":null}]
+        """)
+    }()
+
+    public static let activeCycle: Cycle = cycles[0]
+    public static let upcomingCycle: Cycle = cycles[1]
 
     /// The issue set, selected by launch argument.
     ///
@@ -343,16 +776,98 @@ public enum FixtureData {
         return baseIssues
     }()
 
+    /// Exactly four rows, with the identifiers, titles, priorities, states and assignees the
+    /// UI tests count on. ENG-1 additionally carries everything a detail screen can show —
+    /// a project, the running cycle, labels, a due date, an estimate and a sub-issue
+    /// roll-up — so that screen has something to render without a second fixture.
     public static let baseIssues: [Issue] = [
         issue(id: "i1", identifier: "ENG-1", title: "Sync drops a comment on reconnect",
-              priority: .urgent, state: states[2], assignee: users[0]),
+              priority: .urgent, state: states[2], assignee: users[0], creator: users[1],
+              labels: [labels[0], labels[2]], estimate: 3, dueDate: "2026-09-12",
+              project: projects[0].ref, cycle: activeCycle.ref,
+              progress: IssueProgress(total: 2, completed: 1, canceled: 0, percent: 50)),
         issue(id: "i2", identifier: "ENG-2", title: "Command menu forgets its last action",
-              priority: .medium, state: states[1]),
+              priority: .medium, state: states[1], creator: users[0]),
         issue(id: "i3", identifier: "ENG-3", title: "Ship the iOS client",
-              priority: .high, state: states[0], assignee: users[1]),
+              priority: .high, state: states[0], assignee: users[1], creator: users[0],
+              project: projects[0].ref),
         issue(id: "i4", identifier: "ENG-4", title: "Retire the old exporter",
-              priority: Priority.none, state: states[3]),
+              priority: Priority.none, state: states[3], creator: users[1]),
     ]
+
+    /// ENG-1's sub-issues. Numbered well clear of what `createIssue` mints, which counts up
+    /// from the list length.
+    public static let children: [Issue] = [
+        issue(id: "i1a", identifier: "ENG-91", title: "Replay the outbox against the server watermark",
+              priority: .high, state: states[3], assignee: users[0], creator: users[0],
+              parent: baseIssues[0].ref, cycle: activeCycle.ref),
+        issue(id: "i1b", identifier: "ENG-92", title: "Add a reconnect integration test",
+              priority: .medium, state: states[1], assignee: users[1], creator: users[0],
+              parent: baseIssues[0].ref),
+    ]
+
+    public static let attachments: [String: [Attachment]] = [
+        "i1": [decoded("""
+        {"id":"att1","url":"https://github.com/peixotolabs/polaris/pull/481",
+         "title":"Pull request #481","subtitle":"peixotolabs/polaris","iconUrl":null,
+         "createdAt":"2026-08-19T12:00:00Z"}
+        """)],
+    ]
+
+    /// ENG-1 blocks ENG-2: one row, which the detail of ENG-1 lists under `relations` and
+    /// the detail of ENG-2 under `blockedBy`.
+    public static let relations: [IssueRelation] = [
+        decoded("""
+        {"id":"rel1","type":"BLOCKS",
+         "issue":{"id":"i1","identifier":"ENG-1","title":"Sync drops a comment on reconnect"},
+         "relatedIssue":{"id":"i2","identifier":"ENG-2","title":"Command menu forgets its last action"}}
+        """),
+    ]
+
+    /// Who follows what. ENG-3 carries an explicit opt-out, so the "subscribed" scope has a
+    /// row it must leave out.
+    public static let subscriptions: [String: [IssueSubscription]] = [
+        "i1": [
+            IssueSubscription(userId: "u1", unsubscribed: false, reason: "ASSIGNED"),
+            IssueSubscription(userId: "u2", unsubscribed: false, reason: "CREATED"),
+        ],
+        "i2": [IssueSubscription(userId: "u1", unsubscribed: false, reason: "MANUAL")],
+        "i3": [IssueSubscription(userId: "u1", unsubscribed: true, reason: "SUBSCRIBED")],
+    ]
+
+    public static let history: [String: [IssueHistoryEntry]] = [
+        "i1": decoded("""
+        [{"id":"h1","kind":"created","actor":{"type":"USER","id":"u2"},
+          "fromValue":null,"toValue":null,"createdAt":"2026-08-01T09:00:00Z"},
+         {"id":"h2","kind":"state","actor":{"type":"USER","id":"u1"},
+          "fromValue":{"id":"s2","name":"Todo"},"toValue":{"id":"s3","name":"In Progress"},
+          "createdAt":"2026-08-19T13:00:00Z"},
+         {"id":"h3","kind":"assignee","actor":{"type":"USER","id":"u2"},
+          "fromValue":null,"toValue":"u1","createdAt":"2026-08-20T09:00:00Z"}]
+        """),
+    ]
+
+    /// The stock comments: whatever `-qa-comments` seeds on ENG-1, plus one on ENG-2 that
+    /// carries a reaction. ENG-1 stays empty by default because the detail tests post into
+    /// it and count what they posted.
+    public static let comments: [String: [Comment]] = {
+        var all = QAFixtureSwitches.seededComments
+        all["i2", default: []].append(decoded("""
+        {"id":"c-eng2","body":"Repro: open the menu, run anything, reopen — the last action is gone.",
+         "actor":{"type":"USER","id":"u2"},"editedAt":null,"createdAt":"2026-08-21T10:00:00Z",
+         "parentId":null,"resolvedAt":null,
+         "reactions":[{"id":"r1","commentId":"c-eng2","userId":"u1","emoji":"👍","createdAt":"2026-08-21T10:05:00Z"}]}
+        """))
+        return all
+    }()
+
+    public static let favorites: [Favorite] = [
+        Favorite(id: "fav1", kind: .issue, targetId: "i3", name: nil),
+    ]
+
+    public static let notificationPrefs = NotificationPrefs(
+        muted: ["PULSE_DIGEST"], emailDigest: "daily", emailPerNotification: false, desktop: nil
+    )
 
     /// Everything assigned is finished, so the default filter renders an empty list.
     public static let completedOnlyIssues: [Issue] = [
@@ -443,18 +958,8 @@ public enum FixtureData {
         state: WorkflowState,
         assignee: User? = nil
     ) -> Issue {
-        let assigneeJSON = assignee.map {
-            "{\"id\":\"\($0.id)\",\"name\":\"\($0.name)\",\"displayName\":\"\($0.displayName)\",\"avatarUrl\":null,\"email\":null}"
-        } ?? "null"
-        let stateJSON = "{\"id\":\"\(state.id)\",\"name\":\"\(state.name)\",\"color\":\"\(state.color)\",\"category\":\"\(state.category.rawValue)\",\"position\":\"\(state.position)\"}"
-        return decoded("""
-        {"id":"\(id)","identifier":"\(identifier)","title":"\(title)","description":"",
-         "priority":\(priority.rawValue),"estimate":null,"dueDate":null,
-         "state":\(stateJSON),
-         "team":{"id":"t1","key":"ENG","name":"Engineering","icon":null,"color":"#5B8DEF"},
-         "assignee":\(assigneeJSON),"creator":null,"labels":[],
-         "createdAt":"2026-08-01T09:00:00Z","updatedAt":"2026-08-20T09:00:00Z"}
-        """)
+        issue(id: id, identifier: identifier, title: title, priority: priority, state: state,
+              assignee: assignee, creator: nil, description: "")
     }
 
     /// The inbox, as the fixture serves it: one unread mention, one unread assignment, and
@@ -519,6 +1024,9 @@ public enum FixtureData {
         }
     }
 
+    /// The general builder. Everything past `description` is what a detail screen renders
+    /// and a list row does not; each is optional so the four base rows stay as terse as the
+    /// day they were written.
     public static func issue(
         id: String,
         identifier: String,
@@ -526,18 +1034,35 @@ public enum FixtureData {
         priority: Priority,
         state: WorkflowState,
         assignee: User? = nil,
-        description: String = ""
+        creator: User? = nil,
+        description: String = "",
+        labels: [Label] = [],
+        estimate: Int? = nil,
+        dueDate: String? = nil,
+        parent: IssueRef? = nil,
+        project: ProjectRef? = nil,
+        cycle: CycleRef? = nil,
+        progress: IssueProgress? = nil
     ) -> Issue {
-        let assigneeJSON = assignee.map {
-            "{\"id\":\"\($0.id)\",\"name\":\"\($0.name)\",\"displayName\":\"\($0.displayName)\",\"avatarUrl\":null,\"email\":null}"
-        } ?? "null"
+        func encoded<T: Encodable>(_ value: T?) -> String {
+            guard let value, let data = try? PolarisJSON.encoder().encode(value),
+                  let text = String(data: data, encoding: .utf8)
+            else { return "null" }
+            return text
+        }
         let stateJSON = "{\"id\":\"\(state.id)\",\"name\":\"\(state.name)\",\"color\":\"\(state.color)\",\"category\":\"\(state.category.rawValue)\",\"position\":\"\(state.position)\"}"
         return decoded("""
         {"id":"\(id)","identifier":"\(identifier)","title":"\(title)","description":"\(description)",
-         "priority":\(priority.rawValue),"estimate":null,"dueDate":null,
+         "priority":\(priority.rawValue),"estimate":\(estimate.map(String.init) ?? "null"),
+         "dueDate":\(dueDate.map { "\"\($0)\"" } ?? "null"),
          "state":\(stateJSON),
-         "team":{"id":"t1","key":"ENG","name":"Engineering","icon":null,"color":"#5B8DEF"},
-         "assignee":\(assigneeJSON),"creator":null,"labels":[],
+         "team":{"id":"t1","key":"ENG","name":"Engineering","icon":null,"color":"#5B8DEF","triageEnabled":true,"cyclesEnabled":true},
+         "assignee":\(encoded(assignee)),"creator":\(encoded(creator)),"labels":\(encoded(labels)),
+         "parentId":\(parent.map { "\"\($0.id)\"" } ?? "null"),
+         "projectId":\(project.map { "\"\($0.id)\"" } ?? "null"),
+         "cycleId":\(cycle.map { "\"\($0.id)\"" } ?? "null"),
+         "parent":\(encoded(parent)),"project":\(encoded(project)),"cycle":\(encoded(cycle)),
+         "progress":\(encoded(progress)),
          "createdAt":"2026-08-01T09:00:00Z","updatedAt":"2026-08-20T09:00:00Z"}
         """)
     }

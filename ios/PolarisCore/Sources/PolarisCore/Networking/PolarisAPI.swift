@@ -89,6 +89,82 @@ public protocol PolarisAPI: Sendable {
     /// `until` nil un-snoozes, which is what the schema's nullable `Time` means.
     func snoozeNotification(id: String, until: Date?) async throws -> PolarisNotification
     func deleteNotification(id: String) async throws
+
+    // MARK: Parity with the Linear iOS app
+    //
+    // Everything below has a default in the extension that follows, so a narrower double —
+    // the refusing clients the tests hold — is not obliged to spell out an operation it will
+    // never be asked for. The two real implementations override every one of them.
+
+    // Reads
+    /// "My issues" by relationship, not only by assignment. `.assigned` is the existing
+    /// `myIssues` query; the other two have no dedicated query — see `LivePolarisClient`.
+    func myIssues(scope: MyIssuesScope, includeCompleted: Bool) async throws -> [Issue]
+    /// The issue with everything the detail screen shows hanging off it, in one round trip.
+    func issueDetail(id: String) async throws -> IssueDetail
+    func issueHistory(issueId: String) async throws -> [IssueHistoryEntry]
+    /// `ENG-123` to an issue, for a deep link and for the search box's pinned hit.
+    func issueByIdentifier(_ identifier: String) async throws -> Issue
+    /// Every label the caller can see: workspace labels plus those of their teams.
+    func labels() async throws -> [Label]
+    func projects() async throws -> [Project]
+    func projectStatuses() async throws -> [ProjectStatus]
+    func project(id: String) async throws -> Project
+    func cycles(teamId: String) async throws -> [Cycle]
+    func cycle(id: String) async throws -> Cycle
+    func favorites() async throws -> [Favorite]
+    /// `search` with a filter AST beside the words — see `IssueFilter`. Nil is the plain
+    /// three-argument search.
+    func search(query: String, teamId: String?, first: Int?, filter: JSONValue?) async throws -> SearchResults
+    /// The viewer's own delivery preferences.
+    func notificationPrefs() async throws -> NotificationPrefs
+
+    // Writes. The `opId` rule above applies to every one that takes one.
+    func addFavorite(kind: FavoriteKind, targetId: String) async throws -> Favorite
+    func removeFavorite(kind: FavoriteKind, targetId: String) async throws
+    /// Moves the issue to the trash. Distinct from `archiveIssue`: an archived issue is
+    /// still readable, a deleted one is only in the restore window.
+    func deleteIssue(id: String, opId: String) async throws
+    func updateComment(id: String, body: String, opId: String) async throws -> Comment
+    func deleteComment(id: String, opId: String) async throws
+    /// Adding an emoji already there succeeds and returns the existing reaction.
+    func addReaction(commentId: String, emoji: String, opId: String) async throws -> Reaction
+    func removeReaction(commentId: String, emoji: String, opId: String) async throws
+    /// Adds one label; never "sets the labels". Returns the label as the server holds it.
+    func addIssueLabel(issueId: String, labelId: String, opId: String) async throws -> Label
+    func removeIssueLabel(issueId: String, labelId: String, opId: String) async throws
+    func setIssueSubscription(issueId: String, subscribed: Bool) async throws -> IssueSubscription
+    func acceptTriageIssue(id: String, opId: String) async throws -> Issue
+    func declineTriageIssue(id: String, opId: String) async throws -> Issue
+    func createIssueRelation(issueId: String, relatedIssueId: String, type: RelationType, opId: String) async throws -> IssueRelation
+    func deleteIssueRelation(id: String, opId: String) async throws
+    /// A link card. URL-idempotent server-side: the same URL twice is one card.
+    func createAttachment(issueId: String, url: String, title: String?, opId: String) async throws -> Attachment
+    func updateProfile(_ change: ProfileChange) async throws -> User
+    func updateNotificationPrefs(_ prefs: NotificationPrefs) async throws -> NotificationPrefs
+
+    // Sync socket
+    /// A bearer token valid right now, refreshed if the held one is about to expire, so a
+    /// socket can authenticate with the same credential the HTTP calls use.
+    func accessToken() async throws -> String
+    /// Where the sync stream is. Derived from the API origin — see
+    /// `PolarisEnvironment.syncSocketURL`.
+    func syncSocketURL() -> URL
+}
+
+/// Which relationship "My issues" is about.
+public enum MyIssuesScope: String, Sendable, Hashable, CaseIterable, Codable {
+    case assigned
+    case created
+    case subscribed
+
+    public var label: String {
+        switch self {
+        case .assigned: String(localized: "Assigned")
+        case .created: String(localized: "Created")
+        case .subscribed: String(localized: "Subscribed")
+        }
+    }
 }
 
 public extension PolarisAPI {
@@ -100,6 +176,123 @@ public extension PolarisAPI {
 
     func search(query: String) async throws -> SearchResults {
         try await search(query: query, teamId: nil, first: 40)
+    }
+
+    // MARK: Defaults for the parity surface
+    //
+    // Reads answer with what a client that only knows the original eleven operations can
+    // honestly say: the issue on its own, an empty list, or not-found. Writes refuse with a
+    // 501, which is the truth — not implemented — rather than a forbidden or a validation
+    // error that would send a screen looking for a cause that is not there.
+
+    func myIssues(scope: MyIssuesScope, includeCompleted: Bool) async throws -> [Issue] {
+        switch scope {
+        case .assigned:
+            return try await myIssues(includeCompleted: includeCompleted)
+        case .created:
+            // Gathered, the same way the live client does it; a client with no creator on
+            // its rows returns nothing here, which is honest for a list it cannot compute.
+            let me = try await viewer().user.id
+            let all = try await gatherTeamIssues()
+            return all.filter { $0.creator?.id == me && (includeCompleted || $0.state.category.isOpen) }
+        case .subscribed:
+            throw PolarisError.unsupported("subscribed issues")
+        }
+    }
+
+    func issueDetail(id: String) async throws -> IssueDetail {
+        IssueDetail(issue: try await issue(id: id))
+    }
+
+    func issueHistory(issueId: String) async throws -> [IssueHistoryEntry] { [] }
+    func issueByIdentifier(_ identifier: String) async throws -> Issue { throw PolarisError.notFound }
+    func labels() async throws -> [Label] { [] }
+    func projects() async throws -> [Project] { [] }
+    func projectStatuses() async throws -> [ProjectStatus] { [] }
+    func project(id: String) async throws -> Project { throw PolarisError.notFound }
+    func cycles(teamId: String) async throws -> [Cycle] { [] }
+    func cycle(id: String) async throws -> Cycle { throw PolarisError.notFound }
+    func favorites() async throws -> [Favorite] { [] }
+
+    func search(query: String, teamId: String?, first: Int?, filter: JSONValue?) async throws -> SearchResults {
+        try await search(query: query, teamId: teamId, first: first)
+    }
+
+    func notificationPrefs() async throws -> NotificationPrefs {
+        try await viewer().user.notificationPrefs ?? NotificationPrefs()
+    }
+
+    func addFavorite(kind: FavoriteKind, targetId: String) async throws -> Favorite {
+        throw PolarisError.unsupported("favourites")
+    }
+    func removeFavorite(kind: FavoriteKind, targetId: String) async throws {
+        throw PolarisError.unsupported("favourites")
+    }
+    func deleteIssue(id: String, opId: String) async throws {
+        throw PolarisError.unsupported("deleting an issue")
+    }
+    func updateComment(id: String, body: String, opId: String) async throws -> Comment {
+        throw PolarisError.unsupported("editing a comment")
+    }
+    func deleteComment(id: String, opId: String) async throws {
+        throw PolarisError.unsupported("deleting a comment")
+    }
+    func addReaction(commentId: String, emoji: String, opId: String) async throws -> Reaction {
+        throw PolarisError.unsupported("reactions")
+    }
+    func removeReaction(commentId: String, emoji: String, opId: String) async throws {
+        throw PolarisError.unsupported("reactions")
+    }
+    func addIssueLabel(issueId: String, labelId: String, opId: String) async throws -> Label {
+        throw PolarisError.unsupported("labels")
+    }
+    func removeIssueLabel(issueId: String, labelId: String, opId: String) async throws {
+        throw PolarisError.unsupported("labels")
+    }
+    func setIssueSubscription(issueId: String, subscribed: Bool) async throws -> IssueSubscription {
+        throw PolarisError.unsupported("subscriptions")
+    }
+    func acceptTriageIssue(id: String, opId: String) async throws -> Issue {
+        throw PolarisError.unsupported("triage")
+    }
+    func declineTriageIssue(id: String, opId: String) async throws -> Issue {
+        throw PolarisError.unsupported("triage")
+    }
+    func createIssueRelation(issueId: String, relatedIssueId: String, type: RelationType, opId: String) async throws -> IssueRelation {
+        throw PolarisError.unsupported("relations")
+    }
+    func deleteIssueRelation(id: String, opId: String) async throws {
+        throw PolarisError.unsupported("relations")
+    }
+    func createAttachment(issueId: String, url: String, title: String?, opId: String) async throws -> Attachment {
+        throw PolarisError.unsupported("links")
+    }
+    func updateProfile(_ change: ProfileChange) async throws -> User {
+        throw PolarisError.unsupported("profile edits")
+    }
+    func updateNotificationPrefs(_ prefs: NotificationPrefs) async throws -> NotificationPrefs {
+        throw PolarisError.unsupported("notification preferences")
+    }
+
+    func accessToken() async throws -> String { throw PolarisError.unauthorized(nil) }
+    func syncSocketURL() -> URL { PolarisEnvironment.localDevelopment.syncSocketURL }
+
+    /// Every team's issues, fetched concurrently and flattened.
+    ///
+    /// The building block for the lists the server has no query for: created-by,
+    /// subscribed-to, a project's issues, a cycle's issues. `issues(teamId:)` is unpaginated
+    /// and whole-collection, so this moves the same bytes a replica bootstrap would — which
+    /// is the trade ios/README.md already made.
+    func gatherTeamIssues() async throws -> [Issue] {
+        let teams = try await teams()
+        return try await withThrowingTaskGroup(of: [Issue].self) { group in
+            for team in teams {
+                group.addTask { try await self.issues(teamId: team.id) }
+            }
+            var all: [Issue] = []
+            for try await batch in group { all.append(contentsOf: batch) }
+            return all
+        }
     }
 }
 
@@ -118,6 +311,14 @@ public struct IssueDraft: Sendable, Hashable {
     public var priority: Priority
     public var stateId: String?
     public var assigneeId: String?
+    public var labelIds: [String]
+    /// A calendar day, `2006-01-02`.
+    public var dueDate: String?
+    public var estimate: Int?
+    public var projectId: String?
+    public var cycleId: String?
+    /// Set to file the draft as a sub-issue.
+    public var parentId: String?
 
     public init(
         id: String = UUIDv7.string(),
@@ -127,7 +328,13 @@ public struct IssueDraft: Sendable, Hashable {
         description: String = "",
         priority: Priority = .none,
         stateId: String? = nil,
-        assigneeId: String? = nil
+        assigneeId: String? = nil,
+        labelIds: [String] = [],
+        dueDate: String? = nil,
+        estimate: Int? = nil,
+        projectId: String? = nil,
+        cycleId: String? = nil,
+        parentId: String? = nil
     ) {
         self.id = id
         self.opId = opId
@@ -137,6 +344,12 @@ public struct IssueDraft: Sendable, Hashable {
         self.priority = priority
         self.stateId = stateId
         self.assigneeId = assigneeId
+        self.labelIds = labelIds
+        self.dueDate = dueDate
+        self.estimate = estimate
+        self.projectId = projectId
+        self.cycleId = cycleId
+        self.parentId = parentId
     }
 }
 
@@ -144,7 +357,8 @@ public struct IssueDraft: Sendable, Hashable {
 ///
 /// `clearAssignee` exists because nil in a partial update means "leave alone", so there is no
 /// way to express "remove the assignee" with an optional alone. The server models it as a
-/// separate boolean and so does this.
+/// separate boolean and so does this — and so do estimate, due date, parent, project and
+/// cycle, each with its own `clear…` flag for the same reason.
 public struct IssueChange: Sendable, Hashable {
     public let id: String
     public let opId: String
@@ -154,6 +368,16 @@ public struct IssueChange: Sendable, Hashable {
     public var priority: Priority?
     public var assigneeId: String?
     public var clearAssignee: Bool
+    public var estimate: Int?
+    public var clearEstimate: Bool
+    public var dueDate: String?
+    public var clearDueDate: Bool
+    public var parentId: String?
+    public var clearParent: Bool
+    public var projectId: String?
+    public var clearProject: Bool
+    public var cycleId: String?
+    public var clearCycle: Bool
 
     public init(
         id: String,
@@ -163,7 +387,17 @@ public struct IssueChange: Sendable, Hashable {
         stateId: String? = nil,
         priority: Priority? = nil,
         assigneeId: String? = nil,
-        clearAssignee: Bool = false
+        clearAssignee: Bool = false,
+        estimate: Int? = nil,
+        clearEstimate: Bool = false,
+        dueDate: String? = nil,
+        clearDueDate: Bool = false,
+        parentId: String? = nil,
+        clearParent: Bool = false,
+        projectId: String? = nil,
+        clearProject: Bool = false,
+        cycleId: String? = nil,
+        clearCycle: Bool = false
     ) {
         self.id = id
         self.opId = opId
@@ -173,6 +407,16 @@ public struct IssueChange: Sendable, Hashable {
         self.priority = priority
         self.assigneeId = assigneeId
         self.clearAssignee = clearAssignee
+        self.estimate = estimate
+        self.clearEstimate = clearEstimate
+        self.dueDate = dueDate
+        self.clearDueDate = clearDueDate
+        self.parentId = parentId
+        self.clearParent = clearParent
+        self.projectId = projectId
+        self.clearProject = clearProject
+        self.cycleId = cycleId
+        self.clearCycle = clearCycle
     }
 }
 

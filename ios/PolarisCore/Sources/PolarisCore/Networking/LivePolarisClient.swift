@@ -21,6 +21,9 @@ public actor LivePolarisClient: PolarisAPI {
     private var accessTokenExpiry: Date?
     private var workspaceId: String?
     private var refreshTask: Task<Session, any Error>?
+    /// Remembered from the last `viewer()` so the gathered My-issues scopes do not pay a
+    /// round trip to learn who is asking. Dropped with the session.
+    private var viewerUserId: String?
 
     public init(environment: PolarisEnvironment, urlSession: URLSession = .shared) {
         self.environment = environment
@@ -134,6 +137,7 @@ public actor LivePolarisClient: PolarisAPI {
         accessTokenExpiry = nil
         workspaceId = nil
         refreshTask = nil
+        viewerUserId = nil
         return failure
     }
 
@@ -346,7 +350,9 @@ public actor LivePolarisClient: PolarisAPI {
     // MARK: - Reads
 
     public func viewer() async throws -> Viewer {
-        try decode(Viewer.self, from: try await graphQL(GraphQLDocuments.viewer, field: "viewer"))
+        let viewer = try decode(Viewer.self, from: try await graphQL(GraphQLDocuments.viewer, field: "viewer"))
+        viewerUserId = viewer.user.id
+        return viewer
     }
 
     public func syncVersion() async throws -> Int {
@@ -422,6 +428,12 @@ public actor LivePolarisClient: PolarisAPI {
             "priority": .int(draft.priority.rawValue),
             "stateId": draft.stateId.map(JSONValue.string),
             "assigneeId": draft.assigneeId.map(JSONValue.string),
+            "labelIds": draft.labelIds.isEmpty ? nil : .array(draft.labelIds.map(JSONValue.string)),
+            "dueDate": draft.dueDate.map(JSONValue.string),
+            "estimate": draft.estimate.map(JSONValue.int),
+            "projectId": draft.projectId.map(JSONValue.string),
+            "cycleId": draft.cycleId.map(JSONValue.string),
+            "parentId": draft.parentId.map(JSONValue.string),
         ])
         let data = try await graphQL(
             GraphQLDocuments.createIssue,
@@ -444,6 +456,16 @@ public actor LivePolarisClient: PolarisAPI {
             "priority": change.priority.map { JSONValue.int($0.rawValue) },
             "assigneeId": change.assigneeId.map(JSONValue.string),
             "clearAssignee": change.clearAssignee ? .bool(true) : nil,
+            "estimate": change.estimate.map(JSONValue.int),
+            "clearEstimate": change.clearEstimate ? .bool(true) : nil,
+            "dueDate": change.dueDate.map(JSONValue.string),
+            "clearDueDate": change.clearDueDate ? .bool(true) : nil,
+            "parentId": change.parentId.map(JSONValue.string),
+            "clearParent": change.clearParent ? .bool(true) : nil,
+            "projectId": change.projectId.map(JSONValue.string),
+            "clearProject": change.clearProject ? .bool(true) : nil,
+            "cycleId": change.cycleId.map(JSONValue.string),
+            "clearCycle": change.clearCycle ? .bool(true) : nil,
         ])
         let data = try await graphQL(
             GraphQLDocuments.updateIssue,
@@ -541,10 +563,15 @@ public actor LivePolarisClient: PolarisAPI {
     // MARK: - Search
 
     public func search(query: String, teamId: String?, first: Int?) async throws -> SearchResults {
+        try await search(query: query, teamId: teamId, first: first, filter: nil)
+    }
+
+    public func search(query: String, teamId: String?, first: Int?, filter: JSONValue?) async throws -> SearchResults {
         let input = JSONValue.object(compacting: [
             "query": .string(query),
             "teamId": teamId.map(JSONValue.string),
             "first": first.map(JSONValue.int),
+            "filter": filter,
         ])
         let data = try await graphQL(
             GraphQLDocuments.search, variables: ["input": input], field: "search"
@@ -555,5 +582,345 @@ public actor LivePolarisClient: PolarisAPI {
     private func decodePayloadIssue(from data: Data) throws -> Issue {
         struct Payload: Decodable { let issue: Issue }
         return try decode(Payload.self, from: data).issue
+    }
+
+    // MARK: - My issues, by scope
+
+    /// "Created" and "subscribed" have no query of their own, and `search` cannot stand in:
+    /// `services/internal/domain/search.go` answers an empty `query` with an empty result
+    /// before it looks at the filter — an empty search box is a normal state there, not a
+    /// request for everything — so a filter-only `SearchInput` lists nothing. The honest
+    /// path is the one the README already accepts for reads: fetch every visible team's
+    /// issues and select client-side. `IssueFilter` still builds the AST, for a search
+    /// that carries words as well.
+    public func myIssues(scope: MyIssuesScope, includeCompleted: Bool) async throws -> [Issue] {
+        switch scope {
+        case .assigned:
+            return try await myIssues(includeCompleted: includeCompleted)
+        case .created:
+            let me = try await currentUserId()
+            let all = try await gatherTeamIssues()
+            return all.filter { $0.creator?.id == me && (includeCompleted || $0.state.category.isOpen) }
+        case .subscribed:
+            let me = try await currentUserId()
+            let teams = try await teams()
+            let rows = try await withThrowingTaskGroup(of: [SubscribedRow].self) { group in
+                for team in teams {
+                    group.addTask { try await self.teamIssuesWithSubscribers(teamId: team.id) }
+                }
+                var all: [SubscribedRow] = []
+                for try await batch in group { all.append(contentsOf: batch) }
+                return all
+            }
+            return rows
+                .filter { row in row.subscribers.contains { $0.userId == me && $0.isActive } }
+                .map(\.issue)
+                .filter { includeCompleted || $0.state.category.isOpen }
+        }
+    }
+
+    /// An issue with its subscribers beside it, as `teamIssuesWithSubscribers` returns it.
+    private struct SubscribedRow: Decodable {
+        let issue: Issue
+        let subscribers: [IssueSubscription]
+
+        enum CodingKeys: String, CodingKey { case subscribers }
+
+        init(from decoder: any Decoder) throws {
+            issue = try Issue(from: decoder)
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            subscribers = try c.decodeIfPresent([IssueSubscription].self, forKey: .subscribers) ?? []
+        }
+    }
+
+    private func teamIssuesWithSubscribers(teamId: String) async throws -> [SubscribedRow] {
+        let data = try await graphQL(
+            GraphQLDocuments.teamIssuesWithSubscribers,
+            variables: ["teamId": .string(teamId)],
+            field: "issues"
+        )
+        return try decode([SubscribedRow].self, from: data)
+    }
+
+    private func currentUserId() async throws -> String {
+        if let viewerUserId { return viewerUserId }
+        return try await viewer().user.id
+    }
+
+    // MARK: - Detail reads
+
+    public func issueDetail(id: String) async throws -> IssueDetail {
+        let data = try await graphQL(
+            GraphQLDocuments.issueDetail, variables: ["id": .string(id)], field: "issue"
+        )
+        return try decode(IssueDetail.self, from: data)
+    }
+
+    public func issueHistory(issueId: String) async throws -> [IssueHistoryEntry] {
+        let data = try await graphQL(
+            GraphQLDocuments.issueHistory,
+            variables: ["issueId": .string(issueId)],
+            field: "issueHistory"
+        )
+        return try decode([IssueHistoryEntry].self, from: data)
+    }
+
+    public func issueByIdentifier(_ identifier: String) async throws -> Issue {
+        let data = try await graphQL(
+            GraphQLDocuments.issueByIdentifier,
+            variables: ["identifier": .string(identifier)],
+            field: "issueByIdentifier"
+        )
+        return try decode(Issue.self, from: data)
+    }
+
+    // MARK: - Workspace reference data
+
+    public func labels() async throws -> [Label] {
+        try decode([Label].self, from: try await graphQL(GraphQLDocuments.labels, field: "labels"))
+    }
+
+    public func projects() async throws -> [Project] {
+        try decode([Project].self, from: try await graphQL(GraphQLDocuments.projects, field: "projects"))
+    }
+
+    public func projectStatuses() async throws -> [ProjectStatus] {
+        try decode(
+            [ProjectStatus].self,
+            from: try await graphQL(GraphQLDocuments.projectStatuses, field: "projectStatuses")
+        )
+    }
+
+    public func project(id: String) async throws -> Project {
+        let data = try await graphQL(
+            GraphQLDocuments.project, variables: ["id": .string(id)], field: "project"
+        )
+        return try decode(Project.self, from: data)
+    }
+
+    public func cycles(teamId: String) async throws -> [Cycle] {
+        let data = try await graphQL(
+            GraphQLDocuments.cycles, variables: ["teamId": .string(teamId)], field: "cycles"
+        )
+        return try decode([Cycle].self, from: data)
+    }
+
+    public func cycle(id: String) async throws -> Cycle {
+        let data = try await graphQL(
+            GraphQLDocuments.cycle, variables: ["id": .string(id)], field: "cycle"
+        )
+        return try decode(Cycle.self, from: data)
+    }
+
+    public func favorites() async throws -> [Favorite] {
+        try decode([Favorite].self, from: try await graphQL(GraphQLDocuments.favorites, field: "favorites"))
+    }
+
+    public func notificationPrefs() async throws -> NotificationPrefs {
+        try await viewer().user.notificationPrefs ?? NotificationPrefs()
+    }
+
+    // MARK: - Favourites
+
+    public func addFavorite(kind: FavoriteKind, targetId: String) async throws -> Favorite {
+        struct Payload: Decodable { let favorite: Favorite }
+        let data = try await graphQL(
+            GraphQLDocuments.addFavorite,
+            variables: ["kind": .string(kind.rawValue), "targetId": .string(targetId)],
+            field: "addFavorite"
+        )
+        return try decode(Payload.self, from: data).favorite
+    }
+
+    public func removeFavorite(kind: FavoriteKind, targetId: String) async throws {
+        _ = try await graphQL(
+            GraphQLDocuments.removeFavorite,
+            variables: ["kind": .string(kind.rawValue), "targetId": .string(targetId)],
+            field: "removeFavorite"
+        )
+    }
+
+    // MARK: - Issue writes
+
+    public func deleteIssue(id: String, opId: String) async throws {
+        _ = try await graphQL(
+            GraphQLDocuments.deleteIssue,
+            variables: idempotent(["id": .string(id)], opId: opId),
+            field: "deleteIssue"
+        )
+    }
+
+    public func acceptTriageIssue(id: String, opId: String) async throws -> Issue {
+        let data = try await graphQL(
+            GraphQLDocuments.acceptTriageIssue,
+            variables: idempotent(["id": .string(id)], opId: opId),
+            field: "acceptTriageIssue"
+        )
+        return try decodePayloadIssue(from: data)
+    }
+
+    public func declineTriageIssue(id: String, opId: String) async throws -> Issue {
+        let data = try await graphQL(
+            GraphQLDocuments.declineTriageIssue,
+            variables: idempotent(["id": .string(id)], opId: opId),
+            field: "declineTriageIssue"
+        )
+        return try decodePayloadIssue(from: data)
+    }
+
+    public func addIssueLabel(issueId: String, labelId: String, opId: String) async throws -> Label {
+        struct Payload: Decodable {
+            struct IssueLabel: Decodable { let label: Label }
+            let issueLabel: IssueLabel
+        }
+        let data = try await graphQL(
+            GraphQLDocuments.addIssueLabel,
+            variables: idempotent(["issueId": .string(issueId), "labelId": .string(labelId)], opId: opId),
+            field: "addIssueLabel"
+        )
+        return try decode(Payload.self, from: data).issueLabel.label
+    }
+
+    public func removeIssueLabel(issueId: String, labelId: String, opId: String) async throws {
+        _ = try await graphQL(
+            GraphQLDocuments.removeIssueLabel,
+            variables: idempotent(["issueId": .string(issueId), "labelId": .string(labelId)], opId: opId),
+            field: "removeIssueLabel"
+        )
+    }
+
+    public func setIssueSubscription(issueId: String, subscribed: Bool) async throws -> IssueSubscription {
+        struct Payload: Decodable { let subscription: IssueSubscription }
+        let data = try await graphQL(
+            GraphQLDocuments.setIssueSubscription,
+            variables: ["issueId": .string(issueId), "subscribed": .bool(subscribed)],
+            field: "setIssueSubscription"
+        )
+        return try decode(Payload.self, from: data).subscription
+    }
+
+    public func createIssueRelation(
+        issueId: String,
+        relatedIssueId: String,
+        type: RelationType,
+        opId: String
+    ) async throws -> IssueRelation {
+        struct Payload: Decodable { let relation: IssueRelation }
+        let data = try await graphQL(
+            GraphQLDocuments.createIssueRelation,
+            variables: idempotent([
+                "issueId": .string(issueId),
+                "relatedIssueId": .string(relatedIssueId),
+                "type": .string(type.rawValue),
+            ], opId: opId),
+            field: "createIssueRelation"
+        )
+        return try decode(Payload.self, from: data).relation
+    }
+
+    public func deleteIssueRelation(id: String, opId: String) async throws {
+        _ = try await graphQL(
+            GraphQLDocuments.deleteIssueRelation,
+            variables: idempotent(["id": .string(id)], opId: opId),
+            field: "deleteIssueRelation"
+        )
+    }
+
+    public func createAttachment(issueId: String, url: String, title: String?, opId: String) async throws -> Attachment {
+        struct Payload: Decodable { let attachment: Attachment }
+        let input = JSONValue.object(compacting: [
+            "issueId": .string(issueId),
+            "url": .string(url),
+            "title": title.map(JSONValue.string),
+        ])
+        let data = try await graphQL(
+            GraphQLDocuments.createAttachment,
+            variables: idempotent(["input": input], opId: opId),
+            field: "createAttachment"
+        )
+        return try decode(Payload.self, from: data).attachment
+    }
+
+    // MARK: - Comment writes
+
+    public func updateComment(id: String, body: String, opId: String) async throws -> Comment {
+        struct Payload: Decodable { let comment: Comment }
+        let data = try await graphQL(
+            GraphQLDocuments.updateComment,
+            variables: idempotent(["id": .string(id), "body": .string(body)], opId: opId),
+            field: "updateComment"
+        )
+        return try decode(Payload.self, from: data).comment
+    }
+
+    public func deleteComment(id: String, opId: String) async throws {
+        _ = try await graphQL(
+            GraphQLDocuments.deleteComment,
+            variables: idempotent(["id": .string(id)], opId: opId),
+            field: "deleteComment"
+        )
+    }
+
+    public func addReaction(commentId: String, emoji: String, opId: String) async throws -> Reaction {
+        struct Payload: Decodable { let reaction: Reaction }
+        let data = try await graphQL(
+            GraphQLDocuments.addReaction,
+            variables: idempotent(["commentId": .string(commentId), "emoji": .string(emoji)], opId: opId),
+            field: "addReaction"
+        )
+        return try decode(Payload.self, from: data).reaction
+    }
+
+    public func removeReaction(commentId: String, emoji: String, opId: String) async throws {
+        _ = try await graphQL(
+            GraphQLDocuments.removeReaction,
+            variables: idempotent(["commentId": .string(commentId), "emoji": .string(emoji)], opId: opId),
+            field: "removeReaction"
+        )
+    }
+
+    // MARK: - Profile and preferences
+
+    public func updateProfile(_ change: ProfileChange) async throws -> User {
+        struct Payload: Decodable { let user: User }
+        let input = JSONValue.object(compacting: [
+            "name": change.name.map(JSONValue.string),
+            "displayName": change.displayName.map(JSONValue.string),
+            "avatarUrl": change.avatarUrl.map(JSONValue.string),
+            "timezone": change.timezone.map(JSONValue.string),
+        ])
+        let data = try await graphQL(
+            GraphQLDocuments.updateProfile, variables: ["input": input], field: "updateProfile"
+        )
+        return try decode(Payload.self, from: data).user
+    }
+
+    public func updateNotificationPrefs(_ prefs: NotificationPrefs) async throws -> NotificationPrefs {
+        struct Payload: Decodable { let user: User }
+        let data = try await graphQL(
+            GraphQLDocuments.updateNotificationPrefs,
+            variables: ["prefs": prefs.jsonValue],
+            field: "updateNotificationPrefs"
+        )
+        // What the server kept, not what was sent: an unknown cadence is dropped there.
+        return try decode(Payload.self, from: data).user.notificationPrefs ?? prefs
+    }
+
+    // MARK: - Sync socket
+
+    public func accessToken() async throws -> String {
+        try await validToken()
+    }
+
+    public nonisolated func syncSocketURL() -> URL {
+        environment.syncSocketURL
+    }
+
+    /// The caller's variables plus the idempotency pair every `@idempotent` mutation carries.
+    private func idempotent(_ variables: [String: JSONValue], opId: String) -> [String: JSONValue] {
+        var all = variables
+        all["clientId"] = .string(clientId)
+        all["opId"] = .string(opId)
+        return all
     }
 }
