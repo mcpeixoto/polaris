@@ -35,6 +35,7 @@ API = "https://api.appstoreconnect.apple.com/v1"
 BUNDLE_ID = "com.peixotolabs.polaris"
 APP_NAME = "Polaris"
 PROFILE_NAME = "Polaris App Store"
+CAPABILITIES = ["APPLE_ID_AUTH", "ASSOCIATED_DOMAINS"]
 
 
 def token() -> str:
@@ -66,8 +67,7 @@ if not P8.exists():
     print(f"no App Store Connect key at {P8}", file=sys.stderr)
     sys.exit(1)
 
-# 1. Bundle id. Polaris needs no capabilities: it talks to its own server over
-#    HTTPS and holds no iCloud data, no push, no sign-in-with-Apple.
+# 1. Bundle id.
 found = api("GET", "/bundleIds", **{"filter[identifier]": BUNDLE_ID})["data"]
 if found:
     bundle = found[0]
@@ -84,6 +84,36 @@ else:
         },
     )["data"]
     print(f"registered bundle id: {BUNDLE_ID} ({bundle['id']})")
+
+# 1b. Capabilities. These mirror the entitlements in project.yml: the app's signature
+#     carries the entitlement, the bundle id must declare the matching capability, and a
+#     profile only covers the capabilities that existed when it was generated. So a
+#     capability enabled here invalidates the profile, and step 3 regenerates it.
+#
+#     APPLE_ID_AUTH is Sign in with Apple; ASSOCIATED_DOMAINS is Universal Links plus
+#     password autofill against polaris.peixotolabs.com.
+enabled = {
+    c["attributes"]["capabilityType"]
+    for c in api("GET", f"/bundleIds/{bundle['id']}/bundleIdCapabilities")["data"]
+}
+capabilities_changed = False
+for capability in CAPABILITIES:
+    if capability in enabled:
+        print(f"capability enabled: {capability}")
+        continue
+    api(
+        "POST",
+        "/bundleIdCapabilities",
+        {
+            "data": {
+                "type": "bundleIdCapabilities",
+                "attributes": {"capabilityType": capability},
+                "relationships": {"bundleId": {"data": {"type": "bundleIds", "id": bundle["id"]}}},
+            }
+        },
+    )
+    capabilities_changed = True
+    print(f"enabled capability: {capability}")
 
 # 2. Distribution certificate — reuse, never create a second one.
 certs = api("GET", "/certificates", **{"filter[certificateType]": "DISTRIBUTION"})["data"]
@@ -108,8 +138,19 @@ if "Apple Distribution" not in identities:
     )
 
 # 3. App Store provisioning profile for this bundle id.
+#
+#    A profile is a snapshot of the bundle id's capabilities at the moment it was made.
+#    Enabling one afterwards flips the existing profile to INVALID, and Xcode reports that
+#    as "provisioning profile doesn't include the ... entitlement" at archive time. So an
+#    invalid profile, or one predating a capability enabled above, is deleted and remade
+#    under the same name: project.yml references the profile by name, not UUID, so nothing
+#    else has to change.
 profiles = api("GET", "/profiles", **{"filter[profileType]": "IOS_APP_STORE", "limit": 200})["data"]
 profile = next((p for p in profiles if p["attributes"]["name"] == PROFILE_NAME), None)
+if profile is not None and (capabilities_changed or profile["attributes"]["profileState"] != "ACTIVE"):
+    api("DELETE", f"/profiles/{profile['id']}")
+    print(f"deleted stale profile: {PROFILE_NAME} ({profile['id']}, {profile['attributes']['profileState']})")
+    profile = None
 if profile is None:
     profile = api(
         "POST",

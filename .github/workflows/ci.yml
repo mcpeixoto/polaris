@@ -525,4 +525,13 @@ jobs:
             *) echo "::error::/oauth/authorize returned '${type:-no answer}'; the consent screen must be served by the SPA."
                fail=1 ;;
           esac
+          # The iOS Universal Links manifest is a static file in the web image, and Apple's
+          # CDN only accepts it as JSON. Falling through to index.html is exactly the
+          # failure that shows nowhere: every link keeps opening Safari, and nothing logs it.
+          type=$(curl -s -o /dev/null --max-time 10 -w '%{content_type}' "$BASE_URL/.well-known/apple-app-site-association" || true)
+          case "$type" in
+            application/json*) echo "ok   /.well-known/apple-app-site-association -> $type" ;;
+            *) echo "::error::/.well-known/apple-app-site-association returned '${type:-no answer}'; Apple requires application/json."
+               fail=1 ;;
+          esac
           exit $fail

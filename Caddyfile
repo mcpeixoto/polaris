@@ -73,6 +73,13 @@
 		reverse_proxy api:8088
 	}
 
+	# Apple's Universal Links manifest is a static file in the web image, not an API
+	# route. It must precede /.well-known/* below for the same reason /sync/bootstrap
+	# precedes /sync*: the first matching handle wins.
+	handle /.well-known/apple-app-site-association {
+		reverse_proxy web:8080
+	}
+
 	handle /.well-known/* {
 		reverse_proxy api:8088
 	}
