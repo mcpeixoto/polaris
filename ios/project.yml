@@ -68,6 +68,20 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         UILaunchScreen:
           UIColorName: LaunchBackground
+        # `polaris://issue/<id-or-identifier>` — the scheme the desktop app already registers
+        # (docs/03-architecture/07-desktop-apps.md), so a link copied from one client opens the
+        # issue in whichever client is on the device that receives it.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.peixotolabs.polaris
+            CFBundleURLSchemes:
+              - polaris
+        # Background fetch keeps the inbox badge honest between launches; there is no push
+        # infrastructure server-side (see ios/README.md), so this is the only way the badge
+        # can move while the app is not in front.
+        UIBackgroundModes:
+          - fetch
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.peixotolabs.polaris.refresh
         # All four, because TARGETED_DEVICE_FAMILY includes iPad and an iPad app that does
         # not declare UIRequiresFullScreen must support every orientation — omitting one
         # warns at archive time and is rejected at validation.
@@ -93,8 +107,8 @@ targets:
         PRODUCT_NAME: Polaris
         PRODUCT_BUNDLE_IDENTIFIER: com.peixotolabs.polaris
         DEVELOPMENT_TEAM: H874DPF6H5
-        MARKETING_VERSION: "0.6.0"
-        CURRENT_PROJECT_VERSION: "3"
+        MARKETING_VERSION: "0.7.0"
+        CURRENT_PROJECT_VERSION: "4"
         SWIFT_VERSION: "6.0"
         SWIFT_STRICT_CONCURRENCY: complete
         TARGETED_DEVICE_FAMILY: "1,2"
