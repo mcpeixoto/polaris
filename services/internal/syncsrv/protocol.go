@@ -72,6 +72,18 @@ type Hello struct {
 	Resume       int64     `json:"resume"`
 	ClientSchema int       `json:"clientSchema"`
 	ClientID     uuid.UUID `json:"clientId"`
+	// SignalOnly declares a client that keeps no replica and reads delta frames purely
+	// as "something you can see changed; refetch it" — the iOS app, which polls GraphQL
+	// and wants a nudge instead of a thirty-second timer.
+	//
+	// It exempts the hello from the client-schema check, and nothing else. That check
+	// exists because applying new-shaped deltas onto old-shaped local rows corrupts a
+	// replica; a client with no rows has nothing a mismatch can corrupt, and pinning it
+	// to ClientSchemaVersion would mean an App Store release every time the web store
+	// changes shape. Authentication, principal resolution, the retention floor and the
+	// visibility filter all still apply: a signal is still a fact about an entity the
+	// caller is entitled to know about.
+	SignalOnly bool `json:"signalOnly"`
 }
 
 // Ready answers a Hello that was accepted.

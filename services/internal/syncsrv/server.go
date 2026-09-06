@@ -103,7 +103,11 @@ func (s *Server) handshake(ctx context.Context, conn *websocket.Conn) (*Session,
 	// A client whose local store predates the current shape must throw it away. Letting
 	// it resume would apply new-shaped deltas onto old-shaped rows, which produces
 	// corruption that looks like random rendering bugs days later.
-	if hello.ClientSchema != ClientSchema {
+	//
+	// A signal-only client is exempt: it holds no rows, so there is nothing for a
+	// mismatched delta to corrupt, and it never reads the payloads that would carry the
+	// new shape. See Hello.SignalOnly.
+	if !hello.SignalOnly && hello.ClientSchema != ClientSchema {
 		return nil, platform.Conflict("client schema " + itoa(hello.ClientSchema) +
 			" does not match server schema " + itoa(ClientSchema))
 	}
@@ -135,6 +139,7 @@ func (s *Server) handshake(ctx context.Context, conn *websocket.Conn) (*Session,
 
 	session := newSession(conn, principal, hello.ClientID, resume, s.log.With(
 		"workspace", hello.Workspace, "user", principal.UserID))
+	session.signalOnly = hello.SignalOnly
 
 	current, err := s.svc.WorkspaceVersion(ctx, hello.Workspace)
 	if err != nil {
