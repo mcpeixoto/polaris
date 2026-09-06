@@ -61,6 +61,70 @@ func (h *oauthHandlers) token(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// register is dynamic client registration, RFC 7591. Unauthenticated by necessity: the
+// client is asking for an identity before anybody has signed in. Registration confers
+// nothing on its own — the consent screen is where a person decides what this client may
+// reach — so what stands in front of this endpoint is the anonymous rate limiter.
+func (h *oauthHandlers) register(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ClientName              string   `json:"client_name"`
+		RedirectURIs            []string `json:"redirect_uris"`
+		GrantTypes              []string `json:"grant_types"`
+		ResponseTypes           []string `json:"response_types"`
+		Scope                   string   `json:"scope"`
+		TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&body); err != nil {
+		writeOAuthError(w, http.StatusBadRequest, "invalid_client_metadata", "could not parse the request body")
+		return
+	}
+
+	// We issue no secret, so the only auth method a registered client can use is none.
+	// A client asking for a secret-based method is told now rather than at its first
+	// token exchange, when the failure would look like a bad credential.
+	if m := strings.TrimSpace(body.TokenEndpointAuthMethod); m != "" && m != "none" {
+		writeOAuthError(w, http.StatusBadRequest, "invalid_client_metadata",
+			"only token_endpoint_auth_method=none is supported; this server issues public clients")
+		return
+	}
+	for _, g := range body.GrantTypes {
+		switch strings.TrimSpace(g) {
+		case "", "authorization_code", "refresh_token":
+		default:
+			writeOAuthError(w, http.StatusBadRequest, "invalid_client_metadata",
+				"supported grant_types are authorization_code and refresh_token")
+			return
+		}
+	}
+	for _, t := range body.ResponseTypes {
+		if v := strings.TrimSpace(t); v != "" && v != "code" {
+			writeOAuthError(w, http.StatusBadRequest, "invalid_client_metadata", "the only response_type is code")
+			return
+		}
+	}
+
+	reg, err := h.svc.RegisterDynamicClient(r.Context(), domain.RegisterDynamicClientInput{
+		ClientName:   body.ClientName,
+		RedirectURIs: body.RedirectURIs,
+		Scope:        body.Scope,
+	})
+	if err != nil {
+		writeOAuthMappedError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"client_id":                  reg.ClientID,
+		"client_id_issued_at":        reg.ClientIDIssuedAt.Unix(),
+		"client_name":                reg.ClientName,
+		"redirect_uris":              reg.RedirectURIs,
+		"grant_types":                []string{"authorization_code", "refresh_token"},
+		"response_types":             []string{"code"},
+		"token_endpoint_auth_method": reg.TokenEndpointAuthMeth,
+		"scope":                      strings.Join(reg.Scopes, " "),
+	})
+}
+
 func (h *oauthHandlers) revoke(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		writeOAuthError(w, http.StatusBadRequest, "invalid_request", "could not parse the form body")

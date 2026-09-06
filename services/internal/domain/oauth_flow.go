@@ -81,7 +81,7 @@ func (s *Service) CreateOauthAuthorization(
 		}
 		return OauthAuthorization{}, platform.Internal(err)
 	}
-	if app.WorkspaceID != p.WorkspaceID && !app.PublicEnabled {
+	if !ownedBy(app.WorkspaceID, p.WorkspaceID) && !app.PublicEnabled {
 		return OauthAuthorization{}, platform.NotFound("oauth application")
 	}
 	if !redirectURIAllowed(app.RedirectUris, strings.TrimSpace(in.RedirectURI)) {
@@ -172,7 +172,10 @@ func (s *Service) ExchangeOauthToken(ctx context.Context, in OauthTokenRequest) 
 }
 
 func (s *Service) exchangeAuthorizationCode(ctx context.Context, in OauthTokenRequest) (OauthTokenResponse, error) {
-	app, err := s.authenticateOauthClient(ctx, in)
+	// A self-registered client holds no secret to present, so it authenticates as a
+	// public client and proves itself with PKCE below instead. Every other client still
+	// has to produce its secret.
+	app, err := s.authenticateOauthClientForCode(ctx, in)
 	if err != nil {
 		return OauthTokenResponse{}, err
 	}
@@ -193,10 +196,22 @@ func (s *Service) exchangeAuthorizationCode(ctx context.Context, in OauthTokenRe
 	if codeRow.RedirectUri != strings.TrimSpace(in.RedirectURI) {
 		return OauthTokenResponse{}, platform.Unauthorized("invalid grant")
 	}
-	if codeRow.CodeChallenge != nil && *codeRow.CodeChallenge != "" {
+	hasChallenge := codeRow.CodeChallenge != nil && *codeRow.CodeChallenge != ""
+	// For a public client PKCE is the whole of client authentication, so its absence is
+	// not "no proof offered" but "anyone holding this code can redeem it". Refused.
+	if app.DynamicallyRegistered && !hasChallenge {
+		return OauthTokenResponse{}, platform.Unauthorized("invalid grant")
+	}
+	if hasChallenge {
 		method := "plain"
 		if codeRow.CodeChallengeMethod != nil && *codeRow.CodeChallengeMethod != "" {
 			method = *codeRow.CodeChallengeMethod
+		}
+		// S256 only for a public client: `plain` puts the verifier on the wire, which
+		// defeats the exchange it is standing in for. Confidential clients keep the older
+		// method, which their secret already backstops.
+		if app.DynamicallyRegistered && !strings.EqualFold(method, "S256") {
+			return OauthTokenResponse{}, platform.Unauthorized("invalid grant")
 		}
 		if pkceChallenge(in.CodeVerifier, method) != *codeRow.CodeChallenge {
 			return OauthTokenResponse{}, platform.Unauthorized("invalid grant")
@@ -237,6 +252,11 @@ func (s *Service) exchangeAuthorizationCode(ctx context.Context, in OauthTokenRe
 			return err
 		}
 		resp = issued.OauthTokenResponse
+		if app.DynamicallyRegistered {
+			if err := q.TouchOauthApplicationLastUsed(ctx, app.ID); err != nil {
+				return platform.Internal(err)
+			}
+		}
 		return nil
 	})
 	if err != nil {
@@ -326,6 +346,13 @@ func (s *Service) exchangeClientCredentials(ctx context.Context, in OauthTokenRe
 	if !secretRow.ClientCredentialsEnabled {
 		return OauthTokenResponse{}, platform.Forbidden("client credentials are not enabled on this application")
 	}
+	// A self-registered client has no owning workspace, so there is no workspace for a
+	// two-legged token to act in. It is refused here rather than in the constraint above
+	// because the reason is not "not enabled" — this grant cannot mean anything for it.
+	if app.WorkspaceID == nil {
+		return OauthTokenResponse{}, platform.Forbidden("client credentials require a registered application")
+	}
+	appWorkspaceID := *app.WorkspaceID
 
 	scopes, err := normaliseOauthScopes(parseScopeList(in.Scope), true)
 	if err != nil {
@@ -363,13 +390,13 @@ func (s *Service) exchangeClientCredentials(ctx context.Context, in OauthTokenRe
 			return platform.Validation("client_credentials", "this application already has 1000 live client-credentials tokens")
 		}
 
-		appUserID, err := s.ensureAppUser(ctx, q, app, app.WorkspaceID, nil)
+		appUserID, err := s.ensureAppUser(ctx, q, app, appWorkspaceID, nil)
 		if err != nil {
 			return err
 		}
 		issued, err := s.issueOauthTokenPair(ctx, q, issueOauthTokenParams{
 			ApplicationID: app.ID,
-			WorkspaceID:   app.WorkspaceID,
+			WorkspaceID:   appWorkspaceID,
 			UserID:        appUserID,
 			GrantType:     "client_credentials",
 			Scopes:        scopes,
@@ -515,13 +542,14 @@ func (s *Service) principalFromUser(
 
 type oauthAppRef struct {
 	ID                       uuid.UUID
-	WorkspaceID              uuid.UUID
+	WorkspaceID              *uuid.UUID
 	ClientID                 string
 	Name                     string
 	RedirectUris             []string
 	AllowedScopes            []string
 	PublicEnabled            bool
 	ClientCredentialsEnabled bool
+	DynamicallyRegistered    bool
 }
 
 func (s *Service) authenticateOauthClient(ctx context.Context, in OauthTokenRequest) (oauthAppRef, error) {
@@ -537,6 +565,20 @@ func (s *Service) authenticateOauthClient(ctx context.Context, in OauthTokenRequ
 		return oauthAppRef{}, platform.Unauthorized("invalid client")
 	}
 	return app, nil
+}
+
+// authenticateOauthClientForCode picks the client-authentication rule from how the client
+// came to exist: one that registered itself has no secret, one somebody created in
+// settings does and must present it.
+func (s *Service) authenticateOauthClientForCode(ctx context.Context, in OauthTokenRequest) (oauthAppRef, error) {
+	app, err := s.lookupOauthClient(ctx, in.ClientID)
+	if err != nil {
+		return oauthAppRef{}, err
+	}
+	if app.DynamicallyRegistered {
+		return app, nil
+	}
+	return s.authenticateOauthClient(ctx, in)
 }
 
 func (s *Service) authenticateOauthClientOptionalSecret(ctx context.Context, in OauthTokenRequest) (oauthAppRef, error) {
@@ -574,6 +616,7 @@ func (s *Service) lookupOauthClient(ctx context.Context, clientID string) (oauth
 		AllowedScopes:            row.AllowedScopes,
 		PublicEnabled:            row.PublicEnabled,
 		ClientCredentialsEnabled: row.ClientCredentialsEnabled,
+		DynamicallyRegistered:    row.DynamicallyRegistered,
 	}, nil
 }
 

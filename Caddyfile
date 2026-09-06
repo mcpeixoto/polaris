@@ -55,6 +55,12 @@
 		reverse_proxy api:8088
 	}
 
+	# Dynamic client registration. /oauth/authorize is deliberately absent: that one is the
+	# consent screen, which is the SPA, and it falls through to web like every other route.
+	handle /oauth/register {
+		reverse_proxy api:8088
+	}
+
 	handle /mcp* {
 		reverse_proxy api:8088
 	}
