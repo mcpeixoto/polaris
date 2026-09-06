@@ -541,11 +541,11 @@ correct.
 | `/sync` | `sync` `:8089` | WebSocket upgrade must be enabled. Idle read timeout must be long — an idle socket is this service's normal state |
 | `/graphql` | `api` `:8088` | |
 | `/auth/*` | `api` `:8088` | |
-| `/oauth/token`, `/oauth/revoke` | `api` `:8088` | Token exchange and revocation. Consent (`GET /oauth/authorize`) is the SPA. |
+| `/oauth/token`, `/oauth/revoke`, `/oauth/register` | `api` `:8088` | Token exchange, revocation, and RFC 7591 dynamic client registration. Match these **exactly**, not the `/oauth/` prefix: consent (`GET /oauth/authorize`) is the SPA, and proxying the whole prefix 404s the page a person approves on. |
 | `/mcp`, `/mcp/readonly` | `api` `:8088` | Streamable HTTP MCP. Long-lived: raise the proxy read timeout. |
 | `/asks/*` | `api` `:8088` | Public Asks intake. Token in the path is the credential. |
 | `/calendars/*` | `api` `:8088` | Public cycle ICS feeds. Token in the path is the credential. |
-| `/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server` | `api` `:8088` | MCP OAuth discovery. |
+| `/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server` | `api` `:8088` | MCP OAuth discovery, including the `/mcp`-suffixed spellings some clients probe. Match the `oauth-` prefix, not all of `/.well-known/` — ACME's challenge lives there and certificate renewal has to keep working. |
 | `/healthz`, `/readyz` | `api` `:8088` | Or wherever you want your uptime check to land |
 | everything else | web `:8080` | The SPA, which handles its own client-side routing |
 

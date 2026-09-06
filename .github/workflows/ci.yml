@@ -477,3 +477,52 @@ jobs:
           done
           echo "::error::$HEALTH_URL never returned 200. The deploy ran; the site is not serving."
           exit 1
+
+      - name: Check the API's routes actually reach the API
+        env:
+          BASE_URL: ${{ secrets.DEPLOY_BASE_URL || 'https://polaris.peixotolabs.com' }}
+        run: |
+          set -euo pipefail
+          # /healthz proves the api is up. It does not prove anything can reach it.
+          #
+          # Between MCP v1 shipping and 2026-09-06, /mcp, /asks/* and /calendars/* were
+          # never routed at the edge: every request fell through to the SPA and came back
+          # 200 with index.html in it. /healthz was 200 for that entire period, so the
+          # deploy passed every time while three shipped features did nothing. A tool
+          # client reads HTML as "this is not an MCP server"; a browser reads it as a blank
+          # page; neither reports an error anybody sees.
+          #
+          # So this asserts what the failure actually looks like: HTML. Any of these paths
+          # coming back as text/html means the edge handed the request to the SPA, whatever
+          # the status code says.
+          #
+          # It deliberately does not require JSON, and does not check the status. GET
+          # /graphql is a 405 in text/plain because the endpoint is POST-only, and 401 and
+          # 404 are correct answers for the rest — pinning either would make this step fail
+          # on changes that broke nothing.
+          fail=0
+          for path in /mcp /graphql /sync/bootstrap /billing/config \
+                      /.well-known/oauth-authorization-server \
+                      /.well-known/oauth-protected-resource \
+                      /asks/probe /calendars/cycles/probe; do
+            type=$(curl -s -o /dev/null --max-time 10 -w '%{content_type}' "$BASE_URL$path" || true)
+            case "$type" in
+              text/html*)
+                echo "::error::$path is served by the SPA. The edge is not routing it to the api."
+                fail=1 ;;
+              "")
+                echo "::error::$path did not answer at all."
+                fail=1 ;;
+              *)
+                echo "ok   $path -> $type" ;;
+            esac
+          done
+          # The consent screen is the SPA and must stay that way: proxying all of /oauth/
+          # to the api would 404 the page a person approves the connection on.
+          type=$(curl -s -o /dev/null --max-time 10 -w '%{content_type}' "$BASE_URL/oauth/authorize" || true)
+          case "$type" in
+            text/html*) echo "ok   /oauth/authorize -> $type (the SPA, as it should be)" ;;
+            *) echo "::error::/oauth/authorize returned '${type:-no answer}'; the consent screen must be served by the SPA."
+               fail=1 ;;
+          esac
+          exit $fail
