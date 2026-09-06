@@ -74,24 +74,8 @@ func TestOauthRegister_AnonymousClientGetsAnIdentityAndNoSecret(t *testing.T) {
 	}
 }
 
-// Telling the client now beats letting it discover at its first token exchange that the
-// secret it expected was never issued — that failure looks like a bad credential.
-func TestOauthRegister_RefusesASecretBasedAuthMethod(t *testing.T) {
-	h := registerRouter(t)
-
-	status, body := postJSON(t, h, "/oauth/register", `{
-		"client_name": "Confidential",
-		"redirect_uris": ["https://example.com/cb"],
-		"token_endpoint_auth_method": "client_secret_basic"
-	}`)
-
-	if status != http.StatusBadRequest {
-		t.Fatalf("status %d, want 400: %v", status, body)
-	}
-	if body["error"] != "invalid_client_metadata" {
-		t.Errorf("error %v, want invalid_client_metadata", body["error"])
-	}
-}
+// A secret-based auth method used to be refused here. It is downgraded to none instead —
+// see oauth_register_lenient_test.go, which took this test's place.
 
 func TestOauthRegister_RefusesARemoteHTTPRedirect(t *testing.T) {
 	h := registerRouter(t)

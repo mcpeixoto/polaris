@@ -75,21 +75,35 @@ func (s *Service) RegisterDynamicClient(
 		return DynamicClientRegistration{}, err
 	}
 
-	// Clamped to the two scopes the MCP surface uses. An anonymous registration may not
-	// ask for admin, and asking is a validation error rather than a silent downgrade so
-	// the client learns it will never get it.
+	// Clamped to the two scopes the MCP surface uses, in two tiers.
+	//
+	// A scope this server knows but will not hand to an anonymous registration — admin,
+	// issues:create, customer:write and the rest of oauthScopes — is still a validation
+	// error rather than a silent downgrade, so the client learns it will never get it.
+	//
+	// A scope from another vocabulary entirely is dropped instead. Clients send `openid
+	// profile email` at registration because that is what their OAuth library emits, not
+	// because they are asking this server for anything; refusing the whole registration
+	// over it is fatal to a connector, and RFC 7591 §3.2.1 exists precisely so the server
+	// can answer with the scope it actually granted. That is echoed back in the response.
 	requested := parseScopeList(in.Scope)
+	granted := make([]string, 0, len(requested))
 	for _, sc := range requested {
-		if sc != OauthScopeRead && sc != OauthScopeWrite {
+		switch {
+		case sc == OauthScopeRead || sc == OauthScopeWrite:
+			granted = append(granted, sc)
+		case oauthScopes[sc]:
 			return DynamicClientRegistration{}, platform.Validation(
 				"scope", "a self-registered client may only request read or write",
 			)
 		}
 	}
-	if len(requested) == 0 {
-		requested = []string{OauthScopeRead, OauthScopeWrite}
+	if len(granted) == 0 {
+		// Either nothing was asked for, or everything asked for belonged to somebody
+		// else's vocabulary. Both get the default the MCP surface uses.
+		granted = []string{OauthScopeRead, OauthScopeWrite}
 	}
-	scopes, err := normaliseOauthScopes(requested, false)
+	scopes, err := normaliseOauthScopes(granted, false)
 	if err != nil {
 		return DynamicClientRegistration{}, err
 	}

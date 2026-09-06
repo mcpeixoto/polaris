@@ -32,6 +32,11 @@ type Config struct {
 	//
 	// Every entry is echoed back with Access-Control-Allow-Credentials, so an origin listed
 	// here can act as the user with their own cookies. It is a list of origins you control.
+	//
+	// It does not govern the whole API. The MCP transport and the OAuth endpoints an MCP
+	// client uses are bearer-only and answer any origin with a non-credentialed wildcard,
+	// which is what lets a browser-hosted client connect without being listed here. See
+	// isPublicCORSPath in httpapi/cors.go.
 	AllowedOrigins []string `envconfig:"POLARIS_ALLOWED_ORIGINS"`
 
 	DatabaseURL string `envconfig:"DATABASE_URL" required:"true"`

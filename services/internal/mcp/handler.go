@@ -6,9 +6,12 @@
 // is the same issue the web client would have created — same validation, same
 // change log, same notifications.
 //
-// Auth is the existing bearer path (API key or OAuth token). Interactive OAuth
-// 2.1 DCR is deferred: the settings page documents the API-key hop, which is
-// how Jules and any client that can set a header already connect to Linear.
+// Auth is the bearer path (API key or OAuth token), reached either by pasting a
+// key or by the interactive OAuth 2.1 flow: this package serves the discovery
+// documents, /oauth/register does dynamic client registration, and the consent
+// screen is the SPA. The whole of that surface answers a browser preflight with
+// a non-credentialed wildcard — see isPublicCORSPath in httpapi/cors.go, without
+// which a client like Claude cannot register at all.
 package mcp
 
 import (
@@ -185,12 +188,36 @@ func (s *Server) initialize(raw json.RawMessage) map[string]any {
 			"resources": map[string]any{},
 			"prompts":   map[string]any{},
 		},
-		"serverInfo": map[string]any{
-			"name":    "polaris",
-			"version": "1",
-			"title":   "Polaris",
-		},
+		"serverInfo":   s.serverInfo(),
 		"instructions": "Polaris issue tracker. Use list_issues / get_issue to read, create_issue and update_issue to write. Identifiers like ENG-123 work anywhere an id is accepted, and a team, state, label or person can be named instead of given as a UUID.",
+	}
+}
+
+// serverInfo is the Implementation object a client shows in its connector UI.
+//
+// name/version/title are the 2025-06-18 fields. description, websiteUrl and icons arrive
+// with 2025-11-25; they are sent unconditionally because a client that predates them
+// ignores members it does not know, and the alternative — withholding an icon until the
+// negotiated revision is new enough — leaves every current client showing its own generic
+// placeholder, which is what Polaris looked like before this.
+//
+// The icons are the marks the web client already serves from the same origin, so there is
+// one set of artwork rather than a second that drifts. They are absolute by requirement:
+// the client fetching them is not the browser that loaded the site and has no base URL to
+// resolve against.
+func (s *Server) serverInfo() map[string]any {
+	base := strings.TrimRight(s.PublicURL, "/")
+	return map[string]any{
+		"name":        "polaris",
+		"version":     "1",
+		"title":       "Polaris",
+		"description": "Issues, cycles, projects and documents in a Polaris workspace.",
+		"websiteUrl":  base,
+		"icons": []map[string]any{
+			{"src": base + "/icon.svg", "mimeType": "image/svg+xml", "sizes": []string{"any"}},
+			{"src": base + "/icon-512.png", "mimeType": "image/png", "sizes": []string{"512x512"}},
+			{"src": base + "/icon-192.png", "mimeType": "image/png", "sizes": []string{"192x192"}},
+		},
 	}
 }
 
@@ -232,7 +259,11 @@ func WellKnownProtectedResource(publicURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		base := strings.TrimRight(publicURL, "/")
 		writeJSON(w, http.StatusOK, map[string]any{
-			"resource":                 base + "/mcp",
+			"resource": base + "/mcp",
+			// RFC 9728's human-readable name. Some clients label the consent step with it
+			// rather than with the host, and "polaris.peixotolabs.com" is a worse label
+			// than "Polaris" for the person deciding whether to approve.
+			"resource_name":            "Polaris",
 			"authorization_servers":    []string{base},
 			"bearer_methods_supported": []string{"header"},
 			"scopes_supported":         []string{"read", "write"},
@@ -245,15 +276,19 @@ func WellKnownAuthorizationServer(publicURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		base := strings.TrimRight(publicURL, "/")
 		writeJSON(w, http.StatusOK, map[string]any{
-			"issuer":                                base,
-			"authorization_endpoint":                base + "/oauth/authorize",
-			"token_endpoint":                        base + "/oauth/token",
-			"revocation_endpoint":                   base + "/oauth/revoke",
-			"registration_endpoint":                 base + "/oauth/register",
-			"response_types_supported":              []string{"code"},
-			"grant_types_supported":                 []string{"authorization_code", "refresh_token"},
-			"code_challenge_methods_supported":      []string{"S256", "plain"},
-			"token_endpoint_auth_methods_supported": []string{"client_secret_post", "client_secret_basic", "none"},
+			"issuer":                           base,
+			"authorization_endpoint":           base + "/oauth/authorize",
+			"token_endpoint":                   base + "/oauth/token",
+			"revocation_endpoint":              base + "/oauth/revoke",
+			"registration_endpoint":            base + "/oauth/register",
+			"response_types_supported":         []string{"code"},
+			"grant_types_supported":            []string{"authorization_code", "refresh_token"},
+			"code_challenge_methods_supported": []string{"S256", "plain"},
+			// none first: it is what dynamic registration issues, and a client that takes
+			// the head of this list should land on the method it will actually be given.
+			// The secret-based two stay because they are true of the token endpoint —
+			// hand-registered confidential applications do authenticate with a secret.
+			"token_endpoint_auth_methods_supported": []string{"none", "client_secret_post", "client_secret_basic"},
 			"scopes_supported":                      []string{"read", "write"},
 		})
 	}

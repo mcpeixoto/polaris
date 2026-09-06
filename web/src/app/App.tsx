@@ -9,7 +9,7 @@
 import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
 
-import { Button, EmptyState, SkeletonRows } from '~/components';
+import { Button, EmptyState } from '~/components';
 import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useViewerRole } from '~/hooks/useViewer';
 import { onDeepLink } from '~/platform/runtime';
@@ -36,6 +36,7 @@ import { useQuery } from './context';
 import { AppShell } from './AppShell';
 import { Boot, rememberWorkspace } from './Boot';
 import { ErrorBoundary } from './ErrorBoundary';
+import { RouteFallback, fallbackVariantFor } from './RouteFallback';
 import { KeymapProvider } from './keymap';
 
 /*
@@ -399,7 +400,7 @@ function SignedInShell() {
         crash card with a Reload rather than as a permanently blank pane.
       */}
       <ErrorBoundary resetKey={pathname} action={<GoHome />}>
-        <Suspense fallback={<SkeletonRows count={8} />}>
+        <Suspense fallback={<RouteFallback variant={fallbackVariantFor(pathname)} />}>
           <Routes>
             <Route path="/" element={<HomeRedirect />} />
             <Route path="/my-issues" element={<MyIssues />} />
