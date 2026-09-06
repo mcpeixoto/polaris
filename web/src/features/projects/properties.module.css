@@ -1,58 +1,101 @@
 .panel {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-}
-
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 /*
- * A property's name, in the detail rail's treatment.
- *
- * This is the project sidebar's answer to `IssueDetail`'s `.propertyLabel`, and it used to
- * be an uppercase 11px semibold caption instead — which made the same six words ("Status",
- * "Priority", "Labels") look like section furniture here and like field labels one screen
- * over. The rail is the reference implementation; this now matches it.
+ * One property per row: the name in a fixed column at the left, the value at the right.
+ * 28px is the row's floor — a ghost trigger's own height — and a value that needs more
+ * (a run of label chips, a date with its granularity) grows the row rather than the grid.
  */
-.sectionTitle {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-normal);
-  color: var(--text-tertiary);
-  line-height: var(--line-height-none);
+.row {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-md);
 }
 
-/* Bordered, because it stands in a column beside a native select and one group gets one
-   affordance. --control-height-lg is the ladder's rung for a form field on its own line,
-   which is what each of these is. */
-.propertyButton {
+.label {
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-tight);
+}
+
+/*
+ * The value as a ghost trigger: no border, the value's own glyph and its name at medium
+ * weight, the hover wash the only sign that it opens something. Bordered controls in a
+ * rail of nine rows read as a form; the rail is a list of facts you can change.
+ */
+.trigger {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  width: fit-content;
-  min-height: var(--control-height-lg);
+  justify-self: start;
+  max-width: 100%;
+  min-height: var(--control-height-md);
+  margin-inline-start: calc(-1 * var(--space-2));
   padding-inline: var(--space-2);
-  border: 1px solid var(--border-subtle);
+  border: 0;
   border-radius: var(--radius-md);
-  background: var(--bg-primary);
+  background: transparent;
   color: var(--text-primary);
   font: inherit;
   font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  text-align: start;
   cursor: pointer;
   transition: background-color var(--duration-fast) var(--ease-out);
 }
 
-.propertyButton:hover {
+.trigger:hover {
   background: var(--bg-hover);
 }
 
-.propertyButton:focus-visible {
+.trigger:focus-visible {
   outline: var(--focus-ring-width) solid var(--border-focus);
   outline-offset: var(--focus-ring-offset);
+}
+
+/* A value that is not a trigger — members, the schedule selects — in the same column. */
+.value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+}
+
+.glyph {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-secondary);
+}
+
+/* What setting the property would do, in the rail's grey: "Add lead", not "None". */
+.unset {
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-normal);
+}
+
+.avatars {
+  display: inline-flex;
+  align-items: center;
+}
+
+.avatars > * + * {
+  margin-inline-start: calc(-1 * var(--space-1));
+}
+
+.more {
+  margin-inline-start: var(--space-1);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
 }
 
 .labelRun {
@@ -61,28 +104,67 @@
   gap: var(--space-1);
 }
 
-.customField {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  margin-top: var(--space-2);
-}
-
-.customLabel {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-normal);
-  color: var(--text-tertiary);
-  line-height: var(--line-height-none);
-}
-
 /* The day and its granularity are one property, so they share a line and wrap together
    rather than reading as two unrelated controls stacked in the rail. */
 .dateRow {
-  display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
 }
 
 .dateInput {
-  flex: 1 1 9rem;
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+/* A titled group under the rows: the milestones. 24px above, as the issue rail spaces
+   "Labels" and "Project". */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.groupTitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+}
+
+.milestones {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.milestone {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-md);
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+}
+
+.milestoneName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The one the project is on now reads in the primary colour; the rest have either been
+   passed or are still to come. */
+.milestoneCurrent .milestoneName {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.milestonePercent {
+  flex: none;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
 }

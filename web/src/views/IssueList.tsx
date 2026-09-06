@@ -47,10 +47,10 @@ import { useEngine } from '~/app/context';
 import { useActions, useKeyContext, useKeymap } from '~/app/keymap';
 import {
   Avatar,
-  Badge,
   Button,
   Checkbox,
   EmptyState,
+  IconButton,
   Menu,
   PriorityIcon,
   StateIcon,
@@ -58,6 +58,7 @@ import {
 } from '~/components';
 import { copyText, gitBranchNameFor } from '~/features/github/copy';
 import { issueIdsForAdhocList } from '~/features/issue/adhocList';
+import { buildCreateURL } from '~/features/issue/create-url';
 import {
   archiveIssues,
   deleteIssues,
@@ -75,7 +76,12 @@ import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { liveIssueCountForTeam } from '~/features/team/issueLimit';
 import { TeamIssueLimitBanner } from '~/features/team/TeamIssueLimitBanner';
 import { issueIdsForLabelView, labelViewTitle, userViewPath } from '~/features/labels/labelView';
-import { setViewSubscription, updateView } from '~/features/view/mutations';
+import {
+  isFavorite,
+  setViewSubscription,
+  toggleFavorite,
+  updateView,
+} from '~/features/view/mutations';
 import { SaveViewModal } from '~/features/view/SaveViewModal';
 import {
   downloadCsv,
@@ -125,10 +131,20 @@ import {
   isFilterGroup,
   parseDisplayParams,
   toFilterParam,
+  type DisplayGroupBy,
   type DisplayProperty,
   type FilterNode,
 } from '~/filter';
-import type { DateOnly, DueDateSource, Issue, StateCategory, Store, UUID } from '~/store';
+import {
+  subIssueProgress,
+  type DateOnly,
+  type DueDateSource,
+  type FavoriteKind,
+  type Issue,
+  type StateCategory,
+  type Store,
+  type UUID,
+} from '~/store';
 import styles from './IssueList.module.css';
 
 /**
@@ -147,6 +163,13 @@ interface HeaderRow {
   readonly name: string;
   readonly count: number;
   readonly stateId: UUID | undefined;
+  /**
+   * The other two dimensions a group can be of that an issue can be filed straight into.
+   * Carried so the heading's "+" can seed the composer with the group it sits over; see
+   * `createUrlForGroup`.
+   */
+  readonly priority: number | undefined;
+  readonly userId: UUID | undefined;
   readonly collapsed: boolean;
 }
 
@@ -273,7 +296,13 @@ interface ListScope {
    */
   readonly heading: string | null;
   /** Set only for a team's list, which is the only one with team settings to link to. */
-  readonly team: { readonly id: UUID; readonly key: string; readonly name: string } | null;
+  readonly team: {
+    readonly id: UUID;
+    readonly key: string;
+    readonly name: string;
+    /** The team's emoji, when it has one; the breadcrumb falls back to the key. */
+    readonly icon: string | undefined;
+  } | null;
   /**
    * The zone the view reckons relative dates in.
    *
@@ -297,15 +326,54 @@ const TRIAGE_SOURCE_FILTER: FilterNode = { field: 'stateCategory', op: 'eq', val
  * styling — and it is only a guess: every rendered row is measured, so being wrong costs one
  * frame of slightly mis-sized scrollbar and nothing else.
  */
-const ESTIMATED_ROW_PX = 32;
+const ESTIMATED_ROW_PX = 44;
 /*
- * 28 and not 36. A group heading is `.group`, which is --control-height-md and has no padding
- * of its own, so the old guess over-reported every unmeasured heading by eight pixels — in a
- * team grouped by status that is the scroll range being wrong by a heading's worth per group
- * until the user scrolls far enough for each one to be measured. Keep this in step with
- * `.group` in IssueList.module.css.
+ * A group heading is `.group`, which is one --control-height-md control plus --space-2 of
+ * air and no margin of its own. A guess that disagrees with the stylesheet is the scroll range
+ * being wrong by the difference per group until the user scrolls far enough for each one to
+ * be measured. Keep this in step with `.group` in IssueList.module.css.
  */
-const ESTIMATED_HEADER_PX = 28;
+const ESTIMATED_HEADER_PX = 36;
+
+/*
+ * Active and Backlog, as the toolbar's pills say them.
+ *
+ * The same two filters `app/teamIssuePaths.ts` sends `G A` and `G B` to, spelled here rather
+ * than imported because that module owns routes and this one owns a view — and a pill is
+ * pressed by comparing the URL's filter to these, so the encoded form is what matters. Active
+ * is unstarted or started: not sitting in the backlog, not done, not canceled.
+ */
+const ACTIVE_FILTER: FilterNode = {
+  field: 'stateCategory',
+  op: 'in',
+  values: ['unstarted', 'started'],
+};
+const BACKLOG_FILTER: FilterNode = { field: 'stateCategory', op: 'eq', values: ['backlog'] };
+const ACTIVE_PARAM = toFilterParam(ACTIVE_FILTER);
+const BACKLOG_PARAM = toFilterParam(BACKLOG_FILTER);
+
+type ScopeKey = 'active' | 'backlog' | 'all';
+
+/** The toolbar's pills, in the order Linear draws them. */
+const SCOPES: readonly { key: ScopeKey; label: string; filter: FilterNode }[] = [
+  { key: 'active', label: 'Active', filter: ACTIVE_FILTER },
+  { key: 'backlog', label: 'Backlog', filter: BACKLOG_FILTER },
+  { key: 'all', label: 'All issues', filter: EMPTY_FILTER },
+];
+
+/**
+ * Which pill the URL's filter is, or null for a filter that is none of the three.
+ *
+ * By encoded form rather than by structure, because that is the one comparison the grammar
+ * already guarantees: two filters that mean the same thing serialise the same way.
+ */
+function scopeOfFilter(filter: FilterNode): ScopeKey | null {
+  const param = toFilterParam(filter);
+  if (param === '') return 'all';
+  if (param === ACTIVE_PARAM) return 'active';
+  if (param === BACKLOG_PARAM) return 'backlog';
+  return null;
+}
 
 /** Rows kept mounted beyond the viewport, so a held-down `J` never outruns the renderer. */
 const OVERSCAN = 12;
@@ -684,8 +752,32 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
   const display = useMenuTrigger();
   const subscribe = useMenuTrigger();
   const share = useMenuTrigger();
+  const more = useMenuTrigger();
   const duplicate = useMenuTrigger();
   const snooze = useMenuTrigger();
+
+  /**
+   * What the header's star stands for: the team, the saved view or the label this list is
+   * of — the three sources the sidebar's favourites can hold. A person's own list, a project's
+   * issues and an ad-hoc set have no row a favourite could point at, so they get no star
+   * rather than a star that does nothing.
+   */
+  const favouriteTarget: { readonly kind: FavoriteKind; readonly id: UUID } | null =
+    source.kind === 'team' && scope.team !== null
+      ? { kind: 'team', id: scope.team.id }
+      : source.kind === 'view'
+        ? { kind: 'view', id: source.viewId }
+        : source.kind === 'label'
+          ? { kind: 'label', id: source.labelId }
+          : null;
+  const starred = useLiveQuery(
+    (store) =>
+      favouriteTarget !== null &&
+      viewerId !== null &&
+      isFavorite(store, viewerId, favouriteTarget.kind, favouriteTarget.id),
+    ['favorite'],
+    [favouriteTarget?.kind ?? '', favouriteTarget?.id ?? '', viewerId ?? ''],
+  );
   /**
    * Where a right-click landed, and the row it landed on.
    *
@@ -1626,6 +1718,20 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
   );
   const onToggleGroup = useCallback((key: string) => toggleGroup(key), [toggleGroup]);
 
+  /*
+   * The "+" on a group heading, through the creation URL rather than through `issue.create`
+   * with a payload — the same route the board's column "+" takes, and for the same reason:
+   * `ActionContext` carries dispatch facts and nothing else, and the composer already resolves
+   * a seed from exactly these parameters, so a heading's "+" and a pasted
+   * `/team/ENG/new?status=Todo` are one code path.
+   */
+  const teamKeyForCreate = scope.team?.key;
+  const groupBy = view.display.groupBy;
+  const onCreateInGroup = useCallback(
+    (row: HeaderRow) => void navigate(createUrlForGroup(row, groupBy, teamKeyForCreate)),
+    [navigate, groupBy, teamKeyForCreate],
+  );
+
   /**
    * Right-click on a row or a card.
    *
@@ -1700,6 +1806,7 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
   // Telling somebody their team is empty when they have just typed four clauses is the kind
   // of wrong that makes people distrust the filter rather than fix it.
   const filtered = !isEmptyFilter(view.filter);
+  const scopeKey = scopeOfFilter(view.filter);
   // Only on a saved view, and only once its row is in the replica: a view still arriving has
   // no saved filter to have departed from, and saying so would put a strip on screen that
   // vanishes a frame later.
@@ -1735,63 +1842,126 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
-        <h1 className={styles.title}>{scope.heading}</h1>
+        {/*
+         * The breadcrumb. The heading is the team's name alone — the screen is *of* the
+         * team, and whoever asks for the heading gets the name — and the leaf beside it says
+         * which of the team's screens this is. A source that is not a team has no path above
+         * it, so its heading stands by itself.
+         */}
+        <nav className={styles.crumbs} aria-label="Breadcrumb">
+          {team === null ? null : (
+            <span
+              className={[styles.teamMark, team.icon === undefined ? null : styles.teamEmoji]
+                .filter(Boolean)
+                .join(' ')}
+              aria-hidden="true"
+            >
+              {team.icon ?? team.key}
+            </span>
+          )}
+          <h1 className={styles.title}>{scope.heading}</h1>
+          {source.kind === 'team' ? (
+            <>
+              <span className={styles.crumbSep} aria-hidden="true">
+                ›
+              </span>
+              <span className={styles.crumbLeaf}>Issues</span>
+            </>
+          ) : null}
+        </nav>
+        {favouriteTarget === null || viewerId === null ? null : (
+          <IconButton
+            size="sm"
+            aria-label="Favourite"
+            aria-pressed={starred}
+            icon={<StarGlyph filled={starred} />}
+            onClick={() => {
+              toggleFavorite(engine, viewerId, favouriteTarget.kind, favouriteTarget.id).catch(
+                report,
+              );
+            }}
+          />
+        )}
         {/* The view's own count, not the row count: grouping by label puts an issue in a
             group per label it carries, on purpose, so summing the groups would report more
             issues than exist. */}
-        <Badge>{view.count === 1 ? '1 issue' : `${view.count} issues`}</Badge>
-        <div className={styles.spacer} />
-        <Tooltip label="Insights" keys="mod+shift+i">
-          <Button
-            variant="ghost"
+        <span className={styles.count}>
+          {view.count === 1 ? '1 issue' : `${view.count} issues`}
+        </span>
+        <div className={styles.actions}>
+          <IconButton
+            aria-label="Insights"
+            keys="mod+shift+i"
             aria-pressed={insightsOpen}
+            icon={<InsightsGlyph />}
             onClick={() => setInsights(!insightsOpen)}
-          >
-            Insights
+          />
+          {viewId !== null && viewer !== null && viewer.role !== 'guest' ? (
+            <IconButton
+              {...subscribe.props}
+              aria-label={watch !== null ? 'Subscribed' : 'Subscribe'}
+              aria-pressed={watch !== null}
+              icon={<BellGlyph />}
+            />
+          ) : null}
+          {viewId !== null && viewer !== null && viewer.role !== 'guest' ? (
+            <IconButton {...share.props} aria-label="Share" icon={<ShareGlyph />} />
+          ) : null}
+          {viewId === null && viewer !== null && viewer.role !== 'guest' && filtered ? (
+            <Tooltip label="Save as view" keys="alt+v">
+              <Button size="sm" onClick={() => setSaveOpen(true)}>
+                Save view
+              </Button>
+            </Tooltip>
+          ) : null}
+          {/* The team's other screens and the export, behind one "…". They were a row of
+              links across the header; the sidebar's team tree is where those live now, and
+              this keeps them one click away from the list without spending the header on
+              them. Only a team has screens to offer — a person's list spans every team they
+              can reach, so there is no single one this could point at. */}
+          <IconButton {...more.props} aria-label="More" icon={<MoreGlyph />} />
+        </div>
+      </header>
+
+      {/*
+       * The toolbar: which issues, the filter, and how they are drawn.
+       *
+       * The three pills are presets over the same filter grammar the bar edits — pressing
+       * Backlog writes the URL the filter bar would have written, which is what lets the
+       * pressed one be read straight back from the URL, and what makes a shared link say the
+       * same thing whichever way it was built. Team lists only: Active and Backlog are facts
+       * about a team's workflow, and a person's list across teams has no single one.
+       */}
+      <div className={styles.viewbar}>
+        {source.kind === 'team' ? (
+          <div className={styles.scope} role="group" aria-label="Which issues">
+            {SCOPES.map((preset) => (
+              <button
+                key={preset.key}
+                type="button"
+                className={styles.scopePill}
+                aria-pressed={scopeKey === preset.key}
+                onClick={() => view.setFilter(preset.filter)}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <FilterBar
+          className={styles.filters}
+          filter={view.filter}
+          onChange={view.setFilter}
+          teamId={team?.id}
+          error={view.error}
+          timezone={scope.timezone}
+        />
+        <Tooltip label="Display options" keys="shift+v">
+          <Button {...display.props} size="sm" icon={<SlidersGlyph />}>
+            Display
           </Button>
         </Tooltip>
-        <Button {...display.props} variant="ghost">
-          Display
-        </Button>
-        {viewId !== null && viewer !== null && viewer.role !== 'guest' ? (
-          <Button {...subscribe.props} variant="ghost" aria-pressed={watch !== null}>
-            {watch !== null ? 'Subscribed' : 'Subscribe'}
-          </Button>
-        ) : null}
-        {viewId !== null && viewer !== null && viewer.role !== 'guest' ? (
-          <Button {...share.props} variant="ghost">
-            Share
-          </Button>
-        ) : null}
-        {viewId === null && viewer !== null && viewer.role !== 'guest' && filtered ? (
-          <Tooltip label="Save as view" keys="alt+v">
-            <Button variant="ghost" onClick={() => setSaveOpen(true)}>
-              Save view
-            </Button>
-          </Tooltip>
-        ) : null}
-        {/* Only a team has settings to link to. A person's list spans every team they can
-            reach, so there is no single one this could point at — and guessing would send
-            them to a team they happened to have an issue in. */}
-        {team === null ? null : (
-          // A link and not a button: it goes somewhere, so it should be announced as a link,
-          // open in a new tab on a middle click, and be copyable from a context menu.
-          <>
-            <Link className={styles.link} to={`/team/${team.key}/projects`}>
-              Projects
-            </Link>
-            <Link className={styles.link} to={`/team/${team.key}/cycles`}>
-              Cycles
-            </Link>
-            <Link className={styles.link} to={`/team/${team.key}/triage`}>
-              Triage
-            </Link>
-            <Link className={styles.link} to={`/team/${team.key}/settings`}>
-              Team settings
-            </Link>
-          </>
-        )}
-      </header>
+      </div>
 
       {team === null ? null : <TeamIssueLimitBanner team={team} liveCount={liveCount} />}
 
@@ -1804,12 +1974,50 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
         </div>
       )}
 
-      <FilterBar
-        filter={view.filter}
-        onChange={view.setFilter}
-        teamId={team?.id}
-        error={view.error}
-        timezone={scope.timezone}
+      <Menu
+        open={more.open}
+        onClose={more.hide}
+        trigger={more.ref}
+        label="More"
+        items={[
+          ...(team === null
+            ? []
+            : [
+                {
+                  id: 'projects',
+                  label: 'Projects',
+                  onSelect: () => void navigate(`/team/${team.key}/projects`),
+                },
+                {
+                  id: 'cycles',
+                  label: 'Cycles',
+                  onSelect: () => void navigate(`/team/${team.key}/cycles`),
+                },
+                {
+                  id: 'triage',
+                  label: 'Triage',
+                  onSelect: () => void navigate(`/team/${team.key}/triage`),
+                },
+                {
+                  id: 'settings',
+                  label: 'Team settings',
+                  onSelect: () => void navigate(`/team/${team.key}/settings`),
+                },
+                { kind: 'separator' as const },
+              ]),
+          {
+            id: 'copyViewLink',
+            label: 'Copy view URL',
+            onSelect: () => commands.current.copyViewLink(),
+          },
+          {
+            id: 'export',
+            label: 'Export as CSV',
+            // Guests cannot export; the registered command says the same.
+            disabled: viewer === null || viewer.role === 'guest',
+            onSelect: () => commands.current.exportCsv(),
+          },
+        ]}
       />
 
       {/*
@@ -2277,7 +2485,7 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
           <div className={styles.listPane}>
             {pinned === null ? null : (
               <div className={styles.pinned}>
-                <GroupHeader row={pinned} onToggle={onToggleGroup} />
+                <GroupHeader row={pinned} onToggle={onToggleGroup} onCreate={onCreateInGroup} />
               </div>
             )}
             <div
@@ -2313,7 +2521,11 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
                       style={{ transform: `translateY(${virtualRow.start}px)` }}
                     >
                       {row.kind === 'header' ? (
-                        <GroupHeader row={row} onToggle={onToggleGroup} />
+                        <GroupHeader
+                          row={row}
+                          onToggle={onToggleGroup}
+                          onCreate={onCreateInGroup}
+                        />
                       ) : (
                         <IssueRow
                           id={row.id}
@@ -2490,7 +2702,16 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
  * to press it. So the icon is decorative, the name and the count are announced, and
  * `aria-expanded` says which way the group is folded.
  */
-function GroupHeader({ row, onToggle }: { row: HeaderRow; onToggle: (key: string) => void }) {
+function GroupHeader({
+  row,
+  onToggle,
+  onCreate,
+}: {
+  row: HeaderRow;
+  onToggle: (key: string) => void;
+  /** Files a new issue into this group. Absent where the group is not something to file into. */
+  onCreate?: ((row: HeaderRow) => void) | undefined;
+}) {
   // Resolved here rather than carried on the row, because only one of the seven groupings has
   // a status to draw and the row type should not pretend otherwise. Cheap: the virtualiser
   // keeps a handful of headers mounted at a time, and the subscription wakes only for a
@@ -2501,28 +2722,65 @@ function GroupHeader({ row, onToggle }: { row: HeaderRow; onToggle: (key: string
     [row.stateId ?? ''],
   );
 
+  // Two controls in one bar, so the bar is a `div` and the fold is the button inside it: a
+  // button cannot hold another button, and the "+" is a command of its own.
   return (
-    <button
-      type="button"
-      className={styles.group}
-      aria-expanded={!row.collapsed}
-      onClick={() => onToggle(row.groupKey)}
-    >
-      <span
-        className={[styles.groupChevron, row.collapsed ? styles.groupChevronShut : null]
-          .filter(Boolean)
-          .join(' ')}
-        aria-hidden="true"
+    <div className={styles.group}>
+      <button
+        type="button"
+        className={styles.groupToggle}
+        aria-expanded={!row.collapsed}
+        onClick={() => onToggle(row.groupKey)}
       >
-        <ChevronGlyph />
-      </span>
-      {state !== null && <StateIcon category={state.category} color={state.color} decorative />}
-      <span className={styles.groupName}>{row.name}</span>
-      {/* The count is read out. It was inside the `aria-hidden` wrapper, which meant the one
-          fact a heading carries that its rows do not was the one nobody could hear. */}
-      <span className={styles.groupCount}>{row.count}</span>
-    </button>
+        <span
+          className={[styles.groupChevron, row.collapsed ? styles.groupChevronShut : null]
+            .filter(Boolean)
+            .join(' ')}
+          aria-hidden="true"
+        >
+          <ChevronGlyph />
+        </span>
+        {state !== null && <StateIcon category={state.category} color={state.color} decorative />}
+        <span className={styles.groupName}>{row.name}</span>
+        {/* The count is read out. It was inside the `aria-hidden` wrapper, which meant the one
+            fact a heading carries that its rows do not was the one nobody could hear. */}
+        <span className={styles.groupCount}>{row.count}</span>
+      </button>
+      {onCreate === undefined ? null : (
+        <IconButton
+          size="sm"
+          aria-label={`Create issue in ${row.name}`}
+          icon={<PlusGlyph />}
+          onClick={() => onCreate(row)}
+        />
+      )}
+    </div>
   );
+}
+
+/**
+ * The creation URL that files an issue into a group.
+ *
+ * Only the three groupings whose group *is* a field on the issue seed anything; under any
+ * other grouping the "+" files into the list's team and leaves the group's dimension alone,
+ * which is honest — an issue created under the "Bug" label group would have to guess what to
+ * do about the other labels it might carry. The same rule the board's column "+" applies.
+ */
+function createUrlForGroup(
+  row: HeaderRow,
+  groupBy: DisplayGroupBy,
+  teamKey: string | undefined,
+): string {
+  if (groupBy === 'state' && row.stateId !== undefined) {
+    return buildCreateURL({ teamKey, statusName: row.name });
+  }
+  if (groupBy === 'priority' && row.priority !== undefined) {
+    return buildCreateURL({ teamKey, priority: row.priority });
+  }
+  if (groupBy === 'assignee' && row.userId !== undefined) {
+    return buildCreateURL({ teamKey, assignee: row.userId });
+  }
+  return buildCreateURL({ teamKey });
 }
 
 /**
@@ -2543,7 +2801,7 @@ function GroupHeader({ row, onToggle }: { row: HeaderRow; onToggle: (key: string
 function SelectionBar({ open, children }: { open: boolean; children: ReactNode }) {
   if (!open) return null;
   return (
-    <div className={styles.toolbar} role="group" aria-label="Issue actions">
+    <div className={styles.selectionBar} role="group" aria-label="Issue actions">
       {children}
     </div>
   );
@@ -2556,6 +2814,192 @@ function ChevronGlyph() {
         d="M4 6.5 8 10.5l4-4"
         stroke="currentColor"
         strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/*
+ * The header's and the pills' glyphs. Sixteen-pixel line icons at a 1.5px stroke in the
+ * header, fourteen inside a pill — the two sizes the reference draws, and the reason these
+ * are not one component with a `size` prop: a glyph that scales its stroke with its box is
+ * a glyph that is too heavy at one size or too faint at the other.
+ */
+
+function StarGlyph({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width="16"
+      height="16"
+      fill={filled ? 'currentColor' : 'none'}
+      aria-hidden="true"
+    >
+      <path
+        d="m8 2.2 1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6L8 2.2Z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function InsightsGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
+      <path
+        d="M3 13V8M8 13V3M13 13V6"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function BellGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
+      <path
+        d="M4 11V7.5a4 4 0 1 1 8 0V11l1 1.5H3L4 11ZM6.5 13.5a1.5 1.5 0 0 0 3 0"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ShareGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
+      <path
+        d="M8 2.5v7M5.5 5 8 2.5 10.5 5M3.5 8.5v4a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function MoreGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+      <circle cx="3.5" cy="8" r="1.25" />
+      <circle cx="8" cy="8" r="1.25" />
+      <circle cx="12.5" cy="8" r="1.25" />
+    </svg>
+  );
+}
+
+function SlidersGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+      <path
+        d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <circle
+        cx="10"
+        cy="4.5"
+        r="1.5"
+        fill="var(--bg-primary)"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <circle
+        cx="6"
+        cy="8"
+        r="1.5"
+        fill="var(--bg-primary)"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <circle
+        cx="11"
+        cy="11.5"
+        r="1.5"
+        fill="var(--bg-primary)"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
+
+function PlusGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+      <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CalendarGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+      <rect
+        x="2.5"
+        y="3.5"
+        width="11"
+        height="10"
+        rx="1.5"
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
+      <path
+        d="M2.5 6.5h11M5.5 2v3M10.5 2v3"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function CycleGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+      <path d="M13 8A5 5 0 1 1 8 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path
+        d="M8 1.5 10 3 8 4.5"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ProjectGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+      <path
+        d="M8 2.5 13.5 5.5v5L8 13.5 2.5 10.5v-5L8 2.5Z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function SubIssueGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+      <path
+        d="M4 3v6.5a1.5 1.5 0 0 0 1.5 1.5H12M9.5 8.5 12 11l-2.5 2.5"
+        stroke="currentColor"
+        strokeWidth="1.4"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -2651,8 +3095,15 @@ const IssueRow = memo(function IssueRow({
           found.projectId === undefined
             ? null
             : (store.projects.get(found.projectId)?.name ?? null),
+        projectIcon:
+          found.projectId === undefined
+            ? null
+            : (store.projects.get(found.projectId)?.icon ?? null),
         cycleName:
           found.cycleId === undefined ? null : (store.cycles.get(found.cycleId)?.name ?? null),
+        // Live children only, on the same terms the detail page counts them: a canceled or
+        // archived child is not work this issue is still waiting on.
+        subIssues: subIssueProgress(store, id).total,
         createdAt: whenDay(found.createdAt.slice(0, 10) as DateOnly, zone),
         updatedAt: whenDay(found.updatedAt.slice(0, 10) as DateOnly, zone),
         priority: found.priority,
@@ -2705,28 +3156,21 @@ const IssueRow = memo(function IssueRow({
       }}
     >
       {/*
-       * The leading slot holds two things in one place: the status ring, and the checkbox
+       * The leading slot holds two things in one place: the priority glyph, and the checkbox
        * that takes its place on hover.
        *
        * `02-issues.md` calls for "the checkbox that appears on hover near the left edge",
        * and without it the only pointer route into a selection was cmd-click — a gesture
        * nothing on screen mentions. The two are stacked rather than laid side by side so
-       * the row's leading edge does not shift by twenty pixels as the pointer crosses it,
-       * which in a dense list reads as the whole column jumping.
+       * the row's leading edge does not shift as the pointer crosses it, which in a dense
+       * list reads as the whole column jumping. The slot keeps its width with the priority
+       * property turned off, for the same reason.
        *
        * The checkbox stops the click reaching the row: without that, ticking it would also
        * open the issue, which is the row's default gesture.
        */}
       <span className={styles.lead}>
-        {/* The status is not one of the optional properties, and neither is the identifier. A
-            row that dropped either would stop being readable the moment somebody grouped by
-            assignee, and a row whose contents depend on the grouping is one people cannot
-            learn to read — the same call the board card makes about its own StateIcon. */}
-        <StateIcon
-          category={issue.stateCategory}
-          color={issue.stateColor}
-          label={issue.stateName}
-        />
+        {properties.has('priority') ? <PriorityIcon priority={issue.priority} decorative /> : null}
         <span
           className={styles.check}
           onClick={(event) => event.stopPropagation()}
@@ -2749,23 +3193,40 @@ const IssueRow = memo(function IssueRow({
         // fact worth having.
         <span className={styles.parentCrumb}>{issue.parentIdentifier}</span>
       )}
+      {/* The status is not one of the optional properties, and neither is the identifier. A
+          row that dropped either would stop being readable the moment somebody grouped by
+          assignee, and a row whose contents depend on the grouping is one people cannot
+          learn to read — the same call the board card makes about its own StateIcon. */}
+      <StateIcon category={issue.stateCategory} color={issue.stateColor} label={issue.stateName} />
       <span className={styles.rowTitle}>{issue.title}</span>
       {properties.has('labels') ? <LabelList issueId={id} /> : null}
       <span className={styles.meta}>
         {properties.has('project') && issue.projectName !== null ? (
-          <span className={styles.property}>{issue.projectName}</span>
+          <span className={styles.pill}>
+            {issue.projectIcon === null ? (
+              <span className={styles.pillGlyph}>
+                <ProjectGlyph />
+              </span>
+            ) : (
+              <span className={styles.pillEmoji} aria-hidden="true">
+                {issue.projectIcon}
+              </span>
+            )}
+            <span className={styles.pillText}>{issue.projectName}</span>
+          </span>
         ) : null}
         {properties.has('cycle') && issue.cycleName !== null ? (
-          <span className={styles.property}>{issue.cycleName}</span>
-        ) : null}
-        {properties.has('createdAt') ? (
-          <span className={styles.property}>{issue.createdAt}</span>
-        ) : null}
-        {properties.has('updatedAt') ? (
-          <span className={styles.property}>{issue.updatedAt}</span>
+          <span className={styles.pill}>
+            <span className={styles.pillGlyph}>
+              <CycleGlyph />
+            </span>
+            <span className={styles.pillText}>{issue.cycleName}</span>
+          </span>
         ) : null}
         {properties.has('estimate') && issue.estimate !== null ? (
-          <span className={styles.estimate}>{issue.estimate}</span>
+          <span className={styles.pill}>
+            <span className={styles.pillText}>{issue.estimate}</span>
+          </span>
         ) : null}
         {/*
          * Overdue says the word, and says it to everybody.
@@ -2778,15 +3239,31 @@ const IssueRow = memo(function IssueRow({
          */}
         {properties.has('dueDate') && issue.dueDate !== null ? (
           <span
-            className={[styles.due, issue.overdue ? styles.overdue : null]
+            className={[styles.pill, issue.overdue ? styles.overdue : null]
               .filter(Boolean)
               .join(' ')}
           >
-            {issue.dueDate}
+            <span className={styles.pillGlyph}>
+              <CalendarGlyph />
+            </span>
+            <span className={styles.pillText}>{issue.dueDate}</span>
             {issue.overdue ? <span className={styles.srOnly}> overdue</span> : null}
           </span>
         ) : null}
-        {properties.has('priority') ? <PriorityIcon priority={issue.priority} decorative /> : null}
+        {/* Only where there are some: a "0" on every row would be a column of noise about a
+            structure most issues are not part of. */}
+        {issue.subIssues === 0 ? null : (
+          <span
+            className={styles.pill}
+            role="img"
+            aria-label={issue.subIssues === 1 ? '1 sub-issue' : `${issue.subIssues} sub-issues`}
+          >
+            <span className={styles.pillGlyph}>
+              <SubIssueGlyph />
+            </span>
+            <span className={styles.pillText}>{issue.subIssues}</span>
+          </span>
+        )}
         {!properties.has('assignee') ? null : issue.assigneeName === null ||
           issue.assigneeId === null ? (
           <span className={styles.unassigned} aria-label="Unassigned" role="img" />
@@ -2806,6 +3283,12 @@ const IssueRow = memo(function IssueRow({
             />
           </Link>
         )}
+        {properties.has('createdAt') ? (
+          <span className={styles.date}>{issue.createdAt}</span>
+        ) : null}
+        {properties.has('updatedAt') ? (
+          <span className={styles.date}>{issue.updatedAt}</span>
+        ) : null}
       </span>
     </div>
   );
@@ -2943,7 +3426,10 @@ function scopeOf(
     const team = store.teams.get(cycle.teamId);
     return {
       heading: heading ?? cycle.name,
-      team: team === undefined ? null : { id: team.id, key: team.key, name: team.name },
+      team:
+        team === undefined
+          ? null
+          : { id: team.id, key: team.key, name: team.name, icon: team.icon },
       timezone: team?.timezone ?? browserTimezone(),
     };
   }
@@ -2955,7 +3441,10 @@ function scopeOf(
     const team = label?.teamId === undefined ? undefined : store.teams.get(label.teamId);
     return {
       heading: heading ?? title,
-      team: team === undefined ? null : { id: team.id, key: team.key, name: team.name },
+      team:
+        team === undefined
+          ? null
+          : { id: team.id, key: team.key, name: team.name, icon: team.icon },
       timezone: team?.timezone ?? browserTimezone(),
     };
   }
@@ -2965,7 +3454,7 @@ function scopeOf(
     if (team === undefined) return { heading: null, team: null, timezone: browserTimezone() };
     return {
       heading: heading ?? `${team.name} triage`,
-      team: { id: team.id, key: team.key, name: team.name },
+      team: { id: team.id, key: team.key, name: team.name, icon: team.icon },
       timezone: team.timezone,
     };
   }
@@ -2998,7 +3487,7 @@ function scopeOf(
 
   return {
     heading: team.name,
-    team: { id: team.id, key: team.key, name: team.name },
+    team: { id: team.id, key: team.key, name: team.name, icon: team.icon },
     timezone: team.timezone,
   };
 }
@@ -3090,6 +3579,8 @@ function rowsOf(groups: readonly ViewGroup[], collapsed: ReadonlySet<string>): L
       name: group.label === '' ? 'All issues' : group.label,
       count: group.ids.length,
       stateId: group.stateId,
+      priority: group.priority,
+      userId: group.userId,
       collapsed: shut,
     });
     // A collapsed group keeps its heading and drops its rows. Not `display: none` on them:

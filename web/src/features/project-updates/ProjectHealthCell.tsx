@@ -11,7 +11,7 @@
 import type { ProjectUpdateHealth, Store, UUID } from '~/store';
 
 import { ProjectHealthBadge } from './ProjectHealthBadge';
-import { latestProjectUpdate } from './helpers';
+import { latestProjectUpdate, updateAge } from './helpers';
 import { PROJECT_UPDATE_STALENESS_LABEL, projectUpdateStaleness } from './staleness';
 import styles from './ProjectHealthCell.module.css';
 
@@ -23,7 +23,8 @@ interface ProjectHealthCellProps {
 
 export function ProjectHealthCell({ store, projectId, compact = false }: ProjectHealthCellProps) {
   const staleness = projectUpdateStaleness(store, projectId);
-  const health = latestProjectUpdate(store, projectId)?.health;
+  const latest = latestProjectUpdate(store, projectId);
+  const health = latest?.health;
 
   if (staleness === 'not_expected') {
     return <span className={styles.muted}>{PROJECT_UPDATE_STALENESS_LABEL.not_expected}</span>;
@@ -35,7 +36,15 @@ export function ProjectHealthCell({ store, projectId, compact = false }: Project
     return <span className={styles.muted}>No update</span>;
   }
 
-  const badge = <ProjectHealthBadge health={health as ProjectUpdateHealth} compact={compact} />;
+  // The age rides along in the list cell, where the row is the reader's only clue how
+  // current the word is; the header states the date beside the update itself.
+  const badge = (
+    <ProjectHealthBadge
+      health={health as ProjectUpdateHealth}
+      compact={compact}
+      since={compact && latest !== undefined ? updateAge(latest.createdAt) : undefined}
+    />
+  );
   if (staleness !== 'due_soon') return badge;
 
   const dueSoon = PROJECT_UPDATE_STALENESS_LABEL.due_soon;

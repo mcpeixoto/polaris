@@ -15,6 +15,7 @@
 import { Link } from 'react-router';
 
 import { CopyButton, SettingsPage, SettingsSection } from '~/components';
+import { SettingsRow } from '~/components/SettingsSection';
 
 import styles from './McpSettings.module.css';
 
@@ -30,11 +31,13 @@ export function McpSettings() {
         title="Connect a client"
         description="Polaris speaks Streamable HTTP MCP. Create a personal API key, then send it as an Authorization: Bearer header. The read-only URL never exposes write tools."
       >
-        <p className={styles.note}>
-          <Link className={styles.link} to="/settings/api-keys">
-            Create an API key
-          </Link>
-        </p>
+        <SettingsRow>
+          <p className={styles.note}>
+            <Link className={styles.link} to="/settings/api-keys">
+              Create an API key
+            </Link>
+          </p>
+        </SettingsRow>
       </SettingsSection>
 
       <SettingsSection title="Endpoints">
@@ -45,7 +48,6 @@ export function McpSettings() {
       <SettingsSection
         title="Claude Code"
         description="Then set the Authorization header to your API key in the client’s MCP config. OAuth sign-in from the client is not wired yet."
-        flush
       >
         <Endpoint label="Add the server" value={claude} copyLabel="Copy command" />
       </SettingsSection>
@@ -60,23 +62,24 @@ interface EndpointProps {
 }
 
 /**
- * One copyable line: what it is, the literal value, and the button.
+ * One copyable row: what it is on the left, the literal value and the button on the right.
  *
  * The button's accessible name names the row rather than repeating "Copy URL" three times —
  * a list of identically-named controls names nothing, and this page has three of them.
  */
 function Endpoint({ label, value, copyLabel }: EndpointProps) {
   return (
-    <div className={styles.endpoint}>
-      <p className={styles.note}>{label}</p>
-      <pre className={styles.code}>{value}</pre>
-      <CopyButton
-        value={value}
-        label={copyLabel}
-        ariaLabel={`${copyLabel} — ${label}`}
-        variant="ghost"
-        size="sm"
-      />
-    </div>
+    <SettingsRow label={label}>
+      <div className={styles.endpoint}>
+        <pre className={styles.code}>{value}</pre>
+        <CopyButton
+          value={value}
+          label={copyLabel}
+          ariaLabel={`${copyLabel} — ${label}`}
+          variant="ghost"
+          size="sm"
+        />
+      </div>
+    </SettingsRow>
   );
 }

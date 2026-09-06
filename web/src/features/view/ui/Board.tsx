@@ -44,9 +44,9 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 
 import { useEngine } from '~/app/context';
 import { useActions } from '~/app/keymap';
-import { Avatar, Badge, EmptyState, IconButton, Menu, PriorityIcon, StateIcon } from '~/components';
+import { Avatar, EmptyState, IconButton, Menu, PriorityIcon, StateIcon } from '~/components';
 import { issueEstimateLabel } from '~/features/estimate';
-import { buildCreateURL } from '~/features/issue/create-url';
+import { createUrlForGroup } from '~/features/issue/create-url';
 import { reorderIssue, report, updateIssues, type IssueFields } from '~/features/issue/mutations';
 import { LabelList } from '~/features/labels/LabelList';
 import { getPrefs, personName, subscribePrefs } from '~/features/prefs/prefs';
@@ -55,7 +55,7 @@ import type { DisplayGroupBy, DisplayOptions, DisplayProperty } from '~/filter';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewerId } from '~/hooks/useViewer';
-import type { StateCategory, Store, UUID } from '~/store';
+import type { StateCategory, Store, User, UUID, WorkflowState } from '~/store';
 
 import type { ViewGroup } from './useView';
 import styles from './Board.module.css';
@@ -124,7 +124,7 @@ const NOTHING_FOLDED: ReadonlySet<string> = new Set();
  * trade the list makes for its rows. Every rendered card is measured, so being wrong costs
  * one frame of mis-sized scrollbar and nothing else.
  */
-const ESTIMATED_CARD_PX = 76;
+const ESTIMATED_CARD_PX = 92;
 
 /** Cards kept mounted beyond the viewport, so a held-down `J` never outruns the renderer. */
 const OVERSCAN = 8;
@@ -640,6 +640,19 @@ function BoardColumn({
   const title = group.label === '' ? 'All issues' : group.label;
   const virtualCards = virtualizer.getVirtualItems();
 
+  // The state or the person the column stands for, when it stands for one. Resolved here
+  // rather than carried on the group so the heading follows a status recoloured in team
+  // settings; cheap, because it wakes only for those two entity types.
+  const head = useLiveQuery(
+    (store) => ({
+      state: group.stateId === undefined ? null : (store.workflowStates.get(group.stateId) ?? null),
+      user: group.userId === undefined ? null : (store.users.get(group.userId) ?? null),
+    }),
+    ['workflowState', 'user'],
+    [group.stateId ?? '', group.userId ?? ''],
+  );
+  const glyph = headerGlyph(groupBy, group, head.state, head.user);
+
   /** The gap under the pointer: the card it is over, or after the last one. */
   const gapAt = (event: DragEvent<HTMLElement>): number => {
     const box = scrollRef.current?.getBoundingClientRect();
@@ -696,6 +709,9 @@ function BoardColumn({
       onDrop={onDrop}
     >
       <header className={styles.header}>
+        {/* The column's glyph, so a board reads as a row of states or people before a single
+            name is read — the same mark the list's group heading carries. */}
+        {glyph}
         {onToggleGroup === undefined ? (
           <span className={styles.name}>{title}</span>
         ) : (
@@ -708,10 +724,11 @@ function BoardColumn({
             <span className={styles.name}>{title}</span>
           </button>
         )}
-        {/* The count is a standing fact about the column rather than a control, which is
-            what a Badge is for. It is the number of cards, and under a label grouping that
-            is deliberately not the number of issues — see `groupIssues`. */}
-        <Badge>{group.ids.length}</Badge>
+        {/* The count is a standing fact about the column rather than a control. It is the
+            number of cards, and under a label grouping that is deliberately not the number
+            of issues — see `groupIssues`. */}
+        <span className={styles.count}>{group.ids.length}</span>
+        <span className={styles.spacer} />
         {/* Icon-only and named, per the accessibility floor. The `+` prefills the column's
             own field, so filing into "In Progress" files something in progress rather than
             something the reader then has to move. */}
@@ -719,15 +736,15 @@ function BoardColumn({
          * Through the creation URL rather than through `issue.create` with a payload, because
          * `ActionContext` carries dispatch facts and nothing else — deliberately, so the
          * keymap does not come to depend on every feature it dispatches into. The composer
-         * already resolves a seed from exactly these parameters, so the column `+` and a
-         * pasted `/new?status=In%20Progress` are one code path.
+         * already resolves a seed from exactly these parameters, so the column `+`, the
+         * list heading's `+` and a pasted `/new?status=In%20Progress` are one code path.
          */}
         {onCreateInColumn === undefined ? null : (
           <IconButton
             size="sm"
             variant="ghost"
             aria-label={`Create issue in ${title}`}
-            onClick={() => onCreateInColumn(createUrlForColumn(group, groupBy))}
+            onClick={() => onCreateInColumn(createUrlForGroup(group, groupBy))}
             icon={<PlusGlyph />}
           />
         )}
@@ -839,22 +856,29 @@ function BoardColumn({
 }
 
 /**
- * The creation URL that files an issue into this column.
- *
- * Only the three groupings a drop can express, and for the same reason: those are the ones
- * whose column *is* a field on the issue. Under any other grouping the `+` files into the
- * view's team and leaves the column's dimension alone, which is honest — a card created under
- * "Bug" would have to guess what to do about the other labels the issue might carry.
+ * The mark at the head of a column: the status glyph, the priority glyph or the person, and
+ * nothing for a grouping that has no canonical glyph. Decorative in every case — the name
+ * beside it is the accessible one, and a glyph announced next to the word it repeats is that
+ * word twice.
  */
-function createUrlForColumn(group: ViewGroup, groupBy: DisplayGroupBy): string {
-  if (groupBy === 'state') return buildCreateURL({ statusName: group.label });
+function headerGlyph(
+  groupBy: DisplayGroupBy,
+  group: ViewGroup,
+  state: WorkflowState | null,
+  user: User | null,
+) {
+  if (groupBy === 'state' && state !== null) {
+    return <StateIcon category={state.category} color={state.color} decorative />;
+  }
   if (groupBy === 'priority' && group.priority !== undefined) {
-    return buildCreateURL({ priority: group.priority });
+    return <PriorityIcon priority={group.priority} decorative />;
   }
-  if (groupBy === 'assignee' && group.userId !== undefined) {
-    return buildCreateURL({ assignee: group.userId });
+  if (groupBy === 'assignee' && user !== null) {
+    return (
+      <Avatar name={personName(user)} src={user.avatarUrl ?? null} size="xs" colorKey={user.id} />
+    );
   }
-  return buildCreateURL({});
+  return null;
 }
 
 function PlusGlyph() {
@@ -871,6 +895,44 @@ function MoreGlyph() {
       <circle cx="3.5" cy="8" r="1.25" />
       <circle cx="8" cy="8" r="1.25" />
       <circle cx="12.5" cy="8" r="1.25" />
+    </svg>
+  );
+}
+
+/* The two pill glyphs, the same paths the list row draws — kept in step by eye, because the
+   component library has no icon module and a dependency for two paths is one to keep current. */
+
+function CalendarGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+      <rect
+        x="2.5"
+        y="3.5"
+        width="11"
+        height="10"
+        rx="1.5"
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
+      <path
+        d="M2.5 6.5h11M5.5 2v3M10.5 2v3"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function ProjectGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+      <path
+        d="M8 2.5 13.5 5.5v5L8 13.5 2.5 10.5v-5L8 2.5Z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -907,6 +969,9 @@ interface CardData {
   readonly assigneeId: string | null;
   readonly assigneeName: string | null;
   readonly assigneeAvatar: string | null;
+  readonly projectName: string | null;
+  /** The project's emoji, when the team set one; the pill falls back to the project glyph. */
+  readonly projectIcon: string | null;
   /** Already in the team's scale — "3", "M" — or null when the team does not estimate. */
   readonly estimate: string | null;
   /** Already in the team's timezone, because a due date is the team's Friday. */
@@ -949,18 +1014,13 @@ const BoardCard = memo(function BoardCard({
   );
   const issue = useLiveQuery(
     (store) => cardOf(store, id),
-    ['issue', 'team', 'user', 'workflowState'],
+    ['issue', 'team', 'user', 'workflowState', 'project'],
     [id, fullNames],
   );
 
   // A card whose issue has just been archived or revoked. It disappears on the next query,
   // which is a frame away; rendering nothing is better than rendering a skeleton for it.
   if (issue === null) return null;
-
-  const meta =
-    (properties.has('labels') ? 1 : 0) +
-    (properties.has('estimate') && issue.estimate !== null ? 1 : 0) +
-    (properties.has('dueDate') && issue.dueDate !== null ? 1 : 0);
 
   return (
     <div
@@ -1001,17 +1061,7 @@ const BoardCard = memo(function BoardCard({
       }}
     >
       <div className={styles.top}>
-        {properties.has('priority') ? <PriorityIcon priority={issue.priority} decorative /> : null}
         <span className={styles.identifier}>{issue.identifier}</span>
-        {/* The status is on the card even on a status board, where the column already says
-            it. It is not one of the optional properties: a card that dropped it would stop
-            being readable the moment somebody grouped by assignee, and a card whose contents
-            depend on the grouping is one people cannot learn to read. */}
-        <StateIcon
-          category={issue.stateCategory}
-          color={issue.stateColor}
-          label={issue.stateName}
-        />
         <span className={styles.spacer} />
         {!properties.has('assignee') ? null : issue.assigneeName === null ? (
           <span className={styles.unassigned} aria-label="Unassigned" role="img" />
@@ -1027,27 +1077,62 @@ const BoardCard = memo(function BoardCard({
 
       <span className={styles.title}>{issue.title}</span>
 
-      {meta === 0 ? null : (
-        <div className={styles.meta}>
-          {properties.has('labels') ? <LabelList issueId={id} /> : null}
-          <span className={styles.spacer} />
-          {properties.has('estimate') && issue.estimate !== null ? (
-            <span className={styles.estimate}>{issue.estimate}</span>
-          ) : null}
-          {properties.has('dueDate') && issue.dueDate !== null ? (
-            <span
-              className={[styles.due, issue.overdue ? styles.overdue : null]
-                .filter(Boolean)
-                .join(' ')}
-            >
-              {issue.dueDate}
-              {/* The tone alone never carries it — the text says "Yesterday", which does not
-                  mean overdue. The list row draws exactly this. */}
-              {issue.overdue ? <span className={styles.srOnly}> overdue</span> : null}
+      {/* One shape for every fact on the bottom row — a bordered pill at the pill height with
+          a 14px glyph — because the list row draws the same facts the same way, and a reader
+          who has learned one should not have to learn the other. */}
+      <div className={styles.meta}>
+        {properties.has('priority') ? (
+          <span className={styles.glyphPill}>
+            <PriorityIcon priority={issue.priority} decorative />
+          </span>
+        ) : null}
+        {/* The status is on the card even on a status board, where the column already says
+            it. It is not one of the optional properties: a card that dropped it would stop
+            being readable the moment somebody grouped by assignee, and a card whose contents
+            depend on the grouping is one people cannot learn to read. */}
+        <span className={styles.glyphPill}>
+          <StateIcon
+            category={issue.stateCategory}
+            color={issue.stateColor}
+            label={issue.stateName}
+          />
+        </span>
+        {properties.has('project') && issue.projectName !== null ? (
+          <span className={styles.pill}>
+            {issue.projectIcon === null ? (
+              <span className={styles.pillGlyph}>
+                <ProjectGlyph />
+              </span>
+            ) : (
+              <span className={styles.pillEmoji} aria-hidden="true">
+                {issue.projectIcon}
+              </span>
+            )}
+            <span className={styles.pillText}>{issue.projectName}</span>
+          </span>
+        ) : null}
+        {properties.has('estimate') && issue.estimate !== null ? (
+          <span className={styles.pill}>
+            <span className={styles.pillText}>{issue.estimate}</span>
+          </span>
+        ) : null}
+        {properties.has('dueDate') && issue.dueDate !== null ? (
+          <span
+            className={[styles.pill, issue.overdue ? styles.overdue : null]
+              .filter(Boolean)
+              .join(' ')}
+          >
+            <span className={styles.pillGlyph}>
+              <CalendarGlyph />
             </span>
-          ) : null}
-        </div>
-      )}
+            <span className={styles.pillText}>{issue.dueDate}</span>
+            {/* The tone alone never carries it — the text says "Yesterday", which does not
+                mean overdue. The list row draws exactly this. */}
+            {issue.overdue ? <span className={styles.srOnly}> overdue</span> : null}
+          </span>
+        ) : null}
+        {properties.has('labels') ? <LabelList issueId={id} className={styles.labels} /> : null}
+      </div>
     </div>
   );
 });
@@ -1093,6 +1178,10 @@ function cardOf(store: Store, id: UUID): CardData | null {
     // headings go the same way — see `describe` in `group.ts`.
     assigneeName: assignee === undefined ? null : personName(assignee),
     assigneeAvatar: assignee?.avatarUrl ?? null,
+    projectName:
+      found.projectId === undefined ? null : (store.projects.get(found.projectId)?.name ?? null),
+    projectIcon:
+      found.projectId === undefined ? null : (store.projects.get(found.projectId)?.icon ?? null),
     estimate: team === undefined ? null : issueEstimateLabel(found.estimate, team),
     dueDate: found.dueDate === undefined ? null : whenDay(found.dueDate, zone),
     overdue: found.dueDate !== undefined && isOverdue(found.dueDate, zone),

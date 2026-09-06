@@ -1,7 +1,11 @@
+/*
+ * The team index, drawn as rows on the section's card. The card supplies the edge and the
+ * radius; this file only draws the rows and the hairline between them.
+ */
+
 .teams {
   display: flex;
   flex-direction: column;
-  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -11,13 +15,12 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  min-height: var(--control-height-lg);
-  padding-block: var(--space-2);
-  border-bottom: 1px solid var(--border-subtle);
+  min-height: var(--row-height);
+  padding: var(--space-2) var(--space-4);
 }
 
-.team:last-child {
-  border-bottom: none;
+.team + .team {
+  border-top: 1px solid var(--border-subtle);
 }
 
 /* The key is the thing a row is found by, so it leads and is set in the mono face the rest
@@ -35,7 +38,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--text-primary);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-medium);
   text-decoration: none;
   text-overflow: ellipsis;
@@ -52,9 +55,11 @@
   border-radius: var(--radius-sm);
 }
 
+/* Secondary rather than tertiary: this text sits on the card, where tertiary does not clear
+   4.5:1 in dark. */
 .members {
   flex: none;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
   font-variant-numeric: tabular-nums;
 }

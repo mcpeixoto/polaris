@@ -6,11 +6,21 @@
  * door without leaving the directory.
  */
 
+/* The editor sits where the comment body was, inside a box of its own so the correction
+   reads as the same surface the comment box at the foot of the page is. */
 .form {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   width: 100%;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.form:focus-within {
+  border-color: var(--border-focus);
 }
 
 /* Trailing, like every other footer in the product, so the primary lands where the eye
@@ -29,10 +39,11 @@
 }
 
 /* `Field`'s message treatment, restated because this message belongs to the form rather than
-   to one control: the same colour, the same size, the same line height. */
+   to one control: the same colour, the same size, the same line height. `--text-danger`, not
+   the priority ramp — a refused edit is not an urgency. */
 .error {
   margin: 0;
-  color: var(--priority-urgent);
+  color: var(--text-danger);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-tight);
 }

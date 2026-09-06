@@ -401,4 +401,13 @@ describe('FilterBar', () => {
     expect(emitted(onChange)).toEqual({ conj: 'and', nodes: [] });
     expect(isValidFilter(emitted(onChange))).toBe(true);
   });
+
+  it('draws nothing but the Add button for an empty filter', () => {
+    // The toolbar's own "All issues" pill already says what an empty filter means; a second
+    // caption beside it said it twice.
+    renderBar();
+
+    expect(screen.queryByText('All issues')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Add filter' })).toBeTruthy();
+  });
 });

@@ -19,6 +19,8 @@ import type { SyncEngine } from '~/sync/engine';
 
 import { writeIssueComposerDraft } from '~/features/drafts/local';
 
+import { priorityLabel } from '~/components';
+
 import { CreateIssueModal } from './CreateIssueModal';
 import { createIssue } from './mutations';
 import type { IssueComposerSeed } from './create-url';
@@ -449,5 +451,139 @@ describe('CreateIssueModal', () => {
 
     await waitFor(() => expect(filed).toHaveBeenCalledTimes(1));
     expect(filed.mock.calls[0]?.[1]).toMatchObject({ labelIds: [BUG] });
+  });
+});
+
+/**
+ * The pill composer. Every property is a Menu picker behind a pill named by its value and
+ * described by its property, and "Create more" is a switch that changes what the primary
+ * button does. These hold the same behaviours the cases above were written for, against
+ * the markup Linear's dialog has.
+ */
+describe('CreateIssueModal pills', () => {
+  it('files and stays open with "Create more" on, keeping every property but the words', async () => {
+    const { user, onClose } = renderComposer();
+
+    // The status pill is named by the team's default state; the priority pill by "No
+    // priority" while it holds nothing. Each opens the picker the list uses.
+    await user.click(screen.getByRole('button', { name: 'Todo' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'In Progress' }));
+    await user.click(screen.getByRole('button', { name: 'No priority' }));
+    await user.click(await screen.findByRole('menuitem', { name: priorityLabel(1) }));
+
+    expect(screen.getByRole('button', { name: 'In Progress' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: priorityLabel(1) })).toBeTruthy();
+
+    await user.click(screen.getByRole('switch', { name: 'Create more' }));
+    await user.type(screen.getByLabelText('Title'), 'First');
+    await user.click(screen.getByRole('button', { name: 'Create issue' }));
+
+    await waitFor(() => expect(filed).toHaveBeenCalledTimes(1));
+    expect(filed.mock.calls[0]?.[1]).toMatchObject({
+      title: 'First',
+      stateId: DOING,
+      priority: 1,
+    });
+    expect(onClose).not.toHaveBeenCalled();
+    expect((screen.getByLabelText('Title') as HTMLInputElement).value).toBe('');
+
+    await user.type(screen.getByLabelText('Title'), 'Second');
+    await user.click(screen.getByRole('button', { name: 'Create issue' }));
+
+    await waitFor(() => expect(filed).toHaveBeenCalledTimes(2));
+    expect(filed.mock.calls[1]?.[1]).toMatchObject({
+      title: 'Second',
+      stateId: DOING,
+      priority: 1,
+    });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('refuses an empty title with "Create more" on, without filing or closing', async () => {
+    const { user, onClose } = renderComposer();
+
+    await user.click(screen.getByRole('switch', { name: 'Create more' }));
+    await user.click(screen.getByRole('button', { name: 'Create issue' }));
+
+    expect(await screen.findByText('An issue needs a title.')).toBeTruthy();
+    expect(filed).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A pill is named by what it holds and described by what it is, so "In Progress, button,
+   * Status" is what a screen reader says — the row carries no visible property names, and a
+   * value on its own does not say which property it belongs to.
+   */
+  it('names every pill by its value and describes it by its property', () => {
+    renderComposer();
+
+    for (const [value, property] of [
+      ['ENG', 'Team'],
+      ['Todo', 'Status'],
+      ['No priority', 'Priority'],
+      ['No assignee', 'Assignee'],
+      ['No project', 'Project'],
+      ['No labels', 'Labels'],
+    ]) {
+      const pill = screen.getByRole('button', { name: value as string });
+      const describedBy = pill.getAttribute('aria-describedby');
+      expect(describedBy).not.toBeNull();
+      expect(document.getElementById(describedBy as string)?.textContent?.trim()).toBe(property);
+    }
+  });
+
+  it('shows an estimate pill only on a team that estimates, and sets one from it', async () => {
+    renderComposer();
+    expect(screen.queryByRole('button', { name: 'No estimate' })).toBeNull();
+
+    cleanup();
+    const { user } = renderVariant({ team: { estimateScale: 'fibonacci' } as Partial<Entity> });
+    await user.click(screen.getByRole('button', { name: 'No estimate' }));
+    await user.click(await screen.findByRole('menuitem', { name: '3' }));
+
+    const pill = screen.getByRole('button', { name: '3' });
+    expect(document.getElementById(pill.getAttribute('aria-describedby') ?? '')?.textContent).toBe(
+      'Estimate',
+    );
+  });
+
+  /**
+   * A due date is set on a minority of issues, so it waits in the overflow rather than
+   * standing in every composer — and once asked for, it is a date field the create sends.
+   */
+  it('keeps the due date in the overflow until asked for, then files it', async () => {
+    const { user } = renderComposer();
+    expect(screen.queryByLabelText('Due date')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'More properties' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Due date' }));
+
+    const due = screen.getByLabelText('Due date') as HTMLInputElement;
+    fireEvent.change(due, { target: { value: '2026-03-04' } });
+    await user.type(screen.getByLabelText('Title'), 'Dated');
+    await user.click(screen.getByRole('button', { name: 'Create issue' }));
+
+    await waitFor(() => expect(filed).toHaveBeenCalledTimes(1));
+    expect(filed.mock.calls[0]?.[1]).toMatchObject({ dueDate: '2026-03-04' });
+  });
+
+  it('teaches the chord that opens a picker in its filter row', async () => {
+    const { user } = renderComposer();
+
+    await user.click(screen.getByRole('button', { name: 'Todo' }));
+
+    const filter = await screen.findByRole('textbox', { name: 'Status' });
+    expect(filter.getAttribute('placeholder')).toBe('Change status…');
+    expect(screen.getByText('S', { selector: 'kbd' })).toBeTruthy();
+  });
+
+  it('opens the template picker from a hidden template pill for Alt+C', async () => {
+    renderVariant({
+      rows: [['issueTemplate', template(TEMPLATE, [])]],
+      seed: { openTemplatePicker: true },
+    });
+
+    expect(await screen.findByRole('menuitem', { name: 'Chores' })).toBeTruthy();
   });
 });

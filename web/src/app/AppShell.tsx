@@ -32,9 +32,11 @@ import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { usePresence } from '~/hooks/usePresence';
 import { useViewerId, useViewerRole } from '~/hooks/useViewer';
 import { ConfirmDialog, IconButton, Menu, SkeletonRows, type MenuNode } from '~/components';
+import { FILTER_PARAM } from '~/filter';
 import { auth } from '~/sync/api';
 import { gotoLabelItems, labelViewPath, userViewPath } from '~/features/labels/labelView';
 import { personName } from '~/features/prefs/prefs';
+import { PLANS } from '~/features/pricing/plans';
 import { triageQueueCount } from '~/features/triage/queue';
 import { UpdateBanner } from '~/platform/UpdateBanner';
 import { CreateIssueProvider } from '~/features/issue/create-context';
@@ -242,6 +244,14 @@ export function AppShell({
   );
   const teamTree = useMemo(() => buildTeamTree(teams), [teams]);
   const workspace = useQuery((store) => [...store.workspaces.values()][0], ['workspace']);
+  /**
+   * The plan's public name, or null when the replica's plan id is not one the price list
+   * knows. Null rather than the raw id: "free" is a word the server uses, not a label.
+   */
+  const planName = useMemo(() => {
+    const id = workspace?.plan;
+    return PLANS.find((plan) => plan.id === id)?.name ?? null;
+  }, [workspace?.plan]);
   const cyclesPath = useQuery((store) => pathToCycles(store), ['team', 'cycle']);
   // Also on the issues: with no team running triage, where `G T` lands depends on which
   // team is still holding a queue.
@@ -1092,9 +1102,28 @@ export function AppShell({
               >
                 <WorkspaceMark name={workspace?.name ?? 'Polaris'} logoUrl={workspace?.logoUrl} />
                 <span className={styles.workspaceName}>{workspace?.name ?? 'Polaris'}</span>
+                <span className={styles.workspaceChevron}>
+                  <NavChevron open />
+                </span>
               </button>
-              {connectionIndicator}
-              {collapseControl}
+              {/*
+                The two things a person reaches for most, drawn where Linear draws them. Both
+                run the action the key already runs — `/` and `C` — rather than a second copy
+                of it, so the tooltip's hint and the button's behaviour cannot drift apart.
+              */}
+              <IconButton
+                aria-label="Search"
+                keys="/"
+                icon={<SearchGlyph />}
+                onClick={() => void navigate('/search')}
+              />
+              <IconButton
+                aria-label="Compose issue"
+                keys="c"
+                className={styles.compose}
+                icon={<ComposeGlyph />}
+                onClick={() => openCreate()}
+              />
               <Menu
                 open={workspaceMenu.open}
                 onClose={workspaceMenu.hide}
@@ -1307,30 +1336,30 @@ export function AppShell({
               ) : null}
             </div>
 
+            {/*
+              The two rows that are somebody's, above every section: what is waiting for
+              them and what is theirs. Search is no longer a row — the button in the top
+              corner and `/` are how it is reached — and the rest of the workspace-wide
+              screens sit under a heading that can be closed.
+            */}
             <div className={navStyles.section}>
-              <NavLink to="/my-issues" className={navClass}>
-                <NavGlyph name="issues" />
-                <span className={navStyles.navLabel}>My issues</span>
-              </NavLink>
               <NavLink to="/inbox" className={navClass}>
                 <NavGlyph name="inbox" />
                 <span className={navStyles.navLabel}>Inbox</span>
                 <NavCount value={inboxUnread} label="unread" />
               </NavLink>
-              {showPulse && (
-                <NavLink to="/pulse" className={() => navClass({ isActive: onPulse })}>
-                  <NavGlyph name="pulse" />
-                  <span className={navStyles.navLabel}>Pulse</span>
-                </NavLink>
-              )}
-              <NavLink to="/drafts" className={navClass}>
-                <NavGlyph name="drafts" />
-                <span className={navStyles.navLabel}>Drafts</span>
+              <NavLink to="/my-issues" className={navClass}>
+                <NavGlyph name="issues" />
+                <span className={navStyles.navLabel}>My issues</span>
               </NavLink>
-              <NavLink to="/search" className={navClass}>
-                <NavGlyph name="search" />
-                <span className={navStyles.navLabel}>Search</span>
-              </NavLink>
+            </div>
+
+            <NavSection
+              id="workspace"
+              title="Workspace"
+              open={sidebar.isOpen('workspace', true)}
+              onToggle={() => sidebar.toggleSection('workspace', true)}
+            >
               <NavLink to="/projects" className={() => navClass({ isActive: onProjects })}>
                 <NavGlyph name="project" />
                 <span className={navStyles.navLabel}>Projects</span>
@@ -1341,6 +1370,10 @@ export function AppShell({
                   <span className={navStyles.navLabel}>Initiatives</span>
                 </NavLink>
               )}
+              <NavLink to={cyclesPath} className={() => navClass({ isActive: onCycles })}>
+                <NavGlyph name="cycle" />
+                <span className={navStyles.navLabel}>Cycles</span>
+              </NavLink>
               {showCustomers && (
                 <NavLink to="/customers" className={() => navClass({ isActive: onCustomers })}>
                   <NavGlyph name="customer" />
@@ -1353,17 +1386,23 @@ export function AppShell({
                   <span className={navStyles.navLabel}>Dashboards</span>
                 </NavLink>
               )}
-              <NavLink to={cyclesPath} className={() => navClass({ isActive: onCycles })}>
-                <NavGlyph name="cycle" />
-                <span className={navStyles.navLabel}>Cycles</span>
+              {showPulse && (
+                <NavLink to="/pulse" className={() => navClass({ isActive: onPulse })}>
+                  <NavGlyph name="pulse" />
+                  <span className={navStyles.navLabel}>Pulse</span>
+                </NavLink>
+              )}
+              <NavLink to="/drafts" className={navClass}>
+                <NavGlyph name="drafts" />
+                <span className={navStyles.navLabel}>Drafts</span>
               </NavLink>
-            </div>
+            </NavSection>
 
             {viewerId !== null && <FavoritesSection userId={viewerId} sidebar={sidebar} />}
 
             <NavSection
               id="teams"
-              title="Teams"
+              title="Your teams"
               open={sidebar.isOpen('teams', true)}
               onToggle={() => sidebar.toggleSection('teams', true)}
             >
@@ -1404,6 +1443,66 @@ export function AppShell({
                 ))}
               </NavSection>
             )}
+
+            {/*
+              The things a workspace is set up by doing once, offered until they are put
+              away. Rows here are actions, not settings pages: the workspace sidebar keeps
+              no `/settings` link on principle (AppShell.test.tsx holds it to that), so the
+              invitation and the integrations stay behind the workspace menu and Settings,
+              and what is offered is what can be done from here.
+            */}
+            <NavSection
+              id="try"
+              title="Try"
+              open={sidebar.isOpen('try', true)}
+              onToggle={() => sidebar.toggleSection('try', true)}
+            >
+              {mayCreate && renderCreateProject !== undefined ? (
+                <button
+                  type="button"
+                  className={navClass({ isActive: false })}
+                  onClick={() => setCreateProjectOpen(true)}
+                >
+                  <NavGlyph name="project" />
+                  <span className={navStyles.navLabel}>Start a project</span>
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className={navClass({ isActive: false })}
+                onClick={() => setHelpOpen(true)}
+              >
+                <NavGlyph name="key" />
+                <span className={navStyles.navLabel}>Keyboard shortcuts</span>
+              </button>
+            </NavSection>
+
+            {/*
+              The foot of the column: help, which plan this is, and the way to put the
+              sidebar away. The plan is drawn only when the replica can name it — a pill
+              reading "unknown plan" would be a question, not an answer — and it is a label
+              rather than a link to billing, for the reason the Try section gives.
+            */}
+            <div className={styles.footer}>
+              <IconButton
+                aria-label="Help"
+                tooltip="Keyboard shortcuts"
+                keys="?"
+                className={styles.help}
+                icon={<HelpGlyph />}
+                onClick={() => setHelpOpen(true)}
+              />
+              {planName === null ? null : <span className={styles.plan}>{planName}</span>}
+              {/*
+                The sync badge lives down here rather than beside the workspace name, where
+                "Reconnecting" left a 232px column with room for one letter of the name. The
+                foot has the room, and a badge that appears on its own initiative is better
+                placed where it does not push the one control the eye returns to.
+              */}
+              {connectionIndicator}
+              <span className={navStyles.spacer} />
+              {collapseControl}
+            </div>
           </nav>
         )}
 
@@ -1572,7 +1671,15 @@ function TeamNavItems({
           to={`/team/${team.key}/home`}
           className={({ isActive }) => `${navClass({ isActive })} ${styles.teamLink ?? ''}`}
         >
-          <span className={styles.teamKey}>{team.key}</span>
+          {/* The team's own emoji where one was set, its key otherwise — the same rule the
+              composer's team chip follows, so a team looks like itself in both places. */}
+          {team.icon === undefined || team.icon === '' ? (
+            <span className={styles.teamKey}>{team.key}</span>
+          ) : (
+            <span className={styles.teamIcon} aria-hidden="true">
+              {team.icon}
+            </span>
+          )}
           <span className={navStyles.navLabel}>{team.name}</span>
         </NavLink>
       </div>
@@ -1582,9 +1689,7 @@ function TeamNavItems({
            different destinations wearing one word, and the group is what tells them apart to
            anybody not reading the indentation. */
         <div role="group" aria-label={team.name} className={navStyles.section}>
-          <NavLink to={`/team/${team.key}`} end className={navClass} style={indent(depth + 1)}>
-            <span className={navStyles.navLabel}>Issues</span>
-          </NavLink>
+          <TeamFilteredLink team={team} label="Issues" depth={depth + 1} to={pathToAllIssues} />
           <TeamFilteredLink team={team} label="Active" depth={depth + 1} to={pathToActiveIssues} />
           <TeamFilteredLink
             team={team}
@@ -1596,9 +1701,7 @@ function TeamNavItems({
             <span className={navStyles.navLabel}>Projects</span>
           </NavLink>
           {team.cyclesEnabled ? (
-            <NavLink to={`/team/${team.key}/cycles`} className={navClass} style={indent(depth + 1)}>
-              <span className={navStyles.navLabel}>Cycles</span>
-            </NavLink>
+            <TeamCycleLinks team={team} depth={depth + 1} indent={indent} />
           ) : null}
           {team.triageEnabled || triageWaiting > 0 ? (
             <NavLink to={`/team/${team.key}/triage`} className={navClass} style={indent(depth + 1)}>
@@ -1622,9 +1725,89 @@ function TeamNavItems({
 }
 
 /**
- * Active and Backlog, which are the team's issue list under a filter rather than routes of
- * their own — the same URL grammar somebody would get by typing the filter into the bar, so
- * the row and the link they would share with a colleague are the same string.
+ * Cycles, and the two of them worth a row of their own.
+ *
+ * Linear nests "Current" and "Upcoming" under the team's Cycles row, and they are the two
+ * cycles anybody opens without looking for a number: the one being worked and the one being
+ * planned. Each is drawn only while there is such a cycle — a "Current" row with nowhere to
+ * go is a broken link wearing a name — and the pair sits behind a hairline that says they
+ * belong to the row above rather than beside it.
+ */
+function TeamCycleLinks({
+  team,
+  depth,
+  indent,
+}: {
+  team: Team;
+  depth: number;
+  indent: (level: number) => CSSProperties | undefined;
+}) {
+  const cycles = useLiveQuery((store) => teamCycleLinks(store, team.id), ['cycle'], [team.id]);
+  const nestedClass = ({ isActive }: { isActive: boolean }) =>
+    [navClass({ isActive }), styles.nestedRow].filter(Boolean).join(' ');
+  return (
+    <>
+      <NavLink to={`/team/${team.key}/cycles`} className={navClass} style={indent(depth)}>
+        <span className={navStyles.navLabel}>Cycles</span>
+      </NavLink>
+      {cycles.current === null && cycles.upcoming === null ? null : (
+        <div className={styles.nested} style={indent(depth)}>
+          {cycles.current === null ? null : (
+            <NavLink to={`/cycle/${cycles.current}`} className={nestedClass}>
+              <span className={navStyles.navLabel}>Current</span>
+            </NavLink>
+          )}
+          {cycles.upcoming === null ? null : (
+            <NavLink to={`/cycle/${cycles.upcoming}`} className={nestedClass}>
+              <span className={navStyles.navLabel}>Upcoming</span>
+            </NavLink>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * The team's current cycle and its next one, by id. Exported for the test.
+ *
+ * "Current" is the cycle whose window holds now; "upcoming" is the earliest one that has
+ * not started. Archived cycles are neither, whatever their dates say.
+ */
+export function teamCycleLinks(
+  store: Store,
+  teamId: UUID,
+): { current: UUID | null; upcoming: UUID | null } {
+  const now = Date.now();
+  let current: UUID | null = null;
+  let upcoming: { id: UUID; startsAt: number } | null = null;
+  for (const id of store.cycleIdsFor(teamId)) {
+    const cycle = store.cycles.get(id);
+    if (cycle === undefined || cycle.archivedAt !== undefined) continue;
+    const start = Date.parse(cycle.startsAt);
+    const end = Date.parse(cycle.endsAt);
+    if (start <= now && now < end) {
+      current = cycle.id;
+    } else if (start > now && (upcoming === null || start < upcoming.startsAt)) {
+      upcoming = { id: cycle.id, startsAt: start };
+    }
+  }
+  return { current, upcoming: upcoming === null ? null : upcoming.id };
+}
+
+/** The team's whole list: the same row as Active and Backlog, under no filter at all. */
+function pathToAllIssues(_store: Store, pathname: string): string {
+  return pathname;
+}
+
+/**
+ * Issues, Active and Backlog, which are one list under three filters rather than three
+ * routes — the same URL grammar somebody would get by typing the filter into the bar, so the
+ * row and the link they would share with a colleague are the same string.
+ *
+ * Which of the three is current is decided by the whole URL, not by `NavLink`'s pathname
+ * match: all three share `/team/ENG`, so left to the router every one of them lit up at
+ * once, and a sidebar with three current rows has no current row.
  */
 function TeamFilteredLink({
   team,
@@ -1638,10 +1821,19 @@ function TeamFilteredLink({
   to: (store: Store, pathname: string) => string;
 }) {
   const href = useLiveQuery((store) => to(store, `/team/${team.key}`), ['team'], [team.key, label]);
+  const location = useLocation();
+  const [path, search = ''] = href.split('?');
+  // Only the filter is compared, not the whole query string: the list writes its display
+  // options — layout, grouping, order — into the URL too, and those describe how the same
+  // list is drawn rather than which list it is.
+  const isActive =
+    location.pathname === path &&
+    (new URLSearchParams(location.search).get(FILTER_PARAM) ?? '') ===
+      (new URLSearchParams(search).get(FILTER_PARAM) ?? '');
   return (
     <NavLink
       to={href}
-      className={navClass}
+      className={() => navClass({ isActive })}
       style={depth > 0 ? { paddingInlineStart: `calc(var(--space-3) * ${depth + 1})` } : undefined}
     >
       <span className={navStyles.navLabel}>{label}</span>
@@ -2063,6 +2255,46 @@ async function reorderFavorite(
     // the keystroke rather than as a refusal.
     offerError({ title: 'Could not move that favourite' });
   }
+}
+
+/** The magnifier on the top row. Sixteen pixels at the sidebar's stroke, like NavGlyph. */
+function SearchGlyph() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <circle cx="7" cy="7" r="3.75" stroke="currentColor" strokeWidth={1.4} />
+      <path d="m10.2 10.2 3 3" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** The pencil on the top row: a new issue. */
+function ComposeGlyph() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M11.3 2.7a1.5 1.5 0 0 1 2.1 2.1L6 12.2l-3 .8.8-3 7.5-7.3Z"
+        stroke="currentColor"
+        strokeWidth={1.4}
+        strokeLinejoin="round"
+      />
+      <path d="M9.8 4.2 11.8 6.2" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** The question mark in the foot of the sidebar. */
+function HelpGlyph() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M6 6.2a2 2 0 1 1 3 1.7c-.7.4-1 .8-1 1.6"
+        stroke="currentColor"
+        strokeWidth={1.4}
+        strokeLinecap="round"
+      />
+      <circle cx="8" cy="12" r="0.8" fill="currentColor" />
+    </svg>
+  );
 }
 
 /** The plus on the Favourites header. */

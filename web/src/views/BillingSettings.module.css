@@ -1,56 +1,38 @@
-.page {
-  padding: var(--space-6);
-  max-width: 56ch;
-}
+/*
+ * The frame, the section headings and the rows are SettingsPage's. This file draws the two
+ * things a billing row holds that a control row does not: a plain value, and a pair of
+ * buttons that are the whole row.
+ */
 
-.title {
-  margin: 0 0 var(--space-2);
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-}
-
-.lead {
-  margin: 0 0 var(--space-4);
+.note {
+  margin: 0;
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
 }
 
-.error {
-  margin: 0 0 var(--space-4);
-  color: var(--priority-urgent);
-  font-size: var(--font-size-sm);
-}
-
-.facts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12ch, 1fr));
-  gap: var(--space-4);
-  margin: 0 0 var(--space-5);
-}
-
-.facts dt {
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-4);
   color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.facts dd {
-  margin: var(--space-1) 0 0;
-  font-size: var(--font-size-sm);
 }
 
 /*
- * No `text-transform` any more. It was here to make the raw `pro`/`free` enum look like a
- * word; the plan now carries a real name, and a transform over real copy is a trap the next
- * plan with a lower-case letter in the middle of it would fall into.
+ * A fact this screen cannot change — the plan's name, the seat count, the renewal date —
+ * drawn as a value in the control slot rather than as a field somebody forgot to enable.
  */
-.plan {
-  font-weight: var(--font-weight-medium);
+.value {
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  white-space: nowrap;
 }
 
+/* The two checkouts, on the right edge like any other control. */
 .actions {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--space-2);
+  flex: 1;
 }

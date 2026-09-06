@@ -45,10 +45,13 @@ import {
   PriorityIcon,
   priorityLabel,
   Select,
+  SettingsPage,
+  SettingsSection,
   StateIcon,
   Textarea,
 } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
+import { SettingsRow, type SettingsSectionProps } from '~/components/SettingsSection';
 import { RecurringDialog } from '~/features/recurring/RecurringDialog';
 import { createRecurringIssue } from '~/features/recurring/mutations';
 import { estimateLabel, estimateOptions, estimatesEnabled } from '~/features/estimate';
@@ -196,99 +199,105 @@ export function Templates() {
       });
   };
 
-  return (
-    <div className={styles.screen}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>Templates</h1>
-        <div className={styles.tabs} role="tablist" aria-label="Template kind">
-          <Button
-            variant={kind === 'standard' ? 'primary' : 'ghost'}
-            role="tab"
-            aria-selected={kind === 'standard'}
-            onClick={() => {
-              setKind('standard');
-              setEditing(null);
-            }}
-          >
-            Standard
-          </Button>
-          <Button
-            variant={kind === 'form' ? 'primary' : 'ghost'}
-            role="tab"
-            aria-selected={kind === 'form'}
-            onClick={() => {
-              setKind('form');
-              setEditing(null);
-            }}
-          >
-            Form
-          </Button>
-          <Button
-            variant={kind === 'project' ? 'primary' : 'ghost'}
-            role="tab"
-            aria-selected={kind === 'project'}
-            onClick={() => {
-              setKind('project');
-              setEditing(null);
-            }}
-          >
-            Project
-          </Button>
-        </div>
-      </header>
+  const tabs = (
+    <div className={styles.tabs} role="tablist" aria-label="Template kind">
+      <Button
+        variant={kind === 'standard' ? 'primary' : 'ghost'}
+        role="tab"
+        aria-selected={kind === 'standard'}
+        onClick={() => {
+          setKind('standard');
+          setEditing(null);
+        }}
+      >
+        Standard
+      </Button>
+      <Button
+        variant={kind === 'form' ? 'primary' : 'ghost'}
+        role="tab"
+        aria-selected={kind === 'form'}
+        onClick={() => {
+          setKind('form');
+          setEditing(null);
+        }}
+      >
+        Form
+      </Button>
+      <Button
+        variant={kind === 'project' ? 'primary' : 'ghost'}
+        role="tab"
+        aria-selected={kind === 'project'}
+        onClick={() => {
+          setKind('project');
+          setEditing(null);
+        }}
+      >
+        Project
+      </Button>
+    </div>
+  );
 
+  return (
+    <SettingsPage
+      title="Templates"
+      description="What the create dialog offers instead of a blank form."
+      actions={tabs}
+    >
       {kind === 'form' ? (
         <FormTemplatesPanel />
       ) : kind === 'project' ? (
         <ProjectTemplatesPanel />
       ) : (
         <>
-          <div className={styles.body}>
-            {grouped.map((scope) => (
-              <section
+          {grouped.map((scope) => {
+            const creating = editing?.kind === 'create' && editing.scopeId === scope.id;
+            return (
+              <ScopeSection
                 key={scope.id}
-                className={styles.section}
-                aria-labelledby={`scope-${scope.id}`}
-              >
-                <h2 className={styles.sectionTitle} id={`scope-${scope.id}`}>
-                  {scope.label}
-                  {scope.teamId === undefined ? <Badge tone="accent">Every team</Badge> : null}
-                </h2>
-                <p className={styles.sectionHint}>
-                  {scope.teamId === undefined
+                title={scope.label}
+                description={
+                  scope.teamId === undefined
                     ? 'Offered in every team. It can prefill a priority, an estimate, a person and the workspace’s own labels — never a status, because a status belongs to one team.'
-                    : `Offered only when filing an issue in ${scope.label}. It can prefill that team’s statuses and labels.`}
-                </p>
-
-                {editing?.kind === 'create' && editing.scopeId === scope.id ? (
-                  <TemplateEditor
-                    key={`new-${scope.id}`}
-                    scope={scope}
-                    template={null}
-                    onSave={(draft) => save(scope, null, draft)}
-                    onCancel={() => setEditing(null)}
-                  />
-                ) : (
-                  <div className={styles.sectionActions}>
-                    <Button
-                      onClick={() => setEditing({ kind: 'create', scopeId: scope.id })}
-                      aria-label={`New template for ${scope.label}`}
-                    >
-                      New template
-                    </Button>
-                  </div>
-                )}
+                    : `Offered only when filing an issue in ${scope.label}. It can prefill that team’s statuses and labels.`
+                }
+                actions={
+                  <>
+                    {scope.teamId === undefined ? <Badge tone="accent">Every team</Badge> : null}
+                    {creating ? null : (
+                      <Button
+                        onClick={() => setEditing({ kind: 'create', scopeId: scope.id })}
+                        aria-label={`New template for ${scope.label}`}
+                      >
+                        New template
+                      </Button>
+                    )}
+                  </>
+                }
+              >
+                {creating ? (
+                  <SettingsRow>
+                    <TemplateEditor
+                      key={`new-${scope.id}`}
+                      scope={scope}
+                      template={null}
+                      onSave={(draft) => save(scope, null, draft)}
+                      onCancel={() => setEditing(null)}
+                    />
+                  </SettingsRow>
+                ) : null}
 
                 {scope.templates.length === 0 ? (
-                  <EmptyState
-                    title="No templates yet"
-                    description="A template is the issue somebody files over and over — the bug report with the three questions on it, the release checklist — written down once."
-                  />
+                  <SettingsRow>
+                    <EmptyState
+                      title="No templates yet"
+                      description="A template is the issue somebody files over and over — the bug report with the three questions on it, the release checklist — written down once."
+                    />
+                  </SettingsRow>
                 ) : (
-                  <ul className={styles.list}>
+                  <ul className={styles.templateList}>
                     {scope.templates.map((row) =>
                       editing?.kind === 'edit' && editing.templateId === row.id ? (
-                        <li key={row.id}>
+                        <li key={row.id} className={styles.templateSlot}>
                           <TemplateEditor
                             key={row.id}
                             scope={scope}
@@ -320,11 +329,11 @@ export function Templates() {
                     )}
                   </ul>
                 )}
-              </section>
-            ))}
+              </ScopeSection>
+            );
+          })}
 
-            <ArchivedTemplates rows={archivedRows} />
-          </div>
+          <ArchivedTemplates rows={archivedRows} />
 
           <ConfirmDialog
             open={archiving !== null}
@@ -389,7 +398,23 @@ export function Templates() {
           />
         </>
       )}
-    </div>
+    </SettingsPage>
+  );
+}
+
+/**
+ * A scope's section, as a landmark. `SettingsSection` draws the heading but does not wire it
+ * to its `<section>`, so on its own a scope is not a region and nothing — a screen reader
+ * moving by landmark, a test finding a scope by name — can land on it. The wrapper carries
+ * the name and the inner section stays anonymous, so there is still one region per heading.
+ */
+function ScopeSection({ title, children, ...rest }: SettingsSectionProps & { title: string }) {
+  return (
+    <section className={styles.region} aria-label={title}>
+      <SettingsSection title={title} {...rest}>
+        {children}
+      </SettingsSection>
+    </section>
   );
 }
 
@@ -407,7 +432,7 @@ function TemplateListRow({ row, onEdit, onArchive, onConvert }: TemplateListRowP
     );
   };
   return (
-    <div className={styles.row}>
+    <div className={styles.templateRow}>
       <div className={styles.rowText}>
         <span className={styles.rowName}>{row.name}</span>
         {row.description === '' ? null : (
@@ -462,27 +487,22 @@ function TemplateListRow({ row, onEdit, onArchive, onConvert }: TemplateListRowP
  */
 function ArchivedTemplates({ rows }: { rows: readonly TemplateRow[] }) {
   return (
-    <section className={styles.section} aria-labelledby="scope-archived">
-      <h2 className={styles.sectionTitle} id="scope-archived">
-        Archived
-      </h2>
-      <p className={styles.sectionHint}>
-        Archiving a template is permanent. It stops being offered everywhere at once, and there is
-        no un-archive — not on this screen and not in the API. What survives is the link: issues
-        filed from a template keep pointing at it, so the record of what a template produced
-        outlives the template.
-      </p>
-
+    <ScopeSection
+      title="Archived"
+      description="Archiving a template is permanent. It stops being offered everywhere at once, and there is no un-archive — not on this screen and not in the API. What survives is the link: issues filed from a template keep pointing at it, so the record of what a template produced outlives the template."
+    >
       {rows.length === 0 ? (
-        <p className={styles.quiet}>
-          Nothing archived is held on this device. An archived template leaves every replica the
-          moment it is retired, which is why there is no list here to restore from.
-        </p>
+        <SettingsRow>
+          <p className={styles.quiet}>
+            Nothing archived is held on this device. An archived template leaves every replica the
+            moment it is retired, which is why there is no list here to restore from.
+          </p>
+        </SettingsRow>
       ) : (
-        <ul className={styles.list}>
+        <ul className={styles.templateList}>
           {rows.map((row) => (
             <li key={row.id}>
-              <div className={styles.row}>
+              <div className={styles.templateRow}>
                 <div className={styles.rowText}>
                   <span className={styles.rowName}>{row.name}</span>
                   <span className={styles.prefills}>
@@ -494,7 +514,7 @@ function ArchivedTemplates({ rows }: { rows: readonly TemplateRow[] }) {
           ))}
         </ul>
       )}
-    </section>
+    </ScopeSection>
   );
 }
 
@@ -647,7 +667,11 @@ function TemplateEditor({ scope, template, onSave, onCancel }: TemplateEditorPro
   };
 
   return (
-    <form className={styles.editor} onSubmit={submit} aria-label={editorLabel(scope, template)}>
+    <form
+      className={`${styles.editor} ${styles.inCard}`}
+      onSubmit={submit}
+      aria-label={editorLabel(scope, template)}
+    >
       <p className={styles.scopeNote}>
         {template === null
           ? `${scopeSentence(scope)} A template’s scope is fixed when it is created and cannot be changed afterwards, so this is the moment to get it right.`

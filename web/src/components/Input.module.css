@@ -55,6 +55,13 @@
   outline: none;
 }
 
+/* Three classes, one more than the focus rule, so `bare` wins whatever the emission order
+ * — the same argument as the two rules above it. The invalid edge below still shows: an
+ * error is a fact about the text, and this only withdraws the focus mark. */
+.box.plain.bare:focus-within {
+  border-bottom-color: transparent;
+}
+
 .invalid {
   composes: controlInvalid from './Field.module.css';
 }
@@ -78,6 +85,12 @@
  */
 .box.plain.invalid {
   border-color: transparent;
+  border-bottom-color: var(--priority-urgent);
+}
+
+/* And once more at five classes for the bare surface, whose focus rule above sits at four
+ * and would otherwise take the red edge away from a field that is both invalid and focused. */
+.box.plain.bare.invalid:focus-within {
   border-bottom-color: var(--priority-urgent);
 }
 

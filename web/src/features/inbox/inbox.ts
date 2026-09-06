@@ -309,6 +309,31 @@ function pulseDigestCount(payload: unknown): number {
  * the tail is about the rest. Getting that off by one is the difference between an inbox
  * that says 200 issues changed and one that says 201 did.
  */
+/**
+ * How old a row is, in the two or three characters a 58px row has room for.
+ *
+ * "6d" rather than "6 days ago": the column is read for its magnitude, at a glance, down a
+ * list — the full sentence is on the `<time>`'s tooltip for anyone who wants it. Truncated
+ * rather than rounded, like `when`, because "2d" for something 36 hours old is a claim about
+ * the future. Under a minute reads "now": a row that arrived while the inbox was open is the
+ * one case the reader already knows the answer to.
+ */
+export function age(timestamp: string, now: number = Date.now()): string {
+  const at = Date.parse(timestamp);
+  if (Number.isNaN(at)) return '';
+  const seconds = Math.max(0, Math.trunc((now - at) / 1000));
+  if (seconds < 60) return 'now';
+  const minutes = Math.trunc(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.trunc(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.trunc(hours / 24);
+  if (days < 7) return `${days}d`;
+  if (days < 30) return `${Math.trunc(days / 7)}w`;
+  if (days < 365) return `${Math.trunc(days / 30)}mo`;
+  return `${Math.trunc(days / 365)}y`;
+}
+
 export function coalescedTail(count: number): string | null {
   const others = count - 1;
   if (others <= 0) return null;

@@ -29,7 +29,6 @@ import { useState, type FocusEvent } from 'react';
 
 import { useEngine } from '~/app/context';
 import {
-  Button,
   DangerZone,
   DangerZoneRow,
   Input,
@@ -40,6 +39,7 @@ import {
   useSaveState,
 } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
+import { SettingsRow } from '~/components/SettingsSection';
 import { leaveWorkspace } from '~/features/authorisedOauth/mutations';
 import { report } from '~/features/issue/mutations';
 import { listTimezones } from '~/features/locale';
@@ -147,44 +147,60 @@ export function ProfileSettings() {
         status={<SaveIndicator state={saved.state} />}
         error={saved.error}
       >
-        <Input
-          label="Username"
-          hint="Short handle used when full names are off."
-          defaultValue={viewer.name}
-          error={messageFor('name')}
-          onChange={() => clear('name')}
-          onBlur={(event) => saveName('name', event)}
-        />
-        <Input
+        <SettingsRow label="Username" description="Short handle used when full names are off." wide>
+          <Input
+            label="Username"
+            hideLabel
+            defaultValue={viewer.name}
+            error={messageFor('name')}
+            onChange={() => clear('name')}
+            onBlur={(event) => saveName('name', event)}
+          />
+        </SettingsRow>
+        <SettingsRow
           label="Display name"
-          hint="Shown when Preferences → Show full names is on."
-          defaultValue={viewer.displayName}
-          error={messageFor('displayName')}
-          onChange={() => clear('displayName')}
-          onBlur={(event) => saveName('displayName', event)}
-        />
-        <Input
-          label="Avatar URL"
-          hint="A public image. Blank keeps initials."
-          defaultValue={viewer.avatarUrl ?? ''}
-          onBlur={(event) => save({ avatarUrl: event.target.value })}
-        />
-        <Select
-          label="Timezone"
-          hint="Pulse digest and calendar days that belong to you, not to a team."
-          value={viewer.timezone}
-          onChange={(event) => save({ timezone: event.target.value })}
+          description="Shown when Preferences → Show full names is on."
+          wide
         >
-          {timezoneOptions(viewer.timezone).map((zone) => (
-            <option key={zone} value={zone}>
-              {zone}
-            </option>
-          ))}
-        </Select>
+          <Input
+            label="Display name"
+            hideLabel
+            defaultValue={viewer.displayName}
+            error={messageFor('displayName')}
+            onChange={() => clear('displayName')}
+            onBlur={(event) => saveName('displayName', event)}
+          />
+        </SettingsRow>
+        <SettingsRow label="Avatar URL" description="A public image. Blank keeps initials." wide>
+          <Input
+            label="Avatar URL"
+            hideLabel
+            defaultValue={viewer.avatarUrl ?? ''}
+            onBlur={(event) => save({ avatarUrl: event.target.value })}
+          />
+        </SettingsRow>
+        <SettingsRow
+          label="Timezone"
+          description="Pulse digest and calendar days that belong to you, not to a team."
+          wide
+        >
+          <Select
+            label="Timezone"
+            hideLabel
+            value={viewer.timezone}
+            onChange={(event) => save({ timezone: event.target.value })}
+          >
+            {timezoneOptions(viewer.timezone).map((zone) => (
+              <option key={zone} value={zone}>
+                {zone}
+              </option>
+            ))}
+          </Select>
+        </SettingsRow>
         {viewer.email === undefined ? null : (
-          <p className={styles.accountNote}>
-            Email {viewer.email} is the account, not this workspace.
-          </p>
+          <SettingsRow label="Email" description="The account, not this workspace.">
+            <span className={styles.accountNote}>{viewer.email}</span>
+          </SettingsRow>
         )}
       </SettingsSection>
 
@@ -192,17 +208,11 @@ export function ProfileSettings() {
         <DangerZoneRow
           title={`Leave ${workspaceName}`}
           consequence={`You stop being a member of ${workspaceName}. Your issues and comments stay attributed. The last owner cannot leave — somebody has to remain who can invite and manage billing.`}
-          action={
-            <Button
-              variant="danger"
-              onClick={() => {
-                setLeaveError(null);
-                setLeaving(true);
-              }}
-            >
-              Leave {workspaceName}
-            </Button>
-          }
+          actionLabel={`Leave ${workspaceName}`}
+          onAction={() => {
+            setLeaveError(null);
+            setLeaving(true);
+          }}
         />
       </DangerZone>
 

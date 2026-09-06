@@ -12,6 +12,7 @@
  */
 
 import { PRIORITY_LABELS } from '~/components';
+import type { DisplayGroupBy } from '~/filter';
 import type { Store, UUID } from '~/store';
 
 export interface CreateURLParams {
@@ -221,6 +222,50 @@ export function buildCreateURL(input: {
   if (input.template) query.set('template', input.template);
   const encoded = query.toString();
   return encoded === '' ? path : `${path}?${encoded}`;
+}
+
+/**
+ * What a group of a view is of, as far as a creation URL cares: its name and whichever of
+ * the three settable dimensions it stands for. Both the list's group heading and the board's
+ * column carry exactly these, under different names for the rest of their fields.
+ */
+export interface GroupSeed {
+  readonly label: string;
+  readonly stateId?: UUID | undefined;
+  readonly priority?: number | undefined;
+  readonly userId?: UUID | undefined;
+}
+
+/**
+ * The creation URL that files an issue into one group of a view — what the "+" on a list
+ * heading and on a board column both run.
+ *
+ * Only the three groupings whose group *is* a field on the issue seed anything, and they are
+ * the same three a board drop can write. Under any other grouping the "+" files into the
+ * view's team and leaves the group's dimension alone, which is honest: an issue created under
+ * the "Bug" label group would have to guess what to do about the other labels it might carry,
+ * and one created under a due-date column would quietly acquire a deadline.
+ *
+ * The status goes by name rather than by id because the composer resolves names — the same
+ * grammar a pasted `/team/ENG/new?status=Todo` uses — so the heading's "+" and a bookmark
+ * are one code path. It is only sent when the group has a state behind it: a "No status"
+ * group is a real group with nothing to seed.
+ */
+export function createUrlForGroup(
+  group: GroupSeed,
+  groupBy: DisplayGroupBy,
+  teamKey?: string | undefined,
+): string {
+  if (groupBy === 'state' && group.stateId !== undefined) {
+    return buildCreateURL({ teamKey, statusName: group.label });
+  }
+  if (groupBy === 'priority' && group.priority !== undefined) {
+    return buildCreateURL({ teamKey, priority: group.priority });
+  }
+  if (groupBy === 'assignee' && group.userId !== undefined) {
+    return buildCreateURL({ teamKey, assignee: group.userId });
+  }
+  return buildCreateURL({ teamKey });
 }
 
 function resolveTeam(store: Store, raw: string | undefined): { id: UUID; key: string } | undefined {

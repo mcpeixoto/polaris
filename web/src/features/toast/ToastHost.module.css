@@ -1,10 +1,11 @@
 /*
  * The toast stack.
  *
- * Bottom right, above everything, and deliberately not where the undo toast is. The undo
- * toast is bottom centre because it is a deadline the user is meant to look at; these are
- * reports the user is meant to be able to ignore, and putting them in the same place would
- * mean a failure notice covering the one button that takes something back.
+ * Bottom left, above everything, in the corner the undo toast also uses. The undo toast is
+ * a deadline the user is meant to look at; these are reports the user is meant to be able
+ * to ignore — so while an undo is on offer this host steps up one row (`.aboveUndo`, set
+ * from the undo store by ToastHost.tsx) rather than covering the one button that takes
+ * something back.
  *
  * `--z-toast` sits above the modal layer on purpose: a mutation refused from inside a dialog
  * is exactly the refusal somebody needs to read, and a message painted underneath the surface
@@ -16,14 +17,20 @@
 
 .host {
   position: fixed;
-  right: var(--space-4);
-  bottom: var(--space-6);
+  left: var(--space-4);
+  bottom: var(--space-4);
   z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   max-width: min(46ch, calc(100vw - var(--space-8)));
   pointer-events: none;
+  transition: bottom var(--duration-fast) var(--ease-out);
+}
+
+/* One undo row — its 40px box plus the gap — up from the corner. */
+.aboveUndo {
+  bottom: calc(var(--space-4) + 40px + var(--space-2));
 }
 
 .region {
@@ -36,20 +43,22 @@
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);
+  min-height: 40px;
   /* Tighter on the trailing side because the buttons carry their own padding, and a control
      inset by a full gutter reads as floating away from the edge it belongs to. */
-  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  background-color: var(--bg-tertiary);
-  box-shadow: var(--shadow-lg);
+  background-color: var(--bg-elevated);
+  box-shadow: var(--shadow-popover);
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--font-size-md);
   pointer-events: auto;
   /* It arrives during the frame something failed in, so it has to be seen without being
-     waited for. Reduced motion collapses this at the token. */
-  animation: slide var(--duration-fast) var(--ease-out);
+     waited for. Up from the corner it lives in, the way the undo toast arrives. Reduced
+     motion collapses this at the token. */
+  animation: rise var(--duration-fast) var(--ease-out);
 }
 
 /*
@@ -65,8 +74,11 @@
 .text {
   display: flex;
   min-width: 0;
+  flex: 1;
   flex-direction: column;
+  justify-content: center;
   gap: var(--space-1);
+  min-height: var(--control-height-md);
   padding-block: var(--space-1);
 }
 
@@ -75,8 +87,8 @@
 }
 
 /*
- * --text-secondary, not tertiary: this sits on --bg-tertiary, where tertiary measures
- * 3.38:1 and fails body text in dark. See the contrast rule in the composition doc.
+ * --text-secondary, not tertiary: this sits on --bg-elevated, where tertiary measures
+ * 4.08:1 and fails body text in dark. See the contrast rule in the composition doc.
  */
 .description {
   overflow: hidden;
@@ -89,10 +101,10 @@
   -webkit-line-clamp: 3;
 }
 
-@keyframes slide {
+@keyframes rise {
   from {
     opacity: 0;
-    transform: translateX(var(--space-3));
+    transform: translateY(var(--space-2));
   }
 }
 
@@ -107,13 +119,13 @@
  * hit would re-run a mutation the user had already stopped being offered.
  */
 .toast[data-exiting] {
-  animation: slideOut var(--duration-instant) var(--ease-in) forwards;
+  animation: fall var(--duration-instant) var(--ease-in) forwards;
   pointer-events: none;
 }
 
-@keyframes slideOut {
+@keyframes fall {
   to {
     opacity: 0;
-    transform: translateX(var(--space-3));
+    transform: translateY(var(--space-2));
   }
 }

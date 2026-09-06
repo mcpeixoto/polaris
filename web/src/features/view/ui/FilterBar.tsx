@@ -352,8 +352,6 @@ export function FilterBar({
        * tabindex and a local key handler. Every control here is in the tab order instead.
        */}
       <div className={styles.row} role="group" aria-label="Filters">
-        {nodes.length === 0 ? <span className={styles.quiet}>All issues</span> : null}
-
         <NodeRun
           group={root}
           path={[]}
@@ -374,7 +372,7 @@ export function FilterBar({
             end of a run of bordered pills reads as a caption on the last one rather than as
             the control that adds the next. Ghost is for a full-width trigger inside a
             labelled row, where the label supplies the affordance; there is no label here. */}
-        <Button {...add.props} size="sm" icon={<PlusGlyph />}>
+        <Button {...add.props} className={styles.add} size="sm" icon={<PlusGlyph />}>
           Add filter
         </Button>
         <Menu

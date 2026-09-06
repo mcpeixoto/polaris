@@ -2,10 +2,11 @@
  * The list is the densest surface in the product and the one people look at all day, so
  * every rule here is spending pixels it has to justify.
  *
- * The row is --row-height and nothing in it is allowed to be taller, which is what lets
- * twenty-two issues fit on a laptop screen instead of eleven. Separation comes from the
- * group headings and from a single hairline, not from padding between rows: whitespace
- * between list items reads as "these are cards" and a screen of cards cannot be scanned.
+ * The row is --row-height and nothing in it is allowed to be taller. Rows have no hairline
+ * between them any more: separation comes from the group headings, which sit on their own
+ * tint, and from the hover wash, which is rounded and inset from the pane's edge so a row
+ * under the pointer reads as one object rather than as a stripe across the screen. The
+ * inset is the same --space-2 on the heading and on the row, so the two share a left edge.
  */
 
 .screen {
@@ -18,89 +19,211 @@
 }
 
 /*
- * One row of controls — and in the triage split, one row of controls in half a screen.
+ * The view's name and the controls that act on the view as a whole.
  *
- * Every item in here carries `white-space: nowrap`, which makes a flex item's automatic
- * minimum its whole label: none of them shrinks, so a single line simply ran off the end of
- * the pane. Insights, Display and the four team links were drawn over the issue beside them
- * and the trailing padding went with them. Giving `.title` a floor fixed the heading and left
- * that untouched, because the heading was never what overflowed.
- *
- * These are product strings, so truncating them is not on offer — the row wraps instead. The
- * name and the count keep the first line, the controls take a second, and the header grows by
- * a row rather than posting its tail into the next pane. `min-height` plus the block padding
- * hold the same --header-height it has always had for as long as one line fits: one 28px
- * control, --space-1 above and below and the hairline is 37px, so the minimum is what decides
- * a single-line header and the pane below it does not move by a pixel.
+ * No hairline under it: the toolbar beneath carries the one line that separates the chrome
+ * from the rows, and two lines four pixels apart read as a ruled form. It still wraps, for
+ * the triage split where the list gets half a screen — the breadcrumb keeps the first line
+ * and the icon buttons take a second rather than posting their tail into the next pane —
+ * and `min-height` holds --header-height for as long as one line fits.
  */
 .header {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: var(--space-2);
   flex: none;
   min-height: var(--header-height);
   padding-block: var(--space-1);
-  padding-inline: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
+  padding-inline: var(--space-4) var(--space-3);
 }
 
 /*
- * Layout only, and only for this row's own children. Stated rather than relied upon: a header
- * item keeps the width of its label instead of being squeezed into it, whether or not it
- * happens to bring its own `nowrap`. The heading and the spacer are the two that are supposed
- * to flex, and they are excluded here rather than left to win an equal-specificity tie.
+ * Where this list is: the team's mark, its name, and the screen under it.
+ *
+ * A `nav` rather than a bare heading because the team chip and the leaf are a path, and a
+ * path is what a screen reader should call it. The heading inside is the team's name alone —
+ * that is what the screen is *of*; the leaf says which of its screens this one is.
  */
-.header > *:not(.title, .spacer) {
-  flex: none;
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 /*
- * The screen's name, and the last thing in the header allowed to give up space — but it may
- * not give up all of it. `overflow: hidden` drops a flex item's automatic minimum to zero, so
- * in a narrow pane (the triage split, where the list gets half a screen) the heading was
- * squeezed to a zero-width box: the one element on the header that says what is being looked
- * at was the first to disappear. The floor keeps a name and an ellipsis there instead.
+ * The team's emoji when it has one, its key when it does not. The key wears a small tinted
+ * square so it reads as a mark and not as a word in the sentence — the sidebar draws the same
+ * team the same way, which is what lets the eye join the two.
+ */
+.teamMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-width: var(--space-5);
+  height: var(--space-5);
+  padding-inline: var(--space-1);
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.02em;
+  line-height: var(--line-height-none);
+}
+
+.teamEmoji {
+  background: none;
+  padding: 0;
+  font-size: var(--font-size-lg);
+}
+
+/*
+ * The last thing in the header allowed to give up space — but it may not give up all of it.
+ * `overflow: hidden` drops a flex item's automatic minimum to zero, so in a narrow pane the
+ * one element on the header that says what is being looked at was the first to disappear.
+ * The floor keeps a name and an ellipsis there instead.
  */
 .title {
   margin: 0;
   min-width: 4rem;
   font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.spacer {
-  flex: 1;
+.crumbSep {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-md);
 }
 
-/*
- * A navigation link in a bar of buttons. It takes the row's height and the button's padding
- * so the header reads as one row of controls, and keeps a link's underline-on-hover so it is
- * still obviously a link rather than a button wearing different clothes.
- */
-.link {
-  display: inline-flex;
-  align-items: center;
-  height: var(--control-height-md);
-  padding-inline: var(--space-2);
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  text-decoration: none;
+.crumbLeaf {
+  flex: none;
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
   white-space: nowrap;
 }
 
-.link:hover {
-  background-color: var(--bg-hover);
-  color: var(--text-primary);
-  text-decoration: underline;
+/* The view's own count. Quiet, because it is a standing fact and not a control. */
+.count {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.link:focus-visible {
+/*
+ * Nothing on this row shrinks except the breadcrumb, and inside it only the title.
+ *
+ * Every other child is a product string or a control — `08-ui-composition.md` forbids
+ * squeezing those into an ellipsis, and a flex item carrying `white-space: nowrap` would
+ * otherwise be shrunk to nothing before the row wrapped. The exemptions are written into the
+ * selector, so no equal-weight rule has to win a tie the bundler decides; the breadcrumb then
+ * takes its flexibility back at three classes, because it is the one child whose content
+ * (the title, with its own floor above) is allowed to give up width.
+ */
+.header > *:not(.title, .spacer) {
+  flex: none;
+}
+
+.header > .crumbs.crumbs {
+  flex: 0 1 auto;
+}
+
+/* Everything that acts on the view, pushed to the trailing edge. */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+  margin-left: auto;
+}
+
+/*
+ * The second row: which issues, the filter, and how they are drawn.
+ *
+ * This carries the one hairline between the chrome and the rows. The filter bar is a guest
+ * here rather than a row of its own — it brings a border and padding of its own for the
+ * screens where it stands alone, and both are taken off below so it sits in the line with
+ * the pills and the Display button. Higher specificity than the bar's own rule on purpose:
+ * two equal-weight rules would be settled by bundle order, which nobody controls.
+ */
+.viewbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  flex: none;
+  /* One 28px control plus the row's own breathing room, which is what Linear's toolbar
+     measures. Not --header-height: the header above is the taller of the two on purpose. */
+  min-height: calc(var(--control-height-md) + var(--space-3));
+  padding-block: var(--space-1);
+  padding-inline: var(--space-3) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.viewbar .filters {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+  padding: 0;
+  border-bottom: 0;
+}
+
+/*
+ * Active / Backlog / All issues.
+ *
+ * Three presets over the same filter grammar the bar edits, drawn as one segmented control
+ * so the pressed one reads as "where you are" rather than as three unrelated buttons. Pill
+ * rather than radius-md: this is the one place in the chrome a control is selected rather
+ * than pressed, and the shape is what says so before the tint does.
+ */
+.scope {
+  display: flex;
+  align-items: center;
+  gap: var(--space-0-5);
+  flex: none;
+}
+
+.scopePill {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-height-md);
+  padding-inline: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.scopePill:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.scopePill[aria-pressed='true'] {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.scopePill:focus-visible {
   outline: var(--focus-ring-width) solid var(--border-focus);
   outline-offset: var(--focus-ring-offset);
 }
@@ -115,7 +238,7 @@
  * that has just selected something. The last row is still reachable: the scroller keeps its
  * own overscroll and the bar is short enough to scroll past.
  */
-.toolbar {
+.selectionBar {
   position: absolute;
   z-index: var(--z-sticky);
   bottom: var(--space-4);
@@ -147,7 +270,7 @@
 
 /* The bar moves, so it owes an answer: the same arrival, without the travel. */
 @media (prefers-reduced-motion: reduce) {
-  .toolbar {
+  .selectionBar {
     animation-name: barFade;
   }
 
@@ -190,6 +313,8 @@
   min-height: 0;
 }
 
+/* Opaque, so the rows scroll under the copy rather than through it. The heading inside
+   carries its own inset and tint, so nothing else is drawn here. */
 .pinned {
   position: absolute;
   z-index: var(--z-sticky);
@@ -197,7 +322,6 @@
   right: 0;
   left: 0;
   background: var(--bg-primary);
-  border-bottom: 1px solid var(--border-subtle);
   pointer-events: auto;
 }
 
@@ -238,30 +362,43 @@
 }
 
 /*
- * The group heading. --control-height-md rather than the literal 28px it used to carry: the
- * ladder in tokens.css already owns that number, and a heading pinned to a hard-coded pixel
- * is one a density change would leave behind while every control around it moved.
+ * The group heading: a tinted, rounded bar inset from the pane's edge, with the fold control
+ * filling it and a "+" at its trailing end.
+ *
+ * 36px, which is one 28px control and --space-2 of air. Written as that sum rather than as a
+ * literal so a density change moves it with the ladder; `ESTIMATED_HEADER_PX` in
+ * IssueList.tsx carries the same number and must be kept in step.
  */
 .group {
   display: flex;
   align-items: center;
+  gap: var(--space-1);
+  height: calc(var(--control-height-md) + var(--space-2));
+  margin-inline: var(--space-2);
+  padding-inline: var(--space-1) var(--space-1);
+  border-radius: var(--radius-lg);
+  background: var(--bg-tertiary);
+}
+
+/* The fold control takes the whole bar bar the "+", so the heading is one big target. */
+.groupToggle {
+  display: flex;
+  align-items: center;
   gap: var(--space-2);
-  width: 100%;
-  height: var(--control-height-md);
-  padding-inline: var(--space-4);
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding-inline: var(--space-1);
   border: 0;
+  border-radius: var(--radius-md);
   background: none;
   font: inherit;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   text-align: start;
   cursor: pointer;
 }
 
-.group:hover {
-  background-color: var(--bg-hover);
-}
-
-.group:focus-visible {
+.groupToggle:focus-visible {
   outline: var(--focus-ring-width) solid var(--border-focus);
   outline-offset: calc(var(--focus-ring-offset) * -1);
 }
@@ -286,21 +423,26 @@
 }
 
 .groupName {
+  overflow: hidden;
+  color: var(--text-primary);
   font-weight: var(--font-weight-medium);
-  color: var(--text-secondary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
+/* Secondary rather than tertiary: the heading sits on --bg-tertiary, where tertiary is under
+   the floor in dark. */
 .groupCount {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
 
 /*
- * The leading slot: the status ring, with the selection checkbox stacked over it.
+ * The leading slot: the priority glyph, with the selection checkbox stacked over it.
  *
  * Stacked rather than laid side by side so the row's leading edge does not shift as the
- * pointer crosses it — in a list this dense a twenty-pixel jump reads as the whole column
- * moving. The box is `--control-height-xs`'s footprint, which is what the ring already takes.
+ * pointer crosses it — in a list this dense a sixteen-pixel jump reads as the whole column
+ * moving. The box is the glyph's own footprint.
  */
 .lead {
   position: relative;
@@ -341,14 +483,14 @@
 /* A sub-issue is indented and says whose it is. The indent alone would say "this is under
    something" without saying what, which in a filtered list is the half not worth having. */
 .child {
-  padding-inline-start: var(--space-6);
+  padding-inline-start: var(--space-8);
 }
 
 .parentCrumb {
   flex: none;
   color: var(--text-tertiary);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
 }
 
 .parentCrumb::after {
@@ -357,22 +499,23 @@
 }
 
 .row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-2);
   height: var(--row-height);
-  padding-inline: var(--space-4);
+  margin-inline: var(--space-2);
+  padding-inline: var(--space-2) var(--space-3);
+  border-radius: var(--radius-lg);
   color: var(--text-primary);
   font-size: var(--font-size-md);
   line-height: var(--line-height-none);
   cursor: pointer;
   user-select: none;
-  /* box-shadow is here for the cursor bar below. The wash and the bar are one movement as
-     far as the eye is concerned — J and K move both — so they ramp together, and at
-     --duration-instant because holding J down must not leave the mark trailing the row. */
-  transition:
-    background-color var(--duration-instant) var(--ease-out),
-    box-shadow var(--duration-instant) var(--ease-out);
+  /* The wash and the cursor mark are one movement as far as the eye is concerned — J and K
+     move both — so they ramp together, and at --duration-instant because holding J down must
+     not leave the mark trailing the row. */
+  transition: background-color var(--duration-instant) var(--ease-out);
 }
 
 .row:hover {
@@ -429,18 +572,35 @@
   }
 }
 
+/*
+ * The cursor. A short accent bar at the leading edge, drawn as a pseudo-element rather than
+ * as an inset shadow: the row is rounded now, and a shadow clipped by an 8px corner came out
+ * as a sliver with two bitten ends. The wash underneath is the hover wash, so the row the
+ * keyboard is on looks the way a row under the pointer does — which is what it is.
+ */
 .active {
-  /* An inset border rather than an outline: it must not change the row's height, and it has
-     to sit inside the hairline the row already has. */
-  box-shadow: inset 2px 0 0 var(--accent);
+  background-color: var(--bg-hover);
 }
 
+.active::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 2px;
+  height: var(--space-4);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  transform: translateY(-50%);
+}
+
+/* A fixed column, so the titles beside it start on one vertical line. Sans and 13px rather
+   than the mono 11px it wore: the identifier is read, not compared character by character. */
 .identifier {
   flex: none;
   min-width: 7.5ch;
-  color: var(--text-tertiary);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
   font-variant-numeric: tabular-nums;
 }
 
@@ -448,6 +608,7 @@
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
+  font-weight: var(--font-weight-medium);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -465,7 +626,7 @@
 .chipLink:focus-visible {
   outline: var(--focus-ring-width) solid var(--border-focus);
   outline-offset: var(--focus-ring-offset);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-full);
 }
 
 .meta {
@@ -490,53 +651,47 @@
 }
 
 /*
- * The estimate and the due date, drawn exactly as a board card draws them — same size, same
- * tone, same tabular figures — because they are the same two facts and a reader who has
- * learned one should not have to learn the other. Both are optional properties; a row that is
- * showing neither loses their width rather than reserving it.
+ * A property on the row: the project with its emoji, the cycle, the due date, the estimate,
+ * the sub-issue count. One shape for all of them — a bordered pill at --control-height-pill
+ * with a 14px glyph — because they are the same kind of fact and a reader who has learned
+ * one should not have to learn the other. Every one is optional; a row showing none of them
+ * loses their width rather than reserving it.
  */
-.estimate {
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   flex: none;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
-  font-variant-numeric: tabular-nums;
-}
-
-.due {
-  flex: none;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
-}
-
-/*
- * A tertiary tone is only measured against `--bg-primary`. The moment a row is hovered or
- * selected these three sit on `--bg-hover` or `--bg-selected`, where tertiary is below the
- * floor — `08-ui-composition.md` calls this the single most repeated contrast defect in the
- * codebase, and a row under the pointer is exactly the row being read.
- */
-.row:hover .identifier,
-.row:hover .estimate,
-.row:hover .due,
-.row:hover .property,
-.row:hover .parentCrumb,
-.selected .identifier,
-.selected .estimate,
-.selected .due,
-.selected .property,
-.selected .parentCrumb {
+  max-width: 18ch;
+  height: var(--control-height-pill);
+  padding-inline: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
   color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--line-height-none);
+  white-space: nowrap;
 }
 
-/* The optional properties the display menu can add to a row — project, cycle, the two dates.
-   Drawn exactly as the estimate is, because they are the same kind of fact. */
-.property {
-  flex: none;
-  max-width: 16ch;
+.pillText {
   overflow: hidden;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
-  white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.pillGlyph {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-tertiary);
+}
+
+/* The project's emoji is data, and it is drawn at the glyph's size so a project with one and
+   a project without still line up. */
+.pillEmoji {
+  flex: none;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-none);
 }
 
 /*
@@ -547,6 +702,46 @@
  */
 .overdue {
   color: var(--text-danger);
+}
+
+.overdue .pillGlyph {
+  color: inherit;
+}
+
+/* The created (or updated) date, right-aligned in a fixed column so the avatars beside it
+   line up down the list. Tertiary, because it is the least of the facts on the row. */
+.date {
+  flex: none;
+  width: 8ch;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  white-space: nowrap;
+}
+
+/*
+ * A tertiary tone is only measured against `--bg-primary`. The moment a row is hovered,
+ * selected or under the cursor these sit on `--bg-hover` or `--bg-selected`, where tertiary
+ * is below the floor — `08-ui-composition.md` calls this the single most repeated contrast
+ * defect in the codebase, and a row under the pointer is exactly the row being read.
+ */
+.row:hover .date,
+.row:hover .parentCrumb,
+.row:hover .pillGlyph,
+.selected .date,
+.selected .parentCrumb,
+.selected .pillGlyph,
+.active .date,
+.active .parentCrumb,
+.active .pillGlyph {
+  color: var(--text-secondary);
+}
+
+.row:hover .overdue .pillGlyph,
+.selected .overdue .pillGlyph,
+.active .overdue .pillGlyph {
+  color: inherit;
 }
 
 /*

@@ -14,7 +14,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { Button, Spinner } from '~/components';
+import { Button, SettingsPage, SettingsSection, Spinner } from '~/components';
+import { SettingsRow } from '~/components/SettingsSection';
 import { formatEur, PRO_MONTHLY_CENTS, annualMonthlyCents } from '~/features/pricing/plans';
 import { exact } from '~/features/time';
 import { useViewer } from '~/hooks/useViewer';
@@ -95,108 +96,111 @@ export function BillingSettings() {
 
   if (!isAdmin) {
     return (
-      <div className={styles.page}>
-        <h1 className={styles.title}>Billing</h1>
-        <p className={styles.lead}>Only a workspace administrator can see billing.</p>
-      </div>
+      <SettingsPage title="Billing">
+        <SettingsSection>
+          <SettingsRow>
+            <p className={styles.note}>Only a workspace administrator can see billing.</p>
+          </SettingsRow>
+        </SettingsSection>
+      </SettingsPage>
     );
   }
 
   if (loading) {
     return (
-      <div className={styles.page}>
-        <h1 className={styles.title}>Billing</h1>
-        <Spinner />
-      </div>
+      <SettingsPage title="Billing">
+        <SettingsSection>
+          <SettingsRow>
+            <div className={styles.loading}>
+              <Spinner />
+            </div>
+          </SettingsRow>
+        </SettingsSection>
+      </SettingsPage>
     );
   }
 
   const plan = state?.plan ?? 'free';
   const paid = plan === 'pro' || plan === 'enterprise';
 
+  if (state?.enabled === false) {
+    /* Self-hosted, or a cloud deployment with no Stripe credentials. Saying so is the
+       whole message: there is nothing to buy here and no button that would work. */
+    return (
+      <SettingsPage title="Billing" error={error ?? undefined}>
+        <SettingsSection>
+          <SettingsRow>
+            <p className={styles.note}>
+              This server has no payment provider configured, so there is nothing to buy. Every
+              feature the plan allows is already on.
+            </p>
+          </SettingsRow>
+        </SettingsSection>
+      </SettingsPage>
+    );
+  }
+
   return (
-    <div className={styles.page}>
-      <h1 className={styles.title}>Billing</h1>
+    <SettingsPage title="Billing" error={error ?? undefined}>
+      <SettingsSection
+        title="Plan"
+        // The lapse is the section's own failure: it is about the plan on this card, and the
+        // portal button beside the heading is the way out of it.
+        error={
+          state?.lapsed === true
+            ? 'A payment has failed and the plan has lapsed. Everything is still readable; changes that need the plan are paused until billing is current.'
+            : undefined
+        }
+        actions={
+          state?.canManage === true ? (
+            <Button loading={busy} onClick={() => void go(() => billing.portal())}>
+              Manage billing
+            </Button>
+          ) : undefined
+        }
+      >
+        <SettingsRow label="Plan">
+          <span className={styles.value}>{PLAN_LABELS[plan] ?? plan}</span>
+        </SettingsRow>
+        <SettingsRow label="People">
+          <span className={styles.value}>
+            {state?.seatsUsed ?? 0}
+            {state?.seatsPaid == null ? null : ` of ${state.seatsPaid} billed`}
+          </span>
+        </SettingsRow>
+        {state?.hasSubscription !== true ? null : (
+          <SettingsRow label="Status">
+            <span className={styles.value}>{STATUS_LABELS[state.status] ?? state.status}</span>
+          </SettingsRow>
+        )}
+        {state?.currentPeriodEnd == null ? null : (
+          <SettingsRow label={state.status === 'canceled' ? 'Access until' : 'Renews'}>
+            <span className={styles.value}>{exact(state.currentPeriodEnd)}</span>
+          </SettingsRow>
+        )}
+      </SettingsSection>
 
-      {error === null ? null : (
-        <p className={styles.error} role="alert">
-          {error}
-        </p>
-      )}
-
-      {state?.enabled === false ? (
-        /* Self-hosted, or a cloud deployment with no Stripe credentials. Saying so is the
-           whole message: there is nothing to buy here and no button that would work. */
-        <p className={styles.lead}>
-          This server has no payment provider configured, so there is nothing to buy. Every feature
-          the plan allows is already on.
-        </p>
-      ) : (
-        <>
-          <dl className={styles.facts}>
-            <div>
-              <dt>Plan</dt>
-              <dd className={styles.plan}>{PLAN_LABELS[plan] ?? plan}</dd>
-            </div>
-            <div>
-              <dt>People</dt>
-              <dd>
-                {state?.seatsUsed ?? 0}
-                {state?.seatsPaid == null ? null : ` of ${state.seatsPaid} billed`}
-              </dd>
-            </div>
-            {state?.hasSubscription !== true ? null : (
-              <div>
-                <dt>Status</dt>
-                <dd>{STATUS_LABELS[state.status] ?? state.status}</dd>
-              </div>
-            )}
-            {state?.currentPeriodEnd == null ? null : (
-              <div>
-                <dt>{state.status === 'canceled' ? 'Access until' : 'Renews'}</dt>
-                <dd>{exact(state.currentPeriodEnd)}</dd>
-              </div>
-            )}
-          </dl>
-
-          {state?.lapsed !== true ? null : (
-            <p className={styles.error} role="alert">
-              A payment has failed and the plan has lapsed. Everything is still readable; changes
-              that need the plan are paused until billing is current.
-            </p>
-          )}
-
-          {paid ? null : (
-            <p className={styles.lead}>
-              Pro is {formatEur(PRO_MONTHLY_CENTS)} per person per month, or{' '}
-              {formatEur(annualMonthlyCents())} a month with the year paid up front. Seats are
-              billed at the {state?.seatsUsed ?? 0} people in this workspace today.
-            </p>
-          )}
-
-          <div className={styles.actions}>
-            {paid ? null : (
-              <>
-                <Button
-                  variant="primary"
-                  loading={busy}
-                  onClick={() => void go(() => billing.checkout('monthly'))}
-                >
-                  Upgrade to Pro
-                </Button>
-                <Button loading={busy} onClick={() => void go(() => billing.checkout('yearly'))}>
-                  Pay yearly
-                </Button>
-              </>
-            )}
-            {state?.canManage !== true ? null : (
-              <Button loading={busy} onClick={() => void go(() => billing.portal())}>
-                Manage billing
+      {paid ? null : (
+        <SettingsSection
+          title="Upgrade"
+          description={`Pro is ${formatEur(PRO_MONTHLY_CENTS)} per person per month, or ${formatEur(annualMonthlyCents())} a month with the year paid up front. Seats are billed at the ${String(state?.seatsUsed ?? 0)} people in this workspace today.`}
+        >
+          <SettingsRow>
+            <div className={styles.actions}>
+              <Button
+                variant="primary"
+                loading={busy}
+                onClick={() => void go(() => billing.checkout('monthly'))}
+              >
+                Upgrade to Pro
               </Button>
-            )}
-          </div>
-        </>
+              <Button loading={busy} onClick={() => void go(() => billing.checkout('yearly'))}>
+                Pay yearly
+              </Button>
+            </div>
+          </SettingsRow>
+        </SettingsSection>
       )}
-    </div>
+    </SettingsPage>
   );
 }

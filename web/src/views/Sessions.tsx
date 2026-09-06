@@ -15,8 +15,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { Badge, Button, EmptyState, Spinner } from '~/components';
+import { Badge, Button, EmptyState, SettingsPage, SettingsSection, Spinner } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
+import { SettingsRow } from '~/components/SettingsSection';
 import {
   locationOf,
   revocationConsequence,
@@ -130,14 +131,11 @@ export function Sessions() {
   const loading = sessions === null && loadError === null;
 
   return (
-    <div className={styles.screen}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>Sessions</h1>
-        {sessions === null ? null : (
-          <Badge>{sessions.length === 1 ? '1 session' : `${sessions.length} sessions`}</Badge>
-        )}
-        <div className={styles.spacer} />
-        {others.length === 0 ? null : (
+    <SettingsPage
+      title="Sessions"
+      description="Each row is a browser or device holding a live login. Revoking one stops that device renewing its login, so it is signed out within a few minutes and cannot get back in without your password. Revoking the others keeps this browser and kills everything else — the move after a stolen laptop or a hotel wifi you no longer trust."
+      actions={
+        others.length === 0 ? undefined : (
           <Button
             variant="danger"
             onClick={() => {
@@ -147,71 +145,75 @@ export function Sessions() {
           >
             Revoke other sessions
           </Button>
-        )}
-      </header>
-
-      <div className={styles.body}>
-        <section className={styles.intro} aria-labelledby="sessions-about">
-          <h2 className={styles.sectionTitle} id="sessions-about">
-            Where you are signed in
-          </h2>
-          <p className={styles.sectionHint}>
-            Each row is a browser or device holding a live login. Revoking one stops that device
-            renewing its login, so it is signed out within a few minutes and cannot get back in
-            without your password. Revoking the others keeps this browser and kills everything else
-            — the move after a stolen laptop or a hotel wifi you no longer trust.
-          </p>
-        </section>
-
+        )
+      }
+      width="wide"
+    >
+      <SettingsSection
+        title="Where you are signed in"
+        status={
+          sessions === null ? undefined : (
+            <Badge>{sessions.length === 1 ? '1 session' : `${sessions.length} sessions`}</Badge>
+          )
+        }
+      >
         {loadError === null ? null : (
-          <div className={styles.failure} role="alert">
-            <p className={styles.failureText}>{loadError}</p>
-            <Button onClick={reload}>Try again</Button>
-          </div>
+          <SettingsRow>
+            <div className={styles.failure} role="alert">
+              <p className={styles.failureText}>{loadError}</p>
+              <Button onClick={reload}>Try again</Button>
+            </div>
+          </SettingsRow>
         )}
 
         {loading ? (
-          <div className={styles.loading}>
-            <Spinner label="Loading your sessions" />
-          </div>
+          <SettingsRow>
+            <div className={styles.loading}>
+              <Spinner label="Loading your sessions" />
+            </div>
+          </SettingsRow>
         ) : null}
 
         {sessions === null || sessions.length > 0 ? null : (
-          <EmptyState
-            title="No live sessions"
-            description="A session appears here when you sign in. If you are reading this, that usually means the list could not see the cookie on this request — try signing in again."
-          />
+          <SettingsRow>
+            <EmptyState
+              title="No live sessions"
+              description="A session appears here when you sign in. If you are reading this, that usually means the list could not see the cookie on this request — try signing in again."
+            />
+          </SettingsRow>
         )}
 
         {rows.length === 0 ? null : (
-          <table className={styles.table}>
-            <caption className={styles.caption}>
-              Live logins on your account. This browser is marked Current and listed first.
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Device</th>
-                <th scope="col">Location</th>
-                <th scope="col">IP</th>
-                <th scope="col">Last seen</th>
-                <th scope="col">Signed in</th>
-                <th scope="col" className={styles.hidden}>
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((session) => (
-                <SessionRow
-                  key={session.id}
-                  session={session}
-                  onRevoke={() => askRevoke(session)}
-                />
-              ))}
-            </tbody>
-          </table>
+          <div className={styles.scroll}>
+            <table className={styles.table}>
+              <caption className={styles.caption}>
+                Live logins on your account. This browser is marked Current and listed first.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Device</th>
+                  <th scope="col">Location</th>
+                  <th scope="col">IP</th>
+                  <th scope="col">Last seen</th>
+                  <th scope="col">Signed in</th>
+                  <th scope="col" className={styles.hidden}>
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((session) => (
+                  <SessionRow
+                    key={session.id}
+                    session={session}
+                    onRevoke={() => askRevoke(session)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
-      </div>
+      </SettingsSection>
 
       <ConfirmDialog
         open={target !== null}
@@ -242,7 +244,7 @@ export function Sessions() {
         onConfirm={() => void confirmRevokeOthers()}
         onClose={() => setRevoking(null)}
       />
-    </div>
+    </SettingsPage>
   );
 }
 

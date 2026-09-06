@@ -1,0 +1,89 @@
+/*
+ * The section header the issue screen's four panels share.
+ *
+ * 13px/500 for the name, the count beside it at secondary, the "+" at the far edge: the same
+ * row Linear draws over sub-issues and links. The chevron turns rather than swapping for a
+ * second glyph, held to --duration-fast because folding a section is on the keyboard path.
+ */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-md);
+}
+
+.title {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+}
+
+/*
+ * A plain button rather than the library's: it carries the heading's text at the heading's
+ * size, hangs the chevron off its leading edge, and must not read as a pill sitting where a
+ * title belongs.
+ */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-height-md);
+  margin-left: calc(var(--space-1) * -1);
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.toggle:hover {
+  background-color: var(--bg-hover);
+}
+
+.toggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.chevron {
+  flex: none;
+  width: var(--space-3);
+  height: var(--space-3);
+  color: var(--text-tertiary);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.chevron.open {
+  transform: rotate(90deg);
+}
+
+.count {
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  font-variant-numeric: tabular-nums;
+}
+
+.spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}

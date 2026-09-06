@@ -2,6 +2,10 @@
  * The command menu sits high on the screen rather than centred: it is opened with the
  * hands already on the keyboard and read top-down, and centring it means the eye travels
  * further on every single invocation of the most-used surface in the product.
+ *
+ * A hundred pixels from the top, or less on a short window. That is where the eye already
+ * is after the keystroke — the header row of whatever screen was open — so the panel arrives
+ * under the gaze rather than pulling it down.
  */
 .backdrop {
   position: fixed;
@@ -10,7 +14,7 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding-top: 14vh;
+  padding-top: min(100px, 12vh);
   background: var(--bg-overlay);
   /* The scrim was cutting in behind a panel that rose, which made the most-used surface in
    * the product arrive as two separate events on one keystroke. */
@@ -24,14 +28,14 @@
 }
 
 .panel {
-  width: min(560px, calc(100vw - var(--space-8)));
-  max-height: 52vh;
+  width: min(760px, calc(100vw - var(--space-8)));
+  max-height: min(60vh, 560px);
   display: flex;
   flex-direction: column;
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-modal);
   overflow: hidden;
   animation: rise var(--duration-fast) var(--ease-out);
 }
@@ -88,65 +92,138 @@
  * that is a real exception, and this was not one.
  */
 
-.input {
+/*
+ * The query row: one header-height line with the box on the left and the prefix grammar on
+ * the right. The row, not the input, draws the divider, so the hint sits inside the same
+ * line the caret does rather than under it.
+ */
+.inputRow {
   flex: none;
-  padding: var(--space-3) var(--space-4);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-md);
-  color: var(--text-primary);
-  background: transparent;
-  border: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--header-height);
+  padding-inline: var(--space-4) var(--space-3);
   border-bottom: 1px solid var(--border-subtle);
+  transition: border-color var(--duration-instant) var(--ease-out);
 }
 
 /*
  * Focus relocated, not removed.
  *
- * `outline: none` sat on the rule above with nothing drawn in its place, which is the one
+ * `outline: none` used to sit on the input with nothing drawn in its place, which is the one
  * thing the composition rules say a focus style may never do. A ring around a box that fills
  * the top of the panel is wrong here — the panel *is* the focus, it opened on a keystroke and
- * holds it until it closes — so the affordance moves to the divider the input already draws:
+ * holds it until it closes — so the affordance moves to the divider the row already draws:
  * the line under the query goes accent while the query is live. Same information, on the edge
  * the eye is already reading along.
  */
+.inputRow:focus-within {
+  border-bottom-color: var(--border-focus);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  color: var(--text-primary);
+  background: transparent;
+  border: 0;
+}
+
 .input:focus-visible {
   outline: none;
-  border-bottom-color: var(--border-focus);
 }
 
 .input::placeholder {
   color: var(--text-tertiary);
 }
 
+/*
+ * The three prefixes, drawn as caps beside what they scope to.
+ *
+ * Not `Kbd`: these are characters typed into the box, not chords pressed on it, and `Kbd`
+ * would read `>` as a key spec and refuse it. Same cap as `Kbd` draws — bg-tertiary,
+ * radius-sm, secondary ink — so the two kinds of hint on this panel do not look like two
+ * opinions. Hidden from the accessibility tree because the empty state already spells the
+ * grammar out as a sentence, which is the form that reads well aloud.
+ */
+.grammar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.grammarItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.prefix {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--space-4);
+  height: var(--space-4);
+  padding-inline: var(--space-1);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+}
+
+@media (max-width: 640px) {
+  .grammar {
+    display: none;
+  }
+}
+
+/* Inset 8px from the panel edge, which is also the inset the highlighted row keeps. */
 .results {
   flex: 1;
   margin: 0;
-  padding: var(--space-1);
+  padding: var(--space-2);
   list-style: none;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
 
 .groupHeader {
-  padding: var(--space-2) var(--space-3) var(--space-1);
-  font-size: var(--font-size-xs);
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
-  color: var(--text-tertiary);
+  /* Secondary, not tertiary: the panel is a raised surface, where tertiary measures 4.08:1
+     and fails body text in dark. */
+  color: var(--text-secondary);
+}
+
+.groupHeader + .groupHeader,
+.item + .groupHeader {
+  margin-top: var(--space-1);
 }
 
 .item {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  min-height: var(--control-height-md);
-  padding: var(--space-1) var(--space-3);
+  min-height: 42px;
+  padding: 0 var(--space-2);
   border-radius: var(--radius-md);
   font-size: var(--font-size-md);
   color: var(--text-primary);
   cursor: pointer;
-  transition:
-    background-color var(--duration-instant) var(--ease-out),
-    box-shadow var(--duration-instant) var(--ease-out);
+  transition: background-color var(--duration-instant) var(--ease-out);
 }
 
 /*
@@ -154,14 +231,32 @@
  * often as by the mouse, and a :hover rule would fight the keyboard whenever the pointer
  * happens to be resting over the list.
  *
- * The rail is the same mark the inbox and the pulse draw on their cursor row, and it is here
- * for the same reason it is there: a wash alone is one thing said in one channel, and Enter
- * runs whatever this row is. It is also the mark that survives a theme, a bad screen and a
- * user who cannot separate the wash from the panel behind it.
+ * The hover wash alone, and no accent rail: the row's glyph and its shortcut chip are what
+ * survive a theme, and the same wash is what every other row in the product turns under the
+ * cursor. A second mark on this one surface made it the odd one out.
  */
 .item[data-active='true'] {
-  background: var(--bg-selected);
-  box-shadow: inset 2px 0 0 var(--accent);
+  background: var(--bg-hover);
+}
+
+/*
+ * The glyph at the row's left edge, sixteen pixels on every row so the titles form a column.
+ *
+ * Secondary ink for the command glyphs; a state icon and an avatar bring their own colour.
+ */
+.icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-4);
+  height: var(--space-4);
+  color: var(--text-secondary);
+}
+
+.icon svg {
+  width: var(--space-4);
+  height: var(--space-4);
 }
 
 .title {
@@ -196,7 +291,7 @@
 
 .emptyHint {
   font-size: var(--font-size-sm);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 /*

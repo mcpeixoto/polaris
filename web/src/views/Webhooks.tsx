@@ -9,9 +9,20 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
 
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Badge, Button, Checkbox, EmptyState, Input, Modal, Spinner } from '~/components';
+import {
+  Badge,
+  Button,
+  Checkbox,
+  EmptyState,
+  Input,
+  Modal,
+  SettingsPage,
+  SettingsSection,
+  Spinner,
+} from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { SecretField } from '~/components/SecretField';
+import { SettingsRow } from '~/components/SettingsSection';
 import {
   createWebhook,
   deleteWebhook,
@@ -90,51 +101,47 @@ export function Webhooks() {
   );
 
   return (
-    <div className={styles.screen}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>Webhooks</h1>
-        <div className={styles.spacer} />
+    <SettingsPage
+      title="Webhooks"
+      actions={
         <Button variant="primary" onClick={() => openCreate.current()}>
           New webhook
         </Button>
-      </header>
-
-      <div className={styles.body}>
-        <section className={styles.intro} aria-labelledby="webhooks-about">
-          <h2 className={styles.sectionTitle} id="webhooks-about">
-            Push, signed
-          </h2>
-          <p className={styles.sectionHint}>
-            Each webhook POSTs JSON to an HTTPS URL when something in this workspace changes. The
-            body is signed with HMAC-SHA256 using a secret shown once. Public-team subscriptions
-            never include private-team data; a team-scoped webhook will, if you point it at a
-            private team.
-          </p>
-        </section>
-
+      }
+    >
+      <SettingsSection
+        title="Push, signed"
+        description="Each webhook POSTs JSON to an HTTPS URL when something in this workspace changes. The body is signed with HMAC-SHA256 using a secret shown once. Public-team subscriptions never include private-team data; a team-scoped webhook will, if you point it at a private team."
+      >
         {loadError === null ? null : (
-          <div className={styles.failure} role="alert">
-            <p className={styles.failureText}>{loadError}</p>
-            <Button onClick={reload}>Try again</Button>
-          </div>
+          <SettingsRow>
+            <div className={styles.failure} role="alert">
+              <p className={styles.failureText}>{loadError}</p>
+              <Button onClick={reload}>Try again</Button>
+            </div>
+          </SettingsRow>
         )}
 
         {loading ? (
-          <div className={styles.loading}>
-            <Spinner label="Loading webhooks" />
-          </div>
+          <SettingsRow>
+            <div className={styles.loading}>
+              <Spinner label="Loading webhooks" />
+            </div>
+          </SettingsRow>
         ) : null}
 
         {hooks === null || hooks.length > 0 ? null : (
-          <EmptyState
-            title="No webhooks yet"
-            description="A webhook is how an integration hears about issues without polling."
-            action={
-              <Button variant="primary" onClick={() => setCreating(true)}>
-                New webhook
-              </Button>
-            }
-          />
+          <SettingsRow>
+            <EmptyState
+              title="No webhooks yet"
+              description="A webhook is how an integration hears about issues without polling."
+              action={
+                <Button variant="primary" onClick={() => setCreating(true)}>
+                  New webhook
+                </Button>
+              }
+            />
+          </SettingsRow>
         )}
 
         {hooks === null || hooks.length === 0 ? null : (
@@ -167,41 +174,45 @@ export function Webhooks() {
                     </Badge>
                   </td>
                   <td className={styles.actions}>
-                    <Button
-                      loading={toggling === hook.id}
-                      aria-label={`${hook.enabled ? 'Disable' : 'Enable'} the webhook for ${hook.url}`}
-                      onClick={() => {
-                        if (toggling !== null) return;
-                        setToggling(hook.id);
-                        setToggleError(null);
-                        setWebhookEnabled(hook.id, !hook.enabled)
-                          .then(reload)
-                          .catch((failure: unknown) => {
-                            // The screen deliberately holds no optimistic patch, so a
-                            // refusal that says nothing leaves the badge unchanged and the
-                            // user pressing the button a second time.
-                            setToggleError({
-                              id: hook.id,
-                              message:
-                                failure instanceof ApiError
-                                  ? failure.message
-                                  : 'That webhook could not be changed.',
-                            });
-                          })
-                          .finally(() => setToggling(null));
-                      }}
-                    >
-                      {hook.enabled ? 'Disable' : 'Enable'}
-                    </Button>{' '}
-                    <Button
-                      aria-label={`Delete the webhook for ${hook.url}`}
-                      onClick={() => {
-                        setRemoveError(null);
-                        setRemoving(hook);
-                      }}
-                    >
-                      Delete
-                    </Button>
+                    <span className={styles.rowActions}>
+                      <Button
+                        size="sm"
+                        loading={toggling === hook.id}
+                        aria-label={`${hook.enabled ? 'Disable' : 'Enable'} the webhook for ${hook.url}`}
+                        onClick={() => {
+                          if (toggling !== null) return;
+                          setToggling(hook.id);
+                          setToggleError(null);
+                          setWebhookEnabled(hook.id, !hook.enabled)
+                            .then(reload)
+                            .catch((failure: unknown) => {
+                              // The screen deliberately holds no optimistic patch, so a
+                              // refusal that says nothing leaves the badge unchanged and the
+                              // user pressing the button a second time.
+                              setToggleError({
+                                id: hook.id,
+                                message:
+                                  failure instanceof ApiError
+                                    ? failure.message
+                                    : 'That webhook could not be changed.',
+                              });
+                            })
+                            .finally(() => setToggling(null));
+                        }}
+                      >
+                        {hook.enabled ? 'Disable' : 'Enable'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        aria-label={`Delete the webhook for ${hook.url}`}
+                        onClick={() => {
+                          setRemoveError(null);
+                          setRemoving(hook);
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </span>
                     {toggleError !== null && toggleError.id === hook.id ? (
                       <p className={styles.rowError} role="alert">
                         {toggleError.message}
@@ -213,7 +224,7 @@ export function Webhooks() {
             </tbody>
           </table>
         )}
-      </div>
+      </SettingsSection>
 
       {creating ? (
         <CreateWebhookDialog
@@ -257,7 +268,7 @@ export function Webhooks() {
             .finally(() => setBusy(false));
         }}
       />
-    </div>
+    </SettingsPage>
   );
 }
 

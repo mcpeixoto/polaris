@@ -16,8 +16,13 @@ export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 
   /**
    * `plain` is an unboxed field: no border, no fill, used where the text *is* the page
    * (a create-issue title, an issue heading). The default is a form control.
+   *
+   * `bare` is `plain` without the focus edge, for the one case where the edge says nothing:
+   * the first field of a dialog that has just opened into it. The caret is the whole focus
+   * story there, and an underline that lights on open only marks the field as "a control"
+   * on a screen where it is meant to read as the document.
    */
-  surface?: 'boxed' | 'plain' | undefined;
+  surface?: 'boxed' | 'plain' | 'bare' | undefined;
   /** Applies to the field — label, control and message — not to the input element. */
   className?: string | undefined;
   ref?: Ref<HTMLInputElement> | undefined;
@@ -62,7 +67,8 @@ export function Input({
       <div
         className={[
           styles.box,
-          surface === 'plain' ? styles.plain : null,
+          surface === 'boxed' ? null : styles.plain,
+          surface === 'bare' ? styles.bare : null,
           invalid ? styles.invalid : null,
         ]
           .filter(Boolean)

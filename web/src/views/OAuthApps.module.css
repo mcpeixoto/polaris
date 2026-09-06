@@ -1,80 +1,24 @@
 /*
  * OAuth applications this workspace owns.
  *
- * Same density bargain as API keys: rare decisions, one of them irreversible (the client
- * secret is shown once), so the listing is a table rather than a grid of cards.
+ * The frame is SettingsPage's and the card is SettingsSection's. Same density bargain as API
+ * keys for what is left: rare decisions, one of them irreversible (the client secret is shown
+ * once), so the listing is a table rather than a grid of cards.
  */
 
-.screen {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex: none;
-  height: var(--header-height);
-  padding-inline: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.title {
-  margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-}
-
-.spacer {
-  flex: 1;
-}
-
-.body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: var(--space-6) var(--space-8);
-  max-width: 110ch;
-}
-
-.intro {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding-bottom: var(--space-6);
-  margin-bottom: var(--space-6);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.sectionTitle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-}
-
-.sectionHint {
-  margin: 0;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-normal);
-}
-
+/*
+ * A failed fetch, with its way out beside it. --text-danger is the role; the priority ramp
+ * is not borrowed for it.
+ */
 .failure {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  margin-bottom: var(--space-4);
+  flex: 1;
   padding: var(--space-3);
   border-radius: var(--radius-md);
-  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
-  color: var(--priority-urgent);
+  background-color: color-mix(in srgb, var(--text-danger) 12%, transparent);
+  color: var(--text-danger);
 }
 
 .failureText {
@@ -87,19 +31,24 @@
 .loading {
   display: flex;
   justify-content: center;
-  padding: var(--space-10) 0;
+  padding: var(--space-4);
   color: var(--text-tertiary);
 }
 
+/*
+ * The table takes the card's edge as its own: hairlines above each row rather than below,
+ * so the last row meets the card's bottom edge without drawing a second line on it. The
+ * caption is the first row, and the header's hairline is what separates the two.
+ */
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
 }
 
 .caption {
-  padding-bottom: var(--space-2);
-  color: var(--text-tertiary);
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
   text-align: start;
@@ -107,15 +56,20 @@
 
 .table th,
 .table td {
-  padding: var(--space-2);
-  border-bottom: 1px solid var(--border-subtle);
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
   text-align: start;
   vertical-align: middle;
   white-space: nowrap;
 }
 
+.table tbody td,
+.table tbody th {
+  height: var(--row-height);
+}
+
 .table thead th {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
 }
@@ -138,7 +92,7 @@
 }
 
 .prefix {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
 }
@@ -172,6 +126,12 @@
   border: 0;
 }
 
+/* --- the dialog -------------------------------------------------------------- */
+
+.spacer {
+  flex: 1;
+}
+
 .form {
   display: flex;
   flex-direction: column;
@@ -194,18 +154,6 @@
   font-weight: var(--font-weight-medium);
 }
 
-.hint,
-.detail {
-  margin: 0;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-normal);
-}
-
-.detail {
-  margin-top: var(--space-3);
-}
-
 .scopeDetail {
   color: var(--text-tertiary);
 }
@@ -214,8 +162,8 @@
   margin: 0;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
-  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
-  color: var(--priority-urgent);
+  background-color: color-mix(in srgb, var(--text-danger) 12%, transparent);
+  color: var(--text-danger);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }

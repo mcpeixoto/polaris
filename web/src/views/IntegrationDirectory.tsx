@@ -30,6 +30,7 @@ import {
   Spinner,
   Textarea,
 } from '~/components';
+import { SettingsRow } from '~/components/SettingsSection';
 import {
   DIRECTORY,
   directoryStatus,
@@ -72,6 +73,7 @@ export function IntegrationDirectory() {
       description="First-party integrations use the same GraphQL API, webhooks, and OAuth as everyone else. Connect the ones that ship; the rest stay listed so the gap is visible."
     >
       <SettingsSection
+        surface="plain"
         actions={
           <Input
             label="Filter integrations"
@@ -261,51 +263,64 @@ function SubmitSection() {
       title="Propose an integration"
       description="Propose a third-party tool that is not in the catalogue yet. It is recorded here for this workspace; it does not appear as connected until somebody actually builds it."
       error={failure ?? undefined}
-      flush
     >
-      <form className={styles.form} onSubmit={onSubmit}>
-        <Input
-          label="Name"
-          value={name}
-          error={nameError ?? undefined}
-          placeholder="Zapier"
-          autoComplete="off"
-          onChange={(event) => {
-            setName(event.target.value);
-            if (nameError !== null) setNameError(null);
-          }}
-        />
-        <Input
-          label="Website"
-          type="url"
-          value={website}
-          error={websiteError ?? undefined}
-          placeholder="https://example.com"
-          autoComplete="off"
-          onChange={(event) => {
-            setWebsite(event.target.value);
-            if (websiteError !== null) setWebsiteError(null);
-          }}
-        />
-        <Textarea
-          label="What it does"
-          value={summary}
-          error={summaryError ?? undefined}
-          minRows={3}
-          maxRows={6}
-          onChange={(event) => {
-            setSummary(event.target.value);
-            if (summaryError !== null) setSummaryError(null);
-          }}
-        />
-        {submitted === null ? null : (
-          <p className={styles.notice} role="status">
-            {submitted.name} is on the list. It stays a proposal until the integration itself ships.
-          </p>
-        )}
-        <Button type="submit" variant="primary" loading={busy}>
-          Propose integration
-        </Button>
+      <form onSubmit={onSubmit}>
+        <SettingsRow label="Name" wide>
+          <Input
+            label="Name"
+            hideLabel
+            value={name}
+            error={nameError ?? undefined}
+            placeholder="Zapier"
+            autoComplete="off"
+            onChange={(event) => {
+              setName(event.target.value);
+              if (nameError !== null) setNameError(null);
+            }}
+          />
+        </SettingsRow>
+        <SettingsRow label="Website" wide>
+          <Input
+            label="Website"
+            hideLabel
+            type="url"
+            value={website}
+            error={websiteError ?? undefined}
+            placeholder="https://example.com"
+            autoComplete="off"
+            onChange={(event) => {
+              setWebsite(event.target.value);
+              if (websiteError !== null) setWebsiteError(null);
+            }}
+          />
+        </SettingsRow>
+        <SettingsRow label="What it does" wide>
+          <Textarea
+            label="What it does"
+            hideLabel
+            value={summary}
+            error={summaryError ?? undefined}
+            minRows={3}
+            maxRows={6}
+            onChange={(event) => {
+              setSummary(event.target.value);
+              if (summaryError !== null) setSummaryError(null);
+            }}
+          />
+        </SettingsRow>
+        <SettingsRow>
+          <div className={styles.actions}>
+            {submitted === null ? null : (
+              <p className={styles.notice} role="status">
+                {submitted.name} is on the list. It stays a proposal until the integration itself
+                ships.
+              </p>
+            )}
+            <Button type="submit" variant="primary" loading={busy}>
+              Propose integration
+            </Button>
+          </div>
+        </SettingsRow>
       </form>
 
       {/*
@@ -313,39 +328,50 @@ function SubmitSection() {
         who had just proposed something watched the form clear and nothing else happen —
         indistinguishable from a post that went nowhere — and a failed fetch showed the same
         nothing as an empty workspace.
+
+        It follows the form on the same card with its own hairline: the form's rows are inside
+        the <form>, so the card cannot draw that one for us.
       */}
-      {listError !== null ? (
-        <EmptyState
-          title="Proposals could not be loaded"
-          description={listError}
-          action={<Button onClick={() => setAttempt((n) => n + 1)}>Try again</Button>}
-        />
-      ) : proposals === null ? (
-        <div className={styles.proposalsLoading}>
-          <Spinner label="Loading proposals" />
-        </div>
-      ) : proposals.length === 0 ? (
-        <EmptyState
-          title="No proposals yet"
-          description="Nobody in this workspace has proposed an integration. The form above is how one gets here."
-        />
-      ) : (
-        <ul className={styles.proposals}>
-          {proposals.map((row) => (
-            <li key={row.id} className={styles.proposal}>
-              <a
-                className={styles.proposalName}
-                href={row.website}
-                rel="noreferrer"
-                target="_blank"
-              >
-                {row.name}
-              </a>
-              <span className={styles.proposalSummary}>{row.summary}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className={styles.tail}>
+        {listError !== null ? (
+          <SettingsRow>
+            <EmptyState
+              title="Proposals could not be loaded"
+              description={listError}
+              action={<Button onClick={() => setAttempt((n) => n + 1)}>Try again</Button>}
+            />
+          </SettingsRow>
+        ) : proposals === null ? (
+          <SettingsRow>
+            <div className={styles.proposalsLoading}>
+              <Spinner label="Loading proposals" />
+            </div>
+          </SettingsRow>
+        ) : proposals.length === 0 ? (
+          <SettingsRow>
+            <EmptyState
+              title="No proposals yet"
+              description="Nobody in this workspace has proposed an integration. The form above is how one gets here."
+            />
+          </SettingsRow>
+        ) : (
+          <ul className={styles.proposals}>
+            {proposals.map((row) => (
+              <li key={row.id} className={styles.proposal}>
+                <a
+                  className={styles.proposalName}
+                  href={row.website}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  {row.name}
+                </a>
+                <span className={styles.proposalSummary}>{row.summary}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </SettingsSection>
   );
 }

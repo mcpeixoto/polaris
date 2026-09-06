@@ -63,14 +63,15 @@
 }
 
 /*
- * Six pixels and two per cent. Both are deliberately below the threshold where anyone can
- * name what happened — the dialog should read as having come from somewhere, not as having
- * performed. Nothing measures this element, so unlike Menu it is free to move.
+ * Two per cent, and no travel. The dialog is pinned to the top of the scrim and grows from
+ * that edge, which is deliberately below the threshold where anyone can name what happened
+ * — it should read as having come from somewhere, not as having performed. It used to
+ * descend six pixels as well, and the descent was the part that read as performance.
  */
 @keyframes dialogIn {
   from {
     opacity: 0;
-    transform: translateY(-6px) scale(0.98);
+    transform: scale(0.98);
   }
 }
 
@@ -115,11 +116,46 @@
   max-width: 88ch;
 }
 
+/*
+ * The composer, and the one size written in pixels: it holds a row of property pills that
+ * wrap, and the width decides where they wrap, so it is a layout measurement rather than a
+ * measure of prose. Doubled with `.dialog` because it overrides that class's radius and
+ * shadow at what would otherwise be equal weight. The extra margin lands it 88px from the
+ * top of the viewport on the scrim's own 64px — lower than the others, because its first
+ * line is a title field and not a heading.
+ */
+.dialog.composer {
+  max-width: 750px;
+  margin-top: var(--space-6);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-modal);
+}
+
 .header {
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4) var(--space-2);
+}
+
+/* A caller's header wears the same inset as the body so the two read as one surface; what
+ * goes inside it is the caller's, including the close button. */
+.customHeader {
+  padding: var(--space-4) var(--space-4) 0;
+}
+
+/* Off the page, on the accessibility tree: the heading still names the dialog when a
+ * custom header has taken its place. The same clip Field uses for a hidden label. */
+.hiddenTitle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
 }
 
 .headings {

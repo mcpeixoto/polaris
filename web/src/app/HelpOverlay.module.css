@@ -9,6 +9,21 @@
  */
 
 /*
+ * Wider than Modal's `lg`, which is sized in characters for prose. A shortcut sheet is two
+ * columns of label-and-chord rows, and at 88ch the second column was wrapping every label
+ * that had a three-key chord beside it. The panel's own surface still comes from Modal.
+ *
+ * Doubled, because Modal's own size class lands on the same element at the same weight and
+ * the cascade would otherwise be settled by which module the bundler emitted first — the
+ * composition rules say an override wins by specificity, and this is the specificity.
+ */
+.sheet.sheet {
+  max-width: 760px;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-modal);
+}
+
+/*
  * The filter, which is the first thing the sheet offers because it is the first thing a
  * forty-row reference needs.
  */
@@ -21,13 +36,13 @@
  *
  * Columns rather than one long list, because the whole sheet should be readable without
  * scrolling on a laptop — a shortcut you have to scroll to find is one you look up in the
- * command menu instead. But this is `columns: 2` inside a dialog that is `width: 100%` up to
- * 88ch, and on a phone that gave each row about twenty characters to fit a command name and
- * its key chips into, so every label wrapped to three lines beside its Kbd. The two-column
- * arrangement is an answer to having space, so it is stated where there is space.
+ * command menu instead. On a phone that gave each row about twenty characters to fit a
+ * command name and its key chips into, so every label wrapped to three lines beside its Kbd.
+ * The two-column arrangement is an answer to having space, so it is stated where there is
+ * space.
  */
 .columns {
-  column-gap: var(--space-8);
+  column-gap: var(--space-10);
 }
 
 @media (min-width: 640px) {
@@ -42,8 +57,9 @@
 }
 
 .group {
-  margin: 0 0 var(--space-2);
-  font-size: var(--font-size-xs);
+  margin: 0 0 var(--space-1);
+  padding-block: var(--space-1);
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   /* --text-secondary, not tertiary: this sheet is inside Modal's `.dialog`, a raised surface
      where tertiary measures 4.08:1 and fails body text. The size and weight are what separate
@@ -55,16 +71,24 @@
   margin: 0;
 }
 
+/*
+ * One control-height per row, label at the left and the chord flush right.
+ *
+ * `align-items: center` rather than baseline: the chips are boxes, not glyphs, and a baseline
+ * alignment hangs them a pixel low against a label whose x-height is the only thing on it.
+ */
 .row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  padding: var(--space-1) 0;
+  min-height: var(--control-height-md);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-md);
 }
 
 .label {
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   color: var(--text-primary);
 }
 
@@ -76,6 +100,7 @@
  */
 .keys {
   display: flex;
+  flex: none;
   gap: var(--space-2);
   margin: 0;
 }

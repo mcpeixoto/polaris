@@ -1,44 +1,64 @@
 /*
- * Asks settings. The page chrome and the section shape come from SettingsPage and
- * SettingsSection — this file holds only what is particular to a list of intake forms, which
- * is the link row: a read-only value, a copy button and the region that says what happened.
+ * Asks settings. The page chrome, the section shape and the rows come from SettingsPage,
+ * SettingsSection and SettingsRow — this file holds only what is particular to a list of
+ * intake forms: the list itself, and the link row inside each item — a read-only value, a
+ * copy button and the region that says what happened.
  */
 
-.hint {
-  margin: 0;
+/* Centred in a row of its own, so a one-line note is not stuck to the top of a 64px slot. */
+.note {
+  margin: auto 0;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }
 
-.create {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  gap: var(--space-3);
-  align-items: end;
+/* Underlined, not merely coloured: a link inside a sentence distinguished by colour alone
+   does not clear 3:1 against the prose around it in either theme. */
+.inlineLink {
+  color: var(--text-primary);
+  text-decoration: underline;
 }
 
-@media (max-width: 720px) {
-  .create {
-    grid-template-columns: minmax(0, 1fr);
-  }
+.inlineLink:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* The submit row. Buttons sit on the right edge like every other control on the card. */
+.actions {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+/* What comes after the create form on the same card. The rows inside a <form> are not the
+   card's own children, so the hairline between the last of them and this has to be drawn
+   here. */
+.tail {
+  border-top: 1px solid var(--border-subtle);
 }
 
 .forms {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* One form per row, at the row's own padding, so the list lines up with the fields above. */
 .form {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding-bottom: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
+  padding: var(--space-3) var(--space-4);
+}
+
+.form + .form {
+  border-top: 1px solid var(--border-subtle);
 }
 
 .formHead {
@@ -51,7 +71,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--text-primary);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-medium);
   text-overflow: ellipsis;
   white-space: nowrap;

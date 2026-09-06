@@ -12,7 +12,9 @@ import { useActions } from '~/app/keymap';
 import { Button, IconButton, Input } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { formatSubtitle } from '~/features/attachments/tokens';
+import { CrossGlyph, PlusGlyph } from '~/features/issue/glyphs';
 import { report } from '~/features/issue/mutations';
+import { Section } from '~/features/issue/Section';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Attachment, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
@@ -80,13 +82,23 @@ export function Links({ issueId }: { issueId: UUID }) {
   };
 
   return (
-    <section className={styles.panel} aria-labelledby={`${issueId}-links`}>
-      <header className={styles.head}>
-        <h2 id={`${issueId}-links`} className={styles.title}>
-          Links
-        </h2>
-      </header>
-
+    <Section
+      title="Links"
+      headingId={`${issueId}-links`}
+      count={rows.length === 0 ? undefined : rows.length}
+      action={
+        // "Attach", not "Add link": the relations panel above owns that name, and two buttons
+        // called the same thing on one page are one button as far as a screen reader is
+        // concerned. Same registered action as the chord, so the two cannot disagree.
+        <IconButton
+          size="sm"
+          icon={<PlusGlyph />}
+          aria-label="Attach a link"
+          keys="mod+shift+u"
+          onClick={() => urlRef.current?.focus()}
+        />
+      }
+    >
       {rows.length === 0 ? null : (
         <ul className={styles.list}>
           {rows.map((row) => (
@@ -147,7 +159,7 @@ export function Links({ issueId }: { issueId: UUID }) {
         }}
         onClose={() => setRemoving(null)}
       />
-    </section>
+    </Section>
   );
 }
 
@@ -189,18 +201,4 @@ function hostOf(url: string): string {
   } catch {
     return url;
   }
-}
-
-function CrossGlyph() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-      <path
-        d="M2.5 2.5l7 7M9.5 2.5l-7 7"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
 }

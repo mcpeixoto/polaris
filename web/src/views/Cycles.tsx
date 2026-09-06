@@ -1,12 +1,17 @@
 /**
- * A team's cycles: current, upcoming, previous, and pause gaps between them.
+ * A team's cycles: upcoming, current, previous, and pause gaps between them, down a
+ * timeline.
  *
  * Cycles are minted by cadence, not filed by hand. The ⋯ menu is where dates move,
  * names change, the next window can be pulled forward to today, and the team calendar
  * can be subscribed as ICS.
  *
+ * Newest at the top, because the list is a calendar read backwards: what is coming, what
+ * is running, what is done. The gutter on the left ticks each window's start and draws the
+ * running one in the accent, and the running one alone opens up to its burn-up.
+ *
  * Every row answers the same question in the tense that row is in. An upcoming cycle is
- * asked whether it is over-committed, so it wears the capacity dial; a running or finished
+ * asked whether it is over-committed, so it wears the capacity ring; a running or finished
  * one is asked how much of it is done, so it wears progress. Before this, only the upcoming
  * rows had an answer and the rest of the list fell through to "12 issues" — a number that
  * says nothing about a sprint that ended last month.
@@ -16,7 +21,7 @@ import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { Button, ConfirmDialog, EmptyState, IconButton, Menu, Progress } from '~/components';
+import { Button, ConfirmDialog, EmptyState, IconButton, Menu } from '~/components';
 import { EntityLoading, useEntityState } from '~/features/entity-gate/EntityGate';
 import { CycleEditModal, isNextUpcoming, phaseOf } from '~/features/cycles/CycleEditModal';
 import { CycleCalendarModal } from '~/features/cycles/CycleCalendarModal';
@@ -25,9 +30,12 @@ import { CapacityDial } from '~/features/cycles/CapacityDial';
 import { cycleCapacity, type CycleCapacity } from '~/features/cycles/computeCapacity';
 import { buildCycleGraph } from '~/features/cycles/computeCycleGraph';
 import { cycleWindow, daysLeftLabel } from '~/features/cycles/format';
+import { CycleGlyph, ScopeGlyph } from '~/features/cycles/glyphs';
 import { inheritsCycleSchedule } from '~/features/cycles/inherit';
 import { startCycleToday, updateCycle } from '~/features/cycles/mutations';
 import { useNow } from '~/features/cycles/useNow';
+import { uiLocale } from '~/features/locale';
+import { ProgressRing } from '~/features/projects/ProgressRing';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Cycle, Store, Team, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
@@ -40,13 +48,17 @@ interface CycleProgress {
   readonly unitLabel: 'issues' | 'points';
 }
 
+/** What the chip beside the name says. Linear's four words for a window's tense. */
+export type CycleChip = 'Planned' | 'Upcoming' | 'Current' | 'Completed';
+
 type ListRow =
   | {
       readonly kind: 'cycle';
       readonly id: UUID;
       readonly cycle: Cycle;
       readonly name: string;
-      readonly heading: string;
+      readonly chip: CycleChip;
+      readonly tick: string;
       readonly window: string;
       readonly issueCount: number;
       readonly openCount: number;
@@ -59,6 +71,7 @@ type ListRow =
       readonly kind: 'gap';
       readonly id: string;
       readonly label: string;
+      readonly tick: string;
       readonly window: string;
     };
 
@@ -154,15 +167,23 @@ export function Cycles() {
 
   const menuPhase = menuCycle === null ? 'Previous' : phaseOf(menuCycle, now);
   const currentRow = rows.find((row) => row.kind === 'cycle' && row.phase === 'Current');
-  const currentId = currentRow?.id;
 
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
-        <h1 className={styles.title}>{team.name} cycles</h1>
+        <h1 className={styles.title}>
+          {team.icon === undefined || team.icon === '' ? null : (
+            <span className={styles.teamIcon} aria-hidden="true">
+              {team.icon}
+            </span>
+          )}
+          {team.name}
+          <span className={styles.crumbSeparator} aria-hidden="true">
+            ›
+          </span>
+          Cycles
+        </h1>
       </header>
-
-      {currentId !== undefined && <CycleGraph cycleId={currentId} />}
 
       {!team.cyclesEnabled || rows.length === 0 ? (
         <EmptyState
@@ -182,9 +203,14 @@ export function Cycles() {
         <ul className={styles.list}>
           {rows.map((row) =>
             row.kind === 'gap' ? (
-              <li key={row.id} className={styles.gapRow}>
-                <span className={styles.phase}>{row.label}</span>
-                <span className={styles.gapWindow}>{row.window}</span>
+              <li key={row.id} className={`${styles.item ?? ''} ${styles.gapItem ?? ''}`}>
+                <span className={styles.tick} aria-hidden="true">
+                  <span className={styles.tickLabel}>{row.tick}</span>
+                </span>
+                <div className={styles.gapRow}>
+                  <span className={styles.gapLabel}>{row.label}</span>
+                  <span className={styles.gapWindow}>{row.window}</span>
+                </div>
               </li>
             ) : (
               <li
@@ -193,50 +219,69 @@ export function Cycles() {
                   .filter(Boolean)
                   .join(' ')}
               >
-                <Link to={`/cycle/${row.id}`} className={styles.row}>
-                  <span className={styles.phase}>{row.heading}</span>
-                  <span className={styles.body}>
-                    <span className={styles.name}>{row.name}</span>
-                    <span className={styles.summary}>{row.window}</span>
-                  </span>
-                  <span className={styles.count}>
-                    {row.capacity !== null ? (
-                      <CapacityDial data={row.capacity} compact />
-                    ) : row.progress !== null ? (
-                      <span className={styles.progress}>
-                        <Progress
-                          percent={row.progress.percent}
-                          label={`${row.name} progress`}
-                          detail={`${row.progress.completed} of ${row.progress.scope} ${row.progress.unitLabel} completed`}
-                          size="sm"
-                        />
-                        <span className={styles.ratio}>
-                          {row.progress.completed}/{row.progress.scope}
-                        </span>
+                <span className={styles.tick} aria-hidden="true">
+                  <span className={styles.tickLabel}>{row.tick}</span>
+                </span>
+                <div className={styles.body}>
+                  <div className={styles.rowLine}>
+                    <Link to={`/cycle/${row.id}`} className={styles.row}>
+                      <span className={styles.glyph} aria-hidden="true">
+                        <CycleGlyph />
                       </span>
-                    ) : row.issueCount === 1 ? (
-                      '1 issue'
-                    ) : (
-                      `${row.issueCount} issues`
-                    )}
-                  </span>
-                </Link>
-                <IconButton
-                  aria-label={`Options for ${row.name}`}
-                  size="sm"
-                  className={styles.menuButton}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    openMenu(row.cycle, event.currentTarget);
-                  }}
-                  icon={
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                      <circle cx="3" cy="8" r="1.2" fill="currentColor" />
-                      <circle cx="8" cy="8" r="1.2" fill="currentColor" />
-                      <circle cx="13" cy="8" r="1.2" fill="currentColor" />
-                    </svg>
-                  }
-                />
+                      <span className={styles.name}>{row.name}</span>
+                      <span className={styles.chip}>{row.chip}</span>
+                      <span className={styles.window}>{row.window}</span>
+                      <span className={styles.meter}>
+                        {row.capacity !== null ? (
+                          <CapacityDial data={row.capacity} compact />
+                        ) : (
+                          <>
+                            <ProgressRing
+                              percent={row.progress?.percent ?? 0}
+                              label={`${row.name} progress`}
+                              detail={
+                                row.progress === null
+                                  ? 'nothing completed'
+                                  : `${row.progress.completed} of ${row.progress.scope} ${row.progress.unitLabel} completed`
+                              }
+                            />
+                            <span className={styles.meterText}>
+                              {row.progress?.percent ?? 0}% completed
+                            </span>
+                          </>
+                        )}
+                      </span>
+                      <span className={styles.scope}>
+                        <ScopeGlyph />
+                        {row.issueCount} scope
+                      </span>
+                    </Link>
+                    <IconButton
+                      aria-label={`Options for ${row.name}`}
+                      size="sm"
+                      className={styles.menuButton}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        openMenu(row.cycle, event.currentTarget);
+                      }}
+                      icon={
+                        <svg viewBox="0 0 16 16" aria-hidden="true">
+                          <circle cx="3" cy="8" r="1.2" fill="currentColor" />
+                          <circle cx="8" cy="8" r="1.2" fill="currentColor" />
+                          <circle cx="13" cy="8" r="1.2" fill="currentColor" />
+                        </svg>
+                      }
+                    />
+                  </div>
+                  {/* The window you are in is the one the page is about, so it is the one
+                      row that opens: the burn-up sits under it rather than above the list,
+                      where it read as a chart of the list. */}
+                  {row.phase === 'Current' && (
+                    <div className={styles.graph}>
+                      <CycleGraph cycleId={row.id} inline />
+                    </div>
+                  )}
+                </div>
               </li>
             ),
           )}
@@ -372,6 +417,23 @@ function minuteOf(now: number): number {
   return Math.floor(now / 60_000);
 }
 
+/** "Sep 14": the day a window opens, in the team's zone, for the gutter. */
+function tickLabel(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat(uiLocale(), { month: 'short', day: 'numeric', timeZone }).format(
+    new Date(iso),
+  );
+}
+
+/**
+ * Linear's word for each window's tense. "Upcoming" is only the next window — the one the
+ * ⋯ menu can start today — and the ones after it are "Planned".
+ */
+export function cycleChip(phase: 'Current' | 'Upcoming' | 'Previous', isNext: boolean): CycleChip {
+  if (phase === 'Current') return 'Current';
+  if (phase === 'Previous') return 'Completed';
+  return isNext ? 'Upcoming' : 'Planned';
+}
+
 function listRows(store: Store, team: Team, now: number): ListRow[] {
   const zone = team.timezone;
   const cooldownWeeks = team.cycleCooldownWeeks;
@@ -399,6 +461,7 @@ function listRows(store: Store, team: Team, now: number): ListRow[] {
           kind: 'gap',
           id: `gap-${prev.id}-${cycle.id}`,
           label: isCooldown ? 'Cooldown' : 'Cycles paused',
+          tick: tickLabel(prev.endsAt, zone),
           window: cycleWindow(prev.endsAt, cycle.startsAt, zone, now),
         });
       }
@@ -407,12 +470,14 @@ function listRows(store: Store, team: Team, now: number): ListRow[] {
     const phase = phaseOf(cycle, now);
     const window = cycleWindow(cycle.startsAt, cycle.endsAt, zone, now);
     const graph = phase === 'Upcoming' ? null : buildCycleGraph(store, cycle.id);
+    const isNext = phase === 'Upcoming' && isNextUpcoming(cycle, cycles, now);
     rows.push({
       kind: 'cycle',
       id: cycle.id,
       cycle,
       name: cycle.name,
-      heading: phase,
+      chip: cycleChip(phase, isNext),
+      tick: tickLabel(cycle.startsAt, zone),
       // How long is left is only a question while the cycle is running; on a finished one
       // it is noise, and on one that has not begun it is the wrong end of the window.
       window:
@@ -420,7 +485,7 @@ function listRows(store: Store, team: Team, now: number): ListRow[] {
       issueCount: store.index.byCycle(cycle.id).size,
       openCount: openIssueCount(store, cycle.id),
       phase,
-      canStartToday: phase === 'Upcoming' && isNextUpcoming(cycle, cycles, now),
+      canStartToday: isNext,
       capacity: phase === 'Upcoming' ? cycleCapacity(store, cycle.id, now) : null,
       progress:
         graph === null || graph.totalScope === 0
@@ -434,7 +499,8 @@ function listRows(store: Store, team: Team, now: number): ListRow[] {
     });
   }
 
-  return rows;
+  // Newest first: the timeline reads down from what is coming to what is done.
+  return rows.reverse();
 }
 
 /** Issues that would move if this cycle were closed now: anything not done or dropped. */

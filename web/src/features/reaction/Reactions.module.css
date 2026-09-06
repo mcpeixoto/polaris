@@ -18,18 +18,21 @@
 /*
  * A pill is a toggle, so it is bordered: with no border and no label it would read as static
  * text beside the comment body, which is the row the composition rules single out.
- * `--control-height-sm` because it is nested inside the comment rather than standing on its
- * own — 22px, the ladder's nested step.
+ * `--control-height-pill` because it is a pill nested inside the comment rather than a
+ * control standing on its own — 24px, the height every other pill in the product is.
  */
 .pill {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  height: var(--control-height-sm);
+  height: var(--control-height-pill);
   padding-inline: var(--space-2);
-  border: 1px solid var(--border-default);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-full);
-  background: var(--bg-secondary);
+  background: transparent;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-none);
@@ -82,10 +85,9 @@
   left: 0;
   z-index: var(--z-dropdown);
   padding: var(--space-2);
-  border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
   background: var(--bg-elevated);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-popover);
   animation: panelIn var(--duration-fast) var(--ease-out);
 }
 

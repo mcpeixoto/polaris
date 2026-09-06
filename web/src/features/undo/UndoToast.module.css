@@ -1,24 +1,23 @@
 /*
  * The undo toast.
  *
- * Bottom centre, above everything. `--z-toast` sits above the modal layer on purpose: an issue
- * deleted from inside a dialog is exactly the delete somebody wants back, and a toast painted
- * underneath the surface that caused it is a toast nobody can press.
+ * Bottom left, above everything, in the corner the toast stack also uses — the stack lifts
+ * itself while this is showing, see ToastHost. `--z-toast` sits above the modal layer on
+ * purpose: an issue deleted from inside a dialog is exactly the delete somebody wants back,
+ * and a toast painted underneath the surface that caused it is a toast nobody can press.
  *
  * The host is always in the document, because it is the live region — see UndoToast.tsx — so
- * it must not eat pointer events while it is empty. It covers the width of the viewport in
- * order to centre what it holds, and an invisible full-width strip across the bottom of the
- * screen would otherwise swallow every click aimed at the row underneath it.
+ * it must not eat pointer events while it is empty.
  */
 
 .host {
   position: fixed;
-  inset-inline: 0;
-  bottom: var(--space-6);
+  left: var(--space-4);
+  bottom: var(--space-4);
   z-index: var(--z-toast);
   display: flex;
-  justify-content: center;
-  padding-inline: var(--space-4);
+  justify-content: flex-start;
+  max-width: calc(100vw - var(--space-8));
   pointer-events: none;
 }
 
@@ -26,14 +25,15 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  min-height: 40px;
   max-width: 60ch;
   /* Tighter on the trailing side because the button carries its own padding, and a control
      inset by a full gutter reads as floating away from the edge it belongs to. */
-  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  background-color: var(--bg-tertiary);
-  box-shadow: var(--shadow-lg);
+  background-color: var(--bg-elevated);
+  box-shadow: var(--shadow-popover);
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--font-size-md);

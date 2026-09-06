@@ -1,117 +1,54 @@
 /*
  * Personal API keys.
  *
- * A settings page, so the density rules relax the way they do in Members: these are decisions
- * made rarely, one of them is irreversible, and a row a pixel from its neighbour is a key
- * somebody revokes by accident.
- *
- * The listing is a real <table> and not a grid of divs. Every row is the same seven facts
- * about a different credential, and the questions asked of it — which of these has never been
- * used, which expires first, which one is the CI key — are comparisons down a column, which is
- * exactly what a table is for and what a screen reader can be driven through cell by cell.
- * It is wider than the Members table for the same reason it has more columns, so the body
- * here is allowed past that screen's measure rather than wrapping every date onto two lines.
+ * The settings frame owns the page and the card; what is left here is the table inside the
+ * card and the dialog that mints a key. The listing is a real <table> and not a grid of
+ * divs. Every row is the same seven facts about a different credential, and the questions
+ * asked of it — which of these has never been used, which expires first, which one is the
+ * CI key — are comparisons down a column, which is exactly what a table is for and what a
+ * screen reader can be driven through cell by cell. It has more columns than prose has
+ * width, so the page asks the frame for the wide measure rather than wrapping every date
+ * onto two lines.
  */
 
-.screen {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex: none;
-  height: var(--header-height);
-  padding-inline: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.title {
-  margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-}
-
-.spacer {
-  flex: 1;
-}
-
-.body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: var(--space-6) var(--space-8);
-  max-width: 110ch;
-}
-
-.intro {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding-bottom: var(--space-6);
-  margin-bottom: var(--space-6);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.sectionTitle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-}
-
-.sectionHint {
-  margin: 0;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-normal);
-}
-
 /*
- * A failed fetch, with its way out beside it.
- *
- * Takes the urgent pair rather than a --danger role, which the token layer does not have —
- * the same bargain MemberSettings and Field.module.css make, and for the same reason: that
- * pair is the only red already tuned against both page colours.
+ * A failed fetch, with its way out beside it. The card is the boundary now, so the panel
+ * this used to be drawn as has gone: red words and a button on a quiet row are findable
+ * without a wash behind them.
  */
 .failure {
   display: flex;
-  align-items: center;
+  align-items: start;
   gap: var(--space-3);
-  margin-bottom: var(--space-4);
-  padding: var(--space-3);
-  border-radius: var(--radius-md);
-  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
-  color: var(--priority-urgent);
+  color: var(--text-danger);
 }
 
 .failureText {
   margin: 0;
   flex: 1;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   line-height: var(--line-height-normal);
 }
 
 .loading {
   display: flex;
   justify-content: center;
-  padding: var(--space-10) 0;
+  padding: var(--space-6) 0;
   color: var(--text-tertiary);
 }
 
 /* --- the listing ------------------------------------------------------------ */
 
+/* The card clips its corners, so a table wider than it scrolls inside its own box rather
+   than losing its last column under the edge. */
+.scroll {
+  overflow-x: auto;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
 }
 
 /*
@@ -120,23 +57,44 @@
  * and it is the same sentence a screen reader announces on entering the table.
  */
 .caption {
-  padding-bottom: var(--space-2);
+  padding: var(--space-3) var(--space-4) 0;
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
   text-align: start;
 }
 
+/*
+ * Cells take the card's own inset at the edges, so the first column lines up with a row
+ * label on any other card. Hairlines between rows are the table's; the outer edge is the
+ * card's, which is why the last row draws none.
+ */
 .table th,
 .table td {
-  padding: var(--space-2);
+  padding: var(--space-3);
   border-bottom: 1px solid var(--border-subtle);
   text-align: start;
   vertical-align: middle;
   white-space: nowrap;
 }
 
+.table th:first-child,
+.table td:first-child {
+  padding-inline-start: var(--space-4);
+}
+
+.table th:last-child,
+.table td:last-child {
+  padding-inline-end: var(--space-4);
+}
+
+.table tbody tr:last-child th,
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
 .table thead th {
+  padding-block: var(--space-2);
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);

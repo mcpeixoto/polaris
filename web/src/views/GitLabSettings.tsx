@@ -30,6 +30,7 @@ import {
   Spinner,
   useSaveState,
 } from '~/components';
+import { SettingsRow } from '~/components/SettingsSection';
 import { DEFAULT_GIT_BRANCH_FORMAT } from '~/features/github/branch';
 import {
   disconnectGitLab,
@@ -211,91 +212,137 @@ export function GitLabSettings() {
         error={workspaceSave.error}
       >
         {connection === null ? (
-          <>
-            <p className={styles.hint}>
-              One GitLab instance per workspace. Admins enable it here with a personal or project
-              access token (<code>api</code> scope; <code>read_api</code> disables linkbacks).
-              GitLab has no bot accounts, so notes are posted as the token owner — a dedicated user
-              is recommended.
-            </p>
-            {isAdmin ? (
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void onEnable();
-                }}
+          isAdmin ? (
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void onEnable();
+              }}
+            >
+              <SettingsRow>
+                <p className={styles.note}>
+                  One GitLab instance per workspace. Admins enable it here with a personal or
+                  project access token (<code>api</code> scope; <code>read_api</code> disables
+                  linkbacks). GitLab has no bot accounts, so notes are posted as the token owner — a
+                  dedicated user is recommended.
+                </p>
+              </SettingsRow>
+              <SettingsRow
+                label="Instance URL"
+                description="gitlab.com, or a self-hosted origin with no path."
+                wide
               >
                 <Input
                   label="Instance URL"
+                  hideLabel
                   value={instanceUrl}
                   onChange={(event) => {
                     setInstanceUrl(event.target.value);
                     workspaceSave.clear();
                   }}
-                  hint="gitlab.com, or a self-hosted origin with no path."
                   disabled={savingWorkspace}
                 />
+              </SettingsRow>
+              <SettingsRow
+                label="Access token"
+                description="Personal or project access token. Optional for inbound linking; required for linkbacks."
+                wide
+              >
                 <Input
                   label="Access token"
+                  hideLabel
                   value={accessToken}
                   onChange={(event) => {
                     setAccessToken(event.target.value);
                     workspaceSave.clear();
                   }}
-                  hint="Personal or project access token. Optional for inbound linking; required for linkbacks."
                   disabled={savingWorkspace}
                 />
-                <div className={styles.row}>
+              </SettingsRow>
+              <SettingsRow>
+                <div className={styles.actions}>
                   <Button variant="primary" disabled={savingWorkspace} type="submit">
                     Enable GitLab
                   </Button>
                 </div>
-              </form>
-            ) : (
-              <p className={styles.hint}>Ask an admin to enable GitLab for this workspace.</p>
-            )}
-          </>
+              </SettingsRow>
+            </form>
+          ) : (
+            <>
+              <SettingsRow>
+                <p className={styles.note}>
+                  One GitLab instance per workspace. Admins enable it here with a personal or
+                  project access token (<code>api</code> scope; <code>read_api</code> disables
+                  linkbacks). GitLab has no bot accounts, so notes are posted as the token owner — a
+                  dedicated user is recommended.
+                </p>
+              </SettingsRow>
+              <SettingsRow>
+                <p className={styles.note}>Ask an admin to enable GitLab for this workspace.</p>
+              </SettingsRow>
+            </>
+          )
         ) : (
           <form onSubmit={(event) => void onSaveWorkspace(event)}>
-            <div className={styles.row}>
+            <SettingsRow label="Status">
               <Badge>{connection.enabled ? 'Enabled' : 'Disabled'}</Badge>
-            </div>
-            <Input
+            </SettingsRow>
+            <SettingsRow
               label="Instance URL"
-              value={instanceUrl}
-              onChange={(event) => {
-                setInstanceUrl(event.target.value);
-                workspaceSave.clear();
-              }}
-              hint="gitlab.com, or a self-hosted origin with no path."
-              disabled={!isAdmin || savingWorkspace}
-            />
-            <Input
+              description="gitlab.com, or a self-hosted origin with no path."
+              wide
+            >
+              <Input
+                label="Instance URL"
+                hideLabel
+                value={instanceUrl}
+                onChange={(event) => {
+                  setInstanceUrl(event.target.value);
+                  workspaceSave.clear();
+                }}
+                disabled={!isAdmin || savingWorkspace}
+              />
+            </SettingsRow>
+            <SettingsRow
               label="Access token"
-              value={accessToken}
-              onChange={(event) => {
-                setAccessToken(event.target.value);
-                workspaceSave.clear();
-              }}
-              hint="Leave blank to keep the current token. Saving a new one replaces it."
-              disabled={!isAdmin || savingWorkspace}
-            />
-            <Input
+              description="Leave blank to keep the current token. Saving a new one replaces it."
+              wide
+            >
+              <Input
+                label="Access token"
+                hideLabel
+                value={accessToken}
+                onChange={(event) => {
+                  setAccessToken(event.target.value);
+                  workspaceSave.clear();
+                }}
+                disabled={!isAdmin || savingWorkspace}
+              />
+            </SettingsRow>
+            <SettingsRow
               label="Branch name format"
-              value={branchFormat}
-              onChange={(event) => {
-                setBranchFormat(event.target.value);
-                workspaceSave.clear();
-              }}
-              hint="Placeholders: {identifier}, {title}, {user}."
-              disabled={!isAdmin || savingWorkspace}
-            />
+              description="Placeholders: {identifier}, {title}, {user}."
+              wide
+            >
+              <Input
+                label="Branch name format"
+                hideLabel
+                value={branchFormat}
+                onChange={(event) => {
+                  setBranchFormat(event.target.value);
+                  workspaceSave.clear();
+                }}
+                disabled={!isAdmin || savingWorkspace}
+              />
+            </SettingsRow>
             {isAdmin ? (
-              <div className={styles.row}>
-                <Button variant="primary" disabled={savingWorkspace} type="submit">
-                  Save
-                </Button>
-              </div>
+              <SettingsRow>
+                <div className={styles.actions}>
+                  <Button variant="primary" disabled={savingWorkspace} type="submit">
+                    Save
+                  </Button>
+                </div>
+              </SettingsRow>
             ) : null}
           </form>
         )}
@@ -304,28 +351,37 @@ export function GitLabSettings() {
       {connection !== null && isAdmin ? (
         <SettingsSection title="Webhook">
           {loading ? (
-            <Spinner label="Loading webhook details" />
+            <SettingsRow>
+              <Spinner label="Loading webhook details" />
+            </SettingsRow>
           ) : webhook === null ? (
-            <EmptyState
-              title="Webhook details could not be loaded"
-              description={
-                loadError ??
-                'The server did not return a URL and token for this connection. Nothing is broken on GitLab — this page simply has nothing to show you yet.'
-              }
-              action={<Button onClick={retry}>Try again</Button>}
-            />
+            <SettingsRow>
+              <EmptyState
+                title="Webhook details could not be loaded"
+                description={
+                  loadError ??
+                  'The server did not return a URL and token for this connection. Nothing is broken on GitLab — this page simply has nothing to show you yet.'
+                }
+                action={<Button onClick={retry}>Try again</Button>}
+              />
+            </SettingsRow>
           ) : (
             <>
-              <p className={styles.hint}>
-                Add this URL as a Group webhook (covers every project) or a Project webhook. Enable
-                Push events, Merge request events and Pipeline events. Keep SSL verification on.
-              </p>
-              <p className={styles.mono}>{webhook.url}</p>
-              <SecretField
-                label="Webhook token"
-                value={webhook.secret}
-                consequence="Paste this into GitLab as the secret token. This page shows the token currently in force, so a later visit can read it again; if it is ever rotated, every webhook still sending the old one is rejected until each is updated."
-              />
+              <SettingsRow>
+                <p className={styles.note}>
+                  Add this URL as a Group webhook (covers every project) or a Project webhook.
+                  Enable Push events, Merge request events and Pipeline events. Keep SSL
+                  verification on.
+                </p>
+                <p className={styles.mono}>{webhook.url}</p>
+              </SettingsRow>
+              <SettingsRow>
+                <SecretField
+                  label="Webhook token"
+                  value={webhook.secret}
+                  consequence="Paste this into GitLab as the secret token. This page shows the token currently in force, so a later visit can read it again; if it is ever rotated, every webhook still sending the old one is rejected until each is updated."
+                />
+              </SettingsRow>
             </>
           )}
         </SettingsSection>
@@ -337,16 +393,17 @@ export function GitLabSettings() {
           status={<SaveIndicator state={commitsSave.state} />}
           error={commitsSave.error}
         >
-          <Checkbox
+          <SettingsRow
             label="Link commits to issues with magic words"
-            checked={connection.linkCommits}
-            disabled={commitsSave.state === 'saving'}
-            onChange={(event) => void onToggleCommits(event.target.checked)}
-          />
-          <p className={styles.hint}>
-            Requires Push events on the webhook. A magic word in the commit message links the
-            commit; comments never do.
-          </p>
+            description="Requires Push events on the webhook. A magic word in the commit message links the commit; comments never do."
+          >
+            <Checkbox
+              aria-label="Link commits to issues with magic words"
+              checked={connection.linkCommits}
+              disabled={commitsSave.state === 'saving'}
+              onChange={(event) => void onToggleCommits(event.target.checked)}
+            />
+          </SettingsRow>
         </SettingsSection>
       ) : null}
 
@@ -356,16 +413,17 @@ export function GitLabSettings() {
           status={<SaveIndicator state={linkbacksSave.state} />}
           error={linkbacksSave.error}
         >
-          <Checkbox
+          <SettingsRow
             label="Post a note on the merge request or commit when it links to an issue"
-            checked={connection.linkbacks}
-            disabled={linkbacksSave.state === 'saving'}
-            onChange={(event) => void onToggleLinkbacks(event.target.checked)}
-          />
-          <p className={styles.hint}>
-            Private teams get the issue URL only. Notes are posted as the token owner. Turn this off
-            if GitLab notifications from those notes are noise.
-          </p>
+            description="Private teams get the issue URL only. Notes are posted as the token owner. Turn this off if GitLab notifications from those notes are noise."
+          >
+            <Checkbox
+              aria-label="Post a note on the merge request or commit when it links to an issue"
+              checked={connection.linkbacks}
+              disabled={linkbacksSave.state === 'saving'}
+              onChange={(event) => void onToggleLinkbacks(event.target.checked)}
+            />
+          </SettingsRow>
         </SettingsSection>
       ) : null}
 
@@ -374,39 +432,44 @@ export function GitLabSettings() {
         description="Linking your username attributes merge requests to you."
         status={<SaveIndicator state={loginSave.state} />}
         error={loginSave.error}
-        flush={connection === null || !isAdmin}
       >
-        {userLink !== null ? (
-          <p className={styles.hint}>Connected as @{userLink.gitlabUsername}</p>
-        ) : null}
         <form onSubmit={(event) => void onSaveLogin(event)}>
-          <Input
+          <SettingsRow
             label="GitLab username"
-            value={loginDraft}
-            onChange={(event) => {
-              setLoginDraft(event.target.value);
-              loginSave.clear();
-            }}
-            disabled={savingLogin}
-          />
-          <div className={styles.row}>
-            <Button
-              variant="primary"
-              disabled={savingLogin || loginDraft.trim() === ''}
-              type="submit"
-            >
-              Save username
-            </Button>
-            {userLink !== null ? (
+            description={userLink === null ? undefined : `Connected as @${userLink.gitlabUsername}`}
+            wide
+          >
+            <Input
+              label="GitLab username"
+              hideLabel
+              value={loginDraft}
+              onChange={(event) => {
+                setLoginDraft(event.target.value);
+                loginSave.clear();
+              }}
+              disabled={savingLogin}
+            />
+          </SettingsRow>
+          <SettingsRow>
+            <div className={styles.actions}>
               <Button
-                disabled={savingLogin}
-                type="button"
-                onClick={() => void loginSave.run(unlinkGitLabUsername)}
+                variant="primary"
+                disabled={savingLogin || loginDraft.trim() === ''}
+                type="submit"
               >
-                Disconnect account
+                Save username
               </Button>
-            ) : null}
-          </div>
+              {userLink !== null ? (
+                <Button
+                  disabled={savingLogin}
+                  type="button"
+                  onClick={() => void loginSave.run(unlinkGitLabUsername)}
+                >
+                  Disconnect account
+                </Button>
+              ) : null}
+            </div>
+          </SettingsRow>
         </form>
       </SettingsSection>
 
@@ -415,15 +478,9 @@ export function GitLabSettings() {
           <DangerZoneRow
             title="Disconnect GitLab"
             consequence="Issues keep any merge request or commit cards already attached. New events stop linking until GitLab is enabled again."
-            action={
-              <Button
-                variant="danger"
-                disabled={disconnectBusy}
-                onClick={() => setDisconnecting(true)}
-              >
-                Disconnect GitLab
-              </Button>
-            }
+            actionLabel="Disconnect GitLab"
+            busy={disconnectBusy}
+            onAction={() => setDisconnecting(true)}
           />
         </DangerZone>
       ) : null}

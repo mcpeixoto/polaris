@@ -1,31 +1,59 @@
 /*
- * The inbox is a list, so it obeys the list rules: 32px rows, no cards, no shadows. What is
- * different from the issue list is that a row here has a *read* state, and that state is
- * carried by weight and by one dot rather than by a background wash — a page of highlighted
- * rows is a page with no shape to it.
+ * The inbox is two panes: a 425px list and the issue the cursor is on. The list obeys the
+ * list rules — no cards, no shadows — but its rows are taller than an issue row because each
+ * one is two lines: what the notification is about, and what happened to it. Read state is
+ * carried by weight, ink and one dot rather than by a background wash — a page of
+ * highlighted rows is a page with no shape to it.
  */
 
 .screen {
   display: flex;
-  flex-direction: column;
   flex: 1;
+  min-width: 0;
   min-height: 0;
+}
+
+.listPane {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 425px;
+  min-height: 0;
+  border-right: 1px solid var(--border-subtle);
+}
+
+.detailPane {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Under one pane's worth of width the list takes the window and the preview waits for it. */
+@media (max-width: 900px) {
+  .listPane {
+    width: 100%;
+    border-right: 0;
+  }
+
+  .detailPane {
+    display: none;
+  }
 }
 
 .header {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   flex: none;
   height: var(--header-height);
-  padding-inline: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
+  padding-inline: var(--space-4) var(--space-3);
 }
 
 .title {
   margin: 0;
   font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
 }
 
 .count {
@@ -39,16 +67,25 @@
 }
 
 /*
- * The find box shrinks before anything else in this header does.
+ * The find box and the display toggles, on their own line under the header.
  *
- * It was `flex: none` at a fixed twelve rems, in a row that also holds a title, a live count,
- * two checkboxes and a button — so on a narrow window the row overflowed and the button, the
- * only thing here that acts on the whole inbox, was the part pushed off the end. A search box
- * is the one control in the row that still works at half its width: the text scrolls.
+ * They used to share the header with the title and the count, and on a 425px pane that row
+ * overflowed before the first checkbox. The box shrinks first: it is the one control here
+ * that still works at half its width, because the text scrolls.
  */
+.toolbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--header-height);
+  padding: var(--space-1) var(--space-4) var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
 .find {
-  flex: 0 1 12rem;
-  min-width: 6rem;
+  flex: 1 1 8rem;
+  min-width: 5rem;
 }
 
 .list {
@@ -57,7 +94,7 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   margin: 0;
-  padding: 0;
+  padding: var(--space-2);
   list-style: none;
 }
 
@@ -71,55 +108,34 @@
   outline-offset: calc(var(--focus-ring-offset) * -1);
 }
 
-/*
- * Sticky, because the answer to "when did this happen" has to stay on screen while the day
- * it heads is being read. It is the one piece of chrome in the list and is quiet enough to
- * disappear when it is not being looked for.
- */
-.day {
-  position: sticky;
-  top: 0;
-  z-index: var(--z-sticky);
-  padding: var(--space-2) var(--space-4);
-  background-color: var(--bg-primary);
-  color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-}
-
 .row {
   /* So the hidden "Unread" word below has this row as its containing block rather than
      whatever happens to be positioned further up the page. */
   position: relative;
   display: grid;
-  grid-template-columns: var(--space-3) minmax(0, 1fr) auto;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3);
   width: 100%;
-  height: var(--row-height);
-  padding-inline: var(--space-4);
+  height: 58px;
+  padding-inline: var(--space-2) var(--space-3);
   border: 0;
+  border-radius: var(--radius-lg);
   background: none;
   color: inherit;
   font: inherit;
   text-align: start;
   cursor: pointer;
-  transition:
-    background-color var(--duration-instant) var(--ease-out),
-    box-shadow var(--duration-instant) var(--ease-out);
+  transition: background-color var(--duration-instant) var(--ease-out);
 }
 
 .row:hover {
   background-color: var(--bg-hover);
 }
 
-/*
- * The cursor, not the selection. It is drawn with an inset ring rather than a background so
- * it stays legible on a hovered row, which a background alone does not.
- */
+/* The cursor. A wash, and the pane beside it is the second, larger mark. */
 .active {
-  background-color: var(--bg-hover);
-  box-shadow: inset 2px 0 0 var(--accent);
+  background-color: var(--bg-selected);
 }
 
 .row:focus-visible {
@@ -127,17 +143,51 @@
   outline-offset: calc(var(--focus-ring-offset) * -1);
 }
 
-/* The unread mark. Reserved space whether or not it is drawn, so marking a row read does
-   not shift the text beside it. */
-.dot {
-  width: var(--space-2);
-  height: var(--space-2);
-  border-radius: var(--radius-full);
-  background-color: transparent;
+/*
+ * The actor at 36px, with what they did in the corner.
+ *
+ * Avatar's largest size is 24px and the row asks for 36, so the primitive is scaled rather
+ * than copied: a second avatar with its own initials rule and identity ramp is how two
+ * people end up with two colours. The badge sits over the bottom-right edge on a ring of the
+ * page colour so it reads as on top of the disc rather than beside it.
+ */
+.avatar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
 }
 
-.unread .dot {
-  background-color: var(--accent);
+.avatarImage {
+  transform: scale(1.5);
+}
+
+.badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-4);
+  height: var(--space-4);
+  border-radius: var(--radius-full);
+  background-color: var(--bg-tertiary);
+  box-shadow: 0 0 0 2px var(--bg-primary);
+  color: var(--text-secondary);
+}
+
+.row:hover .badge,
+.active .badge {
+  /* The ring keeps matching the ground it sits on, or it draws a pale halo on a hovered row. */
+  box-shadow: 0 0 0 2px var(--bg-primary);
+}
+
+.badge svg {
+  width: var(--space-3);
+  height: var(--space-3);
 }
 
 /*
@@ -163,48 +213,104 @@
 
 .text {
   display: flex;
-  align-items: baseline;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* First line: the unread mark, the identifier, the issue's title. */
+.headline {
+  display: flex;
+  align-items: center;
   gap: var(--space-2);
   min-width: 0;
   color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-tight);
 }
 
-.unread .text {
+.unread .headline {
   color: var(--text-primary);
   font-weight: var(--font-weight-medium);
 }
 
-.actor {
+/* The unread mark. Reserved space whether or not it is drawn, so marking a row read does
+   not shift the text beside it. */
+.dot {
   flex: none;
-  font-weight: var(--font-weight-medium);
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background-color: transparent;
 }
 
+.unread .dot {
+  background-color: var(--accent);
+}
+
+.identifier {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.issueTitle,
 .event {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* Second line: who did what. Secondary on every row; the first line carries read state. */
+.action {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  min-width: 0;
+  /* Indented past the dot so the two lines share a left edge. */
+  padding-inline-start: calc(6px + var(--space-2));
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-tight);
+}
+
+.actor {
+  flex: none;
+}
+
 /* "and 199 others". Quieter than the event, because it is a magnitude rather than a fact. */
-.tail {
-  flex: none;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-}
-
-.when {
-  flex: none;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-  font-variant-numeric: tabular-nums;
-}
-
+.tail,
 .snoozed {
   flex: none;
   color: var(--text-tertiary);
+}
+
+.snoozed {
+  padding-inline-start: var(--space-1);
+}
+
+/* Right edge: the age on the first line, the state on the second. */
+.meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--space-1);
+  min-width: 2.5ch;
+}
+
+.when {
+  color: var(--text-tertiary);
   font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--line-height-tight);
+}
+
+.state {
+  width: 14px;
+  height: 14px;
 }
 
 .empty {
-  padding: var(--space-12) var(--space-4);
+  padding: var(--space-8) var(--space-4);
 }

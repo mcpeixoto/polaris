@@ -4,6 +4,11 @@
  * Space toggles it; holding Space is a glance that goes away on release. Enter is the
  * commitment — it opens the full issue. This panel must not steal the keyboard from the
  * list: `J`/`K` still move, and Peek follows.
+ *
+ * It is the issue screen squeezed to one column: the identifier and title where that
+ * screen's header and title are, the description under them, and the properties rail
+ * folded beneath the description rather than beside it. Same glyphs, same words for an
+ * unset value, so what a person learns to read on one surface reads on the other.
  */
 
 import { useRef, type ReactNode } from 'react';
@@ -19,6 +24,16 @@ import {
   StateIcon,
 } from '~/components';
 import { estimatesEnabled, issueEstimateLabel } from '~/features/estimate';
+import {
+  CalendarGlyph,
+  CrossGlyph,
+  CycleGlyph,
+  EstimateGlyph,
+  ProjectGlyph,
+  SubIssueGlyph,
+  TagGlyph,
+  UnassignedGlyph,
+} from '~/features/issue/glyphs';
 import { labelViewPath, userViewPath } from '~/features/labels/labelView';
 import { DueDateValue } from '~/features/issue/properties';
 import { exact, when } from '~/features/time';
@@ -83,6 +98,8 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
     );
   }
 
+  const glyph = { width: 14, height: 14 };
+
   return (
     <aside
       ref={panelRef}
@@ -92,7 +109,6 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
     >
       <header className={styles.header}>
         <span className={styles.identifier}>{issue.identifier}</span>
-        <h2 className={styles.title}>{issue.title}</h2>
         {onClose === undefined ? null : (
           <IconButton
             aria-label="Close peek"
@@ -100,24 +116,22 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
             size="sm"
             className={styles.close}
             onClick={onClose}
-            icon={
-              <svg viewBox="0 0 16 16" fill="none">
-                <path
-                  d="m4.5 4.5 7 7m0-7-7 7"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-              </svg>
-            }
+            icon={<CrossGlyph />}
           />
         )}
       </header>
 
+      <h2 className={styles.title}>{issue.title}</h2>
+
       <p className={styles.description}>
-        {issue.description === '' ? 'No description.' : issue.description}
+        {issue.description === '' ? (
+          <span className={styles.unset}>No description.</span>
+        ) : (
+          issue.description
+        )}
       </p>
 
+      <h3 className={styles.railTitle}>Properties</h3>
       <dl className={styles.facts}>
         <Fact label="Status">
           <StateIcon category={issue.stateCategory} color={issue.stateColor} decorative />
@@ -129,7 +143,10 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
         </Fact>
         <Fact label="Assignee">
           {issue.assigneeName === null || issue.assigneeId === null ? (
-            'No assignee'
+            <>
+              <UnassignedGlyph {...glyph} className={styles.glyph} />
+              <span className={styles.unset}>Unassigned</span>
+            </>
           ) : (
             <Link className={styles.entityLink} to={userViewPath(issue.assigneeId)}>
               <Avatar name={issue.assigneeName} src={issue.assigneeAvatar} size="xs" decorative />
@@ -137,35 +154,51 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
             </Link>
           )}
         </Fact>
-        {issue.cycleName === null ? null : <Fact label="Cycle">{issue.cycleName}</Fact>}
-        {issue.projectName === null ? null : <Fact label="Project">{issue.projectName}</Fact>}
+        {issue.estimateLabel === null ? null : (
+          <Fact label="Estimate">
+            <EstimateGlyph {...glyph} className={styles.glyph} />
+            {issue.estimateLabel}
+          </Fact>
+        )}
+        <Fact label="Due date">
+          <CalendarGlyph {...glyph} className={styles.glyph} />
+          <DueDateValue
+            value={issue.dueDate}
+            timezone={issue.timezone}
+            source={issue.dueDateSource}
+            className={issue.dueDate === null ? styles.unset : undefined}
+          />
+        </Fact>
+        <Fact label="Cycle">
+          <CycleGlyph {...glyph} className={styles.glyph} />
+          {issue.cycleName ?? <span className={styles.unset}>No cycle</span>}
+        </Fact>
+        <Fact label="Project">
+          <ProjectGlyph {...glyph} className={styles.glyph} />
+          {issue.projectName ?? <span className={styles.unset}>No project</span>}
+        </Fact>
         {issue.parent === null ? null : (
           <Fact label="Parent">
+            <SubIssueGlyph {...glyph} className={styles.glyph} />
             <span className={styles.parentId}>{issue.parent.identifier}</span>
-            {issue.parent.title}
+            <span className={styles.parentTitle}>{issue.parent.title}</span>
           </Fact>
         )}
-        {issue.estimateLabel === null ? null : <Fact label="Estimate">{issue.estimateLabel}</Fact>}
-        {issue.dueDate === null ? null : (
-          <Fact label="Due">
-            <DueDateValue
-              value={issue.dueDate}
-              timezone={issue.timezone}
-              source={issue.dueDateSource}
-            />
-          </Fact>
-        )}
+        <Fact label="Labels" wrap>
+          {issue.labels.length === 0 ? (
+            <>
+              <TagGlyph {...glyph} className={styles.glyph} />
+              <span className={styles.unset}>No labels</span>
+            </>
+          ) : (
+            issue.labels.map((label) => (
+              <Link key={label.id} className={styles.entityLink} to={labelViewPath(label.id)}>
+                <LabelChip compact name={label.name} color={label.color} />
+              </Link>
+            ))
+          )}
+        </Fact>
       </dl>
-
-      {issue.labels.length > 0 && (
-        <div className={styles.labels}>
-          {issue.labels.map((label) => (
-            <Link key={label.id} className={styles.entityLink} to={labelViewPath(label.id)}>
-              <LabelChip compact name={label.name} color={label.color} />
-            </Link>
-          ))}
-        </div>
-      )}
 
       <p className={styles.dates}>
         Created{' '}
@@ -184,11 +217,23 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
   );
 }
 
-function Fact({ label, children }: { label: string; children: ReactNode }) {
+/**
+ * One rail row. The label is for the accessibility tree, as it is on the issue screen: on
+ * screen the glyph and the value are the row.
+ */
+function Fact({
+  label,
+  wrap = false,
+  children,
+}: {
+  label: string;
+  wrap?: boolean;
+  children: ReactNode;
+}) {
   return (
     <div className={styles.fact}>
-      <dt>{label}</dt>
-      <dd>{children}</dd>
+      <dt className={styles.srOnly}>{label}</dt>
+      <dd className={wrap ? styles.factWrap : undefined}>{children}</dd>
     </div>
   );
 }

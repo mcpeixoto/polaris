@@ -1,8 +1,10 @@
 /**
  * The workspace (or team) project list.
  *
- * A scan, not a dashboard: name, status, lead, how much work is in it. Empty teaches the
- * next action — create a project — rather than decorating a blank pane.
+ * A scan, not a dashboard: a table with one row per project — name and the milestone it is
+ * on, health and how old that claim is, priority, lead, target, how much work is in it and
+ * how much of that is done. Empty teaches the next action — create a project — rather than
+ * decorating a blank pane.
  *
  * Projects sort by priority band, then manual order within the band. Drag a row onto another
  * to reorder; drag onto a priority heading to change band.
@@ -13,15 +15,7 @@ import { Link, useParams, useSearchParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeymap } from '~/app/keymap';
-import {
-  Avatar,
-  Button,
-  EmptyState,
-  LabelChip,
-  PriorityIcon,
-  priorityLabel,
-  Select,
-} from '~/components';
+import { Avatar, Button, EmptyState, PriorityIcon, priorityLabel, Select } from '~/components';
 import {
   downloadCsv,
   exportCap,
@@ -58,22 +52,34 @@ import {
   PROJECT_STATUS_CATEGORIES,
   PROJECT_STATUS_CATEGORY_LABELS,
 } from '~/features/projects/statusCategories';
+import { buildProjectGraph } from '~/features/projects/computeProjectGraph';
+import {
+  CalendarGlyph,
+  MilestoneGlyph,
+  NoPersonGlyph,
+  PlusGlyph,
+  ProjectGlyph,
+} from '~/features/projects/glyphs';
 import { ProjectDisplayMenu } from '~/features/projects/ProjectDisplayMenu';
+import { ProgressRing } from '~/features/projects/ProgressRing';
 import { ProjectTimeline } from '~/features/projects/ProjectTimeline';
 import { updateProject } from '~/features/projects/mutations';
 import { compareProjectsByPriority } from '~/features/projects/projectHelpers';
+import { formatTimeframe } from '~/features/projects/properties';
+import { listProjectMilestones } from '~/features/project-milestones/helpers';
 import { ProjectHealthCell } from '~/features/project-updates/ProjectHealthCell';
+import { projectProgress, type Progress } from '~/features/initiatives/progress';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewer } from '~/hooks/useViewer';
 import { PRIORITY_LEVELS } from '~/components/PriorityIcon';
-import type { Project, ProjectLabel, ProjectStatus, Store, UUID } from '~/store';
+import type { Project, ProjectStatus, Store, TimeframeGranularity, UUID } from '~/store';
 import styles from './Projects.module.css';
 
 interface ProjectRow {
   readonly id: UUID;
   readonly name: string;
-  readonly summary: string | undefined;
+  readonly icon: string | undefined;
   readonly color: string;
   readonly priority: number;
   readonly sortOrder: string;
@@ -81,14 +87,35 @@ interface ProjectRow {
   readonly statusColor: string;
   readonly leadName: string | null;
   readonly leadId: UUID | undefined;
+  readonly leadAvatar: string | null;
   readonly issueCount: number;
-  readonly labels: readonly { readonly id: UUID; readonly name: string; readonly color: string }[];
+  readonly progress: Progress;
+  /** The next milestone with work left — the one the project is on right now. */
+  readonly milestone: string | null;
+  /** What the project is for, shown in the milestone's slot while there is no milestone. */
+  readonly summary: string;
+  readonly targetDate: string | undefined;
+  readonly targetGranularity: TimeframeGranularity;
+  /**
+   * Completed work at the end of each week, cumulative, for the sparkline. Null when the
+   * store has no history to draw — a project not yet in progress — so the cell stays
+   * empty rather than showing a flat line that means nothing.
+   */
+  readonly sparkline: readonly number[] | null;
 }
 
 interface PriorityGroup {
   readonly priority: number;
   readonly rows: readonly ProjectRow[];
 }
+
+const STATUS_PILLS: readonly { readonly value: ProjectStatusFilter; readonly label: string }[] = [
+  { value: 'all', label: 'All projects' },
+  ...PROJECT_STATUS_CATEGORIES.map((category) => ({
+    value: category,
+    label: PROJECT_STATUS_CATEGORY_LABELS[category],
+  })),
+];
 
 export function Projects() {
   const engine = useEngine();
@@ -154,12 +181,14 @@ export function Projects() {
       'projectStatus',
       'projectTeam',
       'projectMember',
+      'projectMilestone',
       'projectUpdate',
       'projectDependency',
       'projectLabel',
       'projectLabelLink',
       'workspace',
       'issue',
+      'workflowState',
       'user',
       'customer',
       'customerRequest',
@@ -175,6 +204,9 @@ export function Projects() {
 
   const heading = team === null ? 'Projects' : `${team.name} projects`;
   const rowCount = groups.reduce((sum, group) => sum + group.rows.length, 0);
+  // The sparkline column exists only when at least one row has a line to draw. A column of
+  // empty cells is a promise the data is not keeping.
+  const hasSparkline = groups.some((group) => group.rows.some((row) => row.sparkline !== null));
 
   // An empty replica is not an empty workspace. Until the first sync settles, "No projects
   // yet" is a claim the client cannot make — and it came with an invitation to create one.
@@ -250,26 +282,38 @@ export function Projects() {
     <div className={`${styles.screen ?? ''} ${styles.enter ?? ''}`}>
       <header className={styles.header}>
         <h1 className={styles.title}>{heading}</h1>
-        <div className={styles.headerActions}>
-          <Select
-            label="Status"
-            value={filters.status}
-            onChange={(event) => setFilters({ status: event.target.value as ProjectStatusFilter })}
-          >
-            <option value="all">All statuses</option>
-            {PROJECT_STATUS_CATEGORIES.map((category) => (
-              <option key={category} value={category}>
-                {PROJECT_STATUS_CATEGORY_LABELS[category]}
-              </option>
-            ))}
-          </Select>
+        <Button variant="ghost" icon={<PlusGlyph />} onClick={create} className={styles.newProject}>
+          New project
+        </Button>
+      </header>
+
+      {/* The status filter as the row of pills every list view wears — one pressed at a
+          time, the URL remembering which. The other two filters are rarer and keep their
+          dropdowns at the far end of the row. */}
+      <div className={styles.toolbar}>
+        <div className={styles.pills} role="group" aria-label="Status">
+          {STATUS_PILLS.map((pill) => (
+            <button
+              key={pill.value}
+              type="button"
+              className={
+                filters.status === pill.value ? `${styles.pill} ${styles.pillActive}` : styles.pill
+              }
+              aria-pressed={filters.status === pill.value}
+              onClick={() => setFilters({ status: pill.value })}
+            >
+              {pill.label}
+            </button>
+          ))}
+        </div>
+        <div className={styles.toolbarEnd}>
           <ProjectDependencyFilterSelect
             value={filters.dependency}
             onChange={(value) => setFilters({ dependency: value })}
           />
           {hideCustomers ? null : (
             <Select
-              label="Customers"
+              aria-label="Customers"
               value={filters.customer}
               onChange={(event) =>
                 setFilters({ customer: event.target.value as ProjectCustomerFilter })
@@ -301,11 +345,8 @@ export function Projects() {
           <Button {...displayTrigger.props} variant="ghost">
             Display{displayChanges > 0 ? ` · ${displayChanges}` : ''}
           </Button>
-          <Button variant="primary" onClick={create}>
-            New project
-          </Button>
         </div>
-      </header>
+      </div>
 
       {/* What the last export left out. On the screen rather than in a toast: it is the only
           record that the file in the downloads folder is a fragment, and it has to outlive
@@ -359,7 +400,17 @@ export function Projects() {
           }
         />
       ) : (
-        <div className={styles.list}>
+        <div className={hasSparkline ? `${styles.table} ${styles.tableSparkline}` : styles.table}>
+          <div className={styles.columns} aria-hidden="true">
+            <span>Name</span>
+            <span>Health</span>
+            <span>Priority</span>
+            <span>Lead</span>
+            <span>Target date</span>
+            <span className={styles.columnEnd}>Issues</span>
+            <span>Status</span>
+            {hasSparkline ? <span /> : null}
+          </div>
           {PRIORITY_LEVELS.map((priority) => {
             const group = groups.find((candidate) => candidate.priority === priority);
             if (group === undefined || group.rows.length === 0) return null;
@@ -388,6 +439,7 @@ export function Projects() {
                 >
                   <PriorityIcon priority={priority} decorative />
                   {priorityLabel(priority)}
+                  <span className={styles.groupCount}>{group.rows.length}</span>
                 </h2>
                 <ul className={styles.groupList} aria-labelledby={headingId}>
                   {group.rows.map((row) => (
@@ -395,6 +447,7 @@ export function Projects() {
                       <ProjectRowLink
                         store={engine.store}
                         row={row}
+                        sparkline={hasSparkline}
                         dragging={draggingId === row.id}
                         over={overId === row.id}
                         draggable
@@ -431,6 +484,7 @@ export function Projects() {
 interface RowLinkProps {
   readonly store: Store;
   readonly row: ProjectRow;
+  readonly sparkline: boolean;
   readonly dragging: boolean;
   readonly over: boolean;
   readonly draggable: boolean;
@@ -444,6 +498,7 @@ interface RowLinkProps {
 function ProjectRowLink({
   store,
   row,
+  sparkline,
   dragging,
   over,
   draggable,
@@ -456,6 +511,7 @@ function ProjectRowLink({
   const className = [styles.row, dragging ? styles.rowDragging : '', over ? styles.rowOver : '']
     .filter(Boolean)
     .join(' ');
+  const done = `${row.progress.completed} of ${row.progress.total} issues completed`;
 
   return (
     <Link
@@ -471,49 +527,99 @@ function ProjectRowLink({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
-      <span className={styles.mark} style={{ background: row.color }} aria-hidden="true" />
-      <span className={styles.body}>
+      <span className={styles.nameCell}>
+        <span className={styles.icon} aria-hidden="true">
+          {row.icon === undefined || row.icon === '' ? <ProjectGlyph /> : row.icon}
+        </span>
         <span className={styles.name}>{row.name}</span>
-        {row.summary !== undefined && row.summary !== '' && (
-          <span className={styles.summary}>{row.summary}</span>
+        {row.milestone === null ? (
+          row.summary === '' ? null : (
+            <span className={styles.summary}>{row.summary}</span>
+          )
+        ) : (
+          <span className={styles.milestone}>
+            <MilestoneGlyph />
+            {row.milestone}
+          </span>
         )}
-      </span>
-      <span className={styles.priority}>
-        <PriorityIcon priority={row.priority} decorative />
-        {priorityLabel(row.priority)}
-      </span>
-      <span className={styles.status}>
-        <span
-          className={styles.statusDot}
-          style={{ background: row.statusColor }}
-          aria-hidden="true"
-        />
-        {row.statusName}
       </span>
       <span className={styles.health}>
         <ProjectHealthCell store={store} projectId={row.id} compact />
       </span>
-      {row.leadName === null ? (
-        <span className={styles.leadMuted}>No lead</span>
-      ) : (
-        <span className={styles.lead}>
-          <Avatar name={row.leadName} size="xs" colorKey={row.leadId} decorative />
-          {row.leadName}
-        </span>
-      )}
-      <span className={styles.labels}>
-        {row.labels.length === 0 ? (
-          <span className={styles.labelMuted}>—</span>
+      <span className={styles.priority}>
+        <PriorityIcon priority={row.priority} />
+      </span>
+      <span className={styles.lead}>
+        {row.leadName === null ? (
+          <span className={styles.noLead} title="No lead">
+            <NoPersonGlyph />
+          </span>
         ) : (
-          row.labels.map((label) => (
-            <LabelChip key={label.id} name={label.name} color={label.color} compact />
-          ))
+          <span title={row.leadName} className={styles.leadAvatar}>
+            <Avatar name={row.leadName} src={row.leadAvatar} size="sm" colorKey={row.leadId} />
+          </span>
         )}
       </span>
-      <span className={styles.count}>
-        {row.issueCount === 1 ? '1 issue' : `${row.issueCount} issues`}
+      <span className={styles.target}>
+        {row.targetDate === undefined ? null : (
+          <>
+            <CalendarGlyph />
+            {formatTimeframe(row.targetDate, row.targetGranularity)}
+          </>
+        )}
       </span>
+      <span className={styles.count}>{row.issueCount}</span>
+      <span className={styles.status}>
+        <ProgressRing
+          percent={row.progress.percent}
+          label={row.statusName}
+          detail={done}
+          // The status's own colour is workspace data, and no theme overrules it.
+          style={row.statusColor === '' ? undefined : { color: row.statusColor }}
+        />
+        <span aria-hidden="true">{row.progress.percent}%</span>
+        {/* The ring names the status for assistive tech; this puts the word in the row's
+            text as well, so a search for it lands on the row. */}
+        <span className={styles.srOnly}>{row.statusName}</span>
+      </span>
+      {sparkline ? (
+        <span className={styles.spark}>
+          {row.sparkline === null ? null : <Sparkline values={row.sparkline} />}
+        </span>
+      ) : null}
     </Link>
+  );
+}
+
+/**
+ * Completed work over the project's weeks, in forty pixels.
+ *
+ * Decorative: it repeats the status ring's number as a shape — flat, climbing, stalled —
+ * and the ring's name already says the number. The last point is the current total, so
+ * the line always ends at the percentage beside it.
+ */
+function Sparkline({ values }: { readonly values: readonly number[] }) {
+  const width = 40;
+  const height = 14;
+  const max = Math.max(...values, 1);
+  const last = Math.max(values.length - 1, 1);
+  const points = values
+    .map((value, index) => {
+      const x = (index / last) * (width - 2) + 1;
+      const y = height - 1 - (value / max) * (height - 2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+  return (
+    <svg
+      className={styles.sparkline}
+      viewBox={`0 0 ${width} ${height}`}
+      width={width}
+      height={height}
+      aria-hidden="true"
+    >
+      <polyline points={points} />
+    </svg>
   );
 }
 
@@ -542,10 +648,11 @@ function listProjectGroups(
   for (const project of projects) {
     const status: ProjectStatus | undefined = store.projectStatuses.get(project.statusId);
     const lead = project.leadId === undefined ? undefined : store.users.get(project.leadId);
+    const graph = buildProjectGraph(store, project.id);
     const row: ProjectRow = {
       id: project.id,
       name: project.name,
-      summary: project.summary,
+      icon: project.icon,
       color: project.color,
       priority: project.priority,
       sortOrder: project.sortOrder,
@@ -553,14 +660,17 @@ function listProjectGroups(
       statusColor: status?.color ?? project.color,
       leadName: lead?.displayName ?? null,
       leadId: project.leadId,
+      leadAvatar: lead?.avatarUrl ?? null,
       issueCount: store.index.byProject(project.id).size,
-      labels: [...store.projectLabelIdsFor(project.id)]
-        .map((id) => store.projectLabels.get(id))
-        .filter(
-          (label): label is ProjectLabel =>
-            label !== undefined && !label.isGroup && label.archivedAt === undefined,
-        )
-        .map((label) => ({ id: label.id, name: label.name, color: label.color })),
+      progress: projectProgress(store, project.id),
+      milestone:
+        listProjectMilestones(store, project.id).find((candidate) => candidate.current)?.milestone
+          .name ?? null,
+      summary: project.summary ?? '',
+      targetDate: project.targetDate,
+      targetGranularity: project.targetDateGranularity ?? 'day',
+      sparkline:
+        graph === null || graph.weeks.length < 2 ? null : graph.weeks.map((week) => week.completed),
     };
     const bucket = byPriority.get(project.priority) ?? [];
     bucket.push(row);

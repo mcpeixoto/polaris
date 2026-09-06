@@ -23,6 +23,10 @@
  * itself is always in the document and only its contents change, because a live region that is
  * inserted already populated is frequently not announced at all.
  *
+ * **It sits bottom-left, with the toast stack.** Both hosts own that corner; the stack reads
+ * `hasOffer` from `offers.ts` and lifts itself while this toast is up, so a failure raised
+ * during the undo window lands above the offer rather than on top of its button.
+ *
  * **The shortcut goes through the registry.** `mod+z` is registered here as an ordinary action,
  * so it appears in the help overlay and the command menu, and so it is checked for conflicts at
  * startup like every other binding. It deliberately does not fire while a text field has focus —
@@ -45,31 +49,11 @@ import { useActions } from '~/app/keymap';
 import { Button } from '~/components';
 import { report } from '~/features/issue/mutations';
 import { usePresence } from '~/hooks/usePresence';
+import { publish, snapshot, subscribe } from './offers';
 import styles from './UndoToast.module.css';
-import { EMPTY_UNDO_STACK, expire, expiresAt, latest, record, take, type UndoStack } from './undo';
+import { EMPTY_UNDO_STACK, expire, expiresAt, latest, record, take } from './undo';
 
-let stack: UndoStack = EMPTY_UNDO_STACK;
 let sequence = 0;
-const listeners = new Set<() => void>();
-
-function publish(next: UndoStack): void {
-  // Identity, not equality: `expire` returns the same object when nothing lapsed, and
-  // notifying on that would put the host's prune timer into a loop with itself.
-  if (next === stack) return;
-  stack = next;
-  for (const listener of listeners) listener();
-}
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-}
-
-function snapshot(): UndoStack {
-  return stack;
-}
 
 export interface UndoOffer {
   /** What was done, in the words the toast shows: "Deleted ENG-42". */
@@ -94,7 +78,7 @@ export interface UndoOffer {
 export function offerUndo(offer: UndoOffer): void {
   sequence += 1;
   publish(
-    record(stack, {
+    record(snapshot(), {
       id: offer.id ?? `undo-${sequence}`,
       label: offer.label,
       undo: offer.undo,
@@ -121,7 +105,7 @@ export function clearUndoOffers(): void {
  * removes the entry in the same operation that returns it, which is what makes that true.
  */
 function runUndo(id: string): void {
-  const result = take(stack, id);
+  const result = take(snapshot(), id);
   publish(result.stack);
   if (result.action !== null) result.action.undo().catch(report);
 }
@@ -195,7 +179,7 @@ export function UndoToast() {
         // which is the smallest honest way to say this is a new offer.
         <div key={shown.id} ref={toastRef} className={styles.toast} {...exitProps}>
           <span className={styles.label}>{shown.label}</span>
-          <Button size="sm" onClick={() => runUndo(shown.id)}>
+          <Button size="sm" variant="ghost" onClick={() => runUndo(shown.id)}>
             Undo
           </Button>
         </div>

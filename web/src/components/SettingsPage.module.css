@@ -4,27 +4,58 @@
  * have six: the measure, the horizontal padding, the title size, the section header size.
  */
 
+/* The scroll container. The column inside it scrolls as one document, title and all. */
 .screen {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/*
+ * Centred, and capped at a measure that keeps a row's label within a glance of its control.
+ * The 80px above the title is the whole horizontal-chrome budget: no bar, no border, just
+ * room. Rather more below than at the sides, so the last card never sits on the window's
+ * bottom edge when the page is short.
+ */
+.body {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: calc(680px + 2 * var(--space-6));
+  margin-inline: auto;
+  padding: var(--space-16) var(--space-6) var(--space-16);
+  padding-top: 80px;
+}
+
+/* Tables with more columns than prose has width. A named variant, so a page that needs the
+   room asks for it rather than inventing another `ch` value of its own. */
+.wide {
+  max-width: calc(960px + 2 * var(--space-6));
 }
 
 .header {
   display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-8);
+}
+
+.titleRow {
+  display: flex;
   align-items: center;
   gap: var(--space-3);
-  flex: none;
-  height: var(--header-height);
-  padding-inline: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
+  min-height: var(--control-height-md);
 }
 
 .title {
   margin: 0;
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  letter-spacing: -0.02em;
 }
 
 .actions {
@@ -34,30 +65,10 @@
   margin-inline-start: auto;
 }
 
-.body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: var(--space-6) var(--space-8);
-  /* Read as prose. Past about this width a control drifts so far from its label that the
-     pairing stops being obvious. */
-  max-width: 86ch;
-}
-
-/* Tables with more columns than prose has width. A named variant, so a page that needs the
-   room asks for it rather than inventing another `ch` value of its own. */
-.wide {
-  max-width: 130ch;
-}
-
 .description {
   margin: 0;
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   line-height: var(--line-height-normal);
 }
 
@@ -66,11 +77,22 @@
  * priority red can be re-themed independently.
  */
 .error {
-  margin: 0;
+  margin: 0 0 var(--space-6);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   background-color: color-mix(in srgb, var(--text-danger) 12%, transparent);
   color: var(--text-danger);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
+}
+
+/*
+ * Sections stack at 40px, which is the gap the section heading was measured with. The gap is
+ * the frame's rather than each section's own so a DangerZone, a bare table or anything else
+ * a page drops between two sections keeps the rhythm without knowing about it.
+ */
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
 }

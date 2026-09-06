@@ -4,43 +4,23 @@
  * title — and making them look like two different kinds of object would suggest a difference
  * the product does not have.
  *
- * The density is the issue list's, not a card's: 22px rows, hairline separators, no shadows on
+ * The density is the issue list's, not a card's: 32px rows, no separators, no shadows on
  * anything that is not floating. These sit inside the detail screen's main column, which is
  * already a surface; a panel drawn as a second surface on top of it reads as a widget somebody
  * embedded rather than as part of the issue.
  */
 
-.panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
 /* --- The header ------------------------------------------------------------------------ */
 
-.head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: var(--control-height-lg);
-}
-
-.title {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--line-height-none);
-}
+/* The header row itself is `Section`'s; what remains here is what rides on it. */
 
 .sectionTitle {
   display: flex;
   align-items: center;
   gap: var(--space-1);
   margin: 0;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-none);
 }
@@ -77,11 +57,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.spacer {
-  flex: 1;
-  min-width: 0;
-}
-
 .quiet {
   margin: 0;
   color: var(--text-tertiary);
@@ -116,10 +91,10 @@
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
-  height: var(--row-height);
-  padding: 0 var(--space-1);
-  border-radius: var(--radius-sm);
-  transition: background-color var(--duration-instant) var(--ease-out);
+  height: var(--control-height-lg);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-md);
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 .row:hover {
@@ -153,8 +128,8 @@
 
 .identifier {
   flex: none;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
   font-variant-numeric: tabular-nums;
 }
 
@@ -164,6 +139,7 @@
   overflow: hidden;
   color: var(--text-primary);
   font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -195,7 +171,7 @@
   gap: var(--space-2);
   padding: var(--space-2);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background-color: var(--bg-secondary);
 }
 

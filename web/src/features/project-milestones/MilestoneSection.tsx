@@ -18,6 +18,8 @@ import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 
+import { MilestoneGlyph } from '~/features/projects/glyphs';
+
 import { listProjectMilestones, type MilestoneRow } from './helpers';
 import {
   createProjectMilestone,
@@ -143,6 +145,13 @@ function MilestoneReadout({ row, onEdit }: ReadoutProps) {
   return (
     <>
       <div className={styles.head}>
+        <span
+          className={
+            row.current ? `${styles.glyph ?? ''} ${styles.glyphCurrent ?? ''}` : styles.glyph
+          }
+        >
+          <MilestoneGlyph />
+        </span>
         <span className={styles.name}>{milestone.name}</span>
         {/* The current focus says so in a word. The bar's colour carries the same fact and
             is not allowed to be the only thing that carries it. */}

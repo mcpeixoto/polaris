@@ -1,15 +1,14 @@
+/*
+ * A section is a heading and a card. The heading is set apart from the card by a step that
+ * reads as "this names what follows" rather than as another row; the card is the same raised
+ * surface a menu or a dialog sits on, so a settings screen is drawn out of surfaces the rest
+ * of the product already uses.
+ */
+
 .section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding-bottom: var(--space-6);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-/* The separator divides two sections. The last one on a page divides nothing. */
-.section.flush {
-  padding-bottom: 0;
-  border-bottom: none;
+  min-width: 0;
 }
 
 .head {
@@ -20,14 +19,16 @@
 }
 
 /*
- * One size for a section heading, everywhere. It sits a step below the page title, which is
- * --font-size-md, so the two never compete for the same rank.
+ * One size for a section heading, everywhere. It sits between the page title and the row
+ * label — a rank the page had no word for until now, which is why three pages had promoted
+ * their sections to the title's size and one had demoted them to the label's.
  */
 .heading {
   margin: 0;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.006em;
+  line-height: var(--line-height-tight);
+  letter-spacing: -0.01em;
 }
 
 .status {
@@ -42,14 +43,14 @@
 }
 
 .hint {
-  margin: 0;
+  margin: var(--space-1) 0 0;
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   line-height: var(--line-height-normal);
 }
 
 .error {
-  margin: 0;
+  margin: var(--space-3) 0 0;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   background-color: color-mix(in srgb, var(--text-danger) 12%, transparent);
@@ -58,8 +59,119 @@
   line-height: var(--line-height-normal);
 }
 
-.content {
+/*
+ * The card. `overflow: hidden` so a table or a list that fills it takes the rounded corner
+ * rather than poking a square one out of it. The gap above it is the same whether or not the
+ * section drew a heading: an unnamed section still stands 12px off whatever came before.
+ */
+.card {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-elevated);
+  overflow: hidden;
+}
+
+/* No box: for content that is a set of cards, or a grid, already. */
+.plain {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+/*
+ * One row. 64px is the height a label with a one-line description needs with room to
+ * breathe, and every row takes it so a card of five switches is the same height as a card
+ * of five inputs — rows that are all the same height are what lets the eye run down the
+ * label column without reading the controls.
+ */
+.row {
+  display: flex;
+  flex-direction: column;
+  min-height: 64px;
+  padding: var(--space-3) var(--space-4);
+  box-sizing: border-box;
+}
+
+.row + .row {
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* The label/control pair, both vertically centred on the row. */
+.row.split {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+}
+
+.rowText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  flex: 1;
+  min-width: 0;
+}
+
+.rowLabel {
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-normal);
+}
+
+.rowDescription {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/*
+ * The control column: sized to what is in it, capped so a long text field cannot push the
+ * label into a sliver. Right-aligned, because the eye lands on the right edge of the card
+ * for every row and the control should be there whatever its width.
+ */
+.rowControl {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 50%;
+}
+
+/*
+ * A text control's share of the row. Written at two classes so it beats `.rowControl` on
+ * specificity rather than on emission order, and the child is told to fill it because a
+ * `Field` is `min-width: 0` and would otherwise sit at its browser-default width inside
+ * the wider slot.
+ */
+.rowControl.wide {
+  flex: 0 0 auto;
+  width: min(280px, 50%);
+}
+
+.rowControl.wide > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Below the point where the pair stops fitting side by side, the control drops under the
+   label and takes the width. */
+@media (max-width: 560px) {
+  .row.split {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rowControl,
+  .rowControl.wide {
+    justify-content: flex-start;
+    width: auto;
+    max-width: none;
+  }
 }

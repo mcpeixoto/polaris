@@ -86,6 +86,9 @@ export type { SpinnerProps, SpinnerSize } from './Spinner';
 export { StateIcon, STATE_LABELS } from './StateIcon';
 export type { StateIconProps } from './StateIcon';
 
+export { Switch } from './Switch';
+export type { SwitchProps } from './Switch';
+
 export { Textarea } from './Textarea';
 export type { TextareaProps } from './Textarea';
 // Lives beside Textarea because it is the reason Textarea is not a controlled component;

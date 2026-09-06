@@ -7,6 +7,10 @@
  * lucky.
  */
 
+// Inter, self-hosted. The face the whole interface is set in; it lands before the reset so
+// nothing paints in a fallback and reflows when the variable font arrives.
+import '@fontsource-variable/inter';
+
 import './styles/reset.css';
 import './styles/tokens.css';
 import './styles/motion.css';

@@ -7,28 +7,37 @@
  * around that — focus lands in the title field, every other field is reachable with Tab and
  * operable with the arrow keys, and nothing waits on the network before closing.
  *
- * Team, status, assignee and priority are native `<Select>`s rather than the Menu-based
- * pickers the list and the detail view use, and that is a deliberate split rather than an
- * inconsistency. In those places changing a status is a *command* — it has a shortcut, it
- * acts on a selection, it wants a filter. Here it is a form field being filled in on the
- * way to a submit, where the platform's own control is better at everything that matters:
- * it tabs, it types ahead, it opens as a wheel on a phone, and it needs no focus trap of
- * its own inside a dialog that already has one.
+ * It reads top to bottom as a breadcrumb, a document and a row of properties. The header
+ * says which team the issue is going into — a chip that opens the team picker — and the
+ * title and description below it are unboxed, because they are the issue and not a form
+ * about one. Every property is a pill: the value's own glyph and its name when it is set,
+ * the property's glyph and its name when it is not, and every one of them opens the same
+ * Menu picker the list and the detail view use, with a filter box that teaches the chord
+ * that would have opened it (`S`, `P`, `A`, `L`…). Native `<select>`s used to stand in for
+ * the four commonest of these, on the argument that a form field is not a command; the
+ * argument was sound and the result was a dialog that looked like nothing else in the
+ * product, with a status control that could not show the status's colour.
  *
- * Project, cycle, template and labels stay Menu pickers: ranking and typeahead are the whole
- * point of those lists, and a native select cannot do either. Labels also draw their own
- * chips, which is a value a native option cannot render.
+ * Properties that most issues never set — a due date, a repeat cadence — stay out of the
+ * row until asked for from the `…` pill, and come back on their own the moment they hold a
+ * value. Template and form pills appear where the team offers any, because a picker with
+ * nothing in it is a dead end and not a property.
  *
- * That split is about *behaviour*, and for a while it was allowed to decide appearance too:
- * the selects were bordered, the pickers were borderless ghost buttons, and half the property
- * row looked like controls while the other half looked like static text. It is one group and
- * it now has one affordance — every trigger is bordered, every value carries its own glyph the
- * way the detail rail's triggers do, and every field says its own name above itself instead of
- * leaving a line reading "No assignee · No priority · No project · No form" to be decoded by
- * opening each control in turn.
+ * "Create more" is a switch rather than a second button, because it changes what the primary
+ * button does rather than being a different thing to do: with it on, `Create issue` and ⌘⏎
+ * file and stay for the next one. ⌘⇧⏎ still does that whatever the switch says.
  */
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
 import { useLocation } from 'react-router';
 
 import { useEngine } from '~/app/context';
@@ -36,16 +45,20 @@ import { useActions, useKeyContext } from '~/app/keymap';
 import {
   Avatar,
   Button,
+  IconButton,
   Input,
   LabelChip,
+  Menu,
   Modal,
   priorityLabel,
   PriorityIcon,
   PRIORITY_LEVELS,
-  Select,
   StateIcon,
   STATE_LABELS,
+  Switch,
   Textarea,
+  type ButtonProps,
+  type MenuNode,
 } from '~/components';
 import { createDraft, deleteDraft, updateDraft } from '~/features/drafts/mutations';
 import { estimateLabel, estimateOptions, estimatesEnabled } from '~/features/estimate';
@@ -67,7 +80,7 @@ import { createIssue } from './mutations';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { templateDefaults, type TemplateDefaults } from '~/features/templates/mutations';
 import { placeholderSpans, unwrapPlaceholders } from '~/features/templates/placeholder';
-import { fieldsForFormTemplate } from '~/features/form-templates/mutations';
+import { fieldsForFormTemplate, formTemplatesForTeam } from '~/features/form-templates/mutations';
 import { FormTemplatePicker } from '~/features/form-templates/FormTemplatePicker';
 import {
   FormFillFields,
@@ -77,7 +90,7 @@ import {
   type FormAnswers,
 } from '~/features/form-templates/FormFillFields';
 import type { FormTemplate } from '~/store';
-import { TemplatePicker } from '~/features/templates/TemplatePicker';
+import { TemplatePicker, templatesForTeam } from '~/features/templates/TemplatePicker';
 import { CyclePicker } from '~/features/cycles/CyclePicker';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { buildCreateURL, type IssueComposerSeed } from './create-url';
@@ -125,8 +138,19 @@ interface StateOption {
   readonly isDefault: boolean;
 }
 
-/** The empty value of the assignee select. An `<option>` cannot carry null. */
+/** The empty value of the assignee. Kept as a string so the local slot's shape is unchanged. */
 const UNASSIGNED = '';
+
+/**
+ * The properties that wait in the `…` pill until they are asked for.
+ *
+ * Due date and repeat are set on a small minority of issues and would otherwise be two
+ * pills on every composer for the few that need them. Template and form are here for a
+ * different reason: they are shown in the row whenever the team offers any, so the overflow
+ * is only how they are reached on a team that offers none — which is `Alt+C` on such a
+ * team, and the empty picker it opens says why there is nothing to choose.
+ */
+type Extra = 'due' | 'repeat' | 'template' | 'form';
 
 function isBlankSeed(seed: IssueComposerSeed | undefined): boolean {
   if (seed === undefined) return true;
@@ -153,6 +177,7 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
   const formId = useId();
   const titleRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  const dueRef = useRef<HTMLInputElement>(null);
   const local = isBlankSeed(seed) ? readIssueComposerDraft() : null;
   /**
    * Whether this sitting owns the single local composer slot.
@@ -174,11 +199,12 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
           id: team.id,
           key: team.key,
           name: team.name,
+          icon: team.icon,
           timezone: team.timezone,
           cyclesEnabled: team.cyclesEnabled,
           triageEnabled: team.triageEnabled,
           // The three settings `estimatesEnabled` and `estimateOptions` read. Carried on the
-          // team row rather than fetched beside it, because the estimate cell exists or does
+          // team row rather than fetched beside it, because the estimate pill exists or does
           // not exist according to the team the composer is currently pointed at.
           estimateScale: team.estimateScale,
           estimateAllowZero: team.estimateAllowZero,
@@ -195,7 +221,7 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
         .map((user) => ({
           id: user.id,
           name: user.displayName,
-          // Carried for the trigger's avatar, which is the same glyph the detail rail draws.
+          // Carried for the pill's avatar, which is the same glyph the detail rail draws.
           avatarUrl: user.avatarUrl ?? null,
         }))
         .sort((a, b) => a.name.localeCompare(b.name)),
@@ -242,7 +268,12 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
    */
   const [templateIntent, setTemplateIntent] = useState<'auto' | 'cleared' | 'chosen'>('auto');
   const [cadence, setCadence] = useState<RecurringCadence | null>(null);
-  const [firstDueDate, setFirstDueDate] = useState('');
+  /**
+   * The due date, and with a cadence set, the first due date of the series. One field for
+   * both because they are the same day: a repeating issue's first due date *is* its due
+   * date, and the create sends it as both.
+   */
+  const [dueDate, setDueDate] = useState('');
   const [titleError, setTitleError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -251,6 +282,17 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
   const [draftBusy, setDraftBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
+  /** The "Create more" switch: file and stay, for a run of issues against the same properties. */
+  const [createMore, setCreateMore] = useState(false);
+  /** `V` opens the composer with the window; the expand button gets there from inside. */
+  const [expanded, setExpanded] = useState(seed?.fullScreen === true);
+  /** The overflow properties the filer has asked for this sitting. See `Extra`. */
+  const [extras, setExtras] = useState<ReadonlySet<Extra>>(() => new Set());
+  /**
+   * A property just pulled out of the overflow, waiting for its pill to mount so its picker
+   * can open from it. The menu is anchored to the pill, so the pill has to exist first.
+   */
+  const [pendingOpen, setPendingOpen] = useState<Extra | null>(null);
   /** How many issues this sitting of the dialog has filed. Only "Create more" moves it. */
   const [filed, setFiled] = useState(0);
   const submitted = useRef(false);
@@ -302,9 +344,17 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
   const resolvedCycleId = cycleId === undefined ? fromCyclePath : cycleId;
   const team = teams.find((candidate) => candidate.id === teamId);
   const teamRunsCycles = team?.cyclesEnabled === true;
+  const teamEstimates = team !== undefined && estimatesEnabled(team);
   const teamTimezone = team?.timezone ?? 'UTC';
   const fromTriage = fromTriagePath && team?.triageEnabled === true;
 
+  const teamMenu = useMenuTrigger();
+  const statusMenu = useMenuTrigger();
+  const priorityMenu = useMenuTrigger();
+  const assigneeMenu = useMenuTrigger();
+  const estimateMenu = useMenuTrigger();
+  const repeatMenu = useMenuTrigger();
+  const moreMenu = useMenuTrigger();
   const templateMenu = useMenuTrigger();
   const formTemplateMenu = useMenuTrigger();
   const projectMenu = useMenuTrigger();
@@ -326,6 +376,19 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
     [template?.templateId ?? ''],
   );
 
+  // Whether the team has anything to offer in each picker, which is what decides whether
+  // the pill stands in the row; see `Extra`.
+  const templatesOffered = useLiveQuery(
+    (store) => teamId !== '' && templatesForTeam(store, teamId).length > 0,
+    ['issueTemplate', 'team'],
+    [teamId],
+  );
+  const formsOffered = useLiveQuery(
+    (store) => teamId !== '' && formTemplatesForTeam(store, teamId).length > 0,
+    ['formTemplate', 'team'],
+    [teamId],
+  );
+
   const projectName = useLiveQuery(
     (store) =>
       resolvedProjectId === null ? null : (store.projects.get(resolvedProjectId)?.name ?? null),
@@ -341,7 +404,7 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
   );
 
   /**
-   * The chosen labels, resolved for the trigger's chips and for the copied URL.
+   * The chosen labels, resolved for the pill's chips and for the copied URL.
    *
    * The ids are the form's own state — nothing is filed yet, so there is no issue to read
    * them off — and this turns them back into the names and colours the chip draws. A label
@@ -475,15 +538,53 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
   }, [chosenState, states, fromTriage]);
 
   /**
-   * The two chosen rows the property triggers draw a glyph from.
-   *
-   * A select cannot render anything inside itself, so the icon rides `Select`'s `prefix` slot
-   * and this is where the value it depicts is resolved. Both may be absent — a replica still
-   * hydrating has no states, and nobody is a real answer for an assignee — and the trigger
-   * then shows no glyph rather than a placeholder one.
+   * The two chosen rows the property pills draw a glyph from. Both may be absent — a replica
+   * still hydrating has no states, and nobody is a real answer for an assignee — and the pill
+   * then shows the property's own glyph rather than a placeholder one.
    */
   const selectedState = states.find((state) => state.id === stateId);
   const selectedPerson = people.find((person) => person.id === assigneeId);
+
+  /**
+   * Pulls a property out of the overflow and opens its picker once the pill is on screen.
+   *
+   * Two renders on purpose: the pill has to exist before a menu can be anchored to it, so
+   * the reveal is committed first and the effect below opens the picker on the render after.
+   */
+  const reveal = (extra: Extra) => {
+    setExtras((current) => (current.has(extra) ? current : new Set([...current, extra])));
+    setPendingOpen(extra);
+  };
+
+  useEffect(() => {
+    if (pendingOpen === null) return;
+    setPendingOpen(null);
+    switch (pendingOpen) {
+      case 'template':
+        templateMenu.show();
+        return;
+      case 'form':
+        formTemplateMenu.show();
+        return;
+      case 'repeat':
+        repeatMenu.show();
+        return;
+      case 'due': {
+        const input = dueRef.current;
+        if (input === null) return;
+        input.focus();
+        // The native calendar, where the browser offers one. It is only allowed on a user
+        // gesture, and a reveal from the overflow menu is one; where it is not, or the
+        // browser has no picker, the focused field is enough.
+        try {
+          (input as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
+        } catch {
+          /* no picker, or no gesture to hang it on */
+        }
+        return;
+      }
+    }
+  }, [pendingOpen, templateMenu, formTemplateMenu, repeatMenu]);
 
   /**
    * `Alt+C`: the composer with the template menu already up.
@@ -497,8 +598,8 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
       return;
     }
     offeredTemplates.current = true;
-    templateMenu.show();
-  }, [open, seed?.openTemplatePicker, teamId, templateMenu]);
+    reveal('template');
+  }, [open, seed?.openTemplatePicker, teamId]);
 
   const seededTemplate = useRef(false);
   useEffect(() => {
@@ -675,15 +776,20 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
     }
   };
 
+  /** The day a repeating issue is first due: what was typed, or today in the team's zone. */
+  const resolvedDueDate = dueDate === '' ? today(teamTimezone) : dueDate;
+
   /**
    * Files the issue.
    *
    * `another` is "Create more": the issue goes, the dialog stays, and every property except
    * the words keeps its value. That is the whole point of it — somebody filing eight bugs
    * against the same team, project and cycle should set those once — so the reset below is
-   * deliberately narrow: title, description and any form answers, and nothing else.
+   * deliberately narrow: title, description and any form answers, and nothing else. It
+   * defaults to the switch in the footer, so the primary button and ⌘⏎ honour it; ⌘⇧⏎ asks
+   * for it outright.
    */
-  const save = async ({ another = false }: { another?: boolean } = {}) => {
+  const save = async ({ another = createMore }: { another?: boolean } = {}) => {
     if (inFlight.current) return;
     const trimmed = title.trim();
     const resolvedTitle =
@@ -765,11 +871,13 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
         ...(formTemplate === null ? null : { formTemplateId: formTemplate.id }),
         ...(templateIntent === 'cleared' ? { skipDefaultTemplate: true } : null),
         ...(cadence === null
-          ? null
+          ? dueDate === ''
+            ? null
+            : { dueDate }
           : {
               recurringCadence: cadence,
-              recurringFirstDueDate: firstDueDate === '' ? today(teamTimezone) : firstDueDate,
-              dueDate: firstDueDate === '' ? today(teamTimezone) : firstDueDate,
+              recurringFirstDueDate: resolvedDueDate,
+              dueDate: resolvedDueDate,
             }),
         creatorId: viewerId ?? undefined,
       });
@@ -778,9 +886,9 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
         draftCleared.current = true;
         void deleteDraft(seed.draftId);
       }
-      // "Create more": ⌘⇧⏎, or the button that names the same command. `C` is not an
-      // alternative to it — the keymap hands a bare letter to the title field the caret is
-      // sitting in, which is what a text field is for.
+      // "Create more": ⌘⇧⏎, the switch, or nothing else. `C` is not an alternative to it —
+      // the keymap hands a bare letter to the title field the caret is sitting in, which is
+      // what a text field is for.
       if (another) {
         inFlight.current = false;
         setSaving(false);
@@ -837,6 +945,16 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
   // that still registered ⌘⏎ would collide with the next modal to claim it.
   useKeyContext('modal', open);
 
+  /**
+   * The property chords, the same letters the list and the detail view answer to. They only
+   * fire with focus outside a text field — the keymap hands a bare letter to whichever field
+   * holds the caret — so they are what Tab-then-`S` does, and what the filter rows teach.
+   * Guarded on `leaving`: a picker opened behind the draft question would float over it.
+   */
+  const openPicker = (show: () => void, mounted: boolean) => {
+    if (!leaving && mounted) show();
+  };
+
   useActions(
     open
       ? [
@@ -869,6 +987,80 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
             group: 'Issues',
             run: () => copyRef.current(),
           },
+          {
+            id: 'composer.status',
+            title: 'Change status',
+            keys: ['s'],
+            when: 'modal',
+            group: 'Issues',
+            hidden: true,
+            run: () => openPicker(statusMenu.show, true),
+          },
+          {
+            id: 'composer.priority',
+            title: 'Set priority',
+            keys: ['p'],
+            when: 'modal',
+            group: 'Issues',
+            hidden: true,
+            run: () => openPicker(priorityMenu.show, true),
+          },
+          {
+            id: 'composer.assignee',
+            title: 'Assign to',
+            keys: ['a'],
+            when: 'modal',
+            group: 'Issues',
+            hidden: true,
+            run: () => openPicker(assigneeMenu.show, true),
+          },
+          {
+            id: 'composer.labels',
+            title: 'Add labels',
+            keys: ['l'],
+            when: 'modal',
+            group: 'Issues',
+            hidden: true,
+            run: () => openPicker(labelMenu.show, teamId !== ''),
+          },
+          {
+            id: 'composer.project',
+            title: 'Add to project',
+            keys: ['shift+p'],
+            when: 'modal',
+            group: 'Issues',
+            hidden: true,
+            run: () => openPicker(projectMenu.show, true),
+          },
+          {
+            id: 'composer.cycle',
+            title: 'Set cycle',
+            keys: ['shift+c'],
+            when: 'modal',
+            group: 'Issues',
+            hidden: true,
+            run: () => openPicker(cycleMenu.show, teamRunsCycles),
+          },
+          {
+            id: 'composer.estimate',
+            title: 'Set estimate',
+            keys: ['shift+e'],
+            when: 'modal',
+            group: 'Issues',
+            hidden: true,
+            run: () => openPicker(estimateMenu.show, teamEstimates),
+          },
+          {
+            id: 'composer.dueDate',
+            title: 'Set due date',
+            keys: ['shift+d'],
+            when: 'modal',
+            group: 'Issues',
+            hidden: true,
+            run: () => {
+              if (!leaving) reveal('due');
+            },
+          },
         ]
       : [],
     [open],
@@ -879,37 +1071,220 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
     void save();
   };
 
+  // What stands in the row. A pill that holds a value is always shown, whatever the overflow
+  // says: a property a link set must not be hidden from the person about to file it.
+  const showTemplate = template !== null || templatesOffered || extras.has('template');
+  const showForm = formTemplate !== null || formsOffered || extras.has('form');
+  const showRepeat = cadence !== null || extras.has('repeat');
+  const showDue = cadence !== null || dueDate !== '' || extras.has('due');
+
+  const teamItems: MenuNode[] = teams.map((candidate) => ({
+    id: candidate.id,
+    label: candidate.name,
+    text: `${candidate.key} ${candidate.name}`,
+    icon: <TeamGlyph icon={candidate.icon} name={candidate.name} id={candidate.id} />,
+    hint: candidate.key,
+    selected: candidate.id === teamId,
+    onSelect: () => {
+      setChosenTeam(candidate.id);
+      setChosenState(null);
+      setCycleId(null);
+      // The offering is team-scoped, so a template chosen for one team is not a template in
+      // another. Back to `auto` rather than `cleared`: the new team's default is a different
+      // template, and silently keeping "no template" across that change would skip a
+      // default the filer never saw.
+      setTemplateIntent('auto');
+      setTemplate(null);
+    },
+  }));
+
+  const statusItems: MenuNode[] = [];
+  for (const [category, group] of groupByCategory(states)) {
+    statusItems.push({ kind: 'heading', label: STATE_LABELS[category] });
+    for (const state of group) {
+      statusItems.push({
+        id: state.id,
+        label: state.name,
+        icon: <StateIcon category={state.category} color={state.color} decorative />,
+        selected: state.id === stateId,
+        onSelect: () => setChosenState(state.id),
+      });
+    }
+  }
+
+  const priorityItems: MenuNode[] = PRIORITY_LEVELS.map((level) => ({
+    id: `priority-${level}`,
+    label: priorityLabel(level),
+    icon: <PriorityIcon priority={level} decorative />,
+    selected: level === priority,
+    onSelect: () => setPriority(level),
+  }));
+
+  const assigneeItems: MenuNode[] = [
+    {
+      id: 'unassigned',
+      label: 'No assignee',
+      text: 'no assignee unassigned',
+      icon: <PersonGlyph />,
+      selected: assigneeId === UNASSIGNED,
+      onSelect: () => setAssigneeId(UNASSIGNED),
+    },
+    { kind: 'separator' },
+    ...people.map((person) => ({
+      id: person.id,
+      label: person.name,
+      icon: (
+        <Avatar
+          name={person.name}
+          src={person.avatarUrl}
+          size="xs"
+          colorKey={person.id}
+          decorative
+        />
+      ),
+      selected: person.id === assigneeId,
+      onSelect: () => setAssigneeId(person.id),
+    })),
+  ];
+
+  const estimateItems: MenuNode[] =
+    team === undefined
+      ? []
+      : [
+          {
+            id: 'no-estimate',
+            label: 'No estimate',
+            text: 'no estimate none',
+            selected: estimate === undefined,
+            onSelect: () => setEstimate(undefined),
+          },
+          { kind: 'separator' },
+          ...estimateOptions(team).map((value) => ({
+            id: `estimate-${value}`,
+            label: estimateLabel(value, team.estimateScale),
+            selected: value === estimate,
+            onSelect: () => setEstimate(value),
+          })),
+        ];
+
+  const repeatItems: MenuNode[] = [
+    {
+      id: 'no-repeat',
+      label: 'Does not repeat',
+      text: 'does not repeat never none',
+      selected: cadence === null,
+      onSelect: () => setCadence(null),
+    },
+    { kind: 'separator' },
+    ...CADENCES.map((option) => ({
+      id: option,
+      label: CADENCE_LABELS[option],
+      selected: option === cadence,
+      onSelect: () => {
+        setCadence(option);
+        if (dueDate === '') setDueDate(today(teamTimezone));
+      },
+    })),
+  ];
+
+  const moreItems: MenuNode[] = [
+    ...(showDue
+      ? []
+      : [{ id: 'due', label: 'Due date', icon: <CalendarGlyph />, onSelect: () => reveal('due') }]),
+    ...(showRepeat
+      ? []
+      : [
+          {
+            id: 'repeat',
+            label: 'Repeat',
+            icon: <RepeatGlyph />,
+            onSelect: () => reveal('repeat'),
+          },
+        ]),
+    ...(showTemplate
+      ? []
+      : [
+          {
+            id: 'template',
+            label: 'Template',
+            icon: <TemplateGlyph />,
+            onSelect: () => reveal('template'),
+          },
+        ]),
+    ...(showForm
+      ? []
+      : [{ id: 'form', label: 'Form', icon: <FormGlyph />, onSelect: () => reveal('form') }]),
+  ];
+
   return (
     <>
       <Modal
         open={open}
         onClose={requestClose}
         title="New issue"
-        size="lg"
-        // `V`: the same composer, given the window. A class rather than a fourth `ModalSize`,
-        // because "as big as the screen" is this one dialog's answer to a long description
-        // and not a width other dialogs should be able to ask for.
-        className={seed?.fullScreen === true ? styles.fullScreen : undefined}
+        size="composer"
+        // `V`, or the expand button: the same composer, given the window. A class rather than
+        // a fifth `ModalSize`, because "as big as the screen" is this one dialog's answer to a
+        // long description and not a width other dialogs should be able to ask for.
+        className={expanded ? styles.fullScreen : undefined}
         initialFocus={titleRef}
+        header={
+          <div className={styles.header}>
+            <PropertyPill
+              {...teamMenu.props}
+              name="Team"
+              describe={`${formId}-team`}
+              icon={
+                team === undefined ? null : (
+                  <TeamGlyph icon={team.icon} name={team.name} id={team.id} />
+                )
+              }
+              className={styles.teamPill}
+            >
+              {team?.key ?? '—'}
+            </PropertyPill>
+            <span className={styles.crumb} aria-hidden="true">
+              <ChevronGlyph />
+            </span>
+            <span className={styles.heading} aria-hidden="true">
+              New issue
+            </span>
+            <div className={styles.headerActions}>
+              <IconButton
+                aria-label={expanded ? 'Collapse' : 'Expand'}
+                icon={<ExpandGlyph />}
+                onClick={() => setExpanded((current) => !current)}
+              />
+              <IconButton
+                aria-label="Close"
+                keys="Escape"
+                icon={<CloseGlyph />}
+                onClick={requestClose}
+              />
+            </div>
+          </div>
+        }
         footer={
-          /*
-            One primary, one secondary, and cancel demoted to ghost. "Cancel" and "Create more"
-            used to be two identical neutral buttons beside the primary, which is three
-            competing claims about what ⌘⏎ does — and ⌘⏎ files the issue, so "Create issue" is
-            the only one that should look like the answer. "Create more" is a real second
-            command (⌘⇧⏎) and keeps a border; leaving is not a command at all.
-          */
-          <>
-            <Button variant="ghost" onClick={requestClose}>
-              Cancel
-            </Button>
-            <Button onClick={() => void save({ another: true })} loading={saving}>
-              Create more
-            </Button>
-            <Button form={formId} type="submit" variant="primary" loading={saving}>
-              Create issue
-            </Button>
-          </>
+          <div className={styles.footer}>
+            {/*
+              The link, where an attachment control would go. The composer cannot attach a
+              file to an issue that does not exist yet, so the slot holds the one thing it can
+              hand out before filing: a URL that reopens it as it stands.
+            */}
+            <IconButton
+              variant="secondary"
+              shape="round"
+              aria-label="Copy link to this composer"
+              icon={<LinkGlyph />}
+              onClick={() => void copyCreateUrl()}
+            />
+            <div className={styles.footerActions}>
+              <Switch label="Create more" checked={createMore} onChange={setCreateMore} />
+              <Button form={formId} type="submit" variant="primary" loading={saving}>
+                Create issue
+              </Button>
+            </div>
+          </div>
         }
       >
         <form id={formId} className={styles.form} onSubmit={onSubmit}>
@@ -918,7 +1293,7 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
             label="Title"
             hideLabel
             className={styles.title}
-            surface="plain"
+            surface="bare"
             value={title}
             error={titleError ?? undefined}
             placeholder="Issue title"
@@ -943,14 +1318,15 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
             ref={descriptionRef}
             label="Description"
             hideLabel
-            surface="plain"
+            className={styles.description}
+            surface="bare"
             value={description}
             minRows={3}
             maxRows={12}
             placeholder={
               placeholderSpans(description).length > 0
                 ? 'Type over the ⟦prompts⟧, then create'
-                : 'Add a description…'
+                : 'Add description…'
             }
             onChange={(event) => setDescription(event.target.value)}
           />
@@ -961,268 +1337,197 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
           )}
 
           {/*
-            The properties, in a grid of equal columns rather than a wrapping row of 14ch
-            chips, and every one of them labelled. Both are the same decision: a row of
-            siblings that name themselves and cannot be sized under their own content. The
-            labels are written here rather than left to `Field` because several of these
-            controls are menu triggers, which have no `Field` around them — one row must not
-            wear two label treatments. See the stylesheet.
+            The properties. Each pill is named by its value and described by its property —
+            "Backlog, button, Status" — because a row of values has to be scannable by eye and
+            still say what each one is to somebody who cannot see the glyph. A pill with
+            nothing in it shows the property's own name and says "No project", which is the
+            value it holds.
           */}
           <div className={styles.properties}>
-            <div className={styles.property}>
-              <label className={styles.propertyLabel} htmlFor={`${formId}-team`}>
-                Team
-              </label>
-              <Select
-                id={`${formId}-team`}
-                value={teamId}
-                onChange={(event) => {
-                  setChosenTeam(event.target.value);
-                  setChosenState(null);
-                  setCycleId(null);
-                  // The offering is team-scoped, so a template chosen for one team is not a
-                  // template in another. Back to `auto` rather than `cleared`: the new team's
-                  // default is a different template, and silently keeping "no template" across
-                  // that change would skip a default the filer never saw.
-                  setTemplateIntent('auto');
-                  setTemplate(null);
-                }}
-              >
-                {teams.map((team) => (
-                  <option key={team.id} value={team.id}>
-                    {team.key} · {team.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            <PropertyPill
+              {...statusMenu.props}
+              name="Status"
+              describe={`${formId}-status`}
+              icon={
+                selectedState === undefined ? (
+                  <StateIcon category="backlog" decorative />
+                ) : (
+                  <StateIcon
+                    category={selectedState.category}
+                    color={selectedState.color}
+                    decorative
+                  />
+                )
+              }
+            >
+              {selectedState?.name ?? 'Status'}
+            </PropertyPill>
 
-            <div className={styles.property}>
-              <label className={styles.propertyLabel} htmlFor={`${formId}-status`}>
-                Status
-              </label>
-              <Select
-                id={`${formId}-status`}
-                value={stateId}
-                prefix={
-                  selectedState === undefined ? undefined : (
-                    <StateIcon
-                      category={selectedState.category}
-                      color={selectedState.color}
-                      decorative
-                    />
-                  )
-                }
-                onChange={(event) => setChosenState(event.target.value)}
-              >
-                {groupByCategory(states).map(([category, group]) => (
-                  <optgroup key={category} label={STATE_LABELS[category]}>
-                    {group.map((state) => (
-                      <option key={state.id} value={state.id}>
-                        {state.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </Select>
-            </div>
+            <PropertyPill
+              {...priorityMenu.props}
+              name="Priority"
+              describe={`${formId}-priority`}
+              empty={priority === 0 ? priorityLabel(0) : undefined}
+              icon={<PriorityIcon priority={priority} decorative />}
+            >
+              {priority === 0 ? 'Priority' : priorityLabel(priority)}
+            </PropertyPill>
 
-            <div className={styles.property}>
-              <label className={styles.propertyLabel} htmlFor={`${formId}-assignee`}>
-                Assignee
-              </label>
-              <Select
-                id={`${formId}-assignee`}
-                value={assigneeId}
-                prefix={
-                  selectedPerson === undefined ? undefined : (
-                    <Avatar
-                      name={selectedPerson.name}
-                      src={selectedPerson.avatarUrl}
-                      size="xs"
-                      colorKey={selectedPerson.id}
-                      decorative
-                    />
-                  )
-                }
-                onChange={(event) => setAssigneeId(event.target.value)}
-              >
-                <option value={UNASSIGNED}>No assignee</option>
-                {people.map((person) => (
-                  <option key={person.id} value={person.id}>
-                    {person.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            <PropertyPill
+              {...assigneeMenu.props}
+              name="Assignee"
+              describe={`${formId}-assignee`}
+              empty={selectedPerson === undefined ? 'No assignee' : undefined}
+              icon={
+                selectedPerson === undefined ? (
+                  <PersonGlyph />
+                ) : (
+                  <Avatar
+                    name={selectedPerson.name}
+                    src={selectedPerson.avatarUrl}
+                    size="xs"
+                    colorKey={selectedPerson.id}
+                    decorative
+                  />
+                )
+              }
+            >
+              {selectedPerson?.name ?? 'Assignee'}
+            </PropertyPill>
 
-            <div className={styles.property}>
-              <label className={styles.propertyLabel} htmlFor={`${formId}-priority`}>
-                Priority
-              </label>
-              <Select
-                id={`${formId}-priority`}
-                value={String(priority)}
-                prefix={<PriorityIcon priority={priority} decorative />}
-                onChange={(event) => setPriority(Number(event.target.value))}
-              >
-                {PRIORITY_LEVELS.map((level) => (
-                  <option key={level} value={level}>
-                    {priorityLabel(level)}
-                  </option>
-                ))}
-              </Select>
-            </div>
-
-            {/*
-              The menu triggers. A `<span>` and `aria-describedby` rather than a `<label>`,
-              because a button's accessible name is its own text — the value — and a label
-              pointing at one is not an association the platform makes. This is the
-              arrangement the detail rail uses for the same properties.
-            */}
-            <div className={styles.property}>
-              <span className={styles.propertyLabel} id={`${formId}-project`}>
-                Project
-              </span>
-              <Button
-                {...projectMenu.props}
-                fullWidth
-                className={styles.propertyTrigger}
-                aria-describedby={`${formId}-project`}
-              >
-                {projectName ?? 'No project'}
-              </Button>
-            </div>
-
-            {teamRunsCycles ? (
-              <div className={styles.property}>
-                <span className={styles.propertyLabel} id={`${formId}-cycle`}>
-                  Cycle
-                </span>
-                <Button
-                  {...cycleMenu.props}
-                  fullWidth
-                  className={styles.propertyTrigger}
-                  aria-describedby={`${formId}-cycle`}
-                >
-                  {cycleName ?? 'No cycle'}
-                </Button>
-              </div>
-            ) : null}
-
-            <div className={styles.property}>
-              <span className={styles.propertyLabel} id={`${formId}-labels`}>
-                Labels
-              </span>
-              <Button
-                {...labelMenu.props}
-                fullWidth
-                className={styles.propertyTrigger}
-                aria-describedby={`${formId}-labels`}
-                disabled={teamId === ''}
-              >
-                {chosenLabels.length === 0
-                  ? 'No labels'
-                  : chosenLabels.map((label) => (
-                      <LabelChip key={label.id} compact name={label.name} color={label.color} />
-                    ))}
-              </Button>
-            </div>
+            <PropertyPill
+              {...projectMenu.props}
+              name="Project"
+              describe={`${formId}-project`}
+              empty={projectName === null ? 'No project' : undefined}
+              icon={<ProjectGlyph />}
+            >
+              {projectName ?? 'Project'}
+            </PropertyPill>
 
             {/*
               Only where the team estimates. `none` is not "unset", it is a team saying it
-              does not size work, and an empty points field on such a team is a control that
-              can only produce a value nothing will ever read.
+              does not size work, and a points pill on such a team is a control that can
+              only produce a value nothing will ever read.
             */}
-            {team !== undefined && estimatesEnabled(team) ? (
-              <div className={styles.property}>
-                <label className={styles.propertyLabel} htmlFor={`${formId}-estimate`}>
-                  Estimate
-                </label>
-                <Select
-                  id={`${formId}-estimate`}
-                  value={estimate === undefined ? '' : String(estimate)}
-                  onChange={(event) =>
-                    setEstimate(event.target.value === '' ? undefined : Number(event.target.value))
-                  }
-                >
-                  <option value="">No estimate</option>
-                  {estimateOptions(team).map((value) => (
-                    <option key={value} value={value}>
-                      {estimateLabel(value, team.estimateScale)}
-                    </option>
-                  ))}
-                </Select>
-              </div>
+            {team !== undefined && teamEstimates ? (
+              <PropertyPill
+                {...estimateMenu.props}
+                name="Estimate"
+                describe={`${formId}-estimate`}
+                empty={estimate === undefined ? 'No estimate' : undefined}
+                icon={<EstimateGlyph />}
+              >
+                {estimate === undefined ? 'Estimate' : estimateLabel(estimate, team.estimateScale)}
+              </PropertyPill>
             ) : null}
 
-            <div className={styles.property}>
-              <span className={styles.propertyLabel} id={`${formId}-template`}>
-                Template
-              </span>
-              <Button
+            <PropertyPill
+              {...labelMenu.props}
+              name="Labels"
+              describe={`${formId}-labels`}
+              empty={chosenLabels.length === 0 ? 'No labels' : undefined}
+              icon={<TagGlyph />}
+              disabled={teamId === ''}
+            >
+              {chosenLabels.length === 0
+                ? 'Labels'
+                : chosenLabels.map((label) => (
+                    <LabelChip key={label.id} compact name={label.name} color={label.color} />
+                  ))}
+            </PropertyPill>
+
+            {/* Glyph only until it holds a cycle, as the list rows draw it. */}
+            {teamRunsCycles ? (
+              <PropertyPill
+                {...cycleMenu.props}
+                name="Cycle"
+                describe={`${formId}-cycle`}
+                empty={cycleName === null ? 'No cycle' : undefined}
+                icon={<CycleGlyph />}
+                className={cycleName === null ? styles.glyphOnly : undefined}
+              >
+                {cycleName ?? ''}
+              </PropertyPill>
+            ) : null}
+
+            {showTemplate ? (
+              <PropertyPill
                 {...templateMenu.props}
-                fullWidth
-                className={styles.propertyTrigger}
-                aria-describedby={`${formId}-template`}
+                name="Template"
+                describe={`${formId}-template`}
+                empty={templateName === null ? 'No template' : undefined}
+                icon={<TemplateGlyph />}
                 disabled={teamId === ''}
               >
-                {templateName ?? 'No template'}
-              </Button>
-            </div>
+                {templateName ?? 'Template'}
+              </PropertyPill>
+            ) : null}
 
-            <div className={styles.property}>
-              <span className={styles.propertyLabel} id={`${formId}-form-template`}>
-                Form
-              </span>
-              <Button
+            {showForm ? (
+              <PropertyPill
                 {...formTemplateMenu.props}
-                fullWidth
-                className={styles.propertyTrigger}
-                aria-describedby={`${formId}-form-template`}
+                name="Form"
+                describe={`${formId}-form-template`}
+                empty={formTemplateName === null ? 'No form' : undefined}
+                icon={<FormGlyph />}
                 disabled={teamId === ''}
               >
-                {formTemplateName ?? 'No form'}
-              </Button>
-            </div>
+                {formTemplateName ?? 'Form'}
+              </PropertyPill>
+            ) : null}
 
-            <div className={styles.property}>
-              <label className={styles.propertyLabel} htmlFor={`${formId}-repeat`}>
-                Repeat
-              </label>
-              <Select
-                id={`${formId}-repeat`}
-                value={cadence ?? ''}
-                onChange={(event) => {
-                  const next = event.target.value;
-                  if (next === '') {
-                    setCadence(null);
-                    return;
-                  }
-                  setCadence(next as RecurringCadence);
-                  if (firstDueDate === '') setFirstDueDate(today(teamTimezone));
-                }}
+            {showRepeat ? (
+              <PropertyPill
+                {...repeatMenu.props}
+                name="Repeat"
+                describe={`${formId}-repeat`}
+                empty={cadence === null ? 'Does not repeat' : undefined}
+                icon={<RepeatGlyph />}
               >
-                <option value="">Does not repeat</option>
-                {CADENCES.map((option) => (
-                  <option key={option} value={option}>
-                    {CADENCE_LABELS[option]}
-                  </option>
-                ))}
-              </Select>
-            </div>
+                {cadence === null ? 'Repeat' : CADENCE_LABELS[cadence]}
+              </PropertyPill>
+            ) : null}
 
-            {cadence === null ? null : (
-              <div className={styles.property}>
-                <label className={styles.propertyLabel} htmlFor={`${formId}-first-due`}>
-                  First due
-                </label>
-                <Input
-                  id={`${formId}-first-due`}
+            {/*
+              A native date field wearing the pill: the platform's calendar is better than
+              anything drawn here, and inside a dialog that already traps focus it needs no
+              popover of its own. With a cadence set the same day is the first of the series.
+            */}
+            {showDue ? (
+              <label className={styles.datePill}>
+                <span className={styles.pillGlyph} aria-hidden="true">
+                  <CalendarGlyph />
+                </span>
+                <span className={styles.srOnly}>{cadence === null ? 'Due date' : 'First due'}</span>
+                <input
+                  ref={dueRef}
                   type="date"
-                  value={firstDueDate === '' ? today(teamTimezone) : firstDueDate}
-                  onChange={(event) => setFirstDueDate(event.target.value)}
+                  className={styles.dateInput}
+                  value={cadence === null ? dueDate : resolvedDueDate}
+                  onChange={(event) => setDueDate(event.target.value)}
                 />
-              </div>
+              </label>
+            ) : null}
+
+            {milestoneName === null ? null : (
+              <span className={styles.staticPill}>
+                <span className={styles.pillGlyph} aria-hidden="true">
+                  <MilestoneGlyph />
+                </span>
+                <span className={styles.srOnly}>Milestone: </span>
+                {milestoneName}
+              </span>
+            )}
+
+            {moreItems.length === 0 ? null : (
+              <Button
+                {...moreMenu.props}
+                variant="pill"
+                className={styles.glyphOnly}
+                aria-label="More properties"
+                icon={<MoreGlyph />}
+              />
             )}
           </div>
 
@@ -1284,10 +1589,79 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
           )}
         </form>
 
+        <Menu
+          open={teamMenu.open}
+          onClose={teamMenu.hide}
+          trigger={teamMenu.ref}
+          items={teamItems}
+          label="Team"
+          filterable
+          filterPlaceholder="Change team…"
+          emptyLabel="No team by that name"
+        />
+        <Menu
+          open={statusMenu.open}
+          onClose={statusMenu.hide}
+          trigger={statusMenu.ref}
+          items={statusItems}
+          label="Status"
+          filterable
+          filterPlaceholder="Change status…"
+          filterHint="s"
+          emptyLabel={states.length === 0 ? 'This team has no statuses' : 'No status matches'}
+        />
+        <Menu
+          open={priorityMenu.open}
+          onClose={priorityMenu.hide}
+          trigger={priorityMenu.ref}
+          items={priorityItems}
+          label="Priority"
+          filterable
+          filterPlaceholder="Set priority…"
+          filterHint="p"
+          emptyLabel="No priority matches"
+        />
+        <Menu
+          open={assigneeMenu.open}
+          onClose={assigneeMenu.hide}
+          trigger={assigneeMenu.ref}
+          items={assigneeItems}
+          label="Assignee"
+          filterable
+          filterPlaceholder="Assign to…"
+          filterHint="a"
+          emptyLabel="Nobody by that name"
+        />
+        <Menu
+          open={estimateMenu.open}
+          onClose={estimateMenu.hide}
+          trigger={estimateMenu.ref}
+          items={estimateItems}
+          label="Estimate"
+          filterable
+          filterPlaceholder="Set estimate…"
+          filterHint="shift+e"
+          emptyLabel="No estimate matches"
+        />
+        <Menu
+          open={repeatMenu.open}
+          onClose={repeatMenu.hide}
+          trigger={repeatMenu.ref}
+          items={repeatItems}
+          label="Repeat"
+        />
+        <Menu
+          open={moreMenu.open}
+          onClose={moreMenu.hide}
+          trigger={moreMenu.ref}
+          items={moreItems}
+          label="More properties"
+        />
         <ProjectPicker
           open={projectMenu.open}
           onClose={projectMenu.hide}
           trigger={projectMenu.ref}
+          filterHint="shift+p"
           teamIds={teamId === '' ? [] : [teamId]}
           value={resolvedProjectId}
           onSelect={setProjectId}
@@ -1296,6 +1670,7 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
           open={cycleMenu.open}
           onClose={cycleMenu.hide}
           trigger={cycleMenu.ref}
+          filterHint="shift+c"
           teamId={teamId === '' ? undefined : teamId}
           value={resolvedCycleId}
           onSelect={setCycleId}
@@ -1312,6 +1687,7 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
           open={labelMenu.open}
           onClose={labelMenu.hide}
           trigger={labelMenu.ref}
+          filterHint="l"
           teamId={teamId === '' ? null : teamId}
           value={labelIds}
           onApply={(labelId, displaced) =>
@@ -1369,6 +1745,210 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
         </Modal>
       ) : null}
     </>
+  );
+}
+
+interface PropertyPillProps extends Omit<ButtonProps, 'variant' | 'size'> {
+  /** The property — "Status", "Project". Read after the value, as the pill's description. */
+  name: string;
+  /** The id of the hidden element carrying `name`; unique per pill within the form. */
+  describe: string;
+  /**
+   * The accessible name while the pill holds nothing — "No project", "No labels" — because
+   * its visible text is then the property's name, and "Project, button" would leave a
+   * screen-reader user to guess whether one is set. Absent when the pill holds a value.
+   */
+  empty?: string | undefined;
+}
+
+/**
+ * One property trigger: a pill named by its value, described by its property, and dimmed
+ * while it holds nothing. The description is off the page and on the accessibility tree —
+ * the same arrangement the detail rail's triggers use — because Linear's row carries no
+ * visible property names and a pill that reads "In Progress" still has to say it is the
+ * status.
+ */
+function PropertyPill({ name, describe, empty, className, children, ...rest }: PropertyPillProps) {
+  return (
+    <>
+      <Button
+        {...rest}
+        variant="pill"
+        className={[empty === undefined ? null : styles.unset, className].filter(Boolean).join(' ')}
+        aria-label={empty}
+        aria-describedby={describe}
+      >
+        {children}
+      </Button>
+      <span id={describe} className={styles.srOnly}>
+        {name}
+      </span>
+    </>
+  );
+}
+
+/** The team's emoji where it set one; its initial on the identity ramp where it did not. */
+function TeamGlyph({ icon, name, id }: { icon: string | undefined; name: string; id: UUID }) {
+  if (icon !== undefined && icon !== '') {
+    return (
+      <span className={styles.emoji} aria-hidden="true">
+        {icon}
+      </span>
+    );
+  }
+  return <Avatar name={name} size="xs" colorKey={id} decorative />;
+}
+
+const STROKE = {
+  stroke: 'currentColor',
+  strokeWidth: 1.5,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+  fill: 'none',
+} as const;
+
+function Glyph({ children }: { children: ReactNode }) {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+      {children}
+    </svg>
+  );
+}
+
+function ChevronGlyph() {
+  return (
+    <Glyph>
+      <path d="m6 4 4 4-4 4" {...STROKE} />
+    </Glyph>
+  );
+}
+
+function CloseGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="m4.5 4.5 7 7m0-7-7 7" {...STROKE} />
+    </svg>
+  );
+}
+
+function ExpandGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M9.5 2.5h4v4m-11 3v4h4m7-11-4.5 4.5m-6.5 6.5 4.5-4.5" {...STROKE} />
+    </svg>
+  );
+}
+
+function LinkGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M6.5 9.5a2.5 2.5 0 0 0 3.54 0l2.12-2.12a2.5 2.5 0 0 0-3.54-3.54l-.7.7M9.5 6.5a2.5 2.5 0 0 0-3.54 0L3.84 8.62a2.5 2.5 0 0 0 3.54 3.54l.7-.7"
+        {...STROKE}
+      />
+    </svg>
+  );
+}
+
+function PersonGlyph() {
+  return (
+    <Glyph>
+      <circle cx="8" cy="8" r="6" {...STROKE} />
+      <circle cx="8" cy="6.5" r="2" {...STROKE} />
+      <path d="M4.2 12.3a4.5 4.5 0 0 1 7.6 0" {...STROKE} />
+    </Glyph>
+  );
+}
+
+function ProjectGlyph() {
+  return (
+    <Glyph>
+      <path d="M8 1.75 13.5 5v6L8 14.25 2.5 11V5z" {...STROKE} />
+      <path d="M8 8v6.25M8 8 2.5 5M8 8l5.5-3" {...STROKE} />
+    </Glyph>
+  );
+}
+
+function EstimateGlyph() {
+  return (
+    <Glyph>
+      <path d="M3 13V8m5 5V3m5 10v-3" {...STROKE} strokeWidth={2} />
+    </Glyph>
+  );
+}
+
+function TagGlyph() {
+  return (
+    <Glyph>
+      <path d="M2.5 8.5V3a.5.5 0 0 1 .5-.5h5.5l5 5-6 6z" {...STROKE} />
+      <circle cx="6" cy="6" r="1" fill="currentColor" />
+    </Glyph>
+  );
+}
+
+function CycleGlyph() {
+  return (
+    <Glyph>
+      <path d="M13.5 8A5.5 5.5 0 1 1 8 2.5" {...STROKE} />
+      <path d="M8 .75 10 2.5 8 4.25" {...STROKE} />
+      <path d="M8 5.25V8l2 1.5" {...STROKE} />
+    </Glyph>
+  );
+}
+
+function TemplateGlyph() {
+  return (
+    <Glyph>
+      <path d="M4 2.5h5.5l3 3V13.5H4z" {...STROKE} />
+      <path d="M9.5 2.5v3h3M6 8.5h4M6 11h4" {...STROKE} />
+    </Glyph>
+  );
+}
+
+function FormGlyph() {
+  return (
+    <Glyph>
+      <rect x="2.5" y="2.5" width="11" height="11" rx="2" {...STROKE} />
+      <path d="M5 6h6M5 8.5h6M5 11h3.5" {...STROKE} />
+    </Glyph>
+  );
+}
+
+function RepeatGlyph() {
+  return (
+    <Glyph>
+      <path
+        d="M2.5 6.5V6a2 2 0 0 1 2-2h8M11 1.5 13.5 4 11 6.5M13.5 9.5v.5a2 2 0 0 1-2 2h-8M5 14.5 2.5 12 5 9.5"
+        {...STROKE}
+      />
+    </Glyph>
+  );
+}
+
+function CalendarGlyph() {
+  return (
+    <Glyph>
+      <rect x="2.5" y="3.5" width="11" height="10" rx="1.5" {...STROKE} />
+      <path d="M2.5 6.5h11M5.5 2v2.5m5-2.5v2.5" {...STROKE} />
+    </Glyph>
+  );
+}
+
+function MilestoneGlyph() {
+  return (
+    <Glyph>
+      <path d="M8 2.5 13.5 8 8 13.5 2.5 8z" {...STROKE} />
+    </Glyph>
+  );
+}
+
+function MoreGlyph() {
+  return (
+    <Glyph>
+      <circle cx="3.5" cy="8" r="1.25" fill="currentColor" />
+      <circle cx="8" cy="8" r="1.25" fill="currentColor" />
+      <circle cx="12.5" cy="8" r="1.25" fill="currentColor" />
+    </Glyph>
   );
 }
 

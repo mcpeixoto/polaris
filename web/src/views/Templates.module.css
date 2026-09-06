@@ -1,70 +1,46 @@
 /*
- * A settings page, so density is not the goal: a template is written once and read by
- * everybody who files an issue afterwards. The screen borrows LabelSettings' frame — header,
- * scrolling body, one section per scope — because they answer the same question in the same
- * shape, and two settings pages that scroll differently is a difference nobody chose.
+ * The page frame is `SettingsPage`'s and the standard list is drawn in `SettingsSection`
+ * cards; what is left here is the row — scanned rather than read: a name, what it is for,
+ * and the line saying what it prefills, always in that order and always in the same three
+ * weights — and the inline editor.
  *
- * The one thing that is dense is the row, which is scanned rather than read: a name, what it
- * is for, and the line saying what it prefills, always in that order and always in the same
- * three weights.
+ * `FormTemplatesPanel` and `ProjectTemplatesPanel` borrow this sheet, and still compose the
+ * older `.body/.section/.list/.row` classes themselves. Those are kept, restyled to sit inside
+ * the page frame at the frame's rhythm: a section is a heading and a hint at the section
+ * scale, and its rows are each a card, which is what `surface="plain"` would have given them.
  */
 
-.screen {
+/* The panels' column: stacked at the page's own section gap, no chrome of its own. */
+.body {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex: none;
-  height: var(--header-height);
-  padding-inline: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.title {
-  margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-}
-
-.body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: var(--space-6) var(--space-8);
-  /* Read as prose. Past about this width a form control drifts so far from its label that
-     the pairing stops being obvious. */
-  max-width: 86ch;
+  gap: var(--space-10);
+  min-width: 0;
 }
 
 .section {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding-bottom: var(--space-6);
-  margin-bottom: var(--space-6);
-  border-bottom: 1px solid var(--border-subtle);
+  min-width: 0;
 }
 
 .sectionTitle {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  min-height: var(--control-height-md);
   margin: 0;
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  letter-spacing: -0.01em;
 }
 
 .sectionHint {
-  margin: 0;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
+  margin: calc(-1 * var(--space-2)) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
   line-height: var(--line-height-normal);
 }
 
@@ -148,6 +124,56 @@
  * the only decision here that cannot be revisited — everything below it can be edited
  * tomorrow, and this cannot be edited at all.
  */
+/*
+ * Inside a `SettingsSection` card the editor is one padded slot among the rows, so its own
+ * box would be a card inside a card. Two classes so this beats `.editor` on specificity.
+ */
+.editor.inCard {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+}
+
+/*
+ * The standard list, drawn on the card: the card's edge is the list's edge, and a hairline
+ * says where one template ends. A row that is being edited keeps the row's padding so the
+ * editor's fields line up with the neighbouring names.
+ */
+.templateList {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.templateList > li + li,
+.templateList:not(:first-child) {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.templateRow,
+.templateSlot {
+  padding: var(--space-3) var(--space-4);
+}
+
+.templateRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 64px;
+  box-sizing: border-box;
+}
+
+/* Names the section as a landmark; the box is the inner section's. */
+.region {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .scopeNote {
   margin: 0;
   padding: var(--space-2) var(--space-3);
@@ -295,7 +321,8 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .row {
+  .row,
+  .templateRow {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -303,7 +330,6 @@
 .tabs {
   display: flex;
   gap: var(--space-2);
-  margin-left: auto;
 }
 
 .fieldAdd {

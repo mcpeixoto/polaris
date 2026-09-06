@@ -1,18 +1,20 @@
 /*
- * Only what `SettingsPage` and `SettingsSection` do not already draw. The screen, header,
- * title, body measure and section heading scale all used to live here and are now the
- * frame's — which is the point of the frame.
+ * Only what `SettingsPage`, `SettingsSection` and `SettingsRow` do not already draw: the
+ * value-and-button pair that fills a row's control slot, and the one link on the page.
  */
 
+/* Value above, button under it on the right — a URL and its button side by side would
+   squeeze the URL into a sliver of the control column, and the URL is the thing here. */
 .endpoint {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: flex-end;
   gap: var(--space-2);
+  min-width: 0;
 }
 
 .note {
-  margin: 0;
+  margin: auto 0;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
@@ -26,7 +28,7 @@
 .code {
   margin: 0;
   align-self: stretch;
-  padding: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   overflow-x: auto;
   border-radius: var(--radius-md);
   background: var(--bg-secondary);

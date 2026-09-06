@@ -56,6 +56,13 @@
   font-size: var(--font-size-sm);
 }
 
+/* One step above a chip: tall enough to hit, short enough to ride in a 28px header row. */
+.xs {
+  height: var(--control-height-pill);
+  padding-inline: var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
 .fullWidth {
   width: 100%;
   justify-content: flex-start;
@@ -89,6 +96,46 @@
 
 .ghost:hover {
   color: var(--text-primary);
+}
+
+/*
+ * The property pill: the trigger that carries a value in a composer's property row, a list
+ * row's project and cycle chips, the team chip in a breadcrumb.
+ *
+ * Doubled with `.button` because it sets its own height and padding, and `.md` — a class
+ * of equal weight that always lands beside it — sets both too. The capsule has to win
+ * whatever order the two are emitted in; see the composition doc on specificity.
+ *
+ * The edge is --border-subtle rather than --border-default: a pill is announced by its
+ * glyph and its text, so the hairline only separates it from its neighbours and is allowed
+ * under the non-text contrast floor. The glyph is secondary and the value primary, which is
+ * what lets a row of eight pills be scanned for the ones that hold something.
+ */
+.button.pill {
+  height: var(--control-height-pill);
+  padding: 0 var(--space-2) 0 6px;
+  gap: 6px;
+  border-color: var(--border-subtle);
+  border-radius: var(--radius-full);
+  background-color: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.button.pill .icon {
+  color: var(--text-secondary);
+}
+
+.button.pill .icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Open is a held state, not a hover: the menu the pill launched is on screen, and the pill
+ * stays pressed until it closes so the eye can find which of the row's triggers it belongs
+ * to. The wash is the selection wash the menu rows use, which is the same claim. */
+.button.pill[aria-expanded='true'] {
+  background-color: var(--bg-selected);
 }
 
 /*

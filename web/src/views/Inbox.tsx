@@ -17,6 +17,12 @@
  * **It reads from the replica, not from a query.** The inbox is delta-driven like
  * everything else: a notification arriving over the socket appears without a refetch. The
  * one query is the backfill on mount, for rows written while this client was away.
+ *
+ * **It is two panes.** The list on the left, 425px of it, and the issue the cursor row is
+ * about on the right. Clicking a row still opens the issue for real — that is how most rows
+ * get read, and the end-to-end walk holds it to that — so the pane is what the keyboard
+ * sees: `J` and `K` move the cursor and the pane follows, the way Peek follows the cursor in
+ * a list. Until the cursor has moved, the pane says how much is unread instead.
  */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -29,18 +35,21 @@ import {
   Button,
   Checkbox,
   EmptyState,
+  IconButton,
   Input,
   Menu,
   priorityLabel,
+  StateIcon,
   type MenuNode,
 } from '~/components';
-import { browserTimezone } from '~/features/locale';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
 import { updateIssues, type IssueFields } from '~/features/issue/mutations';
-import { exact, when } from '~/features/time';
+import { exact } from '~/features/time';
+import { notificationGlyph } from '~/features/inbox/glyphs';
+import { InboxDetail } from '~/features/inbox/InboxDetail';
 import {
+  age,
   coalescedTail,
-  dayKeyOf,
   DEFAULT_INBOX_DISPLAY,
   describeEvent,
   isAwake,
@@ -61,11 +70,12 @@ import {
   snoozeNotification,
 } from '~/features/inbox/mutations';
 import { useViewerId } from '~/hooks/useViewer';
-import type { Store, UUID } from '~/store';
+import type { NotificationType, StateCategory, Store, UUID } from '~/store';
 import styles from './Inbox.module.css';
 
 interface Row {
   readonly id: UUID;
+  readonly type: NotificationType;
   readonly actor: string;
   readonly event: string;
   readonly tail: string | null;
@@ -73,8 +83,12 @@ interface Row {
   readonly unread: boolean;
   readonly snoozedUntil: string | undefined;
   readonly issueIdentifier: string | undefined;
+  readonly issueTitle: string | undefined;
+  /** The issue's workflow state, for the glyph at the row's right edge. */
+  readonly state: { category: StateCategory; color: string | undefined } | null;
   readonly href: string | undefined;
   readonly avatarName: string;
+  readonly avatarUrl: string | null;
   readonly haystack: string;
   /**
    * The issue the row is about, when there is one.
@@ -115,11 +129,21 @@ interface InboxAnswer {
 export function Inbox() {
   const engine = useEngine();
   const navigate = useNavigate();
-  const timezone = browserTimezone();
 
   const [cursor, setCursor] = useState(0);
+  /**
+   * Whether the cursor has been placed on purpose.
+   *
+   * It starts on the newest row so that `U` and Backspace have something to act on, but a
+   * cursor nobody has moved is not a selection, and the right-hand pane showing the newest
+   * issue before anybody asked would make the inbox open on whatever happened last rather
+   * than on the count. Set by the keyboard and by the contextual menu; a click navigates.
+   */
+  const [placed, setPlaced] = useState(false);
   const findRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const moreRef = useRef<HTMLButtonElement>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
   /**
    * What a menu opened from this screen hangs off: the row it is about.
    *
@@ -209,16 +233,21 @@ export function Inbox() {
               : store.get('initiative', watchedInitiativeId);
           const watchedCustomer =
             watchedCustomerId === undefined ? undefined : store.get('customer', watchedCustomerId);
+          const state = issue === undefined ? undefined : store.workflowStates.get(issue.stateId);
           const builtRow: Row = {
             id,
+            type: notification.type,
             actor: actorName,
             avatarName: actor?.displayName ?? 'Polaris',
+            avatarUrl: actor?.avatarUrl ?? null,
             event,
             tail: coalescedTail(notification.count),
             createdAt: notification.createdAt,
             unread: notification.readAt === undefined,
             snoozedUntil: notification.snoozedUntil,
             issueIdentifier: identifier,
+            issueTitle: issue?.title,
+            state: state === undefined ? null : { category: state.category, color: state.color },
             href: notificationHref(notification.type, notification.payload, notification.issueId),
             issue:
               issue === undefined
@@ -262,7 +291,7 @@ export function Inbox() {
       },
       [display, query],
     ),
-    ['notification', 'issue', 'user', 'team', 'project', 'initiative', 'customer'],
+    ['notification', 'issue', 'user', 'team', 'project', 'initiative', 'customer', 'workflowState'],
     [display.showRead, display.showSnoozed, query],
   );
 
@@ -308,6 +337,12 @@ export function Inbox() {
     if (row === undefined) return;
     anchor.current = rowNode(row.id);
     show(row);
+  }, []);
+
+  /** Moves the cursor on purpose, which is what puts its row in the pane. */
+  const place = useCallback((next: (cursor: number) => number) => {
+    setPlaced(true);
+    setCursor(next);
   }, []);
 
   /**
@@ -361,7 +396,7 @@ export function Inbox() {
         keys: ['j', 'ArrowDown'],
         when: 'list',
         group: 'Inbox',
-        run: () => setCursor((c) => Math.min(c + 1, Math.max(rows.length - 1, 0))),
+        run: () => place((c) => Math.min(c + 1, Math.max(rows.length - 1, 0))),
       },
       {
         id: 'inbox.previous',
@@ -369,7 +404,7 @@ export function Inbox() {
         keys: ['k', 'ArrowUp'],
         when: 'list',
         group: 'Inbox',
-        run: () => setCursor((c) => Math.max(c - 1, 0)),
+        run: () => place((c) => Math.max(c - 1, 0)),
       },
       {
         id: 'inbox.open',
@@ -446,10 +481,8 @@ export function Inbox() {
         },
       },
     ],
-    [rows.length, current, engine, open, openOn, query],
+    [rows.length, current, engine, open, openOn, place, query],
   );
-
-  const days = groupByDay(rows, timezone);
 
   /**
    * Which kind of empty this is, and the way out of it.
@@ -513,130 +546,221 @@ export function Inbox() {
 
   return (
     <div className={styles.screen}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>Inbox</h1>
-        {/* A live region, because the count is the answer to "did that work?" after marking
-            a row read — and the row itself is one line in a list nobody is watching. */}
-        <span className={styles.count} role="status" aria-live="polite">
-          {unread === 0 ? 'All read' : `${unread} unread`}
-        </span>
-        <div className={styles.find}>
-          <Input
-            ref={findRef}
-            label="Find in inbox"
-            hideLabel
-            placeholder="Find"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
+      <div className={styles.listPane}>
+        <header className={styles.header}>
+          <h1 className={styles.title}>Inbox</h1>
+          {/* A live region, because the count is the answer to "did that work?" after
+              marking a row read — and the row itself is one line in a list nobody is
+              watching. */}
+          <span className={styles.count} role="status" aria-live="polite">
+            {unread === 0 ? 'All read' : `${unread} unread`}
+          </span>
+          <IconButton
+            ref={moreRef}
+            aria-label="More"
+            size="md"
+            variant="ghost"
+            onClick={() => setMoreOpen(true)}
+            icon={
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <circle cx="3.5" cy="8" r="1.25" />
+                <circle cx="8" cy="8" r="1.25" />
+                <circle cx="12.5" cy="8" r="1.25" />
+              </svg>
+            }
           />
-        </div>
-        <Checkbox
-          checked={display.showRead}
-          onChange={(event) => setDisplay((prev) => ({ ...prev, showRead: event.target.checked }))}
-          label="Show read"
-        />
-        <Checkbox
-          checked={display.showSnoozed}
-          onChange={(event) =>
-            setDisplay((prev) => ({ ...prev, showSnoozed: event.target.checked }))
-          }
-          label="Show snoozed"
-        />
-        <div className={styles.spacer} />
-        <Button
-          size="sm"
-          disabled={unread === 0}
-          onClick={() => markAllNotificationsRead(engine).catch(report)}
-        >
-          Mark all read
-        </Button>
-      </header>
+          <div className={styles.spacer} />
+          <IconButton
+            aria-label="Mark all read"
+            keys="alt+u"
+            size="md"
+            variant="ghost"
+            disabled={unread === 0}
+            onClick={() => markAllNotificationsRead(engine).catch(report)}
+            icon={
+              <svg
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="m2 8.5 3 3 5.5-6M8 11.5l6-6.5" />
+              </svg>
+            }
+          />
+        </header>
 
-      {rows.length === 0 ? (
-        <div className={styles.empty}>
-          <EmptyState
-            title={emptyState.title}
-            description={emptyState.description}
-            action={emptyState.action}
+        {/* The find box and the two display toggles. Visible rather than folded into a
+            menu: a checkbox in a popover is a filter nobody can see is on, and "why is my
+            inbox empty" is the question that toggle already answers. */}
+        <div className={styles.toolbar}>
+          <div className={styles.find}>
+            <Input
+              ref={findRef}
+              label="Find in inbox"
+              hideLabel
+              placeholder="Find"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+          <Checkbox
+            checked={display.showRead}
+            onChange={(event) =>
+              setDisplay((prev) => ({ ...prev, showRead: event.target.checked }))
+            }
+            label="Show read"
+          />
+          <Checkbox
+            checked={display.showSnoozed}
+            onChange={(event) =>
+              setDisplay((prev) => ({ ...prev, showSnoozed: event.target.checked }))
+            }
+            label="Show snoozed"
           />
         </div>
-      ) : (
-        <ul
-          ref={listRef}
-          className={styles.list}
-          // A listbox rather than a plain list: the cursor is managed here rather than by
-          // the browser's focus, so the active row has to be announced as such.
-          role="listbox"
-          aria-label="Notifications"
-          // Focusable so a menu opened from a row has somewhere to hand the keyboard back to
-          // when that row has been snoozed out from under it. Not in the tab order: the rows
-          // are buttons and are already reachable.
-          tabIndex={-1}
-          aria-activedescendant={current === undefined ? undefined : `notification-${current.id}`}
-        >
-          {days.map(([day, dayRows]) => (
-            <li key={day}>
-              <div className={styles.day}>{dayLabel(day, timezone)}</div>
-              <ul role="none">
-                {dayRows.map((row) => (
-                  <li key={row.id} role="none">
-                    <button
-                      type="button"
-                      id={`notification-${row.id}`}
-                      role="option"
-                      aria-selected={row.id === current?.id}
-                      className={[
-                        styles.row,
-                        row.unread ? styles.unread : null,
-                        row.id === current?.id ? styles.active : null,
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                      onClick={() => {
-                        setCursor(rows.indexOf(row));
-                        open(row);
-                      }}
-                      // The contextual menu the spec asks for, on the row the pointer is
-                      // over rather than on the cursor's row: right-clicking a notification
-                      // is a statement about that one, so the cursor moves to it first and
-                      // the menu then acts on the cursor like every other command here.
-                      onContextMenu={(event) => {
-                        event.preventDefault();
-                        setCursor(rows.indexOf(row));
-                        openOn(row, setContextFor);
-                      }}
-                    >
+
+        {rows.length === 0 ? (
+          <div className={styles.empty}>
+            <EmptyState
+              title={emptyState.title}
+              description={emptyState.description}
+              action={emptyState.action}
+            />
+          </div>
+        ) : (
+          <ul
+            ref={listRef}
+            className={styles.list}
+            // A listbox rather than a plain list: the cursor is managed here rather than by
+            // the browser's focus, so the active row has to be announced as such.
+            role="listbox"
+            aria-label="Notifications"
+            // Focusable so a menu opened from a row has somewhere to hand the keyboard back
+            // to when that row has been snoozed out from under it. Not in the tab order: the
+            // rows are buttons and are already reachable.
+            tabIndex={-1}
+            aria-activedescendant={current === undefined ? undefined : `notification-${current.id}`}
+          >
+            {rows.map((row) => (
+              <li key={row.id} role="none">
+                <button
+                  type="button"
+                  id={`notification-${row.id}`}
+                  role="option"
+                  aria-selected={row.id === current?.id}
+                  className={[
+                    styles.row,
+                    row.unread ? styles.unread : null,
+                    row.id === current?.id ? styles.active : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  onClick={() => {
+                    setCursor(rows.indexOf(row));
+                    open(row);
+                  }}
+                  // The contextual menu the spec asks for, on the row the pointer is over
+                  // rather than on the cursor's row: right-clicking a notification is a
+                  // statement about that one, so the cursor moves to it first and the menu
+                  // then acts on the cursor like every other command here.
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    place(() => rows.indexOf(row));
+                    openOn(row, setContextFor);
+                  }}
+                >
+                  {/* The dot is a picture, so it says nothing to a screen reader, and
+                      weight says nothing either: read and unread were the same row
+                      announced the same way. One hidden word is the whole fix, and it
+                      leads the option so it is heard before the sentence it qualifies. */}
+                  {row.unread ? <span className={styles.unreadName}>Unread</span> : null}
+                  <span className={styles.avatar} aria-hidden="true">
+                    <Avatar
+                      name={row.avatarName}
+                      src={row.avatarUrl}
+                      size="md"
+                      decorative
+                      className={styles.avatarImage}
+                    />
+                    <span className={styles.badge}>{notificationGlyph(row.type)}</span>
+                  </span>
+                  <span className={styles.text}>
+                    <span className={styles.headline}>
                       <span className={styles.dot} aria-hidden="true" />
-                      {/* The dot is a picture, so it says nothing to a screen reader, and
-                          weight says nothing either: read and unread were the same row
-                          announced the same way. One hidden word is the whole fix, and it
-                          leads the option so it is heard before the sentence it qualifies. */}
-                      {row.unread ? <span className={styles.unreadName}>Unread</span> : null}
-                      <span className={styles.text}>
-                        <Avatar name={row.avatarName} size="xs" />
-                        <span className={styles.actor}>{row.actor}</span>
+                      {row.issueIdentifier === undefined ? (
+                        <>
+                          <span className={styles.actor}>{row.actor}</span>{' '}
+                          <span className={styles.event}>{row.event}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className={styles.identifier}>{row.issueIdentifier}</span>
+                          <span className={styles.issueTitle}>{row.issueTitle}</span>
+                        </>
+                      )}
+                    </span>
+                    {row.issueIdentifier === undefined ? null : (
+                      <span className={styles.action}>
+                        <span className={styles.actor}>{row.actor}</span>{' '}
                         <span className={styles.event}>{row.event}</span>
                         {row.tail === null ? null : <span className={styles.tail}>{row.tail}</span>}
+                        {row.snoozedUntil === undefined ? null : (
+                          <span className={styles.snoozed}>Snoozed</span>
+                        )}
                       </span>
-                      <time
-                        className={styles.when}
-                        dateTime={row.createdAt}
-                        title={exact(row.createdAt)}
-                      >
-                        {when(row.createdAt)}
-                      </time>
-                      {row.snoozedUntil === undefined ? null : (
-                        <span className={styles.snoozed}>Snoozed</span>
-                      )}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </li>
-          ))}
-        </ul>
-      )}
+                    )}
+                  </span>
+                  <span className={styles.meta}>
+                    <time
+                      className={styles.when}
+                      dateTime={row.createdAt}
+                      title={exact(row.createdAt)}
+                    >
+                      {age(row.createdAt)}
+                    </time>
+                    {row.state === null ? null : (
+                      <StateIcon
+                        category={row.state.category}
+                        color={row.state.color}
+                        decorative
+                        className={styles.state}
+                      />
+                    )}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
+      <div className={styles.detailPane}>
+        <InboxDetail
+          issueId={placed && current?.issue !== undefined ? (current.issue?.id ?? null) : null}
+          unread={unread}
+        />
+      </div>
+
+      <Menu
+        open={moreOpen}
+        onClose={() => setMoreOpen(false)}
+        trigger={moreRef}
+        label="Inbox"
+        items={[
+          {
+            id: 'dismissRead',
+            label: 'Dismiss all read',
+            keys: 'shift+Backspace',
+            onSelect: () => {
+              dismissReadNotifications(engine).catch(report);
+            },
+          },
+        ]}
+      />
       <Menu
         open={snoozeFor !== null}
         onClose={() => {
@@ -791,30 +915,4 @@ function snoozeOptions(onPick: (until: Date | null) => void): MenuNode[] {
     { kind: 'separator' },
     { id: 'clear', label: 'Do not snooze', onSelect: () => onPick(null) },
   ];
-}
-
-/** Rows in day order, newest day first, preserving the order within each day. */
-function groupByDay(rows: readonly Row[], timezone: string): [string, Row[]][] {
-  const days = new Map<string, Row[]>();
-  for (const row of rows) {
-    const key = dayKeyOf(row.createdAt, timezone);
-    const bucket = days.get(key);
-    if (bucket === undefined) days.set(key, [row]);
-    else bucket.push(row);
-  }
-  // The rows arrive newest-first, so insertion order is already day order and sorting would
-  // only be a chance to disagree with it.
-  return [...days.entries()];
-}
-
-/** "Today", "Yesterday", or the date. The same three-name rule the rest of the product uses. */
-function dayLabel(day: string, timezone: string): string {
-  const today = dayKeyOf(new Date().toISOString(), timezone);
-  if (day === today) return 'Today';
-
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  if (day === dayKeyOf(yesterday.toISOString(), timezone)) return 'Yesterday';
-
-  return day;
 }

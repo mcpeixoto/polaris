@@ -133,12 +133,13 @@
    * 32px is the issue row, and it is the number the rest of the scale answers to: a
    * control taller than the row it lives in cannot live in the row.
    */
-  --row-height: 32px;
+  --row-height: 44px;
   /* Only for things that sit *inside* a control rather than beside it: a label chip on a
    * 32px issue row has 22px of vertical space minus the row's own padding, and 18px is
    * what is left. Nothing interactive is ever this size — 18px is below the target anybody
    * can reliably hit — which is why it is not simply the bottom of the ladder. */
   --control-height-xs: 18px;
+  --control-height-pill: 24px;
   --control-height-sm: 22px;
   --control-height-md: 28px;
   --control-height-lg: 32px;
@@ -164,6 +165,7 @@
   --radius-sm: 3px;
   --radius-md: 5px;
   --radius-lg: 8px;
+  --radius-xl: 12px;
   --radius-full: 9999px;
 
   /* --- Layers --------------------------------------------------------
@@ -200,8 +202,8 @@
    * product is judged on the interval between pressing a key and seeing the result.
    */
   --font-sans:
-    'SF Pro Text', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI',
-    'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+    'Inter Variable', 'Inter', 'SF Pro Text', 'SF Pro Display', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', 'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
   --font-mono:
     ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
 
@@ -278,8 +280,8 @@
   --bg-overlay: var(--color-black-a48);
 
   --text-primary: var(--color-neutral-900);
-  --text-secondary: var(--color-neutral-700);
-  --text-tertiary: var(--color-neutral-600);
+  --text-secondary: var(--color-neutral-600);
+  --text-tertiary: var(--color-neutral-500);
   --text-danger: var(--color-red-600);
   --text-inverse: var(--color-neutral-50);
 
@@ -361,6 +363,10 @@
   --shadow-sm: 0 1px 2px var(--color-black-a08);
   --shadow-md: 0 4px 12px var(--color-black-a12), 0 1px 2px var(--color-black-a08);
   --shadow-lg: 0 16px 48px var(--color-black-a16), 0 2px 8px var(--color-black-a08);
+  --shadow-modal:
+    0 9px 48px var(--color-black-a08), 0 6px 24px var(--color-black-a12),
+    0 1px 1px var(--color-black-a04);
+  --shadow-popover: 0 4px 16px var(--color-black-a12), 0 0 0 1px var(--color-black-a06);
 }
 
 /* An explicit choice. This wins over the system preference in both directions: it is
@@ -427,6 +433,8 @@
   --shadow-sm: 0 1px 2px var(--color-black-a48);
   --shadow-md: 0 0 0 1px var(--color-white-a08), 0 8px 24px var(--color-black-a64);
   --shadow-lg: 0 0 0 1px var(--color-white-a08), 0 16px 48px var(--color-black-a64);
+  --shadow-modal: 0 0 0 1px var(--color-white-a08), 0 16px 48px var(--color-black-a64);
+  --shadow-popover: 0 0 0 1px var(--color-white-a08), 0 8px 24px var(--color-black-a64);
 }
 
 /* The system preference, honoured only when the user has not chosen for themselves.
@@ -491,6 +499,8 @@
     --shadow-sm: 0 1px 2px var(--color-black-a48);
     --shadow-md: 0 0 0 1px var(--color-white-a08), 0 8px 24px var(--color-black-a64);
     --shadow-lg: 0 0 0 1px var(--color-white-a08), 0 16px 48px var(--color-black-a64);
+    --shadow-modal: 0 0 0 1px var(--color-white-a08), 0 16px 48px var(--color-black-a64);
+    --shadow-popover: 0 0 0 1px var(--color-white-a08), 0 8px 24px var(--color-black-a64);
   }
 }
 

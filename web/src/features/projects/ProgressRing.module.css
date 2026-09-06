@@ -1,0 +1,35 @@
+/* 14px: the size Linear draws a ring in a project row. There is no token for it, so it is
+   spelled from two that exist rather than as a bare number. */
+.ring {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: calc(var(--space-3) + var(--space-0-5));
+  height: calc(var(--space-3) + var(--space-0-5));
+  color: var(--accent);
+}
+
+.ring svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke-linecap: round;
+}
+
+.track {
+  stroke: var(--border-default);
+  stroke-width: 2;
+}
+
+.fill {
+  stroke: currentColor;
+  stroke-width: 2;
+  transition: stroke-dashoffset var(--duration-fast) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fill {
+    transition: none;
+  }
+}
