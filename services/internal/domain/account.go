@@ -161,9 +161,10 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (uuid.UUID, Se
 // --- who may register ------------------------------------------------------------
 //
 // POST /auth/register used to accept anybody who could reach it, which for a product people
-// run on their own boxes with the port exposed is an abuse report in week one. README states
-// the intended policy — "invite-only beta first, no open signup until per-workspace quotas
-// and abuse controls are proven" — and this is where it is enforced.
+// run on their own boxes with the port exposed is an abuse report in week one. So a
+// self-hosted install is invite-only by default, and this is where that is enforced. The
+// hosted cloud runs POLARIS_REGISTRATION_MODE=open, which is a decision about a deployment
+// we operate and pay the bill for — not a default anybody else inherits.
 //
 // Exactly two people may register on a default install:
 //
