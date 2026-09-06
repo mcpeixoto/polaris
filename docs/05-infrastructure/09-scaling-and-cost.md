@@ -128,4 +128,4 @@ Wire these into CI as regression tests with seeded data. A product whose entire 
 2. **MinIO or a plain volume to start?** Recommendation: MinIO, because presigned direct uploads are genuinely better and the migration to R2 later becomes free.
 3. **Where do bootstrap snapshots come from once there's a replica?** Decide with Phase D; it changes the version-consistency handling.
 4. **Do you want per-workspace database isolation** (schema-per-workspace) for enterprise customers? It makes export/delete/residency trivial and connection management painful. Almost certainly no, but worth an explicit decision.
-5. **Free-tier storage quota enforcement** — launch-blocking before open signup (see `10-self-host-and-cloud.md`).
+5. ~~**Free-tier storage quota enforcement**~~ — moot, and it was never the blocker it is written as here. There is no upload path in the product: an attachment is a URL and a link card, so a free workspace stores no bytes of ours. Open signup on the cloud is live without it. The question comes back the day object storage does — decide it then, with the driver.

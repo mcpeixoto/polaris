@@ -31,7 +31,7 @@ Polaris holds every customer's roadmap, private-team discussions, customer reven
 - Exports carry the exporter's visibility, and workspace-wide export is owner-only with an audit entry — matching the product spec.
 
 ### Secrets and credentials
-- All secrets in `/root/.config/polaris/polaris.env` (root:600), injected via `env_file`. Never in the image, never in the repo, never in `environment:` with a `${VAR:-}` default that would mask the real value.
+- All secrets in a root-owned env file outside the checkout, mode 600, injected via `env_file`. Never in the image, never in the repo, never in `environment:` with a `${VAR:-}` default that would mask the real value.
 - **Third-party tokens encrypted at rest** with a key that is *not* in the same env file as the database password — envelope encryption with the key in a distinct file, so a Postgres dump alone is useless.
 - API keys and OAuth tokens stored hashed (`sha256` + pepper), shown once at creation.
 - Rotation runbook per secret, with the blast radius written down. Rotating `JWT_SIGNING_KEY` logs everyone out; rotating a GitHub app key breaks every installation until reconnected. Knowing which is which at 2 a.m. matters.
@@ -122,7 +122,7 @@ Written before they're needed, kept in `docs/runbooks/`:
 | Nightly logical | 30 days | `pg_dump -Fc` → `/srv/polaris/backups` + offsite |
 | PITR | 14 days | pgBackRest full weekly + daily incremental |
 | Object storage | 30 days | `mc mirror` to B2/R2 |
-| Config | in git | Except `polaris.env`, which lives in a password manager |
+| Config | in git | Except the secrets env file, which lives in a password manager |
 
 **The drill is the control, not the backup.** `scripts/restore-drill.sh` runs monthly: restore last night's dump into a throwaway container, run migrations, boot the API, hit `/healthz` and one real query, publish the elapsed time. If it hasn't run in 40 days, that alerts.
 

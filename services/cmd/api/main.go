@@ -106,6 +106,7 @@ func run() error {
 		Service:     svc,
 		Tokens:      tokens,
 		Config:      cfg,
+		Revision:    revision,
 		GraphQL:     newGraphQLHandler(svc, cfg),
 		Limits:      limits,
 		AgentRunner: agentRunner,

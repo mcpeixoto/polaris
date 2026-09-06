@@ -114,7 +114,7 @@ Decisions taken (see [`docs/05-infrastructure/`](docs/05-infrastructure/) for th
 - **Open source on GitHub**: **AGPL-3.0** core, with enterprise features in `ee/` under a commercial licence (CLA required)
 - **Self-host free and unlimited on seats** — the paid pitch is "you don't want to run it" plus SSO, SCIM, audit log and dashboards
 - **Hosted cloud in the EU**, freemium: Free (≤5 users) → Pro (per seat) → Enterprise
-- **Invite-only beta first** — no open signup until per-workspace quotas and abuse controls are proven
+- **Signup differs by who runs it** — a self-hosted install is invite-only by default (the first account bootstraps it, everybody after that needs an invitation); our cloud runs open signup
 - Residency is EU-only for the cloud; self-hosters choose their own hardware
 
 ## The one-paragraph version

@@ -15,24 +15,11 @@ Five containers: `Polaris_web`, `Polaris_api`, `Polaris_sync`, `Polaris_worker`,
 
 ## Deploying to prod
 
-Polaris is **`deploy: manual`** in the fleet registry (not tag-driven auto-deploy).
-
-From registry `deploy_cmd`:
-
-```bash
-cd /root/Polaris && git fetch origin && git reset --hard origin/main \
-  && GIT_SHA=$(git rev-parse --short HEAD) docker compose up -d --build
-```
-
-Or after a local commit on main: `./app.sh restart` (verify `app.sh` verbs for this repo).
-
-Health: https://polaris.peixotolabs.com/healthz
+Merging to the default branch is the deploy — the `deploy` job in
+`.github/workflows/ci.yml` does it, on a push to that branch only. Never on a PR, never on
+a tag, and no tag needs cutting. The runbook for the maintainer's own hosting is kept
+privately and is not part of this repository.
 
 ## Before declaring done
 
 Run repo tests/build. Never commit automatically unless the user asks.
-
-## References
-
-- `/root/AdminPanel/registry.yml` — Polaris entry + deploy_cmd
-- `/root/SERVER_INFRA.md`, `/root/CLAUDE.md`

@@ -2,13 +2,18 @@
 
 > `00-overview/03-plan-matrix.md` describes **Linear's** tiers, as reference. **This** file defines ours.
 
-## Three ways to get Polaris
+## Two ways to get Polaris
 
 | Channel | Licence | Who runs it | Cost |
 |---|---|---|---|
 | **Self-host** | AGPL-3.0 core | You | Free, unlimited seats |
-| **Self-host Enterprise** | AGPL core + `ee/` commercial | You | Annual licence key, per seat |
 | **Cloud** (EU) | We run core + `ee/` | Us | Free / Pro / Enterprise, per seat |
+
+There was a third — self-host Enterprise, sold as an annual licence key — and it is not one.
+No licence-key code exists: no `license` package, nothing that verifies a key, nothing that
+counts seats against one. `01-licensing-and-distribution.md` keeps the design under a heading
+that says it was never built. Until it is, `ee/` reaches a customer through the cloud and
+nowhere else, and nobody should be sold otherwise.
 
 The self-host tier being *genuinely unlimited on seats* is the point. Anyone who wants to run it for 300 people without paying may do so — that's what makes it open source rather than a demo. The paid pitch is "you don't want to run it" and "you need SSO and an audit log".
 
@@ -30,7 +35,7 @@ Deliberately **not** gated, against the instinct to gate them:
 | **Triage rules, SLAs** | Cheap to run, and they're what makes the tool usable for support-adjacent teams |
 | **Basic Insights** | A chart on a view is table stakes in 2026 |
 
-### Enterprise (`ee/`, licence key or cloud Enterprise)
+### Enterprise (`ee/`, cloud Enterprise)
 
 | Feature | Why it's the right thing to charge for |
 |---|---|
@@ -51,16 +56,22 @@ That list is short on purpose. Every feature moved into `ee/` is one that self-h
 |---|---|---|---|
 | Users | ≤ 5 | unlimited | unlimited |
 | Teams | 2 | unlimited | unlimited |
-| Issues | 1,000 | unlimited | unlimited |
-| File storage | 1 GB | 20 GB/user pooled | negotiated |
+| Issues | no cap enforced | unlimited | unlimited |
+| File storage | — | — | — |
 | History | 90 days activity | full | full |
 | Core features | all | all | all |
 | Enterprise features | — | — | ✔ |
-| API rate limit | reduced | standard | raised |
+| API rate limit | the same for everybody | the same for everybody | raised on request |
 | Support | community | email | SLA + shared channel |
-| Price | €0 | **€6–8/user/mo** *[OPEN]* | **from €14/user/mo** *[OPEN]* |
+| Price | €0 | **€4/user/mo**, €3.20 paid annually | **Contact us** |
 
-Benchmarks for the pricing decision: Linear $8–14, Jira ~$8, Height $6.99, Shortcut $8.50, Plane (OSS, comparable model) $8. Undercutting on price is a weak position; being open source and EU-hosted is a stronger one. Recommendation: **€7 Pro, €15 Enterprise, annual −20%**.
+What the server actually enforces is seats, teams and history days — `services/internal/entitlement/entitlement.go` holds the matrix, and `plans.test.ts` fails if this page and that file disagree about the Free caps. The issue cap and the per-plan API rate limit are packaging intent that nothing implements yet; they are written above as what a customer would be told, so either build them or drop them from the table, but do not sell them.
+
+File storage has no row to fill in: the product has no upload path. An attachment is a URL and a link card, capped at 2,048 characters (`services/internal/domain/attachment.go`), so there are no bytes to meter and `plans.ts` advertises no storage figure at all. Put one back the day object storage exists, and not before — a quota nobody can hit is a promise about a feature that is not there.
+
+Those are the shipped numbers — `web/src/features/pricing/plans.ts` is the one place they live, and `/pricing` and every paywall read them from there. Change the price there, not here.
+
+Benchmarks, for context on where that sits: Linear $8–14, Jira ~$8, Height $6.99, Shortcut $8.50, Plane (OSS, comparable model) $8. €4 is well under all of them, which is a deliberate opening position and not a permanent one; being open source and EU-hosted is the argument that has to carry the price when it moves. Enterprise is quoted rather than listed because what it sells — residency, a DPA, an SLA, a shared channel — is negotiated per customer, so a number on the page would be fiction.
 
 Free-tier caps exist to bound *your* cost, not to frustrate. 5 users × 1,000 issues is a real team doing real work — enough that they'd feel the loss on leaving, small enough that a thousand of them fit on one VPS.
 
@@ -106,12 +117,12 @@ Not needed for self-host, needed before the first paying customer:
 
 | Thing | Notes |
 |---|---|
-| **Waitlist + manual approval** | Invite-only beta (your decision). A `signup_request` table, an admin approve action, an invite email |
+| ~~Waitlist + manual approval~~ | **Not built and not wanted.** The cloud runs `POLARIS_REGISTRATION_MODE=open`: anybody can sign up, and a new workspace mints on the Free plan. A self-hosted install still defaults to invite-only — that is the operator's box, not ours |
 | **Billing** | Stripe: subscriptions, per-seat proration, invoices, VAT/OSS handling for EU B2B, dunning on failed payment |
 | **Seat counting** | Active human members, excluding guests and app users, reconciled against Stripe. One query — `CountWorkspaceSeats` — mirrored client-side in `web/src/features/admin/entitlements.ts` |
 | **Plan writes** | `workspace.plan`, `seat_limit`, `plan_expires_at`, `plan_lapsed_at` are written only by `services/internal/domain/billing.go`. No GraphQL input carries a plan: a workspace that can upgrade itself with a mutation is a paywall with a public bypass |
 | **Dunning / lapse** | `subscription.status = 'past_due'` for longer than `domain.PlanLapseGrace` (7 days past `current_period_end`) sets `plan_lapsed_at`; recovery clears it. Reads never stop working — only gated writes narrow to the Free matrix |
-| **Quota enforcement** | Per-workspace issue/storage/API counters, checked at write time, surfaced in settings |
+| **Quota enforcement** | Seats, teams and history days are enforced today. Per-workspace issue and API counters are not built. There is no storage counter because there is no object storage: attachments are link cards (`services/internal/domain/attachment.go`), so nothing a workspace does puts bytes on our disk |
 | **Abuse controls** | Email verification, per-IP signup caps, disposable-domain blocklist, outbound-email rate caps, attachment scanning |
 | **Trial → paid flow** | 14-day Pro trial on request, no card |
 | **Cancellation** | Never delete. Read-only over the free caps, with a full export always available — this is also a GDPR requirement |
@@ -132,7 +143,7 @@ Selling B2B SaaS from Portugal to the EU means: reverse-charge for VAT-registere
 
 ## Open questions
 
-1. **Price points** — €7/€15 is a recommendation, not a decision.
+1. **Price points** — €4 Pro shipped, and it is an opening position rather than a settled one. Enterprise is quoted, not listed.
 2. **Trademark clearance** on "Polaris".
 3. **Where Insights stops being "basic"** — the line between core Insights and Enterprise Dashboards needs a concrete definition before either is built.
 4. **Support boundary** — what a Pro customer gets vs a self-hoster filing a GitHub issue. Write it down before the first angry thread.

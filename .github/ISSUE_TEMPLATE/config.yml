@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/mcpeixoto/polaris/blob/main/SECURITY.md
+    about: Do not open an issue. Email security@peixotolabs.com — see SECURITY.md for scope and timelines.
+  - name: Contributing guide
+    url: https://github.com/mcpeixoto/polaris/blob/main/CONTRIBUTING.md
+    about: Getting it running, the rules enforced mechanically, and what to run before a PR.

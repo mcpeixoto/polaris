@@ -506,7 +506,7 @@ jobs:
           # 404 are correct answers for the rest — pinning either would make this step fail
           # on changes that broke nothing.
           fail=0
-          for path in /mcp /graphql /sync/bootstrap /billing/config \
+          for path in /mcp /graphql /sync/bootstrap /billing/config /deployment \
                       /.well-known/oauth-authorization-server \
                       /.well-known/oauth-protected-resource \
                       /asks/probe /calendars/cycles/probe \
@@ -540,4 +540,41 @@ jobs:
             *) echo "::error::/.well-known/apple-app-site-association returned '${type:-no answer}'; Apple requires application/json."
                fail=1 ;;
           esac
+          exit $fail
+
+      - name: Check production is configured as production
+        env:
+          BASE_URL: ${{ secrets.DEPLOY_BASE_URL || 'https://polaris.peixotolabs.com' }}
+        run: |
+          set -euo pipefail
+          # Everything above this step checks that the stack is up and that the edge reaches
+          # it. None of it reads a single configuration value, and for months that gap hid
+          # the worst misconfiguration this deployment has had: POLARIS_DEFAULT_PLAN was
+          # left at its self-host default, so every workspace created on the cloud was
+          # minted on the unlimited plan while the pricing page sold three metered ones.
+          # Every check in this job was green throughout. A deploy is not verified by
+          # proving that something answered — it is verified by proving that the thing which
+          # answered is the thing we meant to ship.
+          #
+          # The expected values live here rather than on the server, so that changing what
+          # production is supposed to be is a reviewed commit and not an ssh session.
+          posture=$(curl -sS --max-time 10 "$BASE_URL/deployment")
+          echo "$posture"
+
+          fail=0
+          expect() {
+            actual=$(printf '%s' "$posture" | python3 -c "import json,sys;print(json.load(sys.stdin).get('$1',''))")
+            if [ "$actual" != "$2" ]; then
+              echo "::error::$1 is '$actual' on production; expected '$2'."
+              fail=1
+            fi
+          }
+          # production, or session cookies go out without Secure and the GraphQL playground
+          # is served to the internet.
+          expect env production
+          # free, not self_hosted: this is our cloud, and a workspace minted unlimited is
+          # one we can never charge for without taking something away from somebody.
+          expect defaultPlan free
+          # open: the cloud takes public signups. A self-host defaults to invite and should.
+          expect registrationMode open
           exit $fail

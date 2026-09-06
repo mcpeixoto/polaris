@@ -53,6 +53,11 @@ docker-compose.fleet.yml
 # sibling (docs/05-infrastructure/05-deployment.md) and out of the tree.
 *.private.md
 
+# The maintainer's own deployment runbook: hostnames, the box's layout, the deploy key's
+# forced command, the CI secret inventory. Same reasoning as the line above — none of it is
+# a fact about Polaris, and publishing it only helps somebody map the machine.
+CLAUDE.local.md
+
 # Keep-alive local stack (scripts/dev-up.sh). Machine-local PIDs and logs.
 .dev-pids
 .dev-stop

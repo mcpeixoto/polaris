@@ -7,7 +7,7 @@
 | Core licence | **AGPL-3.0-only** |
 | Enterprise features | **`ee/` under a commercial licence** (Polaris Enterprise Licence) |
 | Contributor agreement | **CLA required** (copyright assignment/grant), because dual-licensing is impossible without it |
-| Distribution | Public GitHub repo; self-host free, self-host + licence key, or our EU-hosted cloud |
+| Distribution | Public GitHub repo; **two channels ship**: self-host free (AGPL), and our EU-hosted cloud. Self-host + licence key is designed and unbuilt — see *Licence keys* |
 | Trademark | Name and marks **not** granted by the code licence |
 | Hosted region | **EU only** (the VPS). Self-hosters choose their own — residency stops being a product feature |
 
@@ -35,8 +35,9 @@ The `ee/` split is what makes the enterprise upsell legally possible. It is the 
 > `services/internal/...`; the mechanism that works around it is described in
 > `ee/README.md`.
 >
-> Everything below about *build separation being real*, the two image sets, and licence keys
-> stands unchanged.
+> Everything below about *build separation being real* and the two image sets stands
+> unchanged. Licence keys do not: nothing in that section was built, and the section now
+> says so at its head.
 
 ```
 polaris/
@@ -82,11 +83,20 @@ CI produces two image sets from one commit:
 | Image | Tag | Contents |
 |---|---|---|
 | `ghcr.io/…/polaris` | `vX.Y.Z` | Core only, AGPL, what self-hosters pull |
-| `ghcr.io/…/polaris-ee` | `vX.Y.Z-ee` | Core + `ee/`, gated by a licence key at runtime |
+| `ghcr.io/…/polaris-ee` | `vX.Y.Z-ee` | Core + `ee/`, gated at runtime by the workspace's plan. A licence key was the plan for self-hosters and does not exist |
 
 The cloud runs `-ee`. The public `docker-compose.yml` references the core image.
 
-## Licence keys (self-host enterprise)
+## Licence keys (self-host enterprise) — not built
+
+> **None of this exists.** There is no `license` package, nothing parses or verifies a key,
+> no seat count is checked against one, and no build reads one. Self-host Enterprise is not
+> a channel anybody can buy: the two that ship are self-host (AGPL, free, unlimited seats)
+> and the cloud (Free / Pro / Enterprise). `ee/` reaches customers through the cloud only,
+> where the entitlement comes from the plan.
+>
+> What follows is the design to build from if that changes. Read it as a plan. Nothing in it
+> describes behaviour you can observe today, and no sales conversation should promise it.
 
 Offline-verifiable so an air-gapped customer works and so your licence server is never a dependency of their uptime.
 

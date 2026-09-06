@@ -146,11 +146,11 @@ Same images (plus `ee/`), different surroundings:
 |---|---|---|
 | Ingress | Caddy in-compose | NPM (fleet) |
 | Edition | core | `-ee` image + entitlements from the plan |
-| Signup | setup wizard, one workspace | waitlist → approval → invite → **many** workspaces on one deployment |
+| Signup | invite-only by default; first account bootstraps, one workspace | `POLARIS_REGISTRATION_MODE=open`, **many** workspaces on one deployment, each minted on Free |
 | Entitlement source | `oss` (unlimited) or licence key | `cloud_plan` from billing |
 | Quotas | none | per-workspace issues/storage/API, enforced at write time |
 | Backups | user's problem (`polarisctl backup` + docs) | pgBackRest + PITR + offsite, drilled monthly |
-| Secrets | auto-generated | `/root/.config/polaris/polaris.env` |
+| Secrets | auto-generated | a root-owned env file outside the checkout |
 | Telemetry | opt-in | operational metrics (first-party, disclosed in the privacy policy) |
 | Region | wherever they put it | **EU** |
 
@@ -166,21 +166,24 @@ EU-only removes the Phase E regional split from `09-scaling-and-cost.md` entirel
 
 ## Abuse and cost control (freemium on one VPS)
 
-Invite-only removes the urgency but not the requirement. Before opening signup:
+**Signup is open on the cloud and has been since launch.** This section was written as a set
+of preconditions for opening it; that is not what happened, so read the table as work still
+outstanding on a live service rather than as a gate somebody passed. Self-host is unaffected:
+it defaults to invite-only, and an operator who sets `open` is choosing it for their own box.
 
-| Control | Mechanism |
-|---|---|
-| Signup gate | Waitlist + manual approval; email verification mandatory |
-| Per-IP caps | Signup and magic-link rate limits, disposable-domain blocklist |
-| Storage quota | Enforced at presign — never after the bytes land |
-| Issue/API quotas | Counted per workspace, checked at write, surfaced in settings |
-| Bootstrap cost | Rate-limited per user (already specced); the dominant free-tier cost |
-| Outbound email | Per-workspace hourly cap — a free workspace must never become a spam relay |
-| Attachment scanning | Before serving to anyone else |
-| Idle reaping | Free workspaces with no login for 6 months: warn, then archive (never silently delete) |
-| Kill switch | Per-workspace suspend, reachable in one command |
+| Control | Mechanism | Where it stands |
+|---|---|---|
+| Signup gate | Open registration, rate-limited per IP | Live. The waitlist-and-approval design was dropped, not deferred. Email verification is still unimplemented — `email_verified_at` exists and nothing writes it |
+| Per-IP caps | Signup and magic-link rate limits, disposable-domain blocklist | Rate limits live; no blocklist |
+| Storage quota | Enforced at presign — never after the bytes land | Nothing to enforce: there is no upload path, only link-card attachments |
+| Issue/API quotas | Counted per workspace, checked at write, surfaced in settings | Not built. What `services/internal/entitlement` enforces is seats, teams and history days |
+| Bootstrap cost | Rate-limited per user; the dominant free-tier cost | Live |
+| Outbound email | Per-workspace hourly cap — a free workspace must never become a spam relay | Not built |
+| Attachment scanning | Before serving to anyone else | Moot until there is something to scan |
+| Idle reaping | Free workspaces with no login for 6 months: warn, then archive (never silently delete) | Not built |
+| Kill switch | Per-workspace suspend, reachable in one command | Not built |
 
-Model the worst case honestly: 1,000 free workspaces × 1 GB = 1 TB, which the VPS does not have. Storage quota enforcement is therefore **launch-blocking for open signup**, not a later refinement.
+The worst case this section used to model — 1,000 free workspaces × 1 GB = 1 TB, which the VPS does not have — does not exist, because nothing uploads a file. The real free-tier cost is rows in Postgres and bootstrap fan-out, both of which the issue cap bounds. The two things genuinely worth building next are the outbound-email cap, because a free workspace that can send mail is a spam relay somebody else's abuse desk will find first, and the per-workspace kill switch, because without it the answer to an abusive workspace is a database edit at whatever hour it is noticed.
 
 ## Revised deployment checklist
 
@@ -191,5 +194,5 @@ Model the worst case honestly: 1,000 free workspaces × 1 GB = 1 TB, which the V
 - [ ] First-run wizard works with no SMTP configured
 - [ ] `polarisctl backup` / `doctor` / `migrate` documented
 - [ ] Upgrade tested across two minor versions
-- [ ] Quota enforcement in place before open signup
+- [ ] Issue and API quota enforcement — signup opened without it (storage: nothing to enforce, no upload path)
 - [ ] Privacy policy, DPA, subprocessor list published before the first cloud user

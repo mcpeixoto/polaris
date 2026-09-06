@@ -39,6 +39,11 @@ type Deps struct {
 	// says so rather than hanging.
 	AgentRunner *agent.Runner
 
+	// Revision is the git sha stamped into the binary at build time, reported on
+	// GET /deployment so a deploy can be checked against the commit it claimed to ship.
+	// Empty in tests and in a `go run` build, where there is no sha to stamp.
+	Revision string
+
 	// Limits carries the per-caller budgets. Passed in rather than built here because the
 	// GraphQL handler needs the same instance: the complexity budget is charged from inside
 	// gqlgen, and two limiters would each see half the traffic. Nil means no limiting.
@@ -84,6 +89,12 @@ func NewRouter(d Deps) http.Handler {
 		w.Header().Set("Content-Type", "text/plain")
 		_, _ = w.Write([]byte("ok"))
 	})
+
+	// Not a health check: /healthz says the process is alive, this says what it is
+	// configured to be. Same reasoning about rate limits applies — it reads no database
+	// and holds nothing worth protecting. See deployment.go for why it is anonymous.
+	deployment := &deploymentHandlers{cfg: d.Config, revision: d.Revision}
+	mux.HandleFunc("GET /deployment", deployment.posture)
 
 	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)

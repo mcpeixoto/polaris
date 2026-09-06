@@ -106,6 +106,14 @@
 		reverse_proxy api:8088
 	}
 
+	# What this deployment is configured to be — the plan new workspaces get, whether
+	# registration is open, whether anything can be sold. Routed to the api because the
+	# whole point is to read the running process's configuration; falling through to the
+	# SPA would answer index.html and the deploy check reading it would pass on HTML.
+	handle /deployment {
+		reverse_proxy api:8088
+	}
+
 	# The SPA, and everything that is not one of the above.
 	handle {
 		reverse_proxy web:8080

@@ -163,55 +163,9 @@ Five containers: `Polaris_web`, `Polaris_api`, `Polaris_sync`, `Polaris_worker`,
 
 ## Deploying to prod
 
-**A merge to `main` deploys itself.** The `deploy` job at the end of
-`.github/workflows/ci.yml` runs after every other check passes, and only on a push to
-`main` — never on a pull request, never on a tag. It ships the exact commit that run
-validated rather than whatever `main` points at by then, so two merges a minute apart
-cannot deploy the same tree twice and skip one.
-
-Deploys run one at a time and are never cancelled mid-flight: `docker compose up --build`
-interrupted halfway leaves the stack half-new. Afterwards the job polls
-https://polaris.peixotolabs.com/healthz for up to five minutes, because
-`docker compose up -d` returns as soon as containers exist and long before anything serves
-a request.
-
-**The deploy key cannot open a shell.** `/root/.ssh/authorized_keys` pins it to
-`command="/root/polaris-deploy.sh"` with `no-pty` and no forwarding, so the request is one
-commit sha and nothing else. The script refuses anything that is not 40 hex characters, and
-refuses a sha that is not already an ancestor of `origin/main` — so a leaked or misused key
-deploys a commit that was going to production anyway, rather than owning the machine.
-
-To revoke: delete the `github-actions-deploy@polaris` line from `/root/.ssh/authorized_keys`.
-
-It needs these repository secrets. Without them the job fails loudly rather than passing
-without deploying:
-
-| Secret | What it is |
-|---|---|
-| `DEPLOY_HOST` | The server's address |
-| `DEPLOY_USER` | The SSH user (`root` on this fleet) |
-| `DEPLOY_SSH_KEY` | Private key for that user — the dedicated `/root/.ssh/gh_deploy`, not a personal key |
-| `DEPLOY_HOST_KEY` | The server's public host key, from `ssh-keyscan <host>`. Pinned so the job cannot be talked onto another machine |
-| `DEPLOY_PORT` | Optional, defaults to `22` |
-| `DEPLOY_HEALTH_URL` | Optional, defaults to the healthz URL above |
-
-`DEPLOY_PATH` is no longer a secret: the path lives in `/root/polaris-deploy.sh` on the
-server, because the forced command is what decides where a deploy may write.
-
-The fleet registry at `/root/AdminPanel/registry.yml` still carries `deploy: manual` for
-Polaris. That is now a description of a path nobody takes, not a constraint — worth
-reconciling so the registry does not disagree with what actually happens.
-
-To deploy by hand anyway — a rollback, or a server-side change with no commit behind it:
-
-```bash
-cd /root/Polaris && git fetch origin && git reset --hard origin/main \
-  && GIT_SHA=$(git rev-parse --short HEAD) docker compose up -d --build
-```
-
-Or after a local commit on main: `./app.sh restart` (verify `app.sh` verbs for this repo).
-
-Health: https://polaris.peixotolabs.com/healthz
+Merging to the default branch is the deploy — the `deploy` job in
+`.github/workflows/ci.yml` does it. The runbook for the maintainer's own hosting is kept
+privately and is not part of this repository.
 
 ## Before declaring done
 
@@ -264,11 +218,6 @@ Seeding a local workspace to exercise a feature is fine. Say clearly what was cr
 and where, so it can be removed. Never write test data to a remote or production
 database.
 
-## References
-
-- `/root/AdminPanel/registry.yml` — Polaris entry + deploy_cmd
-- `/root/SERVER_INFRA.md`, `/root/CLAUDE.md`
-
 ## Verify
 
 ```bash
@@ -289,15 +238,13 @@ discipline lints are gates, not suggestions.
 **Merging to `$BASE` is the deploy.** The `deploy` job at the end of `.github/workflows/ci.yml`
 runs on a push to `$BASE` only — never on a PR, never on a tag — and ships the exact commit
 that run validated. Do not cut a tag for a deploy here.
-The fleet registry still says `deploy: manual` for Polaris; that describes a path nobody takes.
 
 ## Live check
 
 ```bash
 gh run list --workflow=ci.yml --branch main --limit 1 --json conclusion,headSha
-curl -sS -o /dev/null -w '%{http_code}\n' https://polaris.peixotolabs.com/healthz
 ```
 
-The deploy job polls healthz itself for five minutes, because `docker compose up -d` returns
-long before anything serves a request. Read the job's result, not just its exit.
-
+The deploy job polls the health endpoint itself for five minutes, because
+`docker compose up -d` returns long before anything serves a request. Read the job's
+result, not just its exit.

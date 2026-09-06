@@ -155,7 +155,7 @@ which is not true of every system.
 | `POLARIS_ENV` | `development` | **Set this to `production`.** Development mode enables GraphQL introspection and a playground handler, accepts `GET /graphql`, and — most importantly — issues session cookies *without* the `Secure` flag. Introspection hands an attacker a complete map of the API surface; the schema is published in the repository anyway, which serves integration authors better |
 | `POLARIS_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 | `POLARIS_PUBLIC_URL` | `http://localhost:5173` | The absolute URL users reach you on. Used to build links in digest emails, and its host is the allowlist the WebSocket handshake is checked against. Wrong value: every socket handshake is rejected and the app never goes live, while HTTP keeps working — a confusing failure worth checking first |
-| `POLARIS_REGISTRATION_MODE` | `invite` | Who may create an account: `invite` or `open`. Any other value and the process refuses to start. `invite` admits somebody holding a valid invitation, plus the very first account on an empty install; `open` admits anybody. See *Create the first account* |
+| `POLARIS_REGISTRATION_MODE` | `invite` | Who may create an account: `invite` or `open`. Any other value and the process refuses to start. `invite` admits somebody holding a valid invitation, plus the very first account on an empty install; `open` admits anybody. The default is the right answer for a box you run; the hosted cloud at polaris.peixotolabs.com sets `open`, which is a decision about a deployment we watch and pay for. See *Create the first account* |
 | `POLARIS_DEV_AUTOLOGIN` | empty (on in `development` only) | Mints a session for `dev@polaris.local` on **loopback Host and loopback TCP peer** so a laptop does not see the login form. **Leave this off on any public host.** Production ignores it even when set to `1`. Docker self-host compose forces `0`. Invite-only registration is unchanged |
 | `POLARIS_DEFAULT_PLAN` | `self_hosted` | The entitlement plan a new workspace starts on: `free`, `pro`, `enterprise` or `self_hosted`. Any other value and the process refuses to start. `self_hosted` is unlimited on seats, teams and history; the other three exist for a hosted deployment where the plan comes from billing. You almost certainly want the default |
 | `POLARIS_MAX_WORKSPACES_PER_ACCOUNT` | `20` | How many workspaces one account may belong to; `0` removes the limit. A resource bound rather than a statement about who deserves a workspace — each one seeds a team, its statuses and a change stream that the sync hub, the bootstrap endpoint and the fan-out job carry from then on, and `POST /auth/workspaces` previously had no restriction of any kind beyond needing a session |
@@ -471,18 +471,23 @@ POLARIS_REGISTRATION_MODE=open
 
 Anybody who can reach the endpoint gets an account, rate-limited and nothing more, and any
 account can create its own workspace on your install. This is a real supported setting for a
-community or demo instance, and it is off by default because it is the configuration `README`
-says is not ready: there are no per-workspace quotas and no abuse controls behind it yet. If
-you set it on a box the internet can reach, put an allowlist in front of `POST /auth/register`
-at the reverse proxy, or accept that you are running a public signup form.
+community or demo instance, and it is what the hosted cloud runs.
+
+It is not the default, because your box is not our cloud. What sits behind open signup is a
+per-IP rate limit and nothing else: no email verification, no disposable-domain blocklist, no
+per-workspace issue or API quota, no outbound-email cap, and no one-command way to suspend a
+workspace that turns out to be a problem. On a machine somebody else pays for and nobody
+watches, that combination is how a self-hosted install becomes a stranger's free tier. If you
+set it on a box the internet can reach, put an allowlist in front of `POST /auth/register` at
+the reverse proxy, or accept that you are running a public signup form and budget for it.
 
 ### What is still not here
 
 **There is no email verification.** The `email_verified_at` column exists and nothing ever
 sets it. Invite-only registration makes this much less interesting than it was — the address
 was chosen by an admin, and the invitation only redeems for that address — but on an install
-running `open` mode, an address in the account table is a string somebody typed and nothing
-more.
+running `open` mode, including the hosted cloud, an address in the account table is a string
+somebody typed and nothing more.
 
 There is no setup wizard, and no CLI that creates an account: `polarisctl` has five commands
 and none of them is this. The first-account rule is deliberately the only way in.
