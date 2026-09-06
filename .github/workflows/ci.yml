@@ -507,6 +507,7 @@ jobs:
           # on changes that broke nothing.
           fail=0
           for path in /mcp /graphql /sync/bootstrap /billing/config \
+                      /oauth/register \
                       /.well-known/oauth-authorization-server \
                       /.well-known/oauth-protected-resource \
                       /asks/probe /calendars/cycles/probe \
@@ -531,4 +532,41 @@ jobs:
             *) echo "::error::/oauth/authorize returned '${type:-no answer}'; the consent screen must be served by the SPA."
                fail=1 ;;
           esac
+          exit $fail
+
+      - name: Check the MCP surface answers a browser preflight
+        env:
+          BASE_URL: ${{ secrets.DEPLOY_BASE_URL || 'https://polaris.peixotolabs.com' }}
+        run: |
+          set -euo pipefail
+          # Every probe above is a GET, and GET was never what broke. Claude's connector
+          # registers from a browser, so the first request it makes is a CORS preflight —
+          # and for months every one of these paths answered it with 403, which the user
+          # sees as "Couldn't register with polaris's sign-in service" and nothing else.
+          #
+          # The wildcard is asserted explicitly rather than just a 2xx. A credentialed echo
+          # of https://claude.ai would also be a 204 and would also be wrong: it would work
+          # for Claude and for no other client, and it would pair credentials with an
+          # origin on a surface that has none.
+          fail=0
+          for path in /mcp /mcp/readonly /oauth/register /oauth/token \
+                      /.well-known/oauth-authorization-server \
+                      /.well-known/oauth-protected-resource; do
+            headers=$(curl -s -o /dev/null -D - --max-time 10 -X OPTIONS "$BASE_URL$path" \
+              -H 'Origin: https://claude.ai' \
+              -H 'Access-Control-Request-Method: POST' \
+              -H 'Access-Control-Request-Headers: authorization,content-type' || true)
+            status=$(printf '%s' "$headers" | awk 'NR==1{print $2}')
+            allow=$(printf '%s' "$headers" | tr -d '\r' \
+              | awk 'tolower($1)=="access-control-allow-origin:"{print $2}')
+            if [ "$status" != "204" ]; then
+              echo "::error::$path answered a preflight with '${status:-nothing}'; a browser MCP client cannot connect."
+              fail=1
+            elif [ "$allow" != "*" ]; then
+              echo "::error::$path preflight returned Access-Control-Allow-Origin '${allow:-none}', want '*'."
+              fail=1
+            else
+              echo "ok   $path -> 204, Allow-Origin: *"
+            fi
+          done
           exit $fail
