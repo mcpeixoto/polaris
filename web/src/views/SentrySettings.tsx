@@ -28,6 +28,7 @@ import {
   useSaveState,
 } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
+import { SettingsRow } from '~/components/SettingsSection';
 import {
   disconnectSentry,
   enableSentryConnection,
@@ -157,34 +158,37 @@ export function SentrySettings() {
       }
     >
       <SettingsSection title="Issues from Sentry">
-        <p className={styles.hint}>
-          A Sentry alert or issue webhook creates a Polaris issue on the default team and attaches
-          the Sentry URL. The same URL linked twice updates the existing card rather than minting a
-          second issue. Cloud accounts only; public teams only.
-        </p>
+        <SettingsRow>
+          <p className={styles.note}>
+            A Sentry alert or issue webhook creates a Polaris issue on the default team and attaches
+            the Sentry URL. The same URL linked twice updates the existing card rather than minting
+            a second issue. Cloud accounts only; public teams only.
+          </p>
+        </SettingsRow>
       </SettingsSection>
 
       <SettingsSection
         title="Workspace"
+        description={
+          connection === null
+            ? 'One Sentry connection per workspace. Admins pick a public team for new issues, then paste the webhook URL into Sentry.'
+            : undefined
+        }
         status={<SaveIndicator state={save.state} />}
         error={save.error}
       >
         {connection === null ? (
-          <>
-            <p className={styles.hint}>
-              One Sentry connection per workspace. Admins pick a public team for new issues, then
-              paste the webhook URL into Sentry.
-            </p>
-            {isAdmin ? (
-              <form
-                className={styles.form}
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void onEnable();
-                }}
-              >
+          isAdmin ? (
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void onEnable();
+              }}
+            >
+              <SettingsRow label="Default team" wide>
                 <Select
                   label="Default team"
+                  hideLabel
                   value={teamId}
                   onChange={(event) => setTeamId(event.target.value)}
                   disabled={pending || teams.length === 0}
@@ -195,70 +199,95 @@ export function SentrySettings() {
                     </option>
                   ))}
                 </Select>
+              </SettingsRow>
+              <SettingsRow
+                label="Organization slug"
+                description="Optional. The slug from sentry.io/organizations/…"
+                wide
+              >
                 <Input
                   label="Organization slug"
+                  hideLabel
                   value={orgSlug}
                   onChange={(event) => setOrgSlug(event.target.value)}
-                  hint="Optional. The slug from sentry.io/organizations/…"
                   disabled={pending}
                 />
-                <div className={styles.row}>
+              </SettingsRow>
+              <SettingsRow>
+                <div className={styles.actions}>
                   <Button variant="primary" disabled={pending || teamId === ''} type="submit">
                     Connect
                   </Button>
                 </div>
-              </form>
-            ) : (
-              <p className={styles.hint}>Ask an admin to connect Sentry.</p>
-            )}
-          </>
+              </SettingsRow>
+            </form>
+          ) : (
+            <SettingsRow>
+              <p className={styles.note}>Ask an admin to connect Sentry.</p>
+            </SettingsRow>
+          )
         ) : (
-          <form className={styles.form} onSubmit={(event) => void onSave(event)}>
-            <Select
-              label="Default team"
-              value={teamId}
-              onChange={(event) => setTeamId(event.target.value)}
-              disabled={!isAdmin || pending}
-            >
-              {teams.map((team) => (
-                <option key={team.id} value={team.id}>
-                  {team.name}
-                </option>
-              ))}
-            </Select>
-            <Input
+          <form onSubmit={(event) => void onSave(event)}>
+            <SettingsRow label="Default team" wide>
+              <Select
+                label="Default team"
+                hideLabel
+                value={teamId}
+                onChange={(event) => setTeamId(event.target.value)}
+                disabled={!isAdmin || pending}
+              >
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.name}
+                  </option>
+                ))}
+              </Select>
+            </SettingsRow>
+            <SettingsRow
               label="Organization slug"
-              value={orgSlug}
-              onChange={(event) => setOrgSlug(event.target.value)}
-              hint="Optional. The slug from sentry.io/organizations/…"
-              disabled={!isAdmin || pending}
-            />
+              description="Optional. The slug from sentry.io/organizations/…"
+              wide
+            >
+              <Input
+                label="Organization slug"
+                hideLabel
+                value={orgSlug}
+                onChange={(event) => setOrgSlug(event.target.value)}
+                disabled={!isAdmin || pending}
+              />
+            </SettingsRow>
             {isAdmin ? (
-              <div className={styles.row}>
-                <Button variant="primary" disabled={pending} type="submit">
-                  Save
-                </Button>
-              </div>
+              <SettingsRow>
+                <div className={styles.actions}>
+                  <Button variant="primary" disabled={pending} type="submit">
+                    Save
+                  </Button>
+                </div>
+              </SettingsRow>
             ) : null}
           </form>
         )}
       </SettingsSection>
 
       {connection !== null && isAdmin && webhook !== null ? (
-        <SettingsSection title="Webhook" flush>
-          <p className={styles.hint}>
-            Add this URL as a Sentry internal integration webhook, or as an alert-rule webhook
-            action with the header <code>X-Sentry-Token</code> set to the secret below.
-          </p>
-          <p className={styles.mono}>{webhook.url}</p>
-          <SecretField
-            label="Webhook secret"
-            value={webhook.secret}
-            // Not a one-time secret: an admin re-reads it here on every visit, and saying
-            // otherwise would teach people to disbelieve the warnings on the credentials that
-            // really are shown once. What it costs is a rotation, so say that instead.
-            consequence="Paste this into Sentry as the client secret or as X-Sentry-Token. Rotating it takes effect at once: every Sentry webhook still sending the old secret is rejected until you paste the new one in."
-          />
+        <SettingsSection title="Webhook">
+          <SettingsRow>
+            <p className={styles.note}>
+              Add this URL as a Sentry internal integration webhook, or as an alert-rule webhook
+              action with the header <code>X-Sentry-Token</code> set to the secret below.
+            </p>
+            <p className={styles.mono}>{webhook.url}</p>
+          </SettingsRow>
+          <SettingsRow>
+            <SecretField
+              label="Webhook secret"
+              value={webhook.secret}
+              // Not a one-time secret: an admin re-reads it here on every visit, and saying
+              // otherwise would teach people to disbelieve the warnings on the credentials that
+              // really are shown once. What it costs is a rotation, so say that instead.
+              consequence="Paste this into Sentry as the client secret or as X-Sentry-Token. Rotating it takes effect at once: every Sentry webhook still sending the old secret is rejected until you paste the new one in."
+            />
+          </SettingsRow>
         </SettingsSection>
       ) : null}
 
@@ -267,18 +296,12 @@ export function SentrySettings() {
           <DangerZoneRow
             title="Disconnect Sentry"
             consequence="New Sentry alerts stop creating issues and the webhook secret is dropped, so reconnecting means pasting a new one into Sentry. Links already on issues stay."
-            action={
-              <Button
-                variant="danger"
-                disabled={pending}
-                onClick={() => {
-                  setDisconnectError(null);
-                  setDisconnecting(true);
-                }}
-              >
-                Disconnect Sentry
-              </Button>
-            }
+            actionLabel="Disconnect Sentry"
+            disabled={pending}
+            onAction={() => {
+              setDisconnectError(null);
+              setDisconnecting(true);
+            }}
           />
         </DangerZone>
       ) : null}

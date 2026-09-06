@@ -291,10 +291,10 @@ describe('the sections', () => {
     renderShell(seeded());
     expect(screen.getByRole('link', { name: /Engineering/ })).toBeTruthy();
 
-    await user.click(screen.getByRole('button', { name: 'Teams' }));
+    await user.click(screen.getByRole('button', { name: 'Your teams' }));
 
     expect(screen.queryByRole('link', { name: /Engineering/ })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Teams' }).getAttribute('aria-expanded')).toBe(
+    expect(screen.getByRole('button', { name: 'Your teams' }).getAttribute('aria-expanded')).toBe(
       'false',
     );
   });

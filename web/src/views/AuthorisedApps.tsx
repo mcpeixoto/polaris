@@ -6,8 +6,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { Badge, Button, EmptyState, Spinner } from '~/components';
+import { Badge, Button, EmptyState, SettingsPage, SettingsSection, Spinner } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
+import { SettingsRow } from '~/components/SettingsSection';
 import {
   revokeAuthorisedOauthApp,
   revokeConsequence,
@@ -86,102 +87,104 @@ export function AuthorisedApps() {
   const loading = apps === null && loadError === null;
 
   return (
-    <div className={styles.screen}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>Authorised apps</h1>
-        {apps === null ? null : (
-          <Badge>{apps.length === 1 ? '1 app' : `${apps.length} apps`}</Badge>
-        )}
-      </header>
-
-      <div className={styles.body}>
-        <section className={styles.intro} aria-labelledby="authorised-about">
-          <h2 className={styles.sectionTitle} id="authorised-about">
-            Apps you have allowed
-          </h2>
-          <p className={styles.sectionHint}>
-            Each row is a third-party application you authorised in this workspace. Revoking retires
-            every live token you granted it. Tokens themselves never appear here.
-          </p>
-        </section>
-
+    <SettingsPage
+      title="Authorised apps"
+      description="Each row is a third-party application you authorised in this workspace. Revoking retires every live token you granted it. Tokens themselves never appear here."
+      width="wide"
+    >
+      <SettingsSection
+        title="Apps you have allowed"
+        status={
+          apps === null ? undefined : (
+            <Badge>{apps.length === 1 ? '1 app' : `${apps.length} apps`}</Badge>
+          )
+        }
+      >
         {loadError === null ? null : (
-          <div className={styles.failure} role="alert">
-            <p className={styles.failureText}>{loadError}</p>
-            <Button onClick={reload}>Try again</Button>
-          </div>
+          <SettingsRow>
+            <div className={styles.failure} role="alert">
+              <p className={styles.failureText}>{loadError}</p>
+              <Button onClick={reload}>Try again</Button>
+            </div>
+          </SettingsRow>
         )}
 
         {loading ? (
-          <div className={styles.loading}>
-            <Spinner label="Loading authorised apps" />
-          </div>
+          <SettingsRow>
+            <div className={styles.loading}>
+              <Spinner label="Loading authorised apps" />
+            </div>
+          </SettingsRow>
         ) : null}
 
         {apps === null || apps.length > 0 ? null : (
-          <EmptyState
-            title="No authorised apps"
-            description="An app appears here after you press Allow on an OAuth consent screen for this workspace."
-          />
+          <SettingsRow>
+            <EmptyState
+              title="No authorised apps"
+              description="An app appears here after you press Allow on an OAuth consent screen for this workspace."
+            />
+          </SettingsRow>
         )}
 
         {rows.length === 0 ? null : (
-          <table className={styles.table}>
-            <caption className={styles.caption}>
-              Third-party applications with live grants from you in this workspace.
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">App</th>
-                <th scope="col">Scopes</th>
-                <th scope="col">Last used</th>
-                <th scope="col">Authorised</th>
-                <th scope="col" className={styles.hidden}>
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((app) => (
-                <tr key={app.id}>
-                  <th scope="row" className={styles.deviceCell}>
-                    <span className={styles.identity}>
-                      <span className={styles.name}>{app.name}</span>
-                      {app.developer === null || app.developer === '' ? null : (
-                        <span className={styles.unknown}>{app.developer}</span>
-                      )}
-                    </span>
+          <div className={styles.scroll}>
+            <table className={styles.table}>
+              <caption className={styles.caption}>
+                Third-party applications with live grants from you in this workspace.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">App</th>
+                  <th scope="col">Scopes</th>
+                  <th scope="col">Last used</th>
+                  <th scope="col">Authorised</th>
+                  <th scope="col" className={styles.hidden}>
+                    Actions
                   </th>
-                  <td>{app.scopes.length === 0 ? '—' : app.scopes.join(' ')}</td>
-                  <td>
-                    {app.lastUsedAt === null ? (
-                      <span className={styles.unknown}>Never</span>
-                    ) : (
-                      <span title={exact(app.lastUsedAt)}>{when(app.lastUsedAt)}</span>
-                    )}
-                  </td>
-                  <td>
-                    <span title={exact(app.createdAt)}>{when(app.createdAt)}</span>
-                  </td>
-                  <td className={styles.actions}>
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      aria-label={`Revoke ${app.name}`}
-                      onClick={() => {
-                        setRevokeError(null);
-                        setRevoking(app.id);
-                      }}
-                    >
-                      Revoke
-                    </Button>
-                  </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((app) => (
+                  <tr key={app.id}>
+                    <th scope="row" className={styles.deviceCell}>
+                      <span className={styles.identity}>
+                        <span className={styles.name}>{app.name}</span>
+                        {app.developer === null || app.developer === '' ? null : (
+                          <span className={styles.unknown}>{app.developer}</span>
+                        )}
+                      </span>
+                    </th>
+                    <td>{app.scopes.length === 0 ? '—' : app.scopes.join(' ')}</td>
+                    <td>
+                      {app.lastUsedAt === null ? (
+                        <span className={styles.unknown}>Never</span>
+                      ) : (
+                        <span title={exact(app.lastUsedAt)}>{when(app.lastUsedAt)}</span>
+                      )}
+                    </td>
+                    <td>
+                      <span title={exact(app.createdAt)}>{when(app.createdAt)}</span>
+                    </td>
+                    <td className={styles.actions}>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        aria-label={`Revoke ${app.name}`}
+                        onClick={() => {
+                          setRevokeError(null);
+                          setRevoking(app.id);
+                        }}
+                      >
+                        Revoke
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
-      </div>
+      </SettingsSection>
 
       <ConfirmDialog
         open={target !== null}
@@ -194,6 +197,6 @@ export function AuthorisedApps() {
         onConfirm={() => void confirmRevoke()}
         onClose={() => setRevoking(null)}
       />
-    </div>
+    </SettingsPage>
   );
 }

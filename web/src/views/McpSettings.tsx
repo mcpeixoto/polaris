@@ -16,6 +16,7 @@
 import { Link } from 'react-router';
 
 import { CopyButton, SettingsPage, SettingsSection } from '~/components';
+import { SettingsRow } from '~/components/SettingsSection';
 
 import styles from './McpSettings.module.css';
 
@@ -31,10 +32,12 @@ export function McpSettings() {
         title="Connect a client"
         description="Polaris speaks Streamable HTTP MCP. Point a client at the read-write URL and it will open a browser for you to approve the connection. The read-only URL never exposes write tools."
       >
-        <p className={styles.note}>
-          The client registers itself, so there is nothing to create here first. It acts as you, in
-          this workspace, and reaches exactly what you can.
-        </p>
+        <SettingsRow>
+          <p className={styles.note}>
+            The client registers itself, so there is nothing to create here first. It acts as you,
+            in this workspace, and reaches exactly what you can.
+          </p>
+        </SettingsRow>
       </SettingsSection>
 
       <SettingsSection title="Endpoints">
@@ -45,7 +48,6 @@ export function McpSettings() {
       <SettingsSection
         title="Claude Code"
         description="Run this, then /mcp in Claude Code to approve the connection."
-        flush
       >
         <Endpoint label="Add the server" value={claude} copyLabel="Copy command" />
       </SettingsSection>
@@ -54,11 +56,13 @@ export function McpSettings() {
         title="Clients that cannot sign in"
         description="Some clients can set a header but not complete a browser sign-in. Those authenticate with a personal API key sent as Authorization: Bearer — it acts as you, and never reaches further than you can."
       >
-        <p className={styles.note}>
-          <Link className={styles.link} to="/settings/api-keys">
-            Create an API key
-          </Link>
-        </p>
+        <SettingsRow>
+          <p className={styles.note}>
+            <Link className={styles.link} to="/settings/api-keys">
+              Create an API key
+            </Link>
+          </p>
+        </SettingsRow>
       </SettingsSection>
     </SettingsPage>
   );
@@ -71,23 +75,24 @@ interface EndpointProps {
 }
 
 /**
- * One copyable line: what it is, the literal value, and the button.
+ * One copyable row: what it is on the left, the literal value and the button on the right.
  *
  * The button's accessible name names the row rather than repeating "Copy URL" three times —
  * a list of identically-named controls names nothing, and this page has three of them.
  */
 function Endpoint({ label, value, copyLabel }: EndpointProps) {
   return (
-    <div className={styles.endpoint}>
-      <p className={styles.note}>{label}</p>
-      <pre className={styles.code}>{value}</pre>
-      <CopyButton
-        value={value}
-        label={copyLabel}
-        ariaLabel={`${copyLabel} — ${label}`}
-        variant="ghost"
-        size="sm"
-      />
-    </div>
+    <SettingsRow label={label}>
+      <div className={styles.endpoint}>
+        <pre className={styles.code}>{value}</pre>
+        <CopyButton
+          value={value}
+          label={copyLabel}
+          ariaLabel={`${copyLabel} — ${label}`}
+          variant="ghost"
+          size="sm"
+        />
+      </div>
+    </SettingsRow>
   );
 }

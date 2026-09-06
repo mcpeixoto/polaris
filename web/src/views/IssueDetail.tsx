@@ -32,19 +32,21 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { DescriptionEditor } from '~/editor/DescriptionEditor';
 import { isInlineRoot } from '~/editor/marks';
 import { useEngine } from '~/app/context';
-import { useActions, useKeyContext } from '~/app/keymap';
+import { useActions, useKeyContext, useKeymap } from '~/app/keymap';
 import {
   Avatar,
   Button,
   EmptyState,
   IconButton,
   LabelChip,
+  Menu,
   PriorityIcon,
   priorityLabel,
   Skeleton,
   StateIcon,
   Textarea,
   Tooltip,
+  type MenuNode,
 } from '~/components';
 // Directly rather than through the barrel, as ApiKeys and MemberSettings do: the index
 // exports the primitives a screen composes with, and this is an assembled dialogue.
@@ -68,6 +70,30 @@ import commentStyles from '~/features/issue/CommentEditor.module.css';
 // The pencil and the bin, shared with project and initiative updates so the three
 // row-level affordances in the product are the same drawing rather than three that drift.
 import { PencilGlyph, TrashGlyph } from '~/features/project-updates/glyphs';
+import {
+  BellGlyph,
+  BranchGlyph,
+  CalendarGlyph,
+  ChevronGlyph,
+  CommentGlyph,
+  CopyGlyph,
+  CycleGlyph,
+  DotGlyph,
+  DotsGlyph,
+  EstimateGlyph,
+  LinkGlyph,
+  MilestoneGlyph,
+  PaperclipGlyph,
+  PencilGlyph as EditGlyph,
+  PlusGlyph,
+  ProjectGlyph,
+  RepeatGlyph,
+  StarGlyph,
+  SubIssueGlyph,
+  TagGlyph,
+  TrashGlyph as BinGlyph,
+  UnassignedGlyph,
+} from '~/features/issue/glyphs';
 import { applyLabel, removeLabel } from '~/features/labels/mutations';
 import { LabelPicker } from '~/features/labels/LabelPicker';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
@@ -88,7 +114,7 @@ import {
   propertiesOfIssue,
 } from '~/features/recurring/mutations';
 import { restoreIssue } from '~/features/trash/mutations';
-import { SubscribeBell } from '~/features/subscriptions/SubscribeBell';
+import { isFavorite, toggleFavorite } from '~/features/view/mutations';
 import { clearIssueSla, setIssueSla } from '~/features/slas/mutations';
 import { offerUndo } from '~/features/undo/UndoToast';
 import { exact, when, whenDay } from '~/features/time';
@@ -217,10 +243,13 @@ export function IssueDetail() {
             : (store.get('projectMilestone', found.projectMilestoneId)?.name ??
               'Unknown milestone'),
         subscribed: viewerId !== null && store.subscriberIdsFor(found.id).has(viewerId),
-        subscriberNames: [...store.subscriberIdsFor(found.id)].flatMap((id) => {
+        subscribers: [...store.subscriberIdsFor(found.id)].flatMap((id) => {
           const user = store.users.get(id);
-          return user === undefined ? [] : [personName(user)];
+          return user === undefined
+            ? []
+            : [{ id: user.id, name: personName(user), avatar: user.avatarUrl ?? null }];
         }),
+        hasChildren: store.childIssueIdsFor(found.id).size > 0,
         /**
          * The canonical issue this one duplicates, when it has been marked as one.
          *
@@ -282,6 +311,17 @@ export function IssueDetail() {
   const project = useMenuTrigger();
   const cycle = useMenuTrigger();
   const labels = useMenuTrigger();
+  // The header's "…": the actions that are not worth a button of their own.
+  const more = useMenuTrigger();
+
+  const { registry, context } = useKeymap();
+
+  const favourite = useLiveQuery(
+    (store) =>
+      issueId !== null && viewerId !== null && isFavorite(store, viewerId, 'issue', issueId),
+    ['favorite'],
+    [issueId, viewerId],
+  );
 
   // The title field's own handle: `E` focuses it, Escape abandons an edit in it. Held here
   // because both are registered actions and the registry is above this component.
@@ -304,6 +344,9 @@ export function IssueDetail() {
     submitComment: () => {},
     copyGitBranch: () => {},
     copyModelUuid: () => {},
+    copyLink: () => {},
+    copyIdentifier: () => {},
+    toggleFavourite: () => {},
   });
 
   // Whether the confirmation is up. Held here rather than inside a component of its own so
@@ -518,6 +561,29 @@ export function IssueDetail() {
         group: 'Issues',
         run: () => commands.current.copyModelUuid(),
       },
+      {
+        id: 'issueDetail.copyLink',
+        title: 'Copy link',
+        keys: ['mod+shift+comma'],
+        when: 'detail',
+        group: 'Issues',
+        run: () => commands.current.copyLink(),
+      },
+      {
+        id: 'issueDetail.copyIdentifier',
+        title: 'Copy issue identifier',
+        when: 'detail',
+        group: 'Issues',
+        run: () => commands.current.copyIdentifier(),
+      },
+      {
+        id: 'issueDetail.favourite',
+        title: 'Favourite issue',
+        when: 'detail',
+        group: 'Issues',
+        enabled: () => viewerId !== null,
+        run: () => commands.current.toggleFavourite(),
+      },
       ...(viewer !== null && viewer.role !== 'guest'
         ? [
             {
@@ -594,6 +660,16 @@ export function IssueDetail() {
   commands.current.copyModelUuid = () => {
     void copyText(issue.id);
   };
+  commands.current.copyLink = () => {
+    void copyText(`${window.location.origin}/issue/${issue.identifier}`);
+  };
+  commands.current.copyIdentifier = () => {
+    void copyText(issue.identifier);
+  };
+  commands.current.toggleFavourite = () => {
+    if (viewerId === null) return;
+    toggleFavorite(engine, viewerId, 'issue', issue.id).catch(report);
+  };
   commands.current.makeRecurring = () => {
     if (issue.recurring !== null) return;
     setConvertingError(null);
@@ -634,37 +710,82 @@ export function IssueDetail() {
         {issue.identifier} {issue.title}
       </h1>
       <header className={styles.header}>
-        {/* A link and not a button: it goes somewhere, so it should be announced as a link,
-            open in a new tab on a middle click, and be copyable from a context menu. */}
-        <Link className={styles.link} to={`/team/${issue.teamKey}`}>
-          {issue.teamName}
-        </Link>
-        <span className={styles.identifier}>{issue.identifier}</span>
-        <div className={styles.spacer} />
-        {/* The subscribe state had no rendering at all: `Shift+S` toggled it and the only
-            feedback was silence. The same bell the project, initiative and customer screens
-            carry, with the one flag an issue has. */}
+        <nav className={styles.crumbs} aria-label="Breadcrumb">
+          {/* A link and not a button: it goes somewhere, so it should be announced as a
+              link, open in a new tab on a middle click, and be copyable from a context
+              menu. */}
+          <Link className={styles.crumb} to={`/team/${issue.teamKey}`}>
+            {issue.teamName}
+          </Link>
+          <ChevronGlyph className={styles.crumbChevron} />
+          <span className={styles.crumbCurrent} aria-current="page">
+            <span className={styles.identifier}>{issue.identifier}</span>
+            <span className={styles.crumbTitle}>{issue.title}</span>
+          </span>
+        </nav>
         {viewerId === null ? null : (
-          <SubscribeBell
-            menuLabel="Issue notifications"
-            flags={[
-              {
-                id: 'subscribed',
-                label: 'Anything happens on this issue',
-                on: issue.subscribed,
-              },
-            ]}
-            onToggle={() => commands.current.toggleSubscribe()}
+          <IconButton
+            icon={<StarGlyph on={favourite} />}
+            aria-label={favourite ? 'Remove from favourites' : 'Add to favourites'}
+            aria-pressed={favourite}
+            className={favourite ? styles.starOn : undefined}
+            onClick={() => commands.current.toggleFavourite()}
           />
         )}
-        {/* Not `danger`: a delete here is recoverable for thirty days and offers an undo the
-            moment it happens, and painting it red would say the same thing as revoking a
-            credential. The confirmation is where the weight belongs. */}
-        <Button onClick={() => commands.current.askDelete()}>Delete</Button>
-        {issue.recurring === null ? (
-          <Button onClick={() => commands.current.makeRecurring()}>Make recurring</Button>
-        ) : null}
+        <div className={styles.spacer} />
+        <div className={styles.headerActions}>
+          <IconButton
+            variant="secondary"
+            icon={<LinkGlyph />}
+            aria-label="Copy link"
+            keys="mod+shift+comma"
+            onClick={() => commands.current.copyLink()}
+          />
+          <IconButton
+            variant="secondary"
+            icon={<CopyGlyph />}
+            aria-label="Copy issue identifier"
+            onClick={() => commands.current.copyIdentifier()}
+          />
+          <IconButton
+            variant="secondary"
+            icon={<BranchGlyph />}
+            aria-label="Copy git branch name"
+            keys="mod+shift+period"
+            onClick={() => commands.current.copyGitBranch()}
+          />
+          {/* Not `danger`: a delete here is recoverable for thirty days and offers an undo
+              the moment it happens, and painting it red would say the same thing as revoking
+              a credential. The confirmation is where the weight belongs. */}
+          <IconButton
+            variant="secondary"
+            icon={<BinGlyph />}
+            aria-label="Delete"
+            onClick={() => commands.current.askDelete()}
+          />
+          <IconButton
+            {...more.props}
+            variant="secondary"
+            icon={<DotsGlyph />}
+            aria-label="More actions"
+          />
+        </div>
       </header>
+
+      <Menu
+        open={more.open}
+        onClose={more.hide}
+        trigger={more.ref}
+        label="More actions"
+        placement="bottom-end"
+        items={moreItems(issue, viewerId, viewer?.role ?? null, {
+          toggleSubscribe: () => commands.current.toggleSubscribe(),
+          makeRecurring: () => commands.current.makeRecurring(),
+          addRequest: () => setRequestOpen(true),
+          copyModelUuid: () => commands.current.copyModelUuid(),
+          askDelete: () => commands.current.askDelete(),
+        })}
+      />
 
       <ConfirmDialog
         open={confirmingDelete}
@@ -753,38 +874,82 @@ export function IssueDetail() {
             onSave={(title) => updateIssue(engine, issue.id, { title }).catch(report)}
           />
 
-          <DescriptionEditor
-            issueId={issue.id}
-            description={issue.description}
-            names={names}
-            viewerId={viewerId}
-            enterSubmits={commentSubmit === 'enter'}
-            onSave={(description) => updateIssue(engine, issue.id, { description }).catch(report)}
-          />
+          <div className={styles.description}>
+            <DescriptionEditor
+              issueId={issue.id}
+              description={issue.description}
+              names={names}
+              viewerId={viewerId}
+              enterSubmits={commentSubmit === 'enter'}
+              onSave={(description) => updateIssue(engine, issue.id, { description }).catch(report)}
+            />
+          </div>
+
+          {/* The two things most often added to an issue, one press from the description.
+              Both go through the registry rather than reaching into the panels below, so the
+              button and the chord are one action and cannot drift apart. */}
+          <div className={styles.quickActions}>
+            <IconButton
+              size="sm"
+              icon={<PaperclipGlyph />}
+              aria-label="Attach a link"
+              keys="mod+shift+u"
+              onClick={() => registry.invoke('issueDetail.addLink', { source: 'menu', context })}
+            />
+            <IconButton
+              size="sm"
+              icon={<SubIssueGlyph />}
+              aria-label="Add sub-issue"
+              keys="mod+shift+o"
+              onClick={() =>
+                registry.invoke('issueDetail.addSubIssue', { source: 'menu', context })
+              }
+            />
+            {issue.hasChildren ? null : (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<PlusGlyph />}
+                onClick={() =>
+                  registry.invoke('issueDetail.addSubIssue', { source: 'menu', context })
+                }
+              >
+                Add sub-issues
+              </Button>
+            )}
+          </div>
 
           {/* Above the history rather than below it: sub-issues and relations are part of
               what this issue *is*, and the history is a record of what has happened to it.
               Somebody scanning the page for "what is blocking this" should not have to read
               past a fortnight of status changes to find out. */}
-          <SubIssues
-            issueId={issue.id}
-            teamId={issue.teamId}
-            onDetach={(childId) =>
-              updateIssueProperties(engine, childId, { parentId: null }).catch(report)
-            }
-          />
+          <div className={styles.sections}>
+            <SubIssues
+              issueId={issue.id}
+              teamId={issue.teamId}
+              onDetach={(childId) =>
+                updateIssueProperties(engine, childId, { parentId: null }).catch(report)
+              }
+            />
 
-          <Relations issueId={issue.id} />
+            <Relations issueId={issue.id} />
 
-          <Links issueId={issue.id} />
+            <Links issueId={issue.id} />
 
-          <IssueCustomers issueId={issue.id} />
+            <IssueCustomers issueId={issue.id} />
+          </div>
+
+          <hr className={styles.divider} />
 
           <Activity
             history={activity.history}
             status={activity.status}
             onRetry={activity.refresh}
             names={names}
+            subscribed={issue.subscribed}
+            subscribers={issue.subscribers}
+            canSubscribe={viewerId !== null}
+            onToggleSubscribe={() => commands.current.toggleSubscribe()}
           />
 
           {/* Keyed on the issue, and not for tidiness. `drafts`, `editing`, `replyingTo`,
@@ -803,9 +968,14 @@ export function IssueDetail() {
           />
         </div>
 
-        <aside className={styles.properties} aria-label="Properties">
+        <aside className={styles.rail} aria-label="Properties">
+          <h2 className={styles.railTitle}>Properties</h2>
+
+          {/* The rail's labels are for the accessibility tree: each row is named by its
+              glyph and its value on screen, which is how Linear draws it, and by the label
+              a screen reader still needs. Hidden the way `.screenTitle` is, never removed. */}
           <div className={styles.property}>
-            <span className={styles.propertyLabel} id={`${issue.id}-status-label`}>
+            <span className={styles.srOnly} id={`${issue.id}-status-label`}>
               Status
             </span>
             <Button
@@ -823,33 +993,7 @@ export function IssueDetail() {
           </div>
 
           <div className={styles.property}>
-            <span className={styles.propertyLabel} id={`${issue.id}-assignee-label`}>
-              Assignee
-            </span>
-            <Button
-              {...assignee.props}
-              variant="ghost"
-              fullWidth
-              className={styles.propertyTrigger}
-              aria-describedby={`${issue.id}-assignee-label`}
-              icon={
-                issue.assigneeName === null ? undefined : (
-                  <Avatar
-                    name={issue.assigneeName}
-                    src={issue.assigneeAvatar}
-                    size="xs"
-                    colorKey={issue.assigneeId ?? issue.assigneeName}
-                    decorative
-                  />
-                )
-              }
-            >
-              {issue.assigneeName ?? 'No assignee'}
-            </Button>
-          </div>
-
-          <div className={styles.property}>
-            <span className={styles.propertyLabel} id={`${issue.id}-priority-label`}>
+            <span className={styles.srOnly} id={`${issue.id}-priority-label`}>
               Priority
             </span>
             <Button
@@ -864,12 +1008,40 @@ export function IssueDetail() {
             </Button>
           </div>
 
+          <div className={styles.property}>
+            <span className={styles.srOnly} id={`${issue.id}-assignee-label`}>
+              Assignee
+            </span>
+            <Button
+              {...assignee.props}
+              variant="ghost"
+              fullWidth
+              className={styles.propertyTrigger}
+              aria-describedby={`${issue.id}-assignee-label`}
+              icon={
+                issue.assigneeName === null ? (
+                  <UnassignedGlyph width="14" height="14" />
+                ) : (
+                  <Avatar
+                    name={issue.assigneeName}
+                    src={issue.assigneeAvatar}
+                    size="xs"
+                    colorKey={issue.assigneeId ?? issue.assigneeName}
+                    decorative
+                  />
+                )
+              }
+            >
+              {issue.assigneeName ?? <span className={styles.unset}>Unassigned</span>}
+            </Button>
+          </div>
+
           {/* Absent entirely for a team whose scale is `none`, rather than shown disabled: a
               team that has decided not to estimate should not have a permanently empty
               estimate field on every issue reminding them of the decision. */}
           {issue.estimatesEnabled && (
             <div className={styles.property}>
-              <span className={styles.propertyLabel} id={`${issue.id}-estimate-label`}>
+              <span className={styles.srOnly} id={`${issue.id}-estimate-label`}>
                 Estimate
               </span>
               <Button
@@ -878,14 +1050,15 @@ export function IssueDetail() {
                 fullWidth
                 className={styles.propertyTrigger}
                 aria-describedby={`${issue.id}-estimate-label`}
+                icon={<EstimateGlyph width="14" height="14" />}
               >
-                {issue.estimateLabel ?? 'No estimate'}
+                {issue.estimateLabel ?? <span className={styles.unset}>Set estimate</span>}
               </Button>
             </div>
           )}
 
           <div className={styles.property}>
-            <span className={styles.propertyLabel} id={`${issue.id}-due-label`}>
+            <span className={styles.srOnly} id={`${issue.id}-due-label`}>
               Due date
             </span>
             <Button
@@ -894,32 +1067,19 @@ export function IssueDetail() {
               fullWidth
               className={styles.propertyTrigger}
               aria-describedby={`${issue.id}-due-label`}
+              icon={<CalendarGlyph width="14" height="14" />}
             >
               <DueDateValue
                 value={issue.dueDate}
                 timezone={issue.timezone}
                 source={issue.dueDateSource}
+                className={issue.dueDate === null ? styles.unset : undefined}
               />
             </Button>
           </div>
 
           <div className={styles.property}>
-            <span className={styles.propertyLabel} id={`${issue.id}-project-label`}>
-              Project
-            </span>
-            <Button
-              {...project.props}
-              variant="ghost"
-              fullWidth
-              className={styles.propertyTrigger}
-              aria-describedby={`${issue.id}-project-label`}
-            >
-              {issue.projectName ?? 'No project'}
-            </Button>
-          </div>
-
-          <div className={styles.property}>
-            <span className={styles.propertyLabel} id={`${issue.id}-cycle-label`}>
+            <span className={styles.srOnly} id={`${issue.id}-cycle-label`}>
               Cycle
             </span>
             <Button
@@ -928,27 +1088,49 @@ export function IssueDetail() {
               fullWidth
               className={styles.propertyTrigger}
               aria-describedby={`${issue.id}-cycle-label`}
+              icon={<CycleGlyph width="14" height="14" />}
             >
-              {issue.cycleName ?? 'No cycle'}
+              {issue.cycleName ?? <span className={styles.unset}>Add to cycle</span>}
             </Button>
           </div>
 
+          <h3 className={styles.railGroup} id={`${issue.id}-labels-label`}>
+            Labels
+          </h3>
           <div className={styles.property}>
-            <span className={styles.propertyLabel} id={`${issue.id}-labels-label`}>
-              Labels
-            </span>
             <Button
               {...labels.props}
               variant="ghost"
               fullWidth
               className={styles.propertyTrigger}
               aria-describedby={`${issue.id}-labels-label`}
+              icon={issue.labels.length === 0 ? <PlusGlyph width="14" height="14" /> : undefined}
             >
-              {issue.labels.length === 0
-                ? 'No labels'
-                : issue.labels.map((label) => (
+              {issue.labels.length === 0 ? (
+                <span className={styles.unset}>Add label</span>
+              ) : (
+                <span className={styles.chips}>
+                  {issue.labels.map((label) => (
                     <LabelChip key={label.id} name={label.name} color={label.color} />
                   ))}
+                </span>
+              )}
+            </Button>
+          </div>
+
+          <h3 className={styles.railGroup} id={`${issue.id}-project-label`}>
+            Project
+          </h3>
+          <div className={styles.property}>
+            <Button
+              {...project.props}
+              variant="ghost"
+              fullWidth
+              className={styles.propertyTrigger}
+              aria-describedby={`${issue.id}-project-label`}
+              icon={<ProjectGlyph width="14" height="14" />}
+            >
+              {issue.projectName ?? <span className={styles.unset}>Add to project</span>}
             </Button>
           </div>
 
@@ -958,33 +1140,32 @@ export function IssueDetail() {
               the rail does not offer an affordance that opens nothing. */}
           {issue.projectId === null ? null : (
             <div className={styles.property}>
-              <span className={styles.propertyLabel}>Milestone</span>
-              <span className={styles.propertyValue}>{issue.milestoneName ?? 'No milestone'}</span>
+              <span className={styles.srOnly}>Milestone</span>
+              <span className={styles.propertyValue}>
+                <MilestoneGlyph width="14" height="14" className={styles.valueGlyph} />
+                {issue.milestoneName ?? <span className={styles.unset}>No milestone</span>}
+              </span>
             </div>
           )}
 
-          <div className={styles.property}>
-            <span className={styles.propertyLabel}>Subscribers</span>
-            <span className={styles.propertyValue}>
-              {issue.subscriberNames.length === 0 ? 'Nobody' : issue.subscriberNames.join(', ')}
-            </span>
-          </div>
-
           {issue.recurring === null ? null : (
             <div className={styles.property}>
-              <span className={styles.propertyLabel}>Repeats</span>
+              <span className={styles.srOnly}>Repeats</span>
               {/* Not `propertyTrigger`: this opens nothing, and trigger styling on a
                   non-interactive element is the row promising a control it does not have.
                   The date goes through `whenDay`/`exact` like every other date on the page —
                   it was printing the raw ISO day the store holds. */}
               <span className={styles.propertyValue}>
-                {CADENCE_LABELS[issue.recurring.cadence]} · next{' '}
-                <time
-                  dateTime={issue.recurring.nextDueDate}
-                  title={exact(issue.recurring.nextDueDate)}
-                >
-                  {whenDay(issue.recurring.nextDueDate, issue.timezone)}
-                </time>
+                <RepeatGlyph width="14" height="14" className={styles.valueGlyph} />
+                <span>
+                  {CADENCE_LABELS[issue.recurring.cadence]} · next{' '}
+                  <time
+                    dateTime={issue.recurring.nextDueDate}
+                    title={exact(issue.recurring.nextDueDate)}
+                  >
+                    {whenDay(issue.recurring.nextDueDate, issue.timezone)}
+                  </time>
+                </span>
               </span>
             </div>
           )}
@@ -1081,6 +1262,64 @@ export function IssueDetail() {
   );
 }
 
+/**
+ * The header's overflow menu: the actions that are not worth a button each.
+ *
+ * Subscribe leads because it is the one people reach for; delete is last and red because
+ * it is the one they must not reach for by accident. Each entry is gated the way its
+ * action is — a guest gets no customer request, a recurring issue is not offered
+ * "Make recurring" — so the menu never lists something that would refuse.
+ */
+function moreItems(
+  issue: { readonly subscribed: boolean; readonly recurring: unknown },
+  viewerId: UUID | null,
+  role: UserRole | null,
+  run: {
+    toggleSubscribe(): void;
+    makeRecurring(): void;
+    addRequest(): void;
+    copyModelUuid(): void;
+    askDelete(): void;
+  },
+): MenuNode[] {
+  return [
+    ...(viewerId === null
+      ? []
+      : [
+          {
+            id: 'subscribe',
+            label: issue.subscribed ? 'Unsubscribe' : 'Subscribe',
+            icon: <BellGlyph />,
+            keys: 'shift+s',
+            onSelect: run.toggleSubscribe,
+          },
+        ]),
+    ...(issue.recurring === null
+      ? [
+          {
+            id: 'recurring',
+            label: 'Make recurring',
+            icon: <RepeatGlyph />,
+            onSelect: run.makeRecurring,
+          },
+        ]
+      : []),
+    ...(role !== null && role !== 'guest'
+      ? [
+          {
+            id: 'request',
+            label: 'Add customer request',
+            icon: <CommentGlyph />,
+            onSelect: run.addRequest,
+          },
+        ]
+      : []),
+    { id: 'uuid', label: 'Copy model UUID', icon: <CopyGlyph />, onSelect: run.copyModelUuid },
+    { kind: 'separator' },
+    { id: 'delete', label: 'Delete', icon: <BinGlyph />, danger: true, onSelect: run.askDelete },
+  ];
+}
+
 interface DetailCommands {
   pickStatus(): void;
   pickAssignee(): void;
@@ -1098,6 +1337,9 @@ interface DetailCommands {
   submitComment(): void;
   copyGitBranch(): void;
   copyModelUuid(): void;
+  copyLink(): void;
+  copyIdentifier(): void;
+  toggleFavourite(): void;
 }
 
 /**
@@ -1283,21 +1525,77 @@ export function TitleField({
  * the issue above it, and a card saying "no activity yet" is a louder claim on the page than
  * the thing it is describing.
  */
+interface Subscriber {
+  readonly id: UUID;
+  readonly name: string;
+  readonly avatar: string | null;
+}
+
 function Activity({
   history,
   status,
   onRetry,
   names,
+  subscribed,
+  subscribers,
+  canSubscribe,
+  onToggleSubscribe,
 }: {
   history: readonly HistoryEntry[];
   status: 'loading' | 'ready' | 'failed';
   onRetry: () => void;
   names: Record<string, string>;
+  subscribed: boolean;
+  subscribers: readonly Subscriber[];
+  /** False while the session does not know who is reading: nobody to subscribe. */
+  canSubscribe: boolean;
+  onToggleSubscribe: () => void;
 }) {
+  // The heading row is always drawn, feed or no feed: it carries the subscribe control and
+  // the people watching, which are facts about the issue and not about its history.
+  const head = (
+    <div className={styles.activityHead}>
+      <h2 className={styles.activityTitle}>Activity</h2>
+      <div className={styles.spacer} />
+      {subscribers.length === 0 ? null : (
+        <ul className={styles.subscribers} aria-label="Subscribers">
+          {subscribers.map((person) => (
+            <li key={person.id} className={styles.subscriber}>
+              <Tooltip label={person.name} describe={false}>
+                <span className={styles.subscriberAvatar} aria-label={person.name} role="img">
+                  <Avatar
+                    name={person.name}
+                    src={person.avatar}
+                    size="xs"
+                    colorKey={person.id}
+                    decorative
+                  />
+                </span>
+              </Tooltip>
+            </li>
+          ))}
+        </ul>
+      )}
+      {/* The subscribe state had no rendering at all: `Shift+S` toggled it and the only
+          feedback was silence. Pressed while watching, so the state is announced as well as
+          worded. */}
+      {canSubscribe ? (
+        <Tooltip
+          label={subscribed ? 'Stop watching this issue' : 'Watch this issue'}
+          keys="shift+s"
+        >
+          <Button variant="ghost" size="sm" aria-pressed={subscribed} onClick={onToggleSubscribe}>
+            {subscribed ? 'Unsubscribe' : 'Subscribe'}
+          </Button>
+        </Tooltip>
+      ) : null}
+    </div>
+  );
+
   if (status === 'failed') {
     return (
       <section className={styles.activity} aria-label="Activity">
-        <h2 className={styles.sectionTitle}>Activity</h2>
+        {head}
         <p className={styles.feedFailure} role="status">
           <span>This issue’s history could not be loaded.</span>
           <Button size="sm" variant="ghost" onClick={onRetry}>
@@ -1311,7 +1609,7 @@ function Activity({
   if (status === 'loading' && history.length === 0) {
     return (
       <section className={styles.activity} aria-label="Activity" aria-busy="true">
-        <h2 className={styles.sectionTitle}>Activity</h2>
+        {head}
         {/* Three rows: the feed is a footnote, and a skeleton taller than the history it
             stands in for overstates what is coming. */}
         <div className={styles.feedSkeleton}>
@@ -1323,29 +1621,64 @@ function Activity({
     );
   }
 
-  if (history.length === 0) return null;
-
   return (
     <section className={styles.activity} aria-label="Activity">
-      <h2 className={styles.sectionTitle}>Activity</h2>
-      <ol className={styles.feed}>
-        {history.map((entry) => (
-          <li key={entry.id} className={styles.event}>
-            <span className={styles.eventText}>
-              {actorName(entry.actor, names)} {describe(entry, names)}
-            </span>
-            <time
-              className={styles.eventWhen}
-              dateTime={entry.createdAt}
-              title={exact(entry.createdAt)}
-            >
-              {when(entry.createdAt)}
-            </time>
-          </li>
-        ))}
-      </ol>
+      {head}
+      {history.length === 0 ? null : (
+        <ol className={styles.feed}>
+          {history.map((entry) => (
+            <li key={entry.id} className={styles.event}>
+              <span className={styles.eventGlyph}>{eventGlyph(entry.kind)}</span>
+              <span className={styles.eventText}>
+                <span className={styles.eventActor}>{actorName(entry.actor, names)}</span>{' '}
+                {describe(entry, names)}
+              </span>
+              <time
+                className={styles.eventWhen}
+                dateTime={entry.createdAt}
+                title={exact(entry.createdAt)}
+              >
+                {when(entry.createdAt)}
+              </time>
+            </li>
+          ))}
+        </ol>
+      )}
     </section>
   );
+}
+
+/** The 14px mark in front of a feed row: the property that changed, or a dot. */
+function eventGlyph(kind: string) {
+  const size = { width: 14, height: 14 };
+  switch (kind) {
+    case 'created':
+      return <PlusGlyph {...size} />;
+    case 'title':
+    case 'description':
+      return <EditGlyph {...size} />;
+    case 'label':
+      return <TagGlyph {...size} />;
+    case 'project':
+      return <ProjectGlyph {...size} />;
+    case 'cycle':
+      return <CycleGlyph {...size} />;
+    case 'parent':
+      return <SubIssueGlyph {...size} />;
+    case 'estimate':
+      return <EstimateGlyph {...size} />;
+    case 'dueDate':
+      return <CalendarGlyph {...size} />;
+    case 'relation':
+      return <LinkGlyph {...size} />;
+    case 'subscribe':
+      return <BellGlyph {...size} />;
+    case 'deleted':
+    case 'archived':
+      return <BinGlyph {...size} />;
+    default:
+      return <DotGlyph {...size} />;
+  }
 }
 
 interface CommentsProps {
@@ -1557,10 +1890,12 @@ export function Comments({
       }}
     >
       <Textarea
+        className={styles.composerField}
+        surface="plain"
         label={label}
         hideLabel
         placeholder={label}
-        minRows={2}
+        minRows={key === ROOT ? 1 : 2}
         maxRows={16}
         autoFocus={autoFocus}
         value={drafts[key] ?? ''}
@@ -1586,7 +1921,12 @@ export function Comments({
           </Button>
         )}
         <Tooltip label="Post comment" keys={enterSubmits ? 'Enter' : 'mod+Enter'}>
-          <Button type="submit" variant="primary" disabled={(drafts[key] ?? '').trim() === ''}>
+          <Button
+            type="submit"
+            variant="primary"
+            size="sm"
+            disabled={(drafts[key] ?? '').trim() === ''}
+          >
             Comment
           </Button>
         </Tooltip>
@@ -1595,12 +1935,10 @@ export function Comments({
   );
 
   return (
+    // No heading of its own: the conversation is the tail of the activity above it, which is
+    // how Linear reads an issue. The section keeps its name for the accessibility tree.
     <section className={styles.comments} aria-label="Comments">
-      <h2 className={styles.sectionTitle}>Comments</h2>
-
-      {threads.length === 0 ? (
-        <p className={styles.quiet}>Nobody has said anything yet.</p>
-      ) : (
+      {threads.length === 0 ? null : (
         <ol className={styles.threads}>
           {threads.map(({ comment, replies }) => {
             // A resolved thread keeps its opening line and folds the rest away. The

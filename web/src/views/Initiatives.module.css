@@ -19,6 +19,7 @@
   }
 }
 
+/* The view header: 44px, no rule beneath it — the toolbar carries the hairline. */
 .header {
   display: flex;
   align-items: center;
@@ -26,7 +27,6 @@
   flex: none;
   height: var(--header-height);
   padding-inline: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
 }
 
 .title {
@@ -34,39 +34,116 @@
   flex: 1;
   min-width: 0;
   font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
-  letter-spacing: -0.014em;
+}
+
+.newInitiative {
+  color: var(--text-secondary);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  min-height: var(--space-10);
+  padding: var(--space-1) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.pills {
+  display: flex;
+  align-items: center;
+  gap: var(--space-0-5);
+  min-width: 0;
+  overflow-x: auto;
+}
+
+/* The projects list's pills, unchanged: one pressed at a time on the tertiary surface. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: var(--control-height-md);
+  padding-inline: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.pill:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.pill.pillActive {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.pill:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/*
+ * Name · labels · status · health · projects · owner · target · progress.
+ *
+ * One template for the column header and the rows, so the two cannot drift. `overflow:
+ * hidden` alongside the fixed height, because a fixed-height row is a promise the row
+ * cannot keep on its own: anything inside it that wraps drew its second line over the next
+ * row's border rather than being clipped.
+ */
+.table {
+  --initiative-grid: minmax(0, 1fr) 12ch 11ch 16ch 8ch 14ch 11ch 9ch;
+
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: var(--space-8);
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: var(--initiative-grid);
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--control-height-lg);
+  padding-inline: var(--space-4);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .list {
   list-style: none;
   margin: 0;
   padding: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
 }
 
-/*
-  * Name · labels · status · health · project health · progress · target · owner.
-  *
-  * `overflow: hidden` alongside the fixed height, because a 32px row is a promise the row
-  * cannot keep on its own: anything inside it that wraps — a labels run, a long chip —
-  * drew its second line over the next row's border rather than being clipped.
-  */
 .row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 12ch 10ch 12ch 8ch 10ch 9ch 14ch;
+  grid-template-columns: var(--initiative-grid);
   align-items: center;
   gap: var(--space-3);
-  height: var(--row-height);
+  height: 51px;
   overflow: hidden;
   padding-inline: var(--space-4);
   color: inherit;
   text-decoration: none;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   border-bottom: 1px solid var(--border-subtle);
-  transition: background-color var(--duration-instant) var(--ease-out);
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 .row:hover {
@@ -78,11 +155,17 @@
   outline-offset: calc(-1 * var(--focus-ring-width));
 }
 
-.body {
+.nameCell {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
   min-width: 0;
-  gap: 1px;
+}
+
+.icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-secondary);
 }
 
 .name {
@@ -106,12 +189,63 @@
 .labelsMore {
   flex: none;
   color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   font-variant-numeric: tabular-nums;
 }
 
-.target {
+.status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
   overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.health {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.projects {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.owner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.ownerName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.noOwner {
+  display: inline-flex;
+  color: var(--text-tertiary);
+}
+
+.target {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -122,36 +256,9 @@
   min-width: 0;
 }
 
-.summary {
-  overflow: hidden;
+.muted {
   color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.status,
-.health,
-.owner,
-.ownerMuted {
-  overflow: hidden;
-  color: var(--text-secondary);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.status {
-  text-transform: capitalize;
-}
-
-.owner {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.ownerMuted {
-  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
 }
 
 /*
@@ -160,12 +267,14 @@
  * repeated on the initiative's own overview, and neither is what the list is scanned for.
  */
 @media (max-width: 1100px) {
-  .row {
-    grid-template-columns: minmax(0, 1fr) 10ch 12ch 8ch 10ch 14ch;
+  .table {
+    --initiative-grid: minmax(0, 1fr) 11ch 16ch 8ch 14ch 9ch;
   }
 
   .labels,
-  .target {
+  .target,
+  .columns > :nth-child(2),
+  .columns > :nth-child(7) {
     display: none;
   }
 }

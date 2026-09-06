@@ -1,31 +1,30 @@
 /*
- * Sentry settings. The page chrome, the section shape and the danger zone come from
- * SettingsPage, SettingsSection and DangerZone — what is left here is the prose this screen
- * writes around its fields and the webhook URL, which is read character by character.
+ * Sentry settings. The page chrome, the section shape, the rows and the danger zone come from
+ * SettingsPage, SettingsSection, SettingsRow and DangerZone — what is left here is the prose
+ * this screen writes around its fields and the webhook URL, which is read character by
+ * character.
  */
 
-.hint {
-  margin: 0;
+/* Centred in a row of its own, so a one-line note is not stuck to the top of a 64px slot. */
+.note {
+  margin: auto 0;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }
 
-.form {
+/* The submit row. Buttons sit on the right edge like every other control on the card. */
+.actions {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.row {
-  display: flex;
+  flex: 1;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--space-3);
 }
 
 .mono {
-  margin: 0;
+  margin: var(--space-2) 0 0;
   font-family: var(--font-mono);
   font-size: var(--font-size-sm);
   word-break: break-all;

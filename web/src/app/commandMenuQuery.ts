@@ -10,7 +10,7 @@
 import { parseIssueIdentifier } from '~/features/issue/adhocList';
 import { personName } from '~/features/prefs/prefs';
 import type { Action } from '~/keys';
-import type { Store, UUID } from '~/store';
+import type { StateCategory, Store, UUID } from '~/store';
 import { frecency, NO_RECENTS, type RecentUses } from './commandMenuRecents';
 
 export type CommandScope = 'command' | 'issue' | 'user' | 'mixed';
@@ -20,12 +20,27 @@ export interface ParsedCommandQuery {
   readonly needle: string;
 }
 
+/**
+ * The glyph a row draws at its left edge, when the entity has one.
+ *
+ * An issue's is its workflow state — the same `StateIcon` the list draws, in the state's own
+ * colour — so a row in the palette is recognisable by silhouette before it is read. A person's
+ * is their avatar. Carried on the hit rather than looked up at render, because the palette
+ * re-renders on every keystroke and the lookup is a map read per visible row per character.
+ */
+export interface EntityGlyph {
+  readonly category: StateCategory;
+  readonly color: string | undefined;
+}
+
 export interface EntityHit {
   readonly id: UUID;
   readonly title: string;
   readonly hint: string;
   readonly href: string;
   readonly score: number;
+  readonly state?: EntityGlyph | undefined;
+  readonly avatar?: string | null | undefined;
 }
 
 const ENTITY_LIMIT = 12;
@@ -86,6 +101,7 @@ export interface IssueSearchEntry {
   readonly title: string;
   /** Lowercased once, at index time, rather than once per issue per keystroke. */
   readonly haystack: string;
+  readonly state: EntityGlyph | undefined;
 }
 
 /**
@@ -98,19 +114,22 @@ export interface IssueSearchEntry {
  * and the lowercasing are the expensive halves and neither depends on what was typed, so
  * they move here and the keystroke is left with the scoring alone.
  *
- * Keyed by the caller on the `['issue', 'team']` query revision — teams because
- * `identifierOf` reads the team's key, so a renamed team invalidates every identifier.
+ * Keyed by the caller on the `['issue', 'team', 'workflowState']` query revision — teams
+ * because `identifierOf` reads the team's key, so a renamed team invalidates every
+ * identifier; states because the row's glyph is the state's category and colour.
  */
 export function buildIssueIndex(store: Store): IssueSearchEntry[] {
   const entries: IssueSearchEntry[] = [];
   for (const issue of store.issues.values()) {
     if (issue.archivedAt !== undefined) continue;
     const identifier = store.identifierOf(issue);
+    const state = store.workflowStates.get(issue.stateId);
     entries.push({
       id: issue.id,
       identifier,
       title: issue.title,
       haystack: `${identifier} ${issue.title}`.toLowerCase(),
+      state: state === undefined ? undefined : { category: state.category, color: state.color },
     });
   }
   return entries;
@@ -133,6 +152,7 @@ export function searchIssueIndex(index: readonly IssueSearchEntry[], needle: str
       hint: entry.identifier,
       href: `/issue/${entry.identifier}`,
       score,
+      state: entry.state,
     });
   }
   hits.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
@@ -162,6 +182,7 @@ export function matchUsers(store: Store, needle: string): EntityHit[] {
       hint: user.displayName,
       href: `/user/${user.id}`,
       score,
+      avatar: user.avatarUrl ?? null,
     });
   }
   hits.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));

@@ -5,6 +5,8 @@ import styles from './IconButton.module.css';
 
 export type IconButtonVariant = 'ghost' | 'secondary' | 'danger';
 export type IconButtonSize = 'sm' | 'md';
+/** Square is the toolbar default; round is for a control standing alone in a footer. */
+export type IconButtonShape = 'square' | 'round';
 
 export interface IconButtonProps extends Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
@@ -20,6 +22,7 @@ export interface IconButtonProps extends Omit<
   icon: ReactNode;
   variant?: IconButtonVariant | undefined;
   size?: IconButtonSize | undefined;
+  shape?: IconButtonShape | undefined;
   /**
    * Tooltip content, defaulting to the accessible name. Pass `null` for the rare control
    * whose meaning is already spelled out next to it.
@@ -59,6 +62,7 @@ export function IconButton({
   icon,
   variant = 'ghost',
   size = 'md',
+  shape = 'square',
   tooltip,
   keys,
   tooltipPlacement = 'top',
@@ -84,7 +88,13 @@ export function IconButton({
     <button
       {...rest}
       type={type}
-      className={[styles.button, styles[variant], styles[size], className]
+      className={[
+        styles.button,
+        styles[variant],
+        styles[size],
+        shape === 'round' ? styles.round : null,
+        className,
+      ]
         .filter(Boolean)
         .join(' ')}
       onClick={handleClick}

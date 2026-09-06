@@ -29,16 +29,21 @@ import {
   Badge,
   Button,
   Checkbox,
+  DangerZone,
+  DangerZoneRow,
   EmptyState,
   IconButton,
   Input,
   SaveIndicator,
   Select,
+  SettingsPage,
+  SettingsSection,
   StateIcon,
   STATE_LABELS,
   useSaveState,
 } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
+import { SettingsRow, type SettingsSectionProps } from '~/components/SettingsSection';
 import { featureBlock, useEntitlements } from '~/features/admin/entitlements';
 import { PlanBlock } from '~/features/admin/PlanBlock';
 import { updateTeamArchive } from '~/features/archive/mutations';
@@ -229,190 +234,200 @@ export function TeamSettings() {
 
   if (team === null) {
     return (
-      <div className={styles.screen}>
+      <SettingsPage title="Team settings">
         <EmptyState
           title="No such team"
           description={`Nothing in this workspace has the key ${teamKey}.`}
         />
-      </div>
+      </SettingsPage>
     );
   }
 
   return (
-    <div className={styles.screen}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>{team.name}</h1>
-        <Badge>{team.key}</Badge>
-        <div className={styles.spacer} />
-        <Link className={styles.link} to={`/team/${team.key}/cycles`}>
-          Cycles
-        </Link>
-        <Link className={styles.link} to={`/team/${team.key}/triage`}>
-          Triage
-        </Link>
-        <Link className={styles.link} to={`/team/${team.key}/archives`}>
-          Archives
-        </Link>
-        <Link className={styles.link} to={`/team/${team.key}`}>
-          Back to issues
-        </Link>
-      </header>
+    <SettingsPage
+      title={team.name}
+      error={error ?? undefined}
+      actions={
+        <>
+          <Badge>{team.key}</Badge>
+          <Link className={styles.link} to={`/team/${team.key}/cycles`}>
+            Cycles
+          </Link>
+          <Link className={styles.link} to={`/team/${team.key}/triage`}>
+            Triage
+          </Link>
+          <Link className={styles.link} to={`/team/${team.key}/archives`}>
+            Archives
+          </Link>
+          <Link className={styles.link} to={`/team/${team.key}`}>
+            Back to issues
+          </Link>
+        </>
+      }
+    >
+      {readOnly ? (
+        <p className={styles.notice} role="status">
+          This team is retired. Its issues and settings are read-only until you restore it.
+        </p>
+      ) : null}
 
-      <div className={styles.body}>
-        {error === null ? null : (
-          <p className={styles.error} role="alert">
-            {error}
-          </p>
-        )}
+      <fieldset className={`${styles.fieldset} ${styles.page}`} disabled={readOnly}>
+        <TeamForm
+          team={team}
+          onSave={(fields) => {
+            /*
+             * The route is keyed by the team's key, so a key change moves this screen.
+             *
+             * `updateTeam` patches the team optimistically, which means `readTeam` stops
+             * matching the key in the path on the very next frame: a save that worked
+             * replaced itself with "No such team. Nothing in this workspace has the key
+             * ENG." on a URL that stayed broken across a reload. The redirect therefore
+             * has to happen with the optimistic patch rather than after the server
+             * answers, and be walked back if the server refuses — which it does whenever
+             * the new key is already another team's.
+             */
+            const from = team.key;
+            const moving = fields.key !== '' && fields.key !== from;
+            if (moving) void navigate(`/team/${fields.key}/settings`, { replace: true });
+            run(updateTeam(engine, team.id, fields), undefined, (message) => {
+              if (moving) {
+                void navigate(`/team/${from}/settings`, {
+                  replace: true,
+                  state: { error: message },
+                });
+              }
+            });
+          }}
+        />
 
-        {readOnly ? (
-          <p className={styles.sectionHint} role="status">
-            This team is retired. Its issues and settings are read-only until you restore it.
-          </p>
-        ) : null}
+        <VisibilitySettings
+          team={team}
+          onChange={(isPrivate) => run(updateTeam(engine, team.id, { private: isPrivate }))}
+        />
 
-        <fieldset className={styles.fieldset} disabled={readOnly}>
-          <TeamForm
-            team={team}
-            onSave={(fields) => {
-              /*
-               * The route is keyed by the team's key, so a key change moves this screen.
-               *
-               * `updateTeam` patches the team optimistically, which means `readTeam` stops
-               * matching the key in the path on the very next frame: a save that worked
-               * replaced itself with "No such team. Nothing in this workspace has the key
-               * ENG." on a URL that stayed broken across a reload. The redirect therefore
-               * has to happen with the optimistic patch rather than after the server
-               * answers, and be walked back if the server refuses — which it does whenever
-               * the new key is already another team's.
-               */
-              const from = team.key;
-              const moving = fields.key !== '' && fields.key !== from;
-              if (moving) void navigate(`/team/${fields.key}/settings`, { replace: true });
-              run(updateTeam(engine, team.id, fields), undefined, (message) => {
-                if (moving) {
-                  void navigate(`/team/${from}/settings`, {
-                    replace: true,
-                    state: { error: message },
-                  });
-                }
-              });
-            }}
-          />
+        <TeamMembers teamId={team.id} teamName={team.name} />
 
-          <VisibilitySettings
-            team={team}
-            onChange={(isPrivate) => run(updateTeam(engine, team.id, { private: isPrivate }))}
-          />
+        <CycleCadence
+          team={team}
+          onChange={(cadence) => run(updateTeamCycles(engine, team.id, cadence))}
+        />
 
-          <TeamMembers teamId={team.id} teamName={team.name} />
+        <TriageSettings
+          team={team}
+          onChange={(patch) => run(updateTeamTriage(engine, team.id, patch))}
+        />
 
-          <CycleCadence
-            team={team}
-            onChange={(cadence) => run(updateTeamCycles(engine, team.id, cadence))}
-          />
+        <EmailIntakeSettings
+          team={team}
+          onChange={(enabled) => run(updateTeamEmailIntake(engine, team.id, enabled))}
+        />
 
-          <TriageSettings
-            team={team}
-            onChange={(patch) => run(updateTeamTriage(engine, team.id, patch))}
-          />
+        <ArchiveSettings
+          team={team}
+          onChange={(patch) => run(updateTeamArchive(engine, team.id, patch))}
+        />
 
-          <EmailIntakeSettings
-            team={team}
-            onChange={(enabled) => run(updateTeamEmailIntake(engine, team.id, enabled))}
-          />
+        <GitHubTeamAutomations teamId={team.id} statuses={team.statuses} onError={setError} />
+        <GitLabTeamAutomations teamId={team.id} statuses={team.statuses} onError={setError} />
 
-          <ArchiveSettings
-            team={team}
-            onChange={(patch) => run(updateTeamArchive(engine, team.id, patch))}
-          />
+        <DefaultTemplates
+          team={team}
+          onChange={(patch) => run(updateTeamTemplates(engine, team.id, patch))}
+        />
 
-          <GitHubTeamAutomations teamId={team.id} statuses={team.statuses} onError={setError} />
-          <GitLabTeamAutomations teamId={team.id} statuses={team.statuses} onError={setError} />
+        <RecurringIssues
+          team={team}
+          onCreate={(input) =>
+            run(
+              createRecurringIssue(engine, {
+                teamId: team.id,
+                title: input.title,
+                cadence: input.cadence,
+                firstDueDate: input.firstDueDate,
+              }),
+            )
+          }
+          onArchive={(id) => run(archiveRecurringIssue(engine, id))}
+        />
 
-          <DefaultTemplates
-            team={team}
-            onChange={(patch) => run(updateTeamTemplates(engine, team.id, patch))}
-          />
+        <TeamSection
+          title="Workflow statuses"
+          description="Issues move through these. The category decides what a status means to the rest of the product; the order inside it is the team’s own."
+        >
+          {CATEGORIES.map((category) => {
+            const statuses = byCategory.get(category) ?? [];
+            if (statuses.length === 0) return null;
+            const siblings = statuses.map((status) => status.id);
+            return (
+              <SettingsRow key={category}>
+                <h3 className={styles.categoryTitle}>{STATE_LABELS[category]}</h3>
+                <ul className={`${styles.statusList} ${styles.flat}`}>
+                  {statuses.map((status, index) => (
+                    <StatusRow
+                      key={status.id}
+                      status={status}
+                      first={index === 0}
+                      last={index === statuses.length - 1}
+                      onRename={(name) => run(updateStatus(engine, status.id, { name }))}
+                      onRecolor={(color) => run(updateStatus(engine, status.id, { color }))}
+                      onMakeDefault={() =>
+                        run(updateStatus(engine, status.id, { makeDefault: true }))
+                      }
+                      onMove={(delta) => run(moveStatus(engine, siblings, status.id, delta))}
+                      onArchive={() => run(archiveStatus(engine, status.id))}
+                    />
+                  ))}
+                </ul>
+              </SettingsRow>
+            );
+          })}
 
-          <RecurringIssues
-            team={team}
-            onCreate={(input) =>
-              run(
-                createRecurringIssue(engine, {
-                  teamId: team.id,
-                  title: input.title,
-                  cadence: input.cadence,
-                  firstDueDate: input.firstDueDate,
-                }),
-              )
-            }
-            onArchive={(id) => run(archiveRecurringIssue(engine, id))}
-          />
-
-          <section className={styles.section} aria-labelledby="statuses-heading">
-            <h2 className={styles.sectionTitle} id="statuses-heading">
-              Workflow statuses
-            </h2>
-            <p className={styles.sectionHint}>
-              Issues move through these. The category decides what a status <em>means</em> to the
-              rest of the product; the order inside it is the team&rsquo;s own.
-            </p>
-
-            {CATEGORIES.map((category) => {
-              const statuses = byCategory.get(category) ?? [];
-              if (statuses.length === 0) return null;
-              const siblings = statuses.map((status) => status.id);
-              return (
-                <div key={category} className={styles.category}>
-                  <h3 className={styles.categoryTitle}>{STATE_LABELS[category]}</h3>
-                  <ul className={styles.statusList}>
-                    {statuses.map((status, index) => (
-                      <StatusRow
-                        key={status.id}
-                        status={status}
-                        first={index === 0}
-                        last={index === statuses.length - 1}
-                        onRename={(name) => run(updateStatus(engine, status.id, { name }))}
-                        onRecolor={(color) => run(updateStatus(engine, status.id, { color }))}
-                        onMakeDefault={() =>
-                          run(updateStatus(engine, status.id, { makeDefault: true }))
-                        }
-                        onMove={(delta) => run(moveStatus(engine, siblings, status.id, delta))}
-                        onArchive={() => run(archiveStatus(engine, status.id))}
-                      />
-                    ))}
-                  </ul>
-                </div>
-              );
-            })}
-
+          <SettingsRow>
             <AddStatusForm
               onAdd={(name, category, color) =>
                 run(createStatus(engine, { teamId: team.id, name, category, color }))
               }
             />
-          </section>
-        </fieldset>
+          </SettingsRow>
+        </TeamSection>
+      </fieldset>
 
-        <ParentTeamSettings
-          team={team}
-          readOnly={readOnly}
-          onMove={(parentTeamId) => run(moveTeam(engine, team.id, parentTeamId))}
-        />
+      <ParentTeamSettings
+        team={team}
+        readOnly={readOnly}
+        onMove={(parentTeamId) => run(moveTeam(engine, team.id, parentTeamId))}
+      />
 
-        <DangerZone
-          team={team}
-          onRetire={() => run(retireTeam(engine, team.id))}
-          onUnretire={() => run(unretireTeam(engine, team.id))}
-          onDelete={() => {
-            run(deleteTeam(engine, team.id), () => {
-              void navigate('/');
-            });
-          }}
-        />
-      </div>
-    </div>
+      <TeamDangerZone
+        team={team}
+        onRetire={() => run(retireTeam(engine, team.id))}
+        onUnretire={() => run(unretireTeam(engine, team.id))}
+        onDelete={() => {
+          run(deleteTeam(engine, team.id), () => {
+            void navigate('/');
+          });
+        }}
+      />
+    </SettingsPage>
+  );
+}
+
+/**
+ * A `SettingsSection` that is also a landmark.
+ *
+ * The primitive draws the heading but does not wire it to its `<section>`, so on its own a
+ * section is not a region. This screen has a dozen, and moving between them by landmark is
+ * how a screen reader gets down a page this long — it is also how the tests find one. The
+ * wrapper carries the name and the inner section stays anonymous, so there is still exactly
+ * one region per heading.
+ */
+function TeamSection({ title, children, ...rest }: SettingsSectionProps & { title: string }) {
+  return (
+    <section className={styles.region} aria-label={title}>
+      <SettingsSection title={title} {...rest}>
+        {children}
+      </SettingsSection>
+    </section>
   );
 }
 
@@ -445,41 +460,56 @@ function TeamForm({
 
   return (
     <form
-      className={styles.section}
       onSubmit={(event: FormEvent) => {
         event.preventDefault();
         onSave({ name: name.trim(), key: key.trim().toUpperCase(), timezone });
       }}
     >
-      <h2 className={styles.sectionTitle}>Team</h2>
-      <div className={styles.teamFields}>
-        <Input label="Name" value={name} onChange={(event) => setName(event.target.value)} />
-        <Input
-          label="Key"
-          value={key}
-          hint="The prefix in every identifier this team owns."
-          maxLength={6}
-          className={styles.keyField}
-          onChange={(event) => setKey(event.target.value.toUpperCase())}
-        />
-        <Select
+      <TeamSection title="Team">
+        <SettingsRow label="Name" wide>
+          <Input
+            label="Name"
+            hideLabel
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </SettingsRow>
+        <SettingsRow label="Key" description="The prefix in every identifier this team owns." wide>
+          <Input
+            label="Key"
+            hideLabel
+            value={key}
+            maxLength={6}
+            className={styles.keyField}
+            onChange={(event) => setKey(event.target.value.toUpperCase())}
+          />
+        </SettingsRow>
+        <SettingsRow
           label="Timezone"
-          hint="Due dates and cycle start are midnight in this zone."
-          value={timezone}
-          onChange={(event) => setTimezone(event.target.value)}
+          description="Due dates and cycle start are midnight in this zone."
+          wide
         >
-          {zones.map((zone) => (
-            <option key={zone} value={zone}>
-              {zone}
-            </option>
-          ))}
-        </Select>
-      </div>
-      <div className={styles.formActions}>
-        <Button type="submit" variant="primary" disabled={!dirty}>
-          Save team
-        </Button>
-      </div>
+          <Select
+            label="Timezone"
+            hideLabel
+            value={timezone}
+            onChange={(event) => setTimezone(event.target.value)}
+          >
+            {zones.map((zone) => (
+              <option key={zone} value={zone}>
+                {zone}
+              </option>
+            ))}
+          </Select>
+        </SettingsRow>
+        <SettingsRow>
+          <div className={styles.formActions}>
+            <Button type="submit" variant="primary" disabled={!dirty}>
+              Save team
+            </Button>
+          </div>
+        </SettingsRow>
+      </TeamSection>
     </form>
   );
 }
@@ -512,22 +542,24 @@ function VisibilitySettings({
 
   return (
     <>
-      <section className={styles.section} aria-labelledby="visibility-heading">
-        <h2 className={styles.sectionTitle} id="visibility-heading">
-          Visibility
-        </h2>
-        <p className={styles.sectionHint}>
-          Private teams are visible only to their members. Workspace members who are not on the team
-          cannot see its issues, be assigned to them, or stay subscribed.
-        </p>
-        <Checkbox
+      <TeamSection
+        title="Visibility"
+        description="Private teams are visible only to their members. Workspace members who are not on the team cannot see its issues, be assigned to them, or stay subscribed."
+      >
+        <SettingsRow
           label="Private team"
-          checked={team.private}
-          disabled={block !== null}
-          onChange={(event) => onToggle(event.target.checked)}
-        />
-        <PlanBlock block={block} className={styles.sectionHint} />
-      </section>
+          description={
+            block === null ? undefined : <PlanBlock block={block} className={styles.planNote} />
+          }
+        >
+          <Checkbox
+            aria-label="Private team"
+            checked={team.private}
+            disabled={block !== null}
+            onChange={(event) => onToggle(event.target.checked)}
+          />
+        </SettingsRow>
+      </TeamSection>
 
       <ConfirmDialog
         open={confirmPrivate}
@@ -613,84 +645,79 @@ function TeamMembers({ teamId, teamName }: { teamId: UUID; teamName: string }) {
   };
 
   return (
-    <section className={styles.section} aria-labelledby="members-heading">
-      <div className={styles.membersHead}>
-        <h2 className={styles.sectionTitle} id="members-heading">
-          Members
-        </h2>
-        <SaveIndicator state={save.state} savedLabel="Added" />
-      </div>
-      <p className={styles.sectionHint}>
-        Membership is what a private team is private from, what cycle capacity counts, and which of
-        the two default templates a new issue gets.
-      </p>
-
-      {save.error === undefined ? null : (
-        <p className={styles.error} role="alert">
-          {save.error}
-        </p>
-      )}
-
-      {members.length === 0 ? (
-        <EmptyState
-          title="Nobody is on this team"
-          description="Issues can still be filed here, but nothing that depends on membership will do anything."
-        />
-      ) : (
-        <ul className={styles.memberList}>
-          {members.map((member) => (
-            <li key={member.id} className={styles.member}>
-              <Avatar name={member.name} size="sm" colorKey={member.userId} />
-              <span className={styles.memberName}>{member.name}</span>
-              <Badge>{member.role === 'owner' ? 'Owner' : 'Member'}</Badge>
-              <Button
-                size="sm"
-                aria-label={`Remove ${member.name} from ${teamName}`}
-                onClick={() => {
-                  setRemoveError(null);
-                  setRemoving(member);
-                }}
-              >
-                Remove
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {candidates.length === 0 ? (
-        <p className={styles.sectionHint}>Everybody in this workspace is already on this team.</p>
-      ) : (
-        <div className={styles.addMember}>
-          <Select
-            label="Add somebody"
-            value={adding}
-            onChange={(event) => setAdding(event.target.value as UUID | '')}
-          >
-            <option value="">Choose a person</option>
-            {candidates.map((candidate) => (
-              <option key={candidate.id} value={candidate.id}>
-                {candidate.name}
-              </option>
+    <>
+      <TeamSection
+        title="Members"
+        description="Membership is what a private team is private from, what cycle capacity counts, and which of the two default templates a new issue gets."
+        status={<SaveIndicator state={save.state} savedLabel="Added" />}
+        error={save.error}
+      >
+        {members.length === 0 ? (
+          <SettingsRow>
+            <EmptyState
+              title="Nobody is on this team"
+              description="Issues can still be filed here, but nothing that depends on membership will do anything."
+            />
+          </SettingsRow>
+        ) : (
+          <ul className={styles.memberList}>
+            {members.map((member) => (
+              <li key={member.id} className={styles.member}>
+                <Avatar name={member.name} size="sm" colorKey={member.userId} />
+                <span className={styles.memberName}>{member.name}</span>
+                <Badge>{member.role === 'owner' ? 'Owner' : 'Member'}</Badge>
+                <Button
+                  size="sm"
+                  aria-label={`Remove ${member.name} from ${teamName}`}
+                  onClick={() => {
+                    setRemoveError(null);
+                    setRemoving(member);
+                  }}
+                >
+                  Remove
+                </Button>
+              </li>
             ))}
-          </Select>
-          <Button
-            variant="secondary"
-            loading={save.state === 'saving'}
-            onClick={() => {
-              if (adding === '') return;
-              const userId = adding;
-              void save
-                .run(() => addTeamMember(engine, teamId, userId))
-                .then((landed) => {
-                  if (landed) setAdding('');
-                });
-            }}
-          >
-            Add to team
-          </Button>
-        </div>
-      )}
+          </ul>
+        )}
+
+        {candidates.length === 0 ? (
+          <SettingsRow>
+            <p className={styles.note}>Everybody in this workspace is already on this team.</p>
+          </SettingsRow>
+        ) : (
+          <SettingsRow label="Add somebody" wide>
+            <Select
+              label="Add somebody"
+              hideLabel
+              value={adding}
+              onChange={(event) => setAdding(event.target.value as UUID | '')}
+            >
+              <option value="">Choose a person</option>
+              {candidates.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.name}
+                </option>
+              ))}
+            </Select>
+            <Button
+              variant="secondary"
+              loading={save.state === 'saving'}
+              onClick={() => {
+                if (adding === '') return;
+                const userId = adding;
+                void save
+                  .run(() => addTeamMember(engine, teamId, userId))
+                  .then((landed) => {
+                    if (landed) setAdding('');
+                  });
+              }}
+            >
+              Add to team
+            </Button>
+          </SettingsRow>
+        )}
+      </TeamSection>
 
       <ConfirmDialog
         open={removing !== null}
@@ -710,7 +737,7 @@ function TeamMembers({ teamId, teamName }: { teamId: UUID; teamName: string }) {
         }}
         onConfirm={() => void confirmRemove()}
       />
-    </section>
+    </>
   );
 }
 
@@ -778,36 +805,36 @@ function CycleCadence({
   const inheritedFrom = inherited && parent != null ? parent : null;
 
   return (
-    <section className={styles.section} aria-labelledby="cycles-heading">
-      <h2 className={styles.sectionTitle} id="cycles-heading">
-        Cycles
-      </h2>
-      {inheritedFrom !== null ? (
-        <p className={styles.sectionHint}>
-          This sub-team inherits {inheritedFrom.name}&rsquo;s cycle schedule and cannot set its own.{' '}
+    <TeamSection
+      title="Cycles"
+      description={
+        inheritedFrom !== null
+          ? `This sub-team inherits ${inheritedFrom.name}’s cycle schedule and cannot set its own.`
+          : 'Dated windows that repeat. A cooldown is a gap, not a cycle — nothing can be filed into it. Unfinished work rolls into the next window on its own.'
+      }
+      actions={
+        inheritedFrom === null ? undefined : (
           <Link className={styles.link} to={`/team/${inheritedFrom.key}/settings`}>
             Open {inheritedFrom.key} settings
           </Link>
-        </p>
-      ) : (
-        <p className={styles.sectionHint}>
-          Dated windows that repeat. A cooldown is a gap, not a cycle — nothing can be filed into
-          it. Unfinished work rolls into the next window on its own.
-        </p>
-      )}
-
+        )
+      }
+    >
       <fieldset className={styles.fieldset} disabled={inherited}>
-        <Checkbox
-          label="Run cycles"
-          checked={team.cyclesEnabled}
-          onChange={(event) => onChange({ enabled: event.target.checked })}
-        />
+        <SettingsRow label="Run cycles">
+          <Checkbox
+            aria-label="Run cycles"
+            checked={team.cyclesEnabled}
+            onChange={(event) => onChange({ enabled: event.target.checked })}
+          />
+        </SettingsRow>
 
         {team.cyclesEnabled ? (
           <>
-            <div className={styles.cadence}>
+            <SettingsRow label="Duration" wide>
               <Select
                 label="Duration"
+                hideLabel
                 value={String(team.cycleDurationWeeks)}
                 onChange={(event) => onChange({ durationWeeks: Number(event.target.value) })}
               >
@@ -817,8 +844,11 @@ function CycleCadence({
                   </option>
                 ))}
               </Select>
+            </SettingsRow>
+            <SettingsRow label="Cooldown" wide>
               <Select
                 label="Cooldown"
+                hideLabel
                 value={String(team.cycleCooldownWeeks)}
                 onChange={(event) => onChange({ cooldownWeeks: Number(event.target.value) })}
               >
@@ -828,8 +858,11 @@ function CycleCadence({
                   </option>
                 ))}
               </Select>
+            </SettingsRow>
+            <SettingsRow label="Starts on" wide>
               <Select
                 label="Starts on"
+                hideLabel
                 value={team.cycleStartDay}
                 onChange={(event) => onChange({ startDay: event.target.value })}
               >
@@ -839,8 +872,11 @@ function CycleCadence({
                   </option>
                 ))}
               </Select>
+            </SettingsRow>
+            <SettingsRow label="Upcoming" wide>
               <Select
                 label="Upcoming"
+                hideLabel
                 value={String(team.cycleUpcomingCount)}
                 onChange={(event) => onChange({ upcomingCount: Number(event.target.value) })}
               >
@@ -850,23 +886,25 @@ function CycleCadence({
                   </option>
                 ))}
               </Select>
-            </div>
-            <div className={styles.autoAdd}>
+            </SettingsRow>
+            <SettingsRow label="Add started issues to the current cycle">
               <Checkbox
-                label="Add started issues to the current cycle"
+                aria-label="Add started issues to the current cycle"
                 checked={team.cycleAutoAddStarted}
                 onChange={(event) => onChange({ autoAddStarted: event.target.checked })}
               />
+            </SettingsRow>
+            <SettingsRow label="Add completed issues to the current cycle">
               <Checkbox
-                label="Add completed issues to the current cycle"
+                aria-label="Add completed issues to the current cycle"
                 checked={team.cycleAutoAddCompleted}
                 onChange={(event) => onChange({ autoAddCompleted: event.target.checked })}
               />
-            </div>
+            </SettingsRow>
           </>
         ) : null}
       </fieldset>
-    </section>
+    </TeamSection>
   );
 }
 
@@ -885,31 +923,28 @@ function TriageSettings({
   onChange: (patch: Parameters<typeof updateTeamTriage>[2]) => void;
 }) {
   return (
-    <section className={styles.section} aria-labelledby="triage-heading">
-      <h2 className={styles.sectionTitle} id="triage-heading">
-        Triage
-      </h2>
-      <p className={styles.sectionHint}>
-        Unreviewed work from outside the team lands in a Triage status, hidden from ordinary views
-        until somebody accepts, declines, merges or snoozes it.
-      </p>
-
-      <Checkbox
-        label="Run triage"
-        checked={team.triageEnabled}
-        onChange={(event) => onChange({ enabled: event.target.checked })}
-      />
+    <TeamSection
+      title="Triage"
+      description="Unreviewed work from outside the team lands in a Triage status, hidden from ordinary views until somebody accepts, declines, merges or snoozes it."
+    >
+      <SettingsRow label="Run triage">
+        <Checkbox
+          aria-label="Run triage"
+          checked={team.triageEnabled}
+          onChange={(event) => onChange({ enabled: event.target.checked })}
+        />
+      </SettingsRow>
 
       {team.triageEnabled ? (
-        <div className={styles.autoAdd}>
+        <SettingsRow label="Require a priority before an issue can leave triage">
           <Checkbox
-            label="Require a priority before an issue can leave triage"
+            aria-label="Require a priority before an issue can leave triage"
             checked={team.triageRequirePriority}
             onChange={(event) => onChange({ requirePriority: event.target.checked })}
           />
-        </div>
+        </SettingsRow>
       ) : null}
-    </section>
+    </TeamSection>
   );
 }
 
@@ -928,35 +963,31 @@ function EmailIntakeSettings({
     void navigator.clipboard?.writeText(team.emailIntakeAddress);
   };
   return (
-    <section className={styles.section} aria-labelledby="email-intake-heading">
-      <h2 className={styles.sectionTitle} id="email-intake-heading">
-        Create issues by email
-      </h2>
-      <p className={styles.sectionHint}>
-        Mail sent to this team&rsquo;s address becomes an issue. Replies do not create a second one.
-        In development, POST JSON to <code>/webhooks/email</code> — no mail server required.
-      </p>
-
-      <Checkbox
-        label="Create issues by email"
-        checked={team.emailIntakeEnabled}
-        onChange={(event) => onChange(event.target.checked)}
-      />
+    <TeamSection
+      title="Create issues by email"
+      description="Mail sent to this team’s address becomes an issue. Replies do not create a second one. In development, POST JSON to /webhooks/email — no mail server required."
+    >
+      <SettingsRow label="Create issues by email">
+        <Checkbox
+          aria-label="Create issues by email"
+          checked={team.emailIntakeEnabled}
+          onChange={(event) => onChange(event.target.checked)}
+        />
+      </SettingsRow>
 
       {team.emailIntakeEnabled && team.emailIntakeAddress !== undefined ? (
-        <div className={styles.cadence}>
+        <SettingsRow label="Intake address" wide>
           <Input
             label="Intake address"
+            hideLabel
             value={team.emailIntakeAddress}
             readOnly
             onFocus={(event) => event.currentTarget.select()}
           />
-          <Button size="sm" onClick={copyAddress}>
-            Copy address
-          </Button>
-        </div>
+          <Button onClick={copyAddress}>Copy address</Button>
+        </SettingsRow>
       ) : null}
-    </section>
+    </TeamSection>
   );
 }
 
@@ -971,19 +1002,14 @@ function ArchiveSettings({
   onChange: (patch: Parameters<typeof updateTeamArchive>[2]) => void;
 }) {
   return (
-    <section className={styles.section} aria-labelledby="archive-heading">
-      <h2 className={styles.sectionTitle} id="archive-heading">
-        Auto-close and archive
-      </h2>
-      <p className={styles.sectionHint}>
-        Untouched issues close on their own, then archive after they have stayed closed. A parent,
-        open sub-issues, or an unfinished project will block archival — that is what keeps a
-        project&rsquo;s graph intact.
-      </p>
-
-      <div className={styles.cadence}>
+    <TeamSection
+      title="Auto-close and archive"
+      description="Untouched issues close on their own, then archive after they have stayed closed. A parent, open sub-issues, or an unfinished project will block archival — that is what keeps a project’s graph intact."
+    >
+      <SettingsRow label="Auto-close after" wide>
         <Select
           label="Auto-close after"
+          hideLabel
           value={String(team.autoCloseDays)}
           onChange={(event) => onChange({ autoCloseDays: Number(event.target.value) })}
         >
@@ -993,8 +1019,11 @@ function ArchiveSettings({
             </option>
           ))}
         </Select>
+      </SettingsRow>
+      <SettingsRow label="Auto-archive after" wide>
         <Select
           label="Auto-archive after"
+          hideLabel
           value={String(team.autoArchiveDays)}
           onChange={(event) => onChange({ autoArchiveDays: Number(event.target.value) })}
         >
@@ -1004,21 +1033,22 @@ function ArchiveSettings({
             </option>
           ))}
         </Select>
-      </div>
-
-      <div className={styles.autoAdd}>
+      </SettingsRow>
+      <SettingsRow label="Close the parent when every sub-issue is done">
         <Checkbox
-          label="Close the parent when every sub-issue is done"
+          aria-label="Close the parent when every sub-issue is done"
           checked={team.autoCloseParent}
           onChange={(event) => onChange({ autoCloseParent: event.target.checked })}
         />
+      </SettingsRow>
+      <SettingsRow label="Close remaining sub-issues when the parent is done">
         <Checkbox
-          label="Close remaining sub-issues when the parent is done"
+          aria-label="Close remaining sub-issues when the parent is done"
           checked={team.autoCloseChildren}
           onChange={(event) => onChange({ autoCloseChildren: event.target.checked })}
         />
-      </div>
-    </section>
+      </SettingsRow>
+    </TeamSection>
   );
 }
 
@@ -1147,62 +1177,56 @@ function GitHubTeamAutomations({
   const patch = (key: keyof MappingValues, value: string) => save({ ...values, [key]: value });
 
   return (
-    <section className={styles.section} aria-labelledby="github-automations-heading">
-      <h2 className={styles.sectionTitle} id="github-automations-heading">
-        GitHub status automations
-      </h2>
-      <p className={styles.sectionHint}>
-        When a linked pull request changes, move the issue to a status. Unconfigured teams start an
-        issue when a PR opens and complete it when every closing PR has merged. Choosing No action
-        for an event leaves the issue where it is.
-      </p>
-
-      <div className={styles.cadence}>
-        <GitHubMappingSelect
-          label="PR drafted"
-          value={values.draftedStateId}
-          statuses={live}
-          disabled={busy}
-          onChange={(value) => patch('draftedStateId', value)}
-        />
-        <GitHubMappingSelect
-          label="PR opened"
-          value={values.openedStateId}
-          statuses={live}
-          disabled={busy}
-          onChange={(value) => patch('openedStateId', value)}
-        />
-        <GitHubMappingSelect
-          label="Review requested"
-          value={values.reviewRequestedStateId}
-          statuses={live}
-          disabled={busy}
-          onChange={(value) => patch('reviewRequestedStateId', value)}
-        />
-        <GitHubMappingSelect
-          label="Ready to merge"
-          value={values.readyForMergeStateId}
-          statuses={live}
-          disabled={busy}
-          onChange={(value) => patch('readyForMergeStateId', value)}
-        />
-        <GitHubMappingSelect
-          label="PR merged"
-          value={values.mergedStateId}
-          statuses={live}
-          disabled={busy}
-          onChange={(value) => patch('mergedStateId', value)}
-        />
-      </div>
+    <TeamSection
+      title="GitHub status automations"
+      description="When a linked pull request changes, move the issue to a status. Unconfigured teams start an issue when a PR opens and complete it when every closing PR has merged. Choosing No action for an event leaves the issue where it is."
+    >
+      <GitHubMappingSelect
+        label="PR drafted"
+        value={values.draftedStateId}
+        statuses={live}
+        disabled={busy}
+        onChange={(value) => patch('draftedStateId', value)}
+      />
+      <GitHubMappingSelect
+        label="PR opened"
+        value={values.openedStateId}
+        statuses={live}
+        disabled={busy}
+        onChange={(value) => patch('openedStateId', value)}
+      />
+      <GitHubMappingSelect
+        label="Review requested"
+        value={values.reviewRequestedStateId}
+        statuses={live}
+        disabled={busy}
+        onChange={(value) => patch('reviewRequestedStateId', value)}
+      />
+      <GitHubMappingSelect
+        label="Ready to merge"
+        value={values.readyForMergeStateId}
+        statuses={live}
+        disabled={busy}
+        onChange={(value) => patch('readyForMergeStateId', value)}
+      />
+      <GitHubMappingSelect
+        label="PR merged"
+        value={values.mergedStateId}
+        statuses={live}
+        disabled={busy}
+        onChange={(value) => patch('mergedStateId', value)}
+      />
 
       {configured ? (
-        <div className={styles.formActions}>
-          <Button variant="secondary" disabled={busy} onClick={restore}>
-            Restore defaults
-          </Button>
-        </div>
+        <SettingsRow>
+          <div className={styles.formActions}>
+            <Button variant="secondary" disabled={busy} onClick={restore}>
+              Restore defaults
+            </Button>
+          </div>
+        </SettingsRow>
       ) : null}
-    </section>
+    </TeamSection>
   );
 }
 
@@ -1282,65 +1306,60 @@ function GitLabTeamAutomations({
   const patch = (key: keyof MappingValues, value: string) => save({ ...values, [key]: value });
 
   return (
-    <section className={styles.section} aria-labelledby="gitlab-automations-heading">
-      <h2 className={styles.sectionTitle} id="gitlab-automations-heading">
-        GitLab status automations
-      </h2>
-      <p className={styles.sectionHint}>
-        When a linked merge request changes, move the issue to a status. Unconfigured teams start an
-        issue when an MR opens and complete it when every closing MR has merged. Choosing No action
-        for an event leaves the issue where it is.
-      </p>
-
-      <div className={styles.cadence}>
-        <GitHubMappingSelect
-          label="MR drafted"
-          value={values.draftedStateId}
-          statuses={live}
-          disabled={busy}
-          onChange={(value) => patch('draftedStateId', value)}
-        />
-        <GitHubMappingSelect
-          label="MR opened"
-          value={values.openedStateId}
-          statuses={live}
-          disabled={busy}
-          onChange={(value) => patch('openedStateId', value)}
-        />
-        <GitHubMappingSelect
-          label="Review requested"
-          value={values.reviewRequestedStateId}
-          statuses={live}
-          disabled={busy}
-          onChange={(value) => patch('reviewRequestedStateId', value)}
-        />
-        <GitHubMappingSelect
-          label="Ready to merge"
-          value={values.readyForMergeStateId}
-          statuses={live}
-          disabled={busy}
-          onChange={(value) => patch('readyForMergeStateId', value)}
-        />
-        <GitHubMappingSelect
-          label="MR merged"
-          value={values.mergedStateId}
-          statuses={live}
-          disabled={busy}
-          onChange={(value) => patch('mergedStateId', value)}
-        />
-      </div>
+    <TeamSection
+      title="GitLab status automations"
+      description="When a linked merge request changes, move the issue to a status. Unconfigured teams start an issue when an MR opens and complete it when every closing MR has merged. Choosing No action for an event leaves the issue where it is."
+    >
+      <GitHubMappingSelect
+        label="MR drafted"
+        value={values.draftedStateId}
+        statuses={live}
+        disabled={busy}
+        onChange={(value) => patch('draftedStateId', value)}
+      />
+      <GitHubMappingSelect
+        label="MR opened"
+        value={values.openedStateId}
+        statuses={live}
+        disabled={busy}
+        onChange={(value) => patch('openedStateId', value)}
+      />
+      <GitHubMappingSelect
+        label="Review requested"
+        value={values.reviewRequestedStateId}
+        statuses={live}
+        disabled={busy}
+        onChange={(value) => patch('reviewRequestedStateId', value)}
+      />
+      <GitHubMappingSelect
+        label="Ready to merge"
+        value={values.readyForMergeStateId}
+        statuses={live}
+        disabled={busy}
+        onChange={(value) => patch('readyForMergeStateId', value)}
+      />
+      <GitHubMappingSelect
+        label="MR merged"
+        value={values.mergedStateId}
+        statuses={live}
+        disabled={busy}
+        onChange={(value) => patch('mergedStateId', value)}
+      />
 
       {configured ? (
-        <div className={styles.formActions}>
-          <Button variant="secondary" disabled={busy} onClick={restore}>
-            Restore defaults
-          </Button>
-        </div>
+        <SettingsRow>
+          <div className={styles.formActions}>
+            <Button variant="secondary" disabled={busy} onClick={restore}>
+              Restore defaults
+            </Button>
+          </div>
+        </SettingsRow>
       ) : null}
-    </section>
+    </TeamSection>
   );
 }
 
+/** One event → status mapping, as a row: the event on the left, the status it moves to on the right. */
 function GitHubMappingSelect({
   label,
   value,
@@ -1355,19 +1374,22 @@ function GitHubMappingSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <Select
-      label={label}
-      value={value}
-      disabled={disabled}
-      onChange={(event) => onChange(event.target.value)}
-    >
-      <option value={NONE}>No action</option>
-      {statuses.map((status) => (
-        <option key={status.id} value={status.id}>
-          {status.name}
-        </option>
-      ))}
-    </Select>
+    <SettingsRow label={label} wide>
+      <Select
+        label={label}
+        hideLabel
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        <option value={NONE}>No action</option>
+        {statuses.map((status) => (
+          <option key={status.id} value={status.id}>
+            {status.name}
+          </option>
+        ))}
+      </Select>
+    </SettingsRow>
   );
 }
 
@@ -1385,19 +1407,14 @@ function DefaultTemplates({
   onChange: (patch: Parameters<typeof updateTeamTemplates>[2]) => void;
 }) {
   return (
-    <section className={styles.section} aria-labelledby="defaults-heading">
-      <h2 className={styles.sectionTitle} id="defaults-heading">
-        Default templates
-      </h2>
-      <p className={styles.sectionHint}>
-        Applied when a new issue is filed without a template. Members and everyone else get a
-        different starting point, because a bug report the team files every day is not the form an
-        outsider should land in.
-      </p>
-
-      <div className={styles.cadence}>
+    <TeamSection
+      title="Default templates"
+      description="Applied when a new issue is filed without a template. Members and everyone else get a different starting point, because a bug report the team files every day is not the form an outsider should land in."
+    >
+      <SettingsRow label="For members" wide>
         <Select
           label="For members"
+          hideLabel
           value={team.defaultTemplateForMembersId ?? ''}
           onChange={(event) =>
             onChange({
@@ -1412,8 +1429,11 @@ function DefaultTemplates({
             </option>
           ))}
         </Select>
+      </SettingsRow>
+      <SettingsRow label="For everyone else" wide>
         <Select
           label="For everyone else"
+          hideLabel
           value={team.defaultTemplateForNonMembersId ?? ''}
           onChange={(event) =>
             onChange({
@@ -1428,8 +1448,8 @@ function DefaultTemplates({
             </option>
           ))}
         </Select>
-      </div>
-    </section>
+      </SettingsRow>
+    </TeamSection>
   );
 }
 
@@ -1447,18 +1467,14 @@ function RecurringIssues({
   const [firstDueDate, setFirstDueDate] = useState(today(team.timezone));
 
   return (
-    <section className={styles.section} aria-labelledby="recurring-heading">
-      <h2 className={styles.sectionTitle} id="recurring-heading">
-        Recurring issues
-      </h2>
-      <p className={styles.sectionHint}>
-        A snapshot plus a cadence. The next occurrence is filed after the current due date passes,
-        at 00:01 in this team&rsquo;s timezone — not when the current issue is completed, and not by
-        re-reading a template.
-      </p>
-
+    <TeamSection
+      title="Recurring issues"
+      description="A snapshot plus a cadence. The next occurrence is filed after the current due date passes, at 00:01 in this team’s timezone — not when the current issue is completed, and not by re-reading a template."
+    >
       {team.recurring.length === 0 ? (
-        <p className={styles.sectionHint}>No schedules yet.</p>
+        <SettingsRow>
+          <p className={styles.note}>No schedules yet.</p>
+        </SettingsRow>
       ) : (
         <ul className={styles.recurringList}>
           {team.recurring.map((row) => (
@@ -1482,7 +1498,7 @@ function RecurringIssues({
       )}
 
       <form
-        className={styles.addRecurring}
+        className={styles.recurringForm}
         onSubmit={(event: FormEvent) => {
           event.preventDefault();
           const trimmed = title.trim();
@@ -1491,23 +1507,32 @@ function RecurringIssues({
           setTitle('');
         }}
       >
-        <Input
-          label="New schedule"
-          placeholder="Weekly status"
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-        />
-        <RecurringFields
-          cadence={cadence}
-          firstDueDate={firstDueDate}
-          onCadence={setCadence}
-          onFirstDueDate={setFirstDueDate}
-        />
-        <Button type="submit" disabled={title.trim() === '' || firstDueDate === ''}>
-          Add schedule
-        </Button>
+        <SettingsRow label="New schedule" wide>
+          <Input
+            label="New schedule"
+            hideLabel
+            placeholder="Weekly status"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+          />
+        </SettingsRow>
+        <SettingsRow>
+          <RecurringFields
+            cadence={cadence}
+            firstDueDate={firstDueDate}
+            onCadence={setCadence}
+            onFirstDueDate={setFirstDueDate}
+          />
+        </SettingsRow>
+        <SettingsRow>
+          <div className={styles.formActions}>
+            <Button type="submit" disabled={title.trim() === '' || firstDueDate === ''}>
+              Add schedule
+            </Button>
+          </div>
+        </SettingsRow>
       </form>
-    </section>
+    </TeamSection>
   );
 }
 
@@ -1543,7 +1568,11 @@ function StatusRow({
   const [draft, setDraft] = useState<string | null>(null);
 
   return (
-    <li className={styles.status} role="group" aria-label={`${status.name} status`}>
+    <li
+      className={`${styles.status} ${styles.flat}`}
+      role="group"
+      aria-label={`${status.name} status`}
+    >
       <StateIcon category={status.category} color={status.color} decorative />
 
       <Input
@@ -1626,7 +1655,7 @@ function AddStatusForm({
 
   return (
     <form
-      className={styles.addStatus}
+      className={styles.addStatusFields}
       onSubmit={(event: FormEvent) => {
         event.preventDefault();
         const trimmed = name.trim();
@@ -1731,35 +1760,39 @@ function ParentTeamSettings({
   const entitlements = useEntitlements();
   const block = featureBlock(entitlements, 'subTeams');
 
+  const placement =
+    parent === null && team.parentTeamId !== undefined ? (
+      'Parent team is no longer in your replica.'
+    ) : parent !== null && parent !== undefined ? (
+      <>
+        Nested under <strong>{parent.name}</strong> ({parent.key}).
+      </>
+    ) : (
+      'This is a top-level team.'
+    );
+
   return (
-    <section className={styles.section} aria-labelledby="parent-heading">
-      <h2 className={styles.sectionTitle} id="parent-heading">
-        Parent team
-      </h2>
-      <p className={styles.sectionHint}>
-        Sub-teams inherit private visibility from a private parent. Parent team owners are added as
-        owners here automatically.
-      </p>
-
-      {parent === null && team.parentTeamId !== undefined ? (
-        <p className={styles.sectionHint}>Parent team is no longer in your replica.</p>
-      ) : parent !== null && parent !== undefined ? (
-        <p className={styles.sectionHint}>
-          Nested under <strong>{parent.name}</strong> ({parent.key}).
-        </p>
-      ) : (
-        <p className={styles.sectionHint}>This is a top-level team.</p>
-      )}
-
-      {readOnly ? (
-        <p className={styles.sectionHint} role="status">
-          A retired team cannot be moved. Restore it first.
-        </p>
-      ) : null}
-
-      <div className={styles.parentFields}>
+    <TeamSection
+      title="Parent team"
+      description="Sub-teams inherit private visibility from a private parent. Parent team owners are added as owners here automatically."
+    >
+      <SettingsRow
+        label="Move under"
+        description={
+          <>
+            {placement}
+            {readOnly ? (
+              <span className={styles.rowStatus} role="status">
+                A retired team cannot be moved. Restore it first.
+              </span>
+            ) : null}
+          </>
+        }
+        wide
+      >
         <Select
           label="Move under"
+          hideLabel
           value={parentId}
           disabled={readOnly || block !== null}
           onChange={(event) => setParentId(event.target.value)}
@@ -1771,36 +1804,47 @@ function ParentTeamSettings({
             </option>
           ))}
         </Select>
-        <Button
-          onClick={() => onMove(parentId === '' ? null : (parentId as UUID))}
-          disabled={readOnly || block !== null || parentId === (team.parentTeamId ?? '')}
-          title={block?.reason}
-        >
-          Save parent
-        </Button>
-      </div>
-      <PlanBlock block={block} className={styles.sectionHint} />
+      </SettingsRow>
+      <SettingsRow>
+        <div className={styles.formActions}>
+          <PlanBlock block={block} className={styles.formNote} />
+          <Button
+            onClick={() => onMove(parentId === '' ? null : (parentId as UUID))}
+            disabled={readOnly || block !== null || parentId === (team.parentTeamId ?? '')}
+            title={block?.reason}
+          >
+            Save parent
+          </Button>
+        </div>
+      </SettingsRow>
 
       {subTeams.length > 0 ? (
-        <ul className={styles.subTeamList}>
-          {subTeams.map((child) => (
-            <li key={child.id}>
-              <Link to={`/team/${child.key}/settings`}>
-                {child.key} — {child.name}
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <SettingsRow>
+          <h3 className={styles.categoryTitle}>Sub-teams</h3>
+          <ul className={styles.subTeamList}>
+            {subTeams.map((child) => (
+              <li key={child.id}>
+                <Link to={`/team/${child.key}/settings`}>
+                  {child.key} — {child.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </SettingsRow>
       ) : null}
-    </section>
+    </TeamSection>
   );
 }
 
 /**
  * Retire, restore, or delete the team. Lifecycle actions stay outside the read-only
  * fieldset because unretire and delete must remain reachable on a retired team.
+ *
+ * Restore is drawn as a plain button rather than the row's red text action: it is the one
+ * thing here that gives something back, and colouring it like the two that take away would
+ * make the warning mean nothing.
  */
-function DangerZone({
+function TeamDangerZone({
   team,
   onRetire,
   onUnretire,
@@ -1816,28 +1860,29 @@ function DangerZone({
   const retired = team.retiredAt !== undefined;
 
   return (
-    <section className={styles.section} aria-labelledby="danger-heading">
-      <h2 className={styles.sectionTitle} id="danger-heading">
-        Danger zone
-      </h2>
-      <p className={styles.sectionHint}>
-        Retiring freezes the team and hides it from the sidebar. Deleting removes the team and its
-        issues; both can be undone — retired teams any time, deleted teams for thirty days from{' '}
-        <Link to="/settings/deleted-teams">Recently deleted teams</Link>.
-      </p>
-
-      <div className={styles.dangerActions}>
+    <>
+      <DangerZone description="Retiring freezes the team and hides it from the sidebar. Deleting removes the team and its issues. Both can be undone — a retired team any time, a deleted one for thirty days from Settings → Recently deleted teams.">
         {retired ? (
-          <Button onClick={onUnretire}>Restore team</Button>
+          <DangerZoneRow
+            title="Restore this team"
+            consequence="The team returns to the sidebar and its issues and settings can be edited again."
+            action={<Button onClick={onUnretire}>Restore team</Button>}
+          />
         ) : (
-          <Button variant="danger" onClick={() => setConfirmRetire(true)}>
-            Retire team
-          </Button>
+          <DangerZoneRow
+            title="Retire this team"
+            consequence="The team becomes read-only and disappears from the sidebar. Issues stay searchable, and you can restore the team any time from here."
+            actionLabel="Retire team"
+            onAction={() => setConfirmRetire(true)}
+          />
         )}
-        <Button variant="danger" onClick={() => setConfirmDelete(true)}>
-          Delete team
-        </Button>
-      </div>
+        <DangerZoneRow
+          title="Delete this team"
+          consequence="The team and every issue in it move to Recently deleted teams, where they can be restored for thirty days."
+          actionLabel="Delete team"
+          onAction={() => setConfirmDelete(true)}
+        />
+      </DangerZone>
 
       <ConfirmDialog
         open={confirmRetire}
@@ -1864,7 +1909,7 @@ function DangerZone({
         }}
         onClose={() => setConfirmDelete(false)}
       />
-    </section>
+    </>
   );
 }
 

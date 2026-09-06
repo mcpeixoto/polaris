@@ -24,6 +24,7 @@ import { useState } from 'react';
 
 import { useEngine } from '~/app/context';
 import { Button, EmptyState, SettingsPage, SettingsSection, Spinner } from '~/components';
+import { SettingsRow } from '~/components/SettingsSection';
 import { downloadCsv, exportCap, exportCapNote, issuesToCsv } from '~/features/export/csv';
 import { useViewerRole } from '~/hooks/useViewer';
 import styles from './ExportSettings.module.css';
@@ -68,7 +69,6 @@ export function ExportSettings() {
       <SettingsSection
         title="Workspace issues"
         description="A CSV of every issue this client can see. Views and project lists also export from the command menu — those files follow the filter you are looking at."
-        flush
       >
         {/*
           The unresolved-role frame is a Spinner inside the page, not an EmptyState standing
@@ -76,36 +76,45 @@ export function ExportSettings() {
           that does not know yet, and it used to drop the <h1> while saying so.
         */}
         {cap === null ? (
-          <div className={styles.loading}>
-            <Spinner label="Loading your export permissions" />
-          </div>
+          <SettingsRow>
+            <div className={styles.loading}>
+              <Spinner label="Loading your export permissions" />
+            </div>
+          </SettingsRow>
         ) : cap === 0 ? (
-          <EmptyState
-            title="Guests cannot export"
-            description="Ask an admin if you need a copy of this workspace’s issues."
-          />
+          <SettingsRow>
+            <EmptyState
+              title="Guests cannot export"
+              description="Ask an admin if you need a copy of this workspace’s issues."
+            />
+          </SettingsRow>
         ) : (
           <>
-            <p className={styles.note}>
-              This file holds at most {cap.toLocaleString('en-US')} issues. If the workspace has
-              more than that, narrow it with a view filter and export from the command menu instead
-              — the whole workspace in one file is not something this client can promise.
-            </p>
-            <p className={styles.note}>
-              It is built here in the browser, so a large workspace makes this tab unresponsive for
-              a few seconds.
-            </p>
-            <Button variant="primary" onClick={exportWorkspace}>
-              Download issues CSV
-            </Button>
+            <SettingsRow>
+              <p className={styles.note}>
+                This file holds at most {cap.toLocaleString('en-US')} issues. If the workspace has
+                more than that, narrow it with a view filter and export from the command menu
+                instead — the whole workspace in one file is not something this client can promise.
+              </p>
+              <p className={styles.note}>
+                It is built here in the browser, so a large workspace makes this tab unresponsive
+                for a few seconds.
+              </p>
+            </SettingsRow>
+            <SettingsRow>
+              <div className={styles.download}>
+                {message !== null ? (
+                  <p className={styles.note} role="status">
+                    {message}
+                  </p>
+                ) : null}
+                <Button variant="primary" onClick={exportWorkspace}>
+                  Download issues CSV
+                </Button>
+              </div>
+            </SettingsRow>
           </>
         )}
-
-        {message !== null ? (
-          <p className={styles.note} role="status">
-            {message}
-          </p>
-        ) : null}
       </SettingsSection>
     </SettingsPage>
   );

@@ -16,6 +16,13 @@
  * rude for "copied". Both regions are always in the document and only their contents change:
  * a live region inserted already populated is frequently never announced at all.
  *
+ * ## Where it sits
+ *
+ * Bottom left, the corner the undo toast also uses. The two are separate hosts because they
+ * are separate live regions with separate lifetimes, but they are one column to the eye: the
+ * stack reads `hasOffer` from the undo store and lifts itself one row while an undo is on
+ * offer, so nothing here ever covers the button that takes something back.
+ *
  * ## Auto-dismissal pauses under the pointer
  *
  * One timer for the whole stack, armed on the soonest deadline. Hovering the host stops it
@@ -28,6 +35,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import { Button, IconButton } from '~/components';
+import { hasOffer, subscribe as subscribeUndo } from '~/features/undo/offers';
 import { usePresence } from '~/hooks/usePresence';
 import styles from './ToastHost.module.css';
 import {
@@ -128,6 +136,9 @@ export function clearToasts(): void {
 
 export function ToastHost() {
   const current = useSyncExternalStore(subscribe, snapshot, snapshot);
+  // The undo toast shares this corner. While it is up the stack sits one row higher, so a
+  // failure raised during an undo window lands above the offer rather than over its button.
+  const aboveUndo = useSyncExternalStore(subscribeUndo, hasOffer, hasOffer);
   const [paused, setPaused] = useState(false);
   const pausedAtRef = useRef(0);
 
@@ -161,7 +172,8 @@ export function ToastHost() {
 
   return (
     <div
-      className={styles.host}
+      className={[styles.host, aboveUndo ? styles.aboveUndo : null].filter(Boolean).join(' ')}
+      data-above-undo={aboveUndo ? 'true' : undefined}
       onMouseEnter={pause}
       onMouseLeave={resume}
       onFocusCapture={pause}
@@ -234,6 +246,7 @@ function ToastCard({ toast }: { toast: Toast }) {
       {toast.retry === undefined ? null : (
         <Button
           size="sm"
+          variant="ghost"
           onClick={() => {
             close();
             toast.retry?.();

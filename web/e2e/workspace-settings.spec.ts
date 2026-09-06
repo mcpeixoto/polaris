@@ -111,8 +111,8 @@ test('the workspace menu opens settings, and settings can be left', async ({ pag
   await expect(page.getByRole('navigation', { name: 'Workspace' })).toHaveCount(0);
   // Grouped rather than one flat list, and named for the scope each row belongs to — five
   // of them used to sit under a heading reading "Workspace" while being an account.
-  await expect(page.getByRole('heading', { name: 'Account', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Integrations', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Personal', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Features', exact: true })).toBeVisible();
 
   await backToApp(page);
 });

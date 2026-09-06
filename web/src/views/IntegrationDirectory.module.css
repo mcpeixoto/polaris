@@ -1,7 +1,7 @@
 /*
- * Only what `SettingsPage` and `SettingsSection` do not already draw. The screen, header,
- * title, body measure, lede and section heading scale used to live here and are now the
- * frame's.
+ * Only what `SettingsPage`, `SettingsSection` and `SettingsRow` do not already draw. The
+ * catalogue section is `plain`: each category is a card of its own, under a heading that is
+ * a divider rather than a section.
  */
 
 .group {
@@ -11,7 +11,7 @@
 }
 
 .group + .group {
-  margin-top: var(--space-5);
+  margin-top: var(--space-3);
 }
 
 /*
@@ -28,6 +28,8 @@
   letter-spacing: 0.04em;
 }
 
+/* The same surface a card section draws, so a category reads as one card among the page's
+   others rather than as a table dropped between them. */
 .list {
   margin: 0;
   padding: 0;
@@ -35,7 +37,8 @@
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-elevated);
   overflow: hidden;
 }
 
@@ -44,16 +47,17 @@
 }
 
 /*
- * Two sized columns and a badge. The category column that used to sit between them is gone —
- * it was 7rem, which truncated "Source control", and the group heading says the same thing
- * once for the whole run instead of on every row.
+ * Two sized columns and a badge, at the row's own padding. The category column that used to
+ * sit between them is gone — it was 7rem, which truncated "Source control", and the group
+ * heading says the same thing once for the whole run instead of on every row.
  */
 .row {
   display: grid;
   grid-template-columns: 9rem 1fr auto;
   gap: var(--space-3);
   align-items: center;
-  padding: var(--space-3) var(--space-4);
+  min-height: var(--row-height);
+  padding: var(--space-2) var(--space-4);
   color: inherit;
   text-decoration: none;
   transition: background-color var(--duration-instant) var(--ease-out);
@@ -78,6 +82,7 @@ a.row:focus-visible {
 }
 
 .name {
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
 }
@@ -88,16 +93,29 @@ a.row:focus-visible {
   line-height: var(--line-height-normal);
 }
 
-.form {
+/* The submit row. The button sits on the right edge like every other control on the card;
+   the confirmation that a proposal landed takes the room on the left. */
+.actions {
   display: flex;
-  flex-direction: column;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
   gap: var(--space-3);
 }
 
 .notice {
+  flex: 1;
+  min-width: 20ch;
   margin: 0;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
+}
+
+/* What comes after the form on the same card. Its rows are inside a <form>, so the card
+   cannot draw the hairline between the last of them and the list. */
+.tail {
+  border-top: 1px solid var(--border-subtle);
 }
 
 .proposals {
@@ -106,25 +124,32 @@ a.row:focus-visible {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
 }
 
 .proposalsLoading {
   display: flex;
+  flex: 1;
+  align-items: center;
   justify-content: center;
-  padding: var(--space-6);
   color: var(--text-tertiary);
 }
 
+/* One proposal per row, at the row's own padding, so the list lines up with the fields. */
 .proposal {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+}
+
+.proposal + .proposal {
+  border-top: 1px solid var(--border-subtle);
 }
 
 /* Underlined: a link distinguished from the prose beside it by colour alone does not clear
    3:1 against that prose in either theme. */
 .proposalName {
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
   text-decoration: underline;

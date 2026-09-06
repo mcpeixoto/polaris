@@ -10,7 +10,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { Badge, Button, EmptyState, Spinner } from '~/components';
+import { Badge, Button, EmptyState, SettingsPage, SettingsSection, Spinner } from '~/components';
+import { SettingsRow } from '~/components/SettingsSection';
 import { when } from '~/features/time';
 import {
   fetchDeletedTeams,
@@ -19,8 +20,8 @@ import {
   type DeletedTeamRow,
 } from '~/features/team-lifecycle/mutations';
 import { ApiError } from '~/sync/api';
-import styles from './Trash.module.css';
 import type { UUID } from '~/store';
+import styles from './DeletedTeams.module.css';
 
 type Load =
   | { readonly phase: 'loading' }
@@ -82,53 +83,52 @@ export function DeletedTeams() {
   };
 
   return (
-    <div className={styles.screen}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>Recently deleted teams</h1>
-        {load.phase === 'ready' ? (
+    <SettingsPage
+      title="Recently deleted teams"
+      actions={
+        load.phase === 'ready' ? (
           <Badge>{load.teams.length === 1 ? '1 team' : `${load.teams.length} teams`}</Badge>
-        ) : null}
-      </header>
-
-      <div className={styles.body}>
-        <p className={styles.intro}>
-          A deleted team and its issues are kept for {RESTORE_WINDOW_DAYS} days and can be restored
-          from here. After that they are removed for good. Move or export issues first if you need
-          them elsewhere — <Link to="/settings/trash">issue trash</Link> is separate from team
-          deletion.
-        </p>
-
-        <p className={styles.restored} role="status" aria-live="polite">
-          {restored ?? ''}
-        </p>
-
-        {error === null ? null : (
-          <p className={styles.error} role="alert">
-            {error}
+        ) : undefined
+      }
+      error={error ?? undefined}
+    >
+      <SettingsSection>
+        <SettingsRow>
+          <p className={styles.intro}>
+            A deleted team and its issues are kept for {RESTORE_WINDOW_DAYS} days and can be
+            restored from here. After that they are removed for good. Move or export issues first if
+            you need them elsewhere — <Link to="/settings/trash">issue trash</Link> is separate from
+            team deletion.
           </p>
-        )}
+        </SettingsRow>
 
         {load.phase === 'loading' ? (
-          <div className={styles.loading}>
-            <Spinner label="Looking for deleted teams" />
-          </div>
+          <SettingsRow>
+            <div className={styles.loading}>
+              <Spinner label="Looking for deleted teams" />
+            </div>
+          </SettingsRow>
         ) : null}
 
         {load.phase === 'failed' ? (
-          <div role="alert">
-            <EmptyState
-              title="Recently deleted teams could not be loaded"
-              description={load.message}
-              action={<Button onClick={() => setAttempt((value) => value + 1)}>Try again</Button>}
-            />
-          </div>
+          <SettingsRow>
+            <div role="alert">
+              <EmptyState
+                title="Recently deleted teams could not be loaded"
+                description={load.message}
+                action={<Button onClick={() => setAttempt((value) => value + 1)}>Try again</Button>}
+              />
+            </div>
+          </SettingsRow>
         ) : null}
 
         {load.phase === 'ready' && load.teams.length === 0 ? (
-          <EmptyState
-            title="Nothing here"
-            description="No teams have been deleted in the last thirty days."
-          />
+          <SettingsRow>
+            <EmptyState
+              title="Nothing here"
+              description="No teams have been deleted in the last thirty days."
+            />
+          </SettingsRow>
         ) : null}
 
         {load.phase === 'ready' && load.teams.length > 0 ? (
@@ -139,17 +139,17 @@ export function DeletedTeams() {
                 <th scope="col">Name</th>
                 <th scope="col">Deleted</th>
                 <th scope="col">
-                  <span className={styles.srOnly}>Restore</span>
+                  <span className={styles.hidden}>Restore</span>
                 </th>
               </tr>
             </thead>
             <tbody>
               {load.teams.map((row) => (
                 <tr key={row.id}>
-                  <td>{row.key}</td>
+                  <td className={styles.key}>{row.key}</td>
                   <td>{row.name}</td>
                   <td>{when(row.deletedAt)}</td>
-                  <td>
+                  <td className={styles.actions}>
                     <Button
                       size="sm"
                       disabled={restoring !== null}
@@ -163,7 +163,13 @@ export function DeletedTeams() {
             </tbody>
           </table>
         ) : null}
-      </div>
-    </div>
+      </SettingsSection>
+
+      {/* Always in the document: a live region inserted already populated is often never
+          announced, and the proof of a restore is a row leaving the table above. */}
+      <p className={styles.restored} role="status" aria-live="polite">
+        {restored ?? ''}
+      </p>
+    </SettingsPage>
   );
 }

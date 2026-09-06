@@ -1,0 +1,100 @@
+/*
+ * Recently deleted teams.
+ *
+ * The frame and the card are SettingsPage's and SettingsSection's. What is left is the table
+ * the card holds — a real <table>, for the reason Trash is one: every row is the same three
+ * facts about a different team, and a table hands the row and column headers to a screen
+ * reader for free.
+ */
+
+/* The paragraph that answers "where did my team go", which is the reason anybody is here. */
+.intro {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+}
+
+.intro a {
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-4);
+  color: var(--text-tertiary);
+}
+
+/*
+ * The restore confirmation. A live region, so it stays in the document whether or not it
+ * says anything — never `display: none`, which would take it out of the accessibility tree
+ * and lose the announcement it exists for. Empty, it has no height; the negative margin
+ * gives back most of the page's section gap so an empty line does not hold 40px open under
+ * the card. Under the card rather than on it, because the row it is about has just left the
+ * table.
+ */
+.restored {
+  margin: calc(var(--space-3) - var(--space-10)) 0 0;
+  color: var(--accent-text);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/*
+ * The table takes the card's edge as its own: hairlines above each row rather than below,
+ * so the last row meets the card's bottom edge without drawing a second line on it.
+ */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-md);
+}
+
+.table th,
+.table td {
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  text-align: start;
+  vertical-align: middle;
+}
+
+.table tbody td {
+  height: var(--row-height);
+}
+
+.table thead th {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Monospaced, because a key is compared by eye against the sidebar and the identifier. */
+.key {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+}
+
+.actions {
+  text-align: end;
+}
+
+/*
+ * Available to a screen reader, absent from the page. `display: none` would take it out of the
+ * accessibility tree too, which is the one thing this class exists not to do: the actions
+ * column needs a header a table navigator can announce and a sighted reader does not need.
+ */
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

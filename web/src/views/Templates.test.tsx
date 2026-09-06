@@ -328,7 +328,9 @@ describe('Templates', () => {
     // then reading from the widest reach to the narrowest.
     expect(
       screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent),
-    ).toEqual(['WorkspaceEvery team', 'Engineering', 'Operations', 'Archived']);
+    ).toEqual(['Workspace', 'Engineering', 'Operations', 'Archived']);
+    // The reach is said beside the heading rather than inside it, so the heading stays a name.
+    expect(within(section(/^Workspace/)).getByText('Every team')).toBeTruthy();
 
     expect(within(section(/^Workspace/)).getByText('Anything')).toBeTruthy();
     expect(within(section(/^Workspace/)).queryByText('Bug report')).toBeNull();

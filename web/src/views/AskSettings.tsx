@@ -24,6 +24,7 @@ import {
   SettingsSection,
   Textarea,
 } from '~/components';
+import { SettingsRow } from '~/components/SettingsSection';
 import { createAskForm, deleteAskForm } from '~/features/asks/mutations';
 import { report } from '~/features/issue/mutations';
 import { setSlackAsksEnabled } from '~/features/slack/mutations';
@@ -111,19 +112,29 @@ export function AskSettings() {
     <SettingsPage title="Asks" error={error ?? undefined}>
       <SettingsSection title="Slack">
         {slack === null ? (
-          <p className={styles.hint}>
-            Connect Slack in <Link to="/settings/slack">Settings → Slack</Link>, then come back here
-            to file triage issues from <code>/asks</code> or a message that starts with 🎫.
-          </p>
-        ) : (
-          <>
-            <p className={styles.hint}>
-              People without a Polaris account can file an Ask with <code>/asks Title</code> or by
-              starting a Slack message with 🎫. Issues land on the Slack connection&apos;s default
-              team, in triage when that team runs it.
+          <SettingsRow>
+            <p className={styles.note}>
+              Connect Slack in{' '}
+              <Link className={styles.inlineLink} to="/settings/slack">
+                Settings → Slack
+              </Link>
+              , then come back here to file triage issues from <code>/asks</code> or a message that
+              starts with 🎫.
             </p>
+          </SettingsRow>
+        ) : (
+          <SettingsRow
+            label="Create Asks from Slack"
+            description={
+              <>
+                People without a Polaris account can file an Ask with <code>/asks Title</code> or by
+                starting a Slack message with 🎫. Issues land on the Slack connection&apos;s default
+                team, in triage when that team runs it.
+              </>
+            }
+          >
             <Checkbox
-              label="Create Asks from Slack"
+              aria-label="Create Asks from Slack"
               checked={slack.asksEnabled}
               disabled={!isAdmin || !slack.enabled}
               onChange={(event) => {
@@ -131,84 +142,105 @@ export function AskSettings() {
                 setSlackAsksEnabled(engine, event.target.checked).catch(fail);
               }}
             />
-          </>
+          </SettingsRow>
         )}
       </SettingsSection>
 
       <SettingsSection
         title="Forms"
         description="Share a link. Anyone who opens it can file an issue into that team's triage — they do not need a Polaris account."
-        flush
       >
-        <form className={styles.create} onSubmit={onCreate}>
-          <Input
-            label="Name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            required
-          />
-          <Select
-            label="Team"
-            value={teamId === '' ? (teams[0]?.id ?? '') : teamId}
-            onChange={(event) => setTeamId(event.target.value)}
-          >
-            {teams.map((team) => (
-              <option key={team.id} value={team.id}>
-                {team.name}
-              </option>
-            ))}
-          </Select>
-          <Textarea
-            label="Description"
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-          />
-          <Button type="submit" disabled={teams.length === 0}>
-            Create form
-          </Button>
+        <form onSubmit={onCreate}>
+          <SettingsRow label="Name" wide>
+            <Input
+              label="Name"
+              hideLabel
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              required
+            />
+          </SettingsRow>
+          <SettingsRow label="Team" wide>
+            <Select
+              label="Team"
+              hideLabel
+              value={teamId === '' ? (teams[0]?.id ?? '') : teamId}
+              onChange={(event) => setTeamId(event.target.value)}
+            >
+              {teams.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.name}
+                </option>
+              ))}
+            </Select>
+          </SettingsRow>
+          <SettingsRow label="Description" wide>
+            <Textarea
+              label="Description"
+              hideLabel
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+            />
+          </SettingsRow>
+          <SettingsRow>
+            <div className={styles.actions}>
+              <Button type="submit" disabled={teams.length === 0}>
+                Create form
+              </Button>
+            </div>
+          </SettingsRow>
         </form>
 
-        {forms.length === 0 ? (
-          <EmptyState
-            title="No intake forms"
-            description="Create a form, copy its link, and send it to people who are not in this workspace."
-          />
-        ) : (
-          <ul className={styles.forms}>
-            {forms.map((form) => {
-              const team = teams.find((row) => row.id === form.teamId);
-              return (
-                <li key={form.id} className={styles.form}>
-                  <div className={styles.formHead}>
-                    <strong className={styles.formName}>{form.name}</strong>
-                    <span className={styles.formTeam}>{team?.name ?? 'Team'}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      // Named per row: a list of controls that reads "Delete, Delete, Delete"
-                      // is a list nobody can act on, and each of these destroys a URL that is
-                      // already in strangers' inboxes.
-                      aria-label={`Delete ${form.name}`}
-                      onClick={() => {
-                        setDeleteError(null);
-                        setDeleting(form);
-                      }}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                  {form.token === '' ? (
-                    <p className={styles.hint}>
-                      This form has no link yet. It appears once the server has minted its token.
-                    </p>
-                  ) : (
-                    <AskLink name={form.name} url={`${window.location.origin}/ask/${form.token}`} />
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        {/* The list follows the form on the same card, with its own hairline: the form's rows
+            are inside the <form>, so the card cannot draw that one for us. */}
+        <div className={styles.tail}>
+          {forms.length === 0 ? (
+            <SettingsRow>
+              <EmptyState
+                title="No intake forms"
+                description="Create a form, copy its link, and send it to people who are not in this workspace."
+              />
+            </SettingsRow>
+          ) : (
+            <ul className={styles.forms}>
+              {forms.map((form) => {
+                const team = teams.find((row) => row.id === form.teamId);
+                return (
+                  <li key={form.id} className={styles.form}>
+                    <div className={styles.formHead}>
+                      <strong className={styles.formName}>{form.name}</strong>
+                      <span className={styles.formTeam}>{team?.name ?? 'Team'}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        // Named per row: a list of controls that reads "Delete, Delete, Delete"
+                        // is a list nobody can act on, and each of these destroys a URL that is
+                        // already in strangers' inboxes.
+                        aria-label={`Delete ${form.name}`}
+                        onClick={() => {
+                          setDeleteError(null);
+                          setDeleting(form);
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                    {form.token === '' ? (
+                      <p className={styles.note}>
+                        This form has no link yet. It appears once the server has minted its token.
+                      </p>
+                    ) : (
+                      <AskLink
+                        name={form.name}
+                        url={`${window.location.origin}/ask/${form.token}`}
+                      />
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </SettingsSection>
 
       <ConfirmDialog

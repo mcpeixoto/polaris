@@ -25,6 +25,7 @@ import {
   SettingsPage,
   SettingsSection,
 } from '~/components';
+import { SettingsRow } from '~/components/SettingsSection';
 import {
   featureBlock,
   refusalOf,
@@ -242,124 +243,136 @@ export function SlaSettings() {
       <PlanBlock block={error} className={styles.error} role="alert" />
       <PlanBlock block={blocked} className={styles.error} />
 
-      <SettingsSection
-        description="Rules are checked in order. The first match owns the issue's due date, or removes an SLA-owned date. Changing a rule does not rewrite existing issues; the next create or update re-evaluates."
-        flush
-      >
-        <form className={styles.create} onSubmit={onCreate}>
-          <Select
-            label="When"
-            value={match}
-            disabled={blocked !== null}
-            onChange={(event) => setMatch(event.target.value as MatchPreset)}
-          >
-            <option value="urgent">Priority is Urgent</option>
-            <option value="high">Priority is High</option>
-            <option value="rest">Priority is Medium, Low, or none</option>
-            <option value="all">Every issue</option>
-          </Select>
-          <Select
-            label="Do"
-            value={action}
-            disabled={blocked !== null}
-            onChange={(event) => setAction(event.target.value as 'apply' | 'remove')}
-          >
-            <option value="apply">Apply an SLA</option>
-            <option value="remove">Remove the SLA</option>
-          </Select>
-          {/*
-            The duration cell keeps its place in the grid when the action has no duration.
-            It used to be a bare `<span />` spacer holding a column open in a stylesheet
-            borrowed from the labels screen; the grid is this screen's own now, and an empty
-            cell is expressed by not rendering one.
-          */}
-          {action === 'apply' ? (
+      <SettingsSection description="Rules are checked in order. The first match owns the issue's due date, or removes an SLA-owned date. Changing a rule does not rewrite existing issues; the next create or update re-evaluates.">
+        <form onSubmit={onCreate}>
+          <SettingsRow label="When" wide>
             <Select
-              label="Duration"
-              value={String(minutes)}
+              label="When"
+              hideLabel
+              value={match}
               disabled={blocked !== null}
-              onChange={(event) => setMinutes(Number.parseInt(event.target.value, 10))}
+              onChange={(event) => setMatch(event.target.value as MatchPreset)}
             >
-              {DURATIONS.map((d) => (
-                <option key={d.minutes} value={d.minutes}>
-                  {d.label}
-                </option>
-              ))}
+              <option value="urgent">Priority is Urgent</option>
+              <option value="high">Priority is High</option>
+              <option value="rest">Priority is Medium, Low, or none</option>
+              <option value="all">Every issue</option>
             </Select>
+          </SettingsRow>
+          <SettingsRow label="Do" wide>
+            <Select
+              label="Do"
+              hideLabel
+              value={action}
+              disabled={blocked !== null}
+              onChange={(event) => setAction(event.target.value as 'apply' | 'remove')}
+            >
+              <option value="apply">Apply an SLA</option>
+              <option value="remove">Remove the SLA</option>
+            </Select>
+          </SettingsRow>
+          {/* No duration row when the action has no duration: an absent row is how a card
+              says a field does not apply, not a disabled one. */}
+          {action === 'apply' ? (
+            <SettingsRow label="Duration" wide>
+              <Select
+                label="Duration"
+                hideLabel
+                value={String(minutes)}
+                disabled={blocked !== null}
+                onChange={(event) => setMinutes(Number.parseInt(event.target.value, 10))}
+              >
+                {DURATIONS.map((d) => (
+                  <option key={d.minutes} value={d.minutes}>
+                    {d.label}
+                  </option>
+                ))}
+              </Select>
+            </SettingsRow>
           ) : null}
-          <Button type="submit" disabled={blocked !== null}>
-            Add rule
-          </Button>
+          <SettingsRow>
+            <div className={styles.actions}>
+              <Button type="submit" disabled={blocked !== null}>
+                Add rule
+              </Button>
+            </div>
+          </SettingsRow>
         </form>
 
-        {rules.length === 0 ? (
-          <EmptyState
-            title="No SLA rules"
-            description="Load the usual priority defaults, or add a rule above."
-            action={
-              <Button onClick={() => void onDefaults()} disabled={blocked !== null}>
-                Load defaults
-              </Button>
-            }
-          />
-        ) : (
-          <ol className={styles.rules}>
-            {rules.map((rule, index) => {
-              const previous = rules[index - 1];
-              const next = rules[index + 1];
-              return (
-                <li key={rule.id} className={styles.rule}>
-                  <span className={styles.rank} aria-hidden="true">
-                    {index + 1}
-                  </span>
-                  <span className={styles.ruleText}>{describeRule(rule)}</span>
-                  <div className={styles.ruleActions}>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={blocked !== null || previous === undefined}
-                      loading={moving}
-                      // Named with the rule rather than "Up", because a column of identical
-                      // arrows names nothing and this list is read one rule at a time.
-                      aria-label={`Move ${describeRule(rule)} earlier`}
-                      onClick={() => {
-                        if (previous === undefined) return;
-                        void move(previous.id, rule.id);
-                      }}
-                    >
-                      ↑
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={blocked !== null || next === undefined}
-                      loading={moving}
-                      aria-label={`Move ${describeRule(rule)} later`}
-                      onClick={() => {
-                        if (next === undefined) return;
-                        void move(rule.id, next.id);
-                      }}
-                    >
-                      ↓
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={blocked !== null}
-                      aria-label={`Delete ${describeRule(rule)}`}
-                      onClick={() => {
-                        setDeleteError(null);
-                        setDeleting(rule);
-                      }}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        )}
+        {/* The list follows the form on the same card, with its own hairline: the form's rows
+            are inside the <form>, so the card cannot draw that one for us. */}
+        <div className={styles.tail}>
+          {rules.length === 0 ? (
+            <SettingsRow>
+              <EmptyState
+                title="No SLA rules"
+                description="Load the usual priority defaults, or add a rule above."
+                action={
+                  <Button onClick={() => void onDefaults()} disabled={blocked !== null}>
+                    Load defaults
+                  </Button>
+                }
+              />
+            </SettingsRow>
+          ) : (
+            <ol className={styles.rules}>
+              {rules.map((rule, index) => {
+                const previous = rules[index - 1];
+                const next = rules[index + 1];
+                return (
+                  <li key={rule.id} className={styles.rule}>
+                    <span className={styles.rank} aria-hidden="true">
+                      {index + 1}
+                    </span>
+                    <span className={styles.ruleText}>{describeRule(rule)}</span>
+                    <div className={styles.ruleActions}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={blocked !== null || previous === undefined}
+                        loading={moving}
+                        // Named with the rule rather than "Up", because a column of identical
+                        // arrows names nothing and this list is read one rule at a time.
+                        aria-label={`Move ${describeRule(rule)} earlier`}
+                        onClick={() => {
+                          if (previous === undefined) return;
+                          void move(previous.id, rule.id);
+                        }}
+                      >
+                        ↑
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={blocked !== null || next === undefined}
+                        loading={moving}
+                        aria-label={`Move ${describeRule(rule)} later`}
+                        onClick={() => {
+                          if (next === undefined) return;
+                          void move(rule.id, next.id);
+                        }}
+                      >
+                        ↓
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={blocked !== null}
+                        aria-label={`Delete ${describeRule(rule)}`}
+                        onClick={() => {
+                          setDeleteError(null);
+                          setDeleting(rule);
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </div>
       </SettingsSection>
 
       <ConfirmDialog

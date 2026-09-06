@@ -1,14 +1,21 @@
+/**
+ * Settings → Pulse: whether the workspace has a Pulse feed, and how often the inbox digest
+ * goes out.
+ *
+ * Both writes land on change, and a refusal goes to the page's error slot: with two controls
+ * on the screen there is no section the reader could confuse it with.
+ */
+
 import { useState } from 'react';
 
 import { useEngine } from '~/app/context';
-import { Checkbox, Select } from '~/components';
+import { Checkbox, Select, SettingsPage, SettingsSection } from '~/components';
+import { SettingsRow } from '~/components/SettingsSection';
 import { report } from '~/features/issue/mutations';
 import { updateWorkspacePulse } from '~/features/workspace/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Store, Workspace } from '~/store';
 import { ApiError } from '~/sync/api';
-
-import styles from '~/features/labels/LabelSettings.module.css';
 
 const CADENCES: readonly {
   readonly value: Workspace['pulseDigestCadence'];
@@ -42,50 +49,35 @@ export function PulseSettings() {
   }
 
   return (
-    <div className={styles.screen}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>Pulse</h1>
-      </header>
-
-      <div className={styles.body}>
-        {error === null ? null : (
-          <p className={styles.error} role="alert">
-            {error}
-          </p>
-        )}
-
-        <section className={styles.section}>
-          <p className={styles.sectionHint}>
-            A feed of project status updates, plus a morning inbox summary for the projects you
-            lead, created, or belong to. Guests never see Pulse.
-          </p>
-
+    <SettingsPage title="Pulse" error={error ?? undefined}>
+      <SettingsSection description="A feed of project status updates, plus a morning inbox summary for the projects you lead, created, or belong to. Guests never see Pulse.">
+        <SettingsRow label="Enable Pulse">
           <Checkbox
-            label="Enable Pulse"
+            aria-label="Enable Pulse"
             checked={workspace.pulseEnabled}
             onChange={(event) => save({ pulseEnabled: event.target.checked })}
           />
-
-          <label>
-            <span className={styles.sectionHint}>Inbox digest</span>
-            <Select
-              value={workspace.pulseDigestCadence}
-              disabled={!workspace.pulseEnabled}
-              onChange={(event) =>
-                save({
-                  pulseDigestCadence: event.target.value as Workspace['pulseDigestCadence'],
-                })
-              }
-            >
-              {CADENCES.map((row) => (
-                <option key={row.value} value={row.value}>
-                  {row.label}
-                </option>
-              ))}
-            </Select>
-          </label>
-        </section>
-      </div>
-    </div>
+        </SettingsRow>
+        <SettingsRow label="Inbox digest" wide>
+          <Select
+            label="Inbox digest"
+            hideLabel
+            value={workspace.pulseDigestCadence}
+            disabled={!workspace.pulseEnabled}
+            onChange={(event) =>
+              save({
+                pulseDigestCadence: event.target.value as Workspace['pulseDigestCadence'],
+              })
+            }
+          >
+            {CADENCES.map((row) => (
+              <option key={row.value} value={row.value}>
+                {row.label}
+              </option>
+            ))}
+          </Select>
+        </SettingsRow>
+      </SettingsSection>
+    </SettingsPage>
   );
 }

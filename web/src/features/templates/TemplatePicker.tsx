@@ -44,6 +44,8 @@ export interface TemplatePickerProps {
   /** The control the menu belongs to: what it is positioned against, and where focus returns. */
   trigger: RefObject<HTMLElement | null>;
   placement?: MenuPlacement | undefined;
+  /** The chord that opens this picker, taught in its filter row. See Menu. */
+  filterHint?: string | undefined;
   /** The team the issue will be filed in. Its templates, plus the workspace's, are offered. */
   teamId: UUID;
   /** The template currently chosen, or `null` when none is. */
@@ -57,6 +59,7 @@ export function TemplatePicker({
   onClose,
   trigger,
   placement,
+  filterHint,
   teamId,
   value,
   onSelect,
@@ -114,7 +117,8 @@ export function TemplatePicker({
       label="Template"
       placement={placement}
       filterable
-      filterPlaceholder="Template…"
+      filterPlaceholder="Use template…"
+      filterHint={filterHint}
       // Two different facts. A workspace with no templates at all is not a filter that
       // matched nothing, and telling somebody "no matches" would send them looking for text
       // they never typed.

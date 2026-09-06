@@ -1,8 +1,9 @@
 /*
- * A settings page, which is the one place in this product where density is not the goal.
- * These are decisions made rarely and undone with difficulty — a team key, the status new
- * issues are born in — so the rows are taller than a list row and the explanation sits next
- * to the control rather than in a tooltip.
+ * The frame is `SettingsPage`'s and the rows are `SettingsRow`s; what is left here is what
+ * the card cannot draw for this screen — the status list, the member roster, the recurring
+ * schedules — plus the classes `features/projects/ProjectStatusSettings.tsx` still borrows
+ * (`.screen/.header/.body/.section/.status/.addStatus` and friends), which stay as they are
+ * until that screen is migrated.
  */
 
 .screen {
@@ -26,10 +27,6 @@
   margin: 0;
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
-}
-
-.spacer {
-  flex: 1;
 }
 
 /* The way back. A link and not a button, so it behaves like the navigation it is. */
@@ -92,22 +89,70 @@
   line-height: var(--line-height-normal);
 }
 
+/*
+ * A fieldset is how a retired team's settings, or an inherited cycle schedule, are disabled
+ * in one attribute rather than one prop per control. It must not draw a box, and the one
+ * around the page has to carry the page's own section gap so the sections inside it stack
+ * like the ones outside.
+ */
 .fieldset {
+  display: flex;
+  flex-direction: column;
   margin: 0;
   padding: 0;
   border: none;
   min-width: 0;
 }
 
+.fieldset.page {
+  gap: var(--space-10);
+}
+
 .fieldset:disabled {
   opacity: 0.72;
 }
 
-.parentFields {
+/* Names a section as a landmark; the box is the inner section's. */
+.region {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  align-items: end;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* The retired banner: page-level, before the first card. */
+.notice {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+}
+
+/* A sentence in a label-less row: "No schedules yet.", "Everybody is already here." */
+.note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+}
+
+/* A plan refusal in a row's description: the row already sets the type, so no box. */
+.planNote {
+  margin: 0;
+}
+
+/* A plan refusal beside a form's button; takes the room the button does not. */
+.formNote {
+  margin: 0;
+  margin-inline-end: auto;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/* A second sentence under a row's label, announced on its own. */
+.rowStatus {
+  display: block;
+  margin-top: var(--space-1);
 }
 
 .subTeamList {
@@ -120,40 +165,17 @@
   font-size: var(--font-size-sm);
 }
 
-.dangerActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-
-.teamFields {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 2fr);
-  gap: var(--space-4);
-  align-items: start;
-}
-
-.cadence {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12ch, 1fr));
-  gap: var(--space-3);
-  align-items: start;
-}
-
-.autoAdd {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
 .keyField input {
   font-family: var(--font-mono);
   text-transform: uppercase;
 }
 
+/* A form's submit, on the card's right edge like every other control. */
 .formActions {
   display: flex;
-  justify-content: flex-start;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
 }
 
 .category {
@@ -192,6 +214,26 @@
 .statusName {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+/*
+ * On the team's card the list sits in a padded slot and the card is the box, so a status
+ * row is a hairline row rather than a card of its own. Two classes so this beats `.status`.
+ */
+.statusList.flat {
+  gap: 0;
+  margin-top: var(--space-2);
+}
+
+.status.flat {
+  padding: var(--space-1) 0;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+}
+
+.statusList.flat > .status + .status {
+  border-top: 1px solid var(--border-subtle);
 }
 
 /*
@@ -237,9 +279,17 @@
   border-top: 1px dashed var(--border-subtle);
 }
 
+/* The add form in its own slot on the card: the row's padding is the inset, so no divider. */
+.addStatusFields {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto auto;
+  gap: var(--space-3);
+  align-items: end;
+}
+
 @media (max-width: 720px) {
-  .teamFields,
-  .addStatus {
+  .addStatus,
+  .addStatusFields {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -262,10 +312,10 @@
   line-height: var(--line-height-normal);
 }
 
+/* The schedules, one hairline row each, edge to edge on the card. */
 .recurringList {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -276,8 +326,14 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-2) 0;
-  border-bottom: 1px solid var(--border-subtle);
+  min-height: 64px;
+  padding: var(--space-3) var(--space-4);
+  box-sizing: border-box;
+}
+
+.recurringRow + .recurringRow,
+.recurringForm {
+  border-top: 1px solid var(--border-subtle);
 }
 
 .recurringText {
@@ -296,43 +352,31 @@
   font-size: var(--font-size-xs);
 }
 
-.addRecurring {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  align-items: stretch;
-}
-
 /*
  * The roster. A list rather than a table because it is two facts and one action per person,
- * and a three-column table of six rows is chrome around nothing.
+ * and a three-column table of six rows is chrome around nothing. It takes the card's edge as
+ * its own; the add row always follows it, so the list closes with a hairline.
  */
-.membersHead {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
 .memberList {
   display: flex;
   flex-direction: column;
-  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .member {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  min-height: var(--control-height-lg);
-  padding-block: var(--space-1);
-  border-bottom: 1px solid var(--border-subtle);
+  min-height: var(--row-height);
+  padding: var(--space-2) var(--space-4);
+  box-sizing: border-box;
 }
 
-.member:last-child {
-  border-bottom: none;
+.member + .member {
+  border-top: 1px solid var(--border-subtle);
 }
 
 .memberName {
@@ -342,11 +386,4 @@
   font-size: var(--font-size-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.addMember {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--space-3);
-  align-items: end;
 }

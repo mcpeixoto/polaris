@@ -34,8 +34,20 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
 
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Badge, Button, Checkbox, EmptyState, Input, Modal, Spinner, Tooltip } from '~/components';
+import {
+  Badge,
+  Button,
+  Checkbox,
+  EmptyState,
+  Input,
+  Modal,
+  SettingsPage,
+  SettingsSection,
+  Spinner,
+  Tooltip,
+} from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
+import { SettingsRow } from '~/components/SettingsSection';
 // Not from the barrel: SecretField is new in this milestone and the barrel is edited in a
 // separate pass. See the note accompanying these screens.
 import { SecretField } from '~/components/SecretField';
@@ -186,85 +198,91 @@ export function ApiKeys() {
   const loading = keys === null && loadError === null;
 
   return (
-    <div className={styles.screen}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>API keys</h1>
-        {keys === null ? null : (
-          <Badge>{keys.length === 1 ? '1 key' : `${keys.length} keys`}</Badge>
-        )}
-        <div className={styles.spacer} />
+    <SettingsPage
+      title="API keys"
+      description="A key acts as you and never as more than you: everything you can do, unless you narrow it when you make it. It belongs to no device and no session, and it keeps working until it expires or you revoke it. Nobody else can see these — not your admins, not us — and no screen can show a token twice."
+      actions={
         <Tooltip label="Create an API key" keys="n">
           <Button variant="primary" onClick={() => setCreating(true)}>
             New key
           </Button>
         </Tooltip>
-      </header>
-
-      <div className={styles.body}>
-        <section className={styles.intro} aria-labelledby="apikeys-about">
-          <h2 className={styles.sectionTitle} id="apikeys-about">
-            What a key can do
-          </h2>
-          <p className={styles.sectionHint}>
-            A key acts as you and never as more than you: everything you can do, unless you narrow
-            it when you make it. It belongs to no device and no session, and it keeps working until
-            it expires or you revoke it. Nobody else can see these — not your admins, not us — and
-            no screen can show a token twice.
-          </p>
-        </section>
-
+      }
+      width="wide"
+    >
+      <SettingsSection
+        title="What a key can do"
+        status={
+          keys === null ? undefined : (
+            <Badge>{keys.length === 1 ? '1 key' : `${keys.length} keys`}</Badge>
+          )
+        }
+      >
         {loadError === null ? null : (
-          <div className={styles.failure} role="alert">
-            <p className={styles.failureText}>{loadError}</p>
-            <Button onClick={reload}>Try again</Button>
-          </div>
+          <SettingsRow>
+            <div className={styles.failure} role="alert">
+              <p className={styles.failureText}>{loadError}</p>
+              <Button onClick={reload}>Try again</Button>
+            </div>
+          </SettingsRow>
         )}
 
         {loading ? (
-          <div className={styles.loading}>
-            <Spinner label="Loading your API keys" />
-          </div>
+          <SettingsRow>
+            <div className={styles.loading}>
+              <Spinner label="Loading your API keys" />
+            </div>
+          </SettingsRow>
         ) : null}
 
         {keys === null || keys.length > 0 ? null : (
-          <EmptyState
-            title="No API keys yet"
-            description="Keys are for the things that act on your behalf without you there — a deploy script, a CI job, an integration you wrote."
-            action={
-              <Button variant="primary" onClick={() => setCreating(true)}>
-                Create a key
-              </Button>
-            }
-          />
+          <SettingsRow>
+            <EmptyState
+              title="No API keys yet"
+              description="Keys are for the things that act on your behalf without you there — a deploy script, a CI job, an integration you wrote."
+              action={
+                <Button variant="primary" onClick={() => setCreating(true)}>
+                  Create a key
+                </Button>
+              }
+            />
+          </SettingsRow>
         )}
 
         {rows.length === 0 ? null : (
-          <table className={styles.table}>
-            <caption className={styles.caption}>
-              The keys on your own account. Revoked and expired ones stay in the list, at the
-              bottom, so that a key which stopped working can still be accounted for.
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Key</th>
-                <th scope="col">Scopes</th>
-                <th scope="col">Created</th>
-                <th scope="col">Last used</th>
-                <th scope="col">Expires</th>
-                <th scope="col">Status</th>
-                <th scope="col">
-                  <span className={styles.hidden}>Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(({ key, status }) => (
-                <KeyRow key={key.id} apiKey={key} status={status} onRevoke={() => askRevoke(key)} />
-              ))}
-            </tbody>
-          </table>
+          <div className={styles.scroll}>
+            <table className={styles.table}>
+              <caption className={styles.caption}>
+                The keys on your own account. Revoked and expired ones stay in the list, at the
+                bottom, so that a key which stopped working can still be accounted for.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Key</th>
+                  <th scope="col">Scopes</th>
+                  <th scope="col">Created</th>
+                  <th scope="col">Last used</th>
+                  <th scope="col">Expires</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">
+                    <span className={styles.hidden}>Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(({ key, status }) => (
+                  <KeyRow
+                    key={key.id}
+                    apiKey={key}
+                    status={status}
+                    onRevoke={() => askRevoke(key)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
-      </div>
+      </SettingsSection>
 
       {creating ? (
         <CreateKeyDialog
@@ -289,7 +307,7 @@ export function ApiKeys() {
         onConfirm={() => void confirmRevoke()}
         onClose={() => setRevoking(null)}
       />
-    </div>
+    </SettingsPage>
   );
 }
 

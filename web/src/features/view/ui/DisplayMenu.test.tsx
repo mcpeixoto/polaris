@@ -252,4 +252,18 @@ describe('DisplayMenu', () => {
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('keeps every select named when its label is drawn beside it rather than above', () => {
+    renderMenu();
+
+    // Real `<label for>` elements, so the name survives the row layout and clicking the word
+    // still reaches the control.
+    for (const name of ['Grouping', 'Swimlanes', 'Ordering']) {
+      expect(screen.getByLabelText(name).tagName).toBe('SELECT');
+    }
+    expect(screen.getByRole('button', { name: 'List' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Board' }).getAttribute('aria-pressed')).toBe(
+      'false',
+    );
+  });
 });

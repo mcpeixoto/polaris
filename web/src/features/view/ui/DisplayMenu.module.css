@@ -1,8 +1,9 @@
 /*
  * The display panel is a popover full of form controls, so it borrows the menu's surface —
- * same radius, same shadow, same border — and the settings pages' vertical rhythm inside it.
- * Looking like a menu is what says "this closes when you are done with it"; being laid out
- * like a form is what says "you can change several things while you are here".
+ * same radius, same shadow, same border — and lays its options out one to a row, label at
+ * the left and value at the right. Looking like a menu is what says "this closes when you
+ * are done with it"; being laid out like a property rail is what says "you can change several
+ * things while you are here".
  *
  * It is deliberately narrow. Every control in it is a short label and a small value, and a
  * wider panel would only put more of the list behind it out of view — which is the thing the
@@ -15,7 +16,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  width: 20rem;
+  width: 280px;
   max-width: calc(100vw - var(--space-4));
   /* Taller than the viewport on a short window: the panel scrolls rather than being clipped,
      because the properties at the bottom are the ones people come here for most often. */
@@ -23,10 +24,11 @@
   overflow-y: auto;
   margin-top: var(--space-1);
   padding: var(--space-3);
-  border: 1px solid var(--border-default);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  background-color: var(--bg-primary);
-  box-shadow: var(--shadow-lg);
+  background-color: var(--bg-elevated);
+  box-shadow: var(--shadow-popover);
+  color: var(--text-primary);
   animation: panelIn var(--duration-fast) var(--ease-out);
 }
 
@@ -78,16 +80,17 @@
 
 .title {
   margin: 0;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
 }
 
-/* Pushed against the reset button, which is the thing it is the reason for. */
+/* Pushed against the reset button, which is the thing it is the reason for. Secondary and
+   not tertiary: the panel is a raised surface, where tertiary is below the floor. */
 .count {
   flex: 1;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
   font-variant-numeric: tabular-nums;
 }
 
@@ -104,29 +107,127 @@
 }
 
 /*
- * Two buttons that read as one control. The gap is a hairline rather than a space so the
- * pair is visibly a choice between them, and not two commands that happen to be adjacent.
+ * One option: its name at the left, its control at the right. The row is the panel's unit,
+ * and every kind of control — a select, a segmented pair, a checkbox — sits in one so the
+ * eye runs down one column of names and one column of values.
+ */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--control-height-md);
+}
+
+.rowLabel {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  cursor: default;
+}
+
+/*
+ * The value's width. Fixed rather than to-content so the right column lines up down the
+ * panel; Select is a Field, whose root this class lands on, and the two classes are what let
+ * this win over the Field's own `min-width: 0` on specificity rather than on bundle order.
+ */
+.panel .control {
+  flex: none;
+  width: 140px;
+}
+
+/* The segmented pair sizes to its two words rather than to the column: "Descending" cut to
+   "Descendi" is a product string truncated, which the composition rules forbid. */
+.panel .segmented.control {
+  width: auto;
+}
+
+/*
+ * Two buttons that read as one control. A tinted track with the chosen segment lifted onto
+ * the panel's own surface — the shape is what says "one of these is in force", so the pair
+ * needs neither a primary fill nor a border between them.
  */
 .segmented {
   display: flex;
   gap: var(--space-0-5);
   padding: var(--space-0-5);
-  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  background-color: var(--bg-secondary);
+  background-color: var(--bg-tertiary);
 }
 
-.segmented > * {
+.segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
   flex: 1;
+  height: calc(var(--control-height-md) - var(--space-1));
+  padding-inline: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.segment:hover {
+  color: var(--text-primary);
+}
+
+/* Two classes, so the chosen state wins over the hover above on specificity. */
+.segment.segmentOn {
+  background-color: var(--bg-elevated);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.segment:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+/*
+ * A checkbox drawn as a row: the words at the left, the box at the right, the whole width
+ * the hit target. Two classes to beat the checkbox's own inline-flex on specificity.
+ */
+.panel .toggle {
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: space-between;
+  width: 100%;
+  min-height: var(--control-height-md);
+}
+
+/* The properties are many and short, so they take two columns rather than a dozen rows. */
+.properties {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1) var(--space-3);
+}
+
+.panel .property {
+  min-height: var(--control-height-md);
+  font-size: var(--font-size-sm);
 }
 
 /*
  * "Default: Status". Quiet, because it is a footnote about a value rather than a warning
  * about one — the user is allowed to have changed it, and most of the time meant to.
+ * Secondary rather than tertiary: it sits on the popover's raised surface.
  */
 .changed {
   margin: 0;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-xs);
   line-height: var(--line-height-normal);
 }
@@ -145,6 +246,20 @@
   color: var(--text-secondary);
   font-size: var(--font-size-xs);
   line-height: var(--line-height-normal);
+}
+
+/* Available to a screen reader and to nothing else: the layout pair is named "Layout" for
+   the tree, and on screen the two segments name themselves. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /*
@@ -166,5 +281,9 @@
     to {
       opacity: 0;
     }
+  }
+
+  .segment {
+    transition: none;
   }
 }

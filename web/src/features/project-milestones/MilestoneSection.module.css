@@ -1,14 +1,15 @@
 .section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .sectionTitle {
   margin: 0;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
@@ -16,7 +17,18 @@
 .empty {
   margin: 0;
   color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
+}
+
+/* The diamond every milestone wears, lit in the accent on the one that is current. */
+.glyph {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-tertiary);
+}
+
+.glyphCurrent {
+  color: var(--accent-text);
 }
 
 .list {
@@ -25,13 +37,19 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
+/* One checkpoint as a card: its name and date on the head, the bar beneath, the count under
+   the bar. The same box an update sits in, so the two lists read as one page. */
 .row {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
 }
 
 .head {
@@ -58,8 +76,8 @@
 
 .when {
   margin-inline-start: auto;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .track {
@@ -85,8 +103,8 @@
 }
 
 .progressText {
-  color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .add,

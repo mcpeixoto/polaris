@@ -10,12 +10,17 @@
  * A nav row states four different facts and each has to look like a different one:
  *
  *   hover    --bg-hover, the weakest wash: the pointer is over this row
- *   active   --bg-selected, the rail, and medium weight: this row is the screen you are on
+ *   active   --bg-selected: this row is the screen you are on
  *   both     the two washes stacked, below — pointing at the row you are already on must not
  *            make it look *less* current than its neighbours
  *   focus    the ring from styles/reset.css, which is a different channel entirely: an
  *            outline outside the box rather than a fill inside it, so it reads on top of any
  *            of the three above. Nothing here may remove it.
+ *
+ * The label is primary at medium weight in every state and only the icon changes ink —
+ * secondary at rest, primary on the current row. That is Linear's treatment, and it is the
+ * reason there is no longer an accent rail: the rail existed to cover the frame a label spent
+ * changing weight, and a label that never changes weight has nothing to cover.
  */
 
 /*
@@ -27,13 +32,15 @@
  * sidebar having been *replaced by* something rather than the same column changing subject.
  * Opacity only, at the same length as `.view`: navigation is a keyboard path, and the token
  * layer folds this to 1ms under prefers-reduced-motion, which is the right answer for a fade.
+ *
+ * No border on its right edge: the main pane is a bordered panel sitting on this ground, and
+ * its own hairline is the edge between the two. A second one beside it was a double line.
  */
 .sidebar {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
   padding: var(--space-2);
-  border-right: 1px solid var(--border-subtle);
   background: var(--bg-sidebar);
   overflow-y: auto;
   animation: sidebarIn var(--duration-fast) var(--ease-out);
@@ -67,8 +74,8 @@
  * recessive; the contrast is not what was doing that work.
  */
 .sectionHeader {
-  margin: 0 0 var(--space-1);
-  padding: 0 var(--space-2);
+  margin: 0;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -77,22 +84,28 @@
 
 .sectionHeading {
   margin: 0;
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   color: var(--text-secondary);
 }
 
 .sectionTitle {
   composes: sectionHeader sectionHeading;
+  /* The settings nav's headings are not rows, so they take the row's inset by hand. */
+  padding: 0 var(--space-2);
+  min-height: var(--control-height-md);
 }
 
 /*
  * The disclosure that opens a section.
  *
- * A button and not a heading. The workspace sidebar's three sections are furniture the user
- * opens and closes, and a heading is a landmark in the document outline — `SettingsNav`
- * keeps its `h2`s because those name groups that are always there. This one names a control,
- * and `aria-expanded` on it is the whole announcement.
+ * A button and not a heading. The workspace sidebar's sections are furniture the user opens
+ * and closes, and a heading is a landmark in the document outline — `SettingsNav` keeps its
+ * `h2`s because those name groups that are always there. This one names a control, and
+ * `aria-expanded` on it is the whole announcement.
+ *
+ * The same height, inset and corner as a nav row, because it sits in the same column: a
+ * heading half the height of the rows it introduces reads as a caption on the row above it.
  */
 .sectionToggle {
   composes: sectionHeading;
@@ -101,19 +114,29 @@
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  height: var(--control-height-sm);
-  padding: 0;
+  height: var(--control-height-md);
+  padding: 0 var(--space-2);
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-lg);
   background: transparent;
   font-family: inherit;
   text-align: left;
   cursor: pointer;
-  transition: color var(--duration-fast) var(--ease-out);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .sectionToggle:hover {
+  background: var(--bg-hover);
   color: var(--text-primary);
+}
+
+.sectionLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /*
@@ -142,64 +165,29 @@
      scale the moment anybody tuned it. */
   height: var(--control-height-md);
   padding: 0 var(--space-2);
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: var(--font-weight-medium);
+  text-align: left;
   text-decoration: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
   transition:
     background-color var(--duration-fast) var(--ease-out),
     color var(--duration-fast) var(--ease-out);
 }
 
-/*
- * The active marker, drawn rather than only coloured.
- *
- * `.navItemActive` changes background, text colour and weight at once, and the weight is the
- * tell: it snaps while the colours ease, so selecting a row arrives as two events on one
- * keystroke. A rail cannot fix the weight — `font-weight` reflows the label whatever it is
- * given — but it can put something that moves where the eye already is, and a mark growing
- * out of the left edge covers the frame the text spends resetting.
- *
- * On `::before` because `.navItem` is `position: relative` already, and the alternative is a
- * span in every nav row both sidebars draw that nothing else would use. `transform` and
- * `opacity` only: both composite, and this fires on the keyboard path where the `g` chords
- * land, so it has to cost nothing to be allowed at all.
- */
-.navItem::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  width: 2px;
-  height: 14px;
-  border-radius: var(--radius-sm);
-  background: var(--accent);
-  opacity: 0;
-  /* Scaled out of nothing rather than slid in from outside the box: .navItem is
-     `overflow: hidden` for the ellipsis, so a mark travelling in from the left would be
-     invisible until the moment it had already arrived. */
-  transform: translateY(-50%) scaleY(0.2);
-  transition:
-    opacity var(--duration-fast) var(--ease-out),
-    transform var(--duration-fast) var(--ease-out);
-}
-
 .navItem:hover {
   background: var(--bg-hover);
-  color: var(--text-primary);
 }
 
 .navItemActive {
   background: var(--bg-selected);
-  color: var(--text-primary);
-  font-weight: var(--font-weight-medium);
-}
-
-.navItemActive::before {
-  opacity: 1;
-  transform: translateY(-50%) scaleY(1);
 }
 
 /*
@@ -221,20 +209,19 @@
   background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 
+/*
+ * The row's glyph: secondary ink beside a primary label, and primary on the current row.
+ * The ink and not the opacity, because opacity over a wash lands on a colour no token names.
+ */
 .navIcon {
   flex: none;
   display: inline-flex;
-  color: inherit;
-  opacity: 0.72;
-  /* The row's own colours already ease at this length; without the same ramp here the icon
-     brightens a frame ahead of the label it belongs to, which is the sort of thing nobody
-     can name and everybody can see. */
-  transition: opacity var(--duration-fast) var(--ease-out);
+  color: var(--text-secondary);
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
-.navItemActive .navIcon,
-.navItem:hover .navIcon {
-  opacity: 1;
+.navItemActive .navIcon {
+  color: var(--text-primary);
 }
 
 .navLabel {
@@ -254,25 +241,22 @@
  *
  * Tabular figures because the number changes while the row sits still: proportional digits
  * re-lay the row out every time 9 becomes 10, and a count that twitches is read as motion
- * rather than as information. --text-secondary rather than tertiary for the reason the
- * section headings give: this sits on --bg-sidebar, which is not the page's own surface.
+ * rather than as information. Tertiary ink at the regular weight, so the number sits behind
+ * the label it belongs to rather than beside it; the row is a target, not a paragraph.
  */
 .navCount {
   flex: none;
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
   font-variant-numeric: tabular-nums;
-  color: var(--text-secondary);
-}
-
-.navItemActive .navCount {
-  color: var(--text-primary);
+  color: var(--text-tertiary);
 }
 
 /*
  * The workspace's mark, and the one box in this sidebar whose size is deliberately not off
  * the control ladder. It is a picture, not a control: the ladder's rungs answer to the 32px
  * issue row and to hit targets, and neither has an opinion about how big a square logo should
- * be next to a workspace name set in --font-size-md. 18px is what balances that word.
+ * be next to a workspace name set in --font-size-md. 20px is what balances that word.
  *
  * It lives here rather than in AppShell because both sidebars draw it now — the workspace one
  * as the trigger for its menu, the settings one as a read-only reminder of which workspace is
@@ -283,13 +267,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: var(--radius-sm);
-  background: var(--accent-subtle);
-  color: var(--accent-text);
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--accent-contrast);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.02em;
   line-height: var(--line-height-none);
 }
 
@@ -297,7 +282,7 @@
   width: 100%;
   height: 100%;
   border-radius: inherit;
-  /* Cover rather than contain: the box is 18px square and a letterboxed logo inside it is
+  /* Cover rather than contain: the box is 20px square and a letterboxed logo inside it is
      three or four pixels of artwork surrounded by accent colour. */
   object-fit: cover;
 }

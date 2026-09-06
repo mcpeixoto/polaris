@@ -1,24 +1,11 @@
-.panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: var(--control-height-lg);
-}
-
-.title {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--line-height-none);
-}
+/*
+ * Link cards under the Links section. The header is `Section`'s; these are the rows and the
+ * box that adds one.
+ *
+ * The rows are the sub-issue rows' shape — 32px, radius-md, a hover wash and no separator —
+ * because a link card and a sub-issue row sit in adjacent sections of one column, and two
+ * list treatments a few pixels apart read as two products.
+ */
 
 .list {
   margin: 0;
@@ -32,13 +19,15 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  min-height: var(--control-height-md);
+  min-height: var(--control-height-lg);
   min-width: 0;
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-md);
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
-.row:last-child {
-  border-bottom: 0;
+.row:hover {
+  background-color: var(--bg-hover);
 }
 
 .link {
@@ -52,31 +41,41 @@
 }
 
 .link:hover .linkTitle {
-  color: var(--accent-text);
+  text-decoration: underline;
+}
+
+.link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-sm);
 }
 
 .linkTitle {
   overflow: hidden;
   color: var(--text-primary);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-tight);
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: color var(--duration-fast) var(--ease-out);
 }
 
 .subtitle {
   overflow: hidden;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
   line-height: var(--line-height-tight);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/*
+ * Always on screen rather than behind the "+": a link is pasted far more often than it is
+ * typed, and a box that is already there is one paste and one Enter.
+ */
 .form {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr) auto;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;

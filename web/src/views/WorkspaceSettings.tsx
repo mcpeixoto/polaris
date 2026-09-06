@@ -16,6 +16,7 @@ import { useEffect, useState } from 'react';
 
 import { useEngine } from '~/app/context';
 import { Input, SaveIndicator, SettingsPage, SettingsSection, useSaveState } from '~/components';
+import { SettingsRow } from '~/components/SettingsSection';
 import { updateWorkspaceGeneral } from '~/features/workspace/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Store } from '~/store';
@@ -90,53 +91,67 @@ export function WorkspaceSettings() {
         title="General"
         status={<SaveIndicator state={save.state} />}
         error={save.error}
-        flush
       >
-        <Input
-          label="Name"
-          value={name}
-          error={nameError ?? undefined}
-          onChange={(event) => {
-            setName(event.target.value);
-            if (nameError !== null) setNameError(null);
-          }}
-          onBlur={commitName}
-        />
+        <SettingsRow label="Name" wide>
+          <Input
+            label="Name"
+            hideLabel
+            value={name}
+            error={nameError ?? undefined}
+            onChange={(event) => {
+              setName(event.target.value);
+              if (nameError !== null) setNameError(null);
+            }}
+            onBlur={commitName}
+          />
+        </SettingsRow>
 
-        <Input
+        <SettingsRow
           label="URL key"
           // A live preview rather than a rule, because the rule is only interesting when it
           // is broken and the address is what the change actually costs: every bookmark and
           // every invitation link in the workspace points at it.
-          hint={
+          description={
             urlKey.trim() === ''
               ? 'The previous address keeps working, so bookmarks and invites do not break.'
               : `This workspace will live at polaris.app/${urlKey.trim().toLowerCase()}. The previous address keeps working, so bookmarks and invites do not break.`
           }
-          value={urlKey}
-          error={keyError ?? undefined}
-          autoComplete="off"
-          spellCheck={false}
-          maxLength={48}
-          className={styles.urlKey}
-          onChange={(event) => {
-            setUrlKey(event.target.value);
-            if (keyError !== null) setKeyError(null);
-          }}
-          onBlur={commitKey}
-        />
+          wide
+        >
+          <Input
+            label="URL key"
+            hideLabel
+            value={urlKey}
+            error={keyError ?? undefined}
+            autoComplete="off"
+            spellCheck={false}
+            maxLength={48}
+            className={styles.urlKey}
+            onChange={(event) => {
+              setUrlKey(event.target.value);
+              if (keyError !== null) setKeyError(null);
+            }}
+            onBlur={commitKey}
+          />
+        </SettingsRow>
 
-        <Input
+        <SettingsRow
           label="Logo URL"
-          hint="A public image. Blank keeps the letter mark."
-          value={logoUrl}
-          onChange={(event) => setLogoUrl(event.target.value)}
-          onBlur={() => {
-            const next = logoUrl.trim();
-            if (next === (workspace.logoUrl ?? '')) return;
-            void save.run(() => updateWorkspaceGeneral(engine, { logoUrl: next }));
-          }}
-        />
+          description="A public image. Blank keeps the letter mark."
+          wide
+        >
+          <Input
+            label="Logo URL"
+            hideLabel
+            value={logoUrl}
+            onChange={(event) => setLogoUrl(event.target.value)}
+            onBlur={() => {
+              const next = logoUrl.trim();
+              if (next === (workspace.logoUrl ?? '')) return;
+              void save.run(() => updateWorkspaceGeneral(engine, { logoUrl: next }));
+            }}
+          />
+        </SettingsRow>
       </SettingsSection>
     </SettingsPage>
   );

@@ -49,6 +49,12 @@
   outline: none;
 }
 
+/* See Input: three classes so the bare surface withdraws the focus edge at any order. */
+.textarea.plain.bare:focus,
+.textarea.plain.bare:focus-within {
+  border-bottom-color: transparent;
+}
+
 .invalid {
   composes: controlInvalid from './Field.module.css';
 }

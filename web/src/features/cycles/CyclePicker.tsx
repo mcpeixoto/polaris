@@ -23,6 +23,8 @@ interface PickerProps {
   onClose: () => void;
   trigger: RefObject<HTMLElement | null>;
   placement?: MenuPlacement | undefined;
+  /** The chord that opens this picker, taught in its filter row. See Menu. */
+  filterHint?: string | undefined;
 }
 
 export interface CyclePickerProps extends PickerProps {
@@ -36,6 +38,7 @@ export function CyclePicker({
   onClose,
   trigger,
   placement,
+  filterHint,
   teamId,
   value,
   onSelect,
@@ -80,6 +83,7 @@ export function CyclePicker({
       label="Cycle"
       filterable
       filterPlaceholder="Set cycle…"
+      filterHint={filterHint}
       emptyLabel="No cycles yet"
     />
   );

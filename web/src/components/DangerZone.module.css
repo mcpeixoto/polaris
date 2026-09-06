@@ -1,36 +1,35 @@
 /*
- * The edge is the affordance. Colour alone does not say "this region is different" to
- * anyone reading the page in greyscale, so the zone is drawn with its own border and its
- * own tinted ground as well as its heading colour.
+ * The same section anatomy as SettingsSection — heading, card, rows — written out rather
+ * than composed, because the two differ in what the row's right-hand side is: there it is
+ * whatever control the caller brought, here it is a red text action this file draws itself.
  */
 
 .zone {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid color-mix(in srgb, var(--text-danger) 32%, transparent);
-  border-radius: var(--radius-lg);
-  background-color: color-mix(in srgb, var(--text-danger) 5%, transparent);
+  min-width: 0;
 }
 
 .heading {
   margin: 0;
-  color: var(--text-danger);
-  font-size: var(--font-size-sm);
+  min-height: var(--control-height-md);
+  display: flex;
+  align-items: center;
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.006em;
+  line-height: var(--line-height-tight);
+  letter-spacing: -0.01em;
 }
 
 .hint {
-  margin: 0;
+  margin: var(--space-1) 0 0;
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   line-height: var(--line-height-normal);
 }
 
 .error {
-  margin: 0;
+  margin: var(--space-3) 0 0;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   background-color: color-mix(in srgb, var(--text-danger) 12%, transparent);
@@ -39,30 +38,43 @@
   line-height: var(--line-height-normal);
 }
 
-.rows {
+.card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  margin-top: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-elevated);
+  overflow: hidden;
 }
 
 .row {
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-4);
+  align-items: center;
+  gap: var(--space-6);
+  min-height: 64px;
+  padding: var(--space-3) var(--space-4);
+  box-sizing: border-box;
+}
+
+.row + .row {
+  border-top: 1px solid var(--border-subtle);
 }
 
 .rowText {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-0-5);
+  flex: 1;
   min-width: 0;
 }
 
 .rowTitle {
   margin: 0;
   color: var(--text-primary);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-normal);
 }
 
 .rowConsequence {
@@ -73,12 +85,54 @@
 }
 
 .rowAction {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   flex: none;
   margin-inline-start: auto;
 }
 
+/*
+ * The red text button. Same box as a `md` Button — 28px, radius-md, 13px/500 — so it lines
+ * up with any secondary control on the page, and the same hover wash every other button
+ * wears; only the ink is different. --text-danger rather than the priority ramp, so a theme
+ * that recolours urgency does not recolour deletion.
+ */
+.actionButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  height: var(--control-height-md);
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background-color: transparent;
+  color: var(--text-danger);
+  font-family: inherit;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.actionButton:hover {
+  background-color: color-mix(in srgb, var(--text-danger) 8%, transparent);
+}
+
+.actionButton[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.actionButton[aria-disabled='true']:hover {
+  background-color: transparent;
+}
+
 /* One column below the point where the sentence and the button stop fitting side by side. */
-@media (max-width: 640px) {
+@media (max-width: 560px) {
   .row {
     flex-direction: column;
     align-items: stretch;

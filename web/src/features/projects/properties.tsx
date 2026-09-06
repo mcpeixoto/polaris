@@ -1,22 +1,15 @@
 /**
- * Project properties — everything the project *is*, editable, on the shell sidebar.
+ * Project properties — everything the project *is*, editable, in the shell's rail.
  *
- * The rail used to hold status, priority, labels and the update schedule, which left the
- * lead, both ends of the timeframe, the summary and the description with no editor
- * anywhere in the client: fields the API accepts, the store replicates and the timeline
- * draws, that nobody could set. They are here now, in the rail's own label treatment.
+ * One row per property: its name at the left in the rail's grey, its value at the right
+ * as a ghost trigger wearing the value's own glyph — a state icon, a priority glyph, an
+ * avatar. An unset value says what setting it would do ("Add lead") rather than "None".
+ * The summary and the description are not here: they are the project's content, and they
+ * read and edit as prose on the overview.
  */
 
 import { useActions, useKeyContext } from '~/app/keymap';
-import {
-  Avatar,
-  Input,
-  LabelChip,
-  PriorityIcon,
-  priorityLabel,
-  StateIcon,
-  Textarea,
-} from '~/components';
+import { Avatar, Input, LabelChip, PriorityIcon, priorityLabel, StateIcon } from '~/components';
 import { AssigneePicker, PriorityPicker } from '~/features/issue/pickers';
 import { useEngine } from '~/app/context';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -26,10 +19,13 @@ import type { ProjectLabel, TimeframeGranularity, UUID } from '~/store';
 import { report } from '~/features/issue/mutations';
 import { applyProjectLabel, removeProjectLabel } from '~/features/project-labels/mutations';
 import { ProjectLabelPicker } from '~/features/project-labels/ProjectLabelPicker';
+import { listProjectMilestones } from '~/features/project-milestones/helpers';
 import { Select } from '~/components';
 import type { ProjectUpdateSchedule } from '~/store';
 import { updateProject } from './mutations';
 import { ProjectDependencies } from './dependencies';
+import { CalendarGlyph, LabelGlyph, MembersGlyph, MilestoneGlyph, NoPersonGlyph } from './glyphs';
+import { ProgressRing } from './ProgressRing';
 import { ProjectStatusPicker } from './ProjectStatusPicker';
 import { PROJECT_STATUS_ICON } from './statusCategories';
 import styles from './properties.module.css';
@@ -84,6 +80,27 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
     [projectId],
   );
 
+  const members = useLiveQuery(
+    (store) =>
+      [...store.projectMemberIdsFor(projectId)]
+        .map((id) => store.projectMembers.get(id))
+        .map((member) => (member === undefined ? undefined : store.users.get(member.userId)))
+        .filter((user): user is NonNullable<typeof user> => user !== undefined)
+        .map((user) => ({
+          id: user.id,
+          name: user.displayName,
+          avatarUrl: user.avatarUrl ?? null,
+        })),
+    ['projectMember', 'user'],
+    [projectId],
+  );
+
+  const milestones = useLiveQuery(
+    (store) => listProjectMilestones(store, projectId),
+    ['projectMilestone', 'issue', 'workflowState'],
+    [projectId],
+  );
+
   useActions(
     [
       {
@@ -126,16 +143,11 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
 
   return (
     <div className={styles.panel}>
-      <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>Status</h3>
-        <button
-          type="button"
-          className={styles.propertyButton}
-          {...status.props}
-          aria-label="Set status"
-        >
+      <div className={styles.row}>
+        <span className={styles.label}>Status</span>
+        <button type="button" className={styles.trigger} {...status.props} aria-label="Set status">
           {currentStatus === null ? (
-            'Set status'
+            <span className={styles.unset}>Set status</span>
           ) : (
             <>
               <StateIcon
@@ -147,29 +159,29 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
             </>
           )}
         </button>
-      </section>
-      <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>Priority</h3>
+      </div>
+      <div className={styles.row}>
+        <span className={styles.label}>Priority</span>
         <button
           type="button"
-          className={styles.propertyButton}
+          className={styles.trigger}
           {...priority.props}
           aria-label="Set priority"
         >
           <PriorityIcon priority={project.priority} decorative />
           {priorityLabel(project.priority)}
         </button>
-      </section>
-      <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>Lead</h3>
-        <button
-          type="button"
-          className={styles.propertyButton}
-          {...lead.props}
-          aria-label="Set lead"
-        >
+      </div>
+      <div className={styles.row}>
+        <span className={styles.label}>Lead</span>
+        <button type="button" className={styles.trigger} {...lead.props} aria-label="Set lead">
           {currentLead === null ? (
-            'No lead'
+            <>
+              <span className={styles.glyph}>
+                <NoPersonGlyph />
+              </span>
+              <span className={styles.unset}>Add lead</span>
+            </>
           ) : (
             <>
               <Avatar
@@ -183,26 +195,35 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
             </>
           )}
         </button>
-      </section>
-      <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>Labels</h3>
-        <button
-          type="button"
-          className={styles.propertyButton}
-          {...labels.props}
-          aria-label="Set labels"
-        >
-          {appliedLabels.length === 0 ? (
-            'Add labels'
+      </div>
+      {/* Read-only: membership is written by the server as people are assigned work in
+          the project, and there is no editor for it in the client yet. */}
+      <div className={styles.row}>
+        <span className={styles.label}>Members</span>
+        <span className={styles.value}>
+          {members.length === 0 ? (
+            <>
+              <span className={styles.glyph}>
+                <MembersGlyph />
+              </span>
+              <span className={styles.unset}>No members</span>
+            </>
           ) : (
-            <span className={styles.labelRun}>
-              {appliedLabels.map((label) => (
-                <LabelChip key={label.id} name={label.name} color={label.color} compact />
+            <span className={styles.avatars} title={members.map((user) => user.name).join(', ')}>
+              {members.slice(0, 5).map((user) => (
+                <Avatar
+                  key={user.id}
+                  name={user.name}
+                  src={user.avatarUrl}
+                  size="xs"
+                  colorKey={user.id}
+                />
               ))}
+              {members.length > 5 && <span className={styles.more}>+{members.length - 5}</span>}
             </span>
           )}
-        </button>
-      </section>
+        </span>
+      </div>
       {/* Both ends of the timeframe, each with the granularity that says how much of the
           day to believe. The API refuses a granularity without a day, and "Q3" is a day
           nobody is meant to read too closely — so the two controls are one row and the
@@ -223,55 +244,42 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
           updateProject(engine, project.id, { targetDate, targetDateGranularity }).catch(report)
         }
       />
-      <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>Summary</h3>
-        {/* Saved on blur rather than per keystroke: this is prose, and a mutation per
-            character would put a hundred entries in the activity feed for one sentence. */}
-        <Textarea
-          aria-label="Summary"
-          value={project.summary ?? ''}
-          minRows={2}
-          placeholder="What does done look like?"
-          onBlur={(event) => {
-            const summary = event.target.value.trim();
-            if (summary === (project.summary ?? '')) return;
-            updateProject(engine, project.id, { summary }).catch(report);
-          }}
-        />
-      </section>
-      <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>Description</h3>
-        <Textarea
-          aria-label="Description"
-          value={project.description}
-          minRows={3}
-          maxRows={12}
-          placeholder="Background, scope, links."
-          onBlur={(event) => {
-            const description = event.target.value;
-            if (description === project.description) return;
-            updateProject(engine, project.id, { description }).catch(report);
-          }}
-        />
-      </section>
-      <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>Update schedule</h3>
-        <Select
-          value={project.updateSchedule}
-          onChange={(event) =>
-            updateProject(engine, project.id, {
-              updateSchedule: event.target.value as ProjectUpdateSchedule,
-            }).catch(report)
-          }
-          aria-label="Update schedule"
-        >
-          <option value="default">Workspace default</option>
-          <option value="custom">Custom</option>
-          <option value="never">Never</option>
-        </Select>
-        {project.updateSchedule === 'custom' && (
-          <label className={styles.customField}>
-            <span className={styles.customLabel}>Every (days)</span>
+      <div className={styles.row}>
+        <span className={styles.label}>Labels</span>
+        <button type="button" className={styles.trigger} {...labels.props} aria-label="Set labels">
+          {appliedLabels.length === 0 ? (
+            <>
+              <span className={styles.glyph}>
+                <LabelGlyph />
+              </span>
+              <span className={styles.unset}>Add labels</span>
+            </>
+          ) : (
+            <span className={styles.labelRun}>
+              {appliedLabels.map((label) => (
+                <LabelChip key={label.id} name={label.name} color={label.color} compact />
+              ))}
+            </span>
+          )}
+        </button>
+      </div>
+      <div className={styles.row}>
+        <span className={styles.label}>Updates</span>
+        <span className={styles.value}>
+          <Select
+            value={project.updateSchedule}
+            onChange={(event) =>
+              updateProject(engine, project.id, {
+                updateSchedule: event.target.value as ProjectUpdateSchedule,
+              }).catch(report)
+            }
+            aria-label="Update schedule"
+          >
+            <option value="default">Workspace default</option>
+            <option value="custom">Custom</option>
+            <option value="never">Never</option>
+          </Select>
+          {project.updateSchedule === 'custom' && (
             <Select
               value={String(project.updateReminderIntervalDays ?? 7)}
               onChange={(event) =>
@@ -283,13 +291,49 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
             >
               {[7, 14, 21, 28].map((days) => (
                 <option key={days} value={days}>
-                  {days} days
+                  Every {days} days
                 </option>
               ))}
             </Select>
-          </label>
-        )}
-      </section>
+          )}
+        </span>
+      </div>
+
+      {/* The checkpoints, each with how far along it is. Editing them is the overview's
+          job; the rail is where a reader checks which one is current. */}
+      {milestones.length > 0 && (
+        <section className={styles.group} aria-label="Milestones">
+          <h3 className={styles.groupTitle}>Milestones</h3>
+          <ul className={styles.milestones}>
+            {milestones.map((row) => (
+              <li
+                key={row.milestone.id}
+                className={
+                  row.current ? `${styles.milestone} ${styles.milestoneCurrent}` : styles.milestone
+                }
+              >
+                <span className={styles.glyph}>
+                  <MilestoneGlyph />
+                </span>
+                <span className={styles.milestoneName}>{row.milestone.name}</span>
+                <ProgressRing
+                  percent={row.percent}
+                  label={row.milestone.name}
+                  detail={
+                    row.total === 0
+                      ? 'no issues yet'
+                      : `${row.done} of ${row.total} issues completed`
+                  }
+                />
+                <span className={styles.milestonePercent} aria-hidden="true">
+                  {row.percent}%
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <ProjectDependencies projectId={project.id} compact addable />
       <ProjectStatusPicker
         open={status.open}
@@ -344,9 +388,12 @@ const GRANULARITIES: readonly { readonly value: TimeframeGranularity; readonly l
 /** One end of the timeframe: the day, and how precisely it is meant. */
 function TimeframeField({ title, date, granularity, onChange }: TimeframeFieldProps) {
   return (
-    <section className={styles.section}>
-      <h3 className={styles.sectionTitle}>{title}</h3>
-      <div className={styles.dateRow}>
+    <div className={styles.row}>
+      <span className={styles.label}>{title}</span>
+      <span className={`${styles.value ?? ''} ${styles.dateRow ?? ''}`}>
+        <span className={styles.glyph}>
+          <CalendarGlyph />
+        </span>
         <Input
           type="date"
           aria-label={title}
@@ -371,8 +418,8 @@ function TimeframeField({ title, date, granularity, onChange }: TimeframeFieldPr
             ))}
           </Select>
         )}
-      </div>
-    </section>
+      </span>
+    </div>
   );
 }
 

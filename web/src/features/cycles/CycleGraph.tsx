@@ -18,9 +18,14 @@ import styles from './CycleGraph.module.css';
 
 interface CycleGraphProps {
   readonly cycleId: UUID;
+  /**
+   * Drawn inside another row — the cycles list opens the running cycle to it — rather than
+   * as a section of its own: no padding of its own, no rule beneath it.
+   */
+  readonly inline?: boolean | undefined;
 }
 
-export function CycleGraph({ cycleId }: CycleGraphProps) {
+export function CycleGraph({ cycleId, inline = false }: CycleGraphProps) {
   const data = useLiveQuery(
     (store) => buildCycleGraph(store, cycleId),
     ['cycle', 'issue', 'team', 'workflowState', 'user'],
@@ -29,12 +34,13 @@ export function CycleGraph({ cycleId }: CycleGraphProps) {
 
   const layout = useMemo(() => (data === null ? null : toLayout(data)), [data]);
 
+  const mutedClass = inline ? `${styles.muted ?? ''} ${styles.inline ?? ''}` : styles.muted;
   if (data !== null && Date.parse(data.startsAt) > Date.now()) {
-    return <p className={styles.muted}>The graph appears once this cycle begins.</p>;
+    return <p className={mutedClass}>The graph appears once this cycle begins.</p>;
   }
 
   if (data === null || layout === null || data.issueCount === 0 || data.points.length < 2) {
-    return <p className={styles.muted}>Not enough data to chart this cycle yet.</p>;
+    return <p className={mutedClass}>Not enough data to chart this cycle yet.</p>;
   }
 
   const unit = data.unitLabel === 'issues' ? 'issues' : 'points';
@@ -43,7 +49,10 @@ export function CycleGraph({ cycleId }: CycleGraphProps) {
     data.totalStarted === 1 ? (data.unitLabel === 'issues' ? 'issue' : 'point') : unit;
 
   return (
-    <section className={styles.panel} aria-label="Cycle graph">
+    <section
+      className={inline ? `${styles.panel ?? ''} ${styles.inline ?? ''}` : styles.panel}
+      aria-label="Cycle graph"
+    >
       <div className={styles.meta}>
         <span className={styles.stat}>
           Cycle success <strong>{data.successPercent}%</strong>
@@ -57,45 +66,47 @@ export function CycleGraph({ cycleId }: CycleGraphProps) {
           </span>
         )}
       </div>
-      <svg
-        className={styles.chart}
-        viewBox={`0 0 ${layout.width} ${layout.height}`}
-        preserveAspectRatio="none"
-        role="img"
-        aria-label={`Cycle graph showing ${data.totalCompleted} of ${data.totalScope} ${unit} completed`}
-      >
-        {layout.bars.map((bar) => (
-          <rect
-            key={bar.day}
-            x={bar.x}
-            y={bar.y}
-            width={bar.width}
-            height={bar.height}
-            className={styles.bar}
-          />
-        ))}
-        <path d={layout.scope} className={styles.scope} />
-        <path d={layout.target} className={styles.target} />
-        <path d={layout.started} className={styles.started} />
-        <path d={layout.completed} className={styles.completed} />
-      </svg>
-      <div className={styles.legend}>
-        <span className={styles.legendItem}>
-          <span className={`${styles.swatch} ${styles.scopeSwatch}`} aria-hidden="true" />
-          Scope
-        </span>
-        <span className={styles.legendItem}>
-          <span className={`${styles.swatch} ${styles.targetSwatch}`} aria-hidden="true" />
-          Target
-        </span>
-        <span className={styles.legendItem}>
-          <span className={`${styles.swatch} ${styles.startedSwatch}`} aria-hidden="true" />
-          Started
-        </span>
-        <span className={styles.legendItem}>
-          <span className={`${styles.swatch} ${styles.completedSwatch}`} aria-hidden="true" />
-          Completed
-        </span>
+      <div className={styles.plot}>
+        <svg
+          className={styles.chart}
+          viewBox={`0 0 ${layout.width} ${layout.height}`}
+          preserveAspectRatio="none"
+          role="img"
+          aria-label={`Cycle graph showing ${data.totalCompleted} of ${data.totalScope} ${unit} completed`}
+        >
+          {layout.bars.map((bar) => (
+            <rect
+              key={bar.day}
+              x={bar.x}
+              y={bar.y}
+              width={bar.width}
+              height={bar.height}
+              className={styles.bar}
+            />
+          ))}
+          <path d={layout.scope} className={styles.scope} />
+          <path d={layout.target} className={styles.target} />
+          <path d={layout.started} className={styles.started} />
+          <path d={layout.completed} className={styles.completed} />
+        </svg>
+        <div className={styles.legend}>
+          <span className={styles.legendItem}>
+            <span className={`${styles.swatch} ${styles.scopeSwatch}`} aria-hidden="true" />
+            Scope
+          </span>
+          <span className={styles.legendItem}>
+            <span className={`${styles.swatch} ${styles.targetSwatch}`} aria-hidden="true" />
+            Target
+          </span>
+          <span className={styles.legendItem}>
+            <span className={`${styles.swatch} ${styles.startedSwatch}`} aria-hidden="true" />
+            Started
+          </span>
+          <span className={styles.legendItem}>
+            <span className={`${styles.swatch} ${styles.completedSwatch}`} aria-hidden="true" />
+            Completed
+          </span>
+        </div>
       </div>
       {data.assignees.length > 0 && (
         <ul className={styles.assignees} aria-label="Distribution">

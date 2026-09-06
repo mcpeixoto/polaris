@@ -17,6 +17,8 @@ import { createPortal } from 'react-dom';
 
 import { usePresence } from '~/hooks/usePresence';
 
+import { formatKeySpec } from '../keys';
+
 import { horizontalShift, verticalShift } from './anchor';
 import { Kbd } from './Kbd';
 import { useOptionalKeyContext } from './keyContext';
@@ -45,7 +47,11 @@ export interface MenuItem {
   readonly text?: string;
   /** Leading glyph — a StateIcon, a PriorityIcon, an Avatar. Decorative. */
   readonly icon?: ReactNode;
-  /** A key spec drawn at the trailing edge. See Kbd. */
+  /**
+   * A key spec drawn at the trailing edge, as quiet text rather than as key caps — `⌘⇧K`,
+   * or the `1` that a numbered list hangs off each row. Formatted by the keymap's own
+   * grammar, so a hint here is copied from the registry rather than transcribed.
+   */
   readonly keys?: string;
   /** Trailing content, for a count or a secondary value. Ignored when `keys` is set. */
   readonly hint?: ReactNode;
@@ -111,6 +117,12 @@ export interface MenuProps {
   /** Adds a filter box. Lists shorter than a screen do not need one and are worse for it. */
   filterable?: boolean | undefined;
   filterPlaceholder?: string | undefined;
+  /**
+   * The chord that opens this menu, drawn in a key cap at the right of the filter box —
+   * `'s'` for the status picker. It is the one place a picker can teach the shortcut that
+   * reaches it, to somebody who has just reached it with the pointer.
+   */
+  filterHint?: string | undefined;
   /**
    * Told what the filter box now holds. The menu still owns the text and still narrows its
    * own list by it — this is for a caller that has to run a *different* search off the same
@@ -364,6 +376,7 @@ export function Menu({
   placement = 'bottom-start',
   filterable = false,
   filterPlaceholder = 'Filter…',
+  filterHint,
   onFilterChange,
   emptyLabel = 'No matches',
   nested = false,
@@ -813,19 +826,6 @@ export function Menu({
         onClick={() => choose(row)}
         onMouseMove={() => onRowMouseMove(row)}
       >
-        <span className={styles.tick} aria-hidden="true">
-          {selected ? (
-            <svg viewBox="0 0 16 16" width="16" height="16" fill="none">
-              <path
-                d="M3.5 8.25 6.5 11l6-6.5"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          ) : null}
-        </span>
         {row.icon === undefined ? null : (
           <span className={styles.icon} aria-hidden="true">
             {row.icon}
@@ -849,8 +849,22 @@ export function Menu({
             <span className={styles.hint}>{row.hint}</span>
           )
         ) : (
-          <Kbd keys={row.keys} className={styles.hint} />
+          <span className={styles.hint}>{formatKeySpec(row.keys)}</span>
         )}
+        {/* Last, at the trailing edge, where the eye lands after reading the value. */}
+        <span className={styles.tick} aria-hidden="true">
+          {selected ? (
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="none">
+              <path
+                d="M3.5 8.25 6.5 11l6-6.5"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          ) : null}
+        </span>
       </div>
     );
   };
@@ -894,6 +908,9 @@ export function Menu({
                   onFilterChange?.(event.target.value);
                 }}
               />
+              {filterHint === undefined ? null : (
+                <Kbd keys={filterHint} className={styles.filterHint} />
+              )}
             </div>
           ) : null}
           <div

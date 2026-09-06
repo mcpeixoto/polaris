@@ -21,9 +21,9 @@ export interface TextareaProps extends Omit<
   error?: string | undefined;
   /**
    * `plain` drops the boxed control surface, for a description that should read as a
-   * document rather than as a form field.
+   * document rather than as a form field. `bare` also drops the focus edge; see Input.
    */
-  surface?: 'boxed' | 'plain' | undefined;
+  surface?: 'boxed' | 'plain' | 'bare' | undefined;
   /** The height at rest, in lines. The box never shrinks below it. */
   minRows?: number | undefined;
   /** Where growing stops and scrolling starts, in lines. */
@@ -174,7 +174,8 @@ export function Textarea({
         rows={minRows}
         className={[
           styles.textarea,
-          surface === 'plain' ? styles.plain : null,
+          surface === 'boxed' ? null : styles.plain,
+          surface === 'bare' ? styles.bare : null,
           invalid ? styles.invalid : null,
         ]
           .filter(Boolean)

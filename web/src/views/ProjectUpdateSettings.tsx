@@ -11,15 +11,20 @@
 import { useState } from 'react';
 
 import { useEngine } from '~/app/context';
-import { Input, SaveIndicator, Select, useSaveState } from '~/components';
+import {
+  Input,
+  SaveIndicator,
+  Select,
+  SettingsPage,
+  SettingsSection,
+  useSaveState,
+} from '~/components';
+import { SettingsRow } from '~/components/SettingsSection';
 import { report } from '~/features/issue/mutations';
 import { updateWorkspaceReminderCadence } from '~/features/workspace/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Store } from '~/store';
 import { ApiError } from '~/sync/api';
-
-import styles from '~/features/labels/LabelSettings.module.css';
-import own from './ProjectUpdateSettings.module.css';
 
 const WEEKDAYS = [
   { value: 0, label: 'Sunday' },
@@ -97,106 +102,110 @@ export function ProjectUpdateSettings() {
   };
 
   return (
-    <div className={`${styles.screen ?? ''} ${own.enter ?? ''}`}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>Project updates</h1>
-      </header>
+    <SettingsPage title="Project updates">
+      <SettingsSection
+        title="Reminder schedule"
+        description="How often an in-progress project is expected to post an update. A project whose last update is older than the interval is flagged as due on the projects list, and marked Update missing three days after that. Each project can override the schedule."
+        // Beside the heading of the section that owns the write, rather than at the top of
+        // the page: a confirmation read three sections away from the field is a
+        // confirmation about nothing in particular.
+        status={<SaveIndicator state={save.state} />}
+        error={save.error}
+      >
+        <SettingsRow
+          label="Reminder interval"
+          description={`Days between updates, ${INTERVAL_MIN}–${INTERVAL_MAX}.`}
+          wide
+        >
+          <Input
+            type="number"
+            inputMode="numeric"
+            label="Reminder interval"
+            hideLabel
+            min={INTERVAL_MIN}
+            max={INTERVAL_MAX}
+            value={intervalDraft ?? String(workspace.projectUpdateReminderIntervalDays)}
+            onChange={(event) => {
+              save.clear();
+              setIntervalDraft(event.target.value);
+            }}
+            onBlur={() =>
+              commit(
+                intervalDraft,
+                setIntervalDraft,
+                workspace.projectUpdateReminderIntervalDays,
+                INTERVAL_MIN,
+                INTERVAL_MAX,
+                (value) => ({ projectUpdateReminderIntervalDays: value }),
+              )
+            }
+            // Enter commits the field it is in, the way it would in a form — not a
+            // shortcut, and nothing the command menu should ever list.
+            // keymap-lint-allow: supplies the activation a native form control would
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.currentTarget.blur();
+            }}
+          />
+        </SettingsRow>
 
-      <div className={styles.body}>
-        {save.error === undefined ? null : (
-          <p className={styles.error} role="alert">
-            {save.error}
-          </p>
-        )}
+        <SettingsRow
+          label="Reminder weekday"
+          description="The day of the week the cycle lands on."
+          wide
+        >
+          <Select
+            label="Reminder weekday"
+            hideLabel
+            value={String(workspace.projectUpdateReminderWeekday)}
+            onChange={(event) => {
+              const value = Number.parseInt(event.target.value, 10);
+              void save.run(() => persist(engine, { projectUpdateReminderWeekday: value }));
+            }}
+          >
+            {WEEKDAYS.map((day) => (
+              <option key={day.value} value={day.value}>
+                {day.label}
+              </option>
+            ))}
+          </Select>
+        </SettingsRow>
 
-        <section className={styles.section}>
-          <p className={styles.sectionHint}>
-            How often an in-progress project is expected to post an update. A project whose last
-            update is older than the interval is flagged as due on the projects list, and marked
-            Update missing three days after that. Each project can override the schedule.
-          </p>
-
-          <div className={own.fields}>
-            <Input
-              type="number"
-              inputMode="numeric"
-              label="Reminder interval"
-              hint={`Days between updates, ${INTERVAL_MIN}–${INTERVAL_MAX}.`}
-              min={INTERVAL_MIN}
-              max={INTERVAL_MAX}
-              value={intervalDraft ?? String(workspace.projectUpdateReminderIntervalDays)}
-              onChange={(event) => {
-                save.clear();
-                setIntervalDraft(event.target.value);
-              }}
-              onBlur={() =>
-                commit(
-                  intervalDraft,
-                  setIntervalDraft,
-                  workspace.projectUpdateReminderIntervalDays,
-                  INTERVAL_MIN,
-                  INTERVAL_MAX,
-                  (value) => ({ projectUpdateReminderIntervalDays: value }),
-                )
-              }
-              // Enter commits the field it is in, the way it would in a form — not a
-              // shortcut, and nothing the command menu should ever list.
-              // keymap-lint-allow: supplies the activation a native form control would
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') event.currentTarget.blur();
-              }}
-            />
-
-            <Select
-              label="Reminder weekday"
-              hint="The day of the week the cycle lands on."
-              value={String(workspace.projectUpdateReminderWeekday)}
-              onChange={(event) => {
-                const value = Number.parseInt(event.target.value, 10);
-                void save.run(() => persist(engine, { projectUpdateReminderWeekday: value }));
-              }}
-            >
-              {WEEKDAYS.map((day) => (
-                <option key={day.value} value={day.value}>
-                  {day.label}
-                </option>
-              ))}
-            </Select>
-
-            <Input
-              type="number"
-              inputMode="numeric"
-              label="Reminder hour"
-              hint={`Hour of that day, ${HOUR_MIN}–${HOUR_MAX}.`}
-              min={HOUR_MIN}
-              max={HOUR_MAX}
-              value={hour ?? String(workspace.projectUpdateReminderHour)}
-              onChange={(event) => {
-                save.clear();
-                setHour(event.target.value);
-              }}
-              onBlur={() =>
-                commit(
-                  hour,
-                  setHour,
-                  workspace.projectUpdateReminderHour,
-                  HOUR_MIN,
-                  HOUR_MAX,
-                  (value) => ({ projectUpdateReminderHour: value }),
-                )
-              }
-              // Enter commits the field it is in, the way it would in a form — not a
-              // shortcut, and nothing the command menu should ever list.
-              // keymap-lint-allow: supplies the activation a native form control would
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') event.currentTarget.blur();
-              }}
-            />
-
-            <SaveIndicator state={save.state} className={own.saved} />
-          </div>
-        </section>
-      </div>
-    </div>
+        <SettingsRow
+          label="Reminder hour"
+          description={`Hour of that day, ${HOUR_MIN}–${HOUR_MAX}.`}
+          wide
+        >
+          <Input
+            type="number"
+            inputMode="numeric"
+            label="Reminder hour"
+            hideLabel
+            min={HOUR_MIN}
+            max={HOUR_MAX}
+            value={hour ?? String(workspace.projectUpdateReminderHour)}
+            onChange={(event) => {
+              save.clear();
+              setHour(event.target.value);
+            }}
+            onBlur={() =>
+              commit(
+                hour,
+                setHour,
+                workspace.projectUpdateReminderHour,
+                HOUR_MIN,
+                HOUR_MAX,
+                (value) => ({ projectUpdateReminderHour: value }),
+              )
+            }
+            // Enter commits the field it is in, the way it would in a form — not a
+            // shortcut, and nothing the command menu should ever list.
+            // keymap-lint-allow: supplies the activation a native form control would
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.currentTarget.blur();
+            }}
+          />
+        </SettingsRow>
+      </SettingsSection>
+    </SettingsPage>
   );
 }

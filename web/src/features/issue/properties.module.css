@@ -57,7 +57,7 @@
   padding: var(--space-2);
   border-radius: var(--radius-lg);
   background-color: var(--bg-elevated);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-popover);
   animation: panelIn var(--duration-fast) var(--ease-out);
 }
 

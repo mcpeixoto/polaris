@@ -14,6 +14,7 @@
 import { useNavigate, useLocation, Link } from 'react-router';
 
 import { Badge, Button, EmptyState, SettingsPage, SettingsSection } from '~/components';
+import { SettingsRow } from '~/components/SettingsSection';
 import { CreateTeamDialog } from '~/features/team/CreateTeamDialog';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Store } from '~/store';
@@ -46,17 +47,19 @@ export function TeamsSettings() {
         </Button>
       }
     >
-      <SettingsSection flush>
+      <SettingsSection>
         {teams.length === 0 ? (
-          <EmptyState
-            title="No teams yet"
-            description="Issues live in teams, so the first team is the first thing this workspace needs."
-            action={
-              <Button variant="primary" onClick={() => void navigate('/settings/teams/new')}>
-                New team
-              </Button>
-            }
-          />
+          <SettingsRow>
+            <EmptyState
+              title="No teams yet"
+              description="Issues live in teams, so the first team is the first thing this workspace needs."
+              action={
+                <Button variant="primary" onClick={() => void navigate('/settings/teams/new')}>
+                  New team
+                </Button>
+              }
+            />
+          </SettingsRow>
         ) : (
           <ul className={styles.teams}>
             {teams.map((team) => (

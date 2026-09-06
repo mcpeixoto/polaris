@@ -14,8 +14,16 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+/* The age reads in the same colour as the word — the cell is one fact — a step lighter
+   in weight so the word stays the thing the eye lands on. */
+.since {
+  font-weight: var(--font-weight-normal);
+  opacity: 0.85;
 }
 
 /*

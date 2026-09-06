@@ -19,6 +19,8 @@ import type { SyncEngine } from '~/sync/engine';
 
 import { writeIssueComposerDraft } from '~/features/drafts/local';
 
+import { priorityLabel } from '~/components';
+
 import { CreateIssueModal } from './CreateIssueModal';
 import { createIssue } from './mutations';
 import type { IssueComposerSeed } from './create-url';
@@ -221,10 +223,19 @@ describe('CreateIssueModal', () => {
   it('files and stays open on "Create more", keeping every property but the words', async () => {
     const { user, onClose } = renderComposer();
 
-    await user.selectOptions(screen.getByLabelText('Status'), DOING);
-    await user.selectOptions(screen.getByLabelText('Priority'), '1');
+    // The status pill is named by the team's default state, the priority pill by "No
+    // priority" while it holds nothing; each opens the same picker the list uses.
+    await user.click(screen.getByRole('button', { name: 'Todo' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'In Progress' }));
+    await user.click(screen.getByRole('button', { name: 'No priority' }));
+    await user.click(await screen.findByRole('menuitem', { name: priorityLabel(1) }));
+    expect(screen.getByRole('button', { name: 'In Progress' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: priorityLabel(1) })).toBeTruthy();
+
+    // "Create more" is the switch: with it on, the primary button files and stays.
+    await user.click(screen.getByRole('switch', { name: 'Create more' }));
     await user.type(screen.getByLabelText('Title'), 'First');
-    await user.click(screen.getByRole('button', { name: 'Create more' }));
+    await user.click(screen.getByRole('button', { name: 'Create issue' }));
 
     await waitFor(() => expect(filed).toHaveBeenCalledTimes(1));
     expect(filed.mock.calls[0]?.[1]).toMatchObject({
@@ -237,7 +248,7 @@ describe('CreateIssueModal', () => {
 
     // The second issue inherits the properties the first one was given.
     await user.type(screen.getByLabelText('Title'), 'Second');
-    await user.click(screen.getByRole('button', { name: 'Create more' }));
+    await user.click(screen.getByRole('button', { name: 'Create issue' }));
 
     await waitFor(() => expect(filed).toHaveBeenCalledTimes(2));
     expect(filed.mock.calls[1]?.[1]).toMatchObject({
@@ -251,7 +262,8 @@ describe('CreateIssueModal', () => {
   it('refuses an empty title without filing anything or closing', async () => {
     const { user, onClose } = renderComposer();
 
-    await user.click(screen.getByRole('button', { name: 'Create more' }));
+    await user.click(screen.getByRole('switch', { name: 'Create more' }));
+    await user.click(screen.getByRole('button', { name: 'Create issue' }));
 
     expect(await screen.findByText('An issue needs a title.')).toBeTruthy();
     expect(filed).not.toHaveBeenCalled();
@@ -259,40 +271,47 @@ describe('CreateIssueModal', () => {
   });
 
   /**
-   * `docs/03-architecture/08-ui-composition.md`: three or more sibling fields all get visible
-   * labels. This row is the specimen the rule was written against — eight controls with every
-   * label suppressed, reading "No assignee · No priority · No project · No form" and naming
-   * none of its own fields.
+   * `docs/03-architecture/08-ui-composition.md`: a row of sibling property controls has to
+   * name every one of its fields. This row is the specimen the rule was written against —
+   * eight controls with every label suppressed, reading "No assignee · No priority · No
+   * project · No form" and naming none of its own fields.
    *
-   * The association is what is asserted rather than the pixels, because that is what a
-   * regression would take away: a label reachable by `getByLabelText` is a real `<label for>`
-   * on the page, and a trigger whose `aria-describedby` resolves to the word "Project" is a
-   * button somebody can find out the meaning of without opening it.
+   * The pills carry no visible property names, as Linear's do, so the association is the
+   * one the detail rail's triggers use: each pill is *named* by what it holds and *described*
+   * by what it is. Both halves are asserted, because that is what a regression would take
+   * away — a pill named "In Progress" whose `aria-describedby` resolves to the word "Status"
+   * is a button somebody can find out the meaning of without opening it, and an empty one
+   * named "No project" says it is empty rather than merely saying "Project".
    */
-  it('names every property field, rather than showing eight unlabelled controls', () => {
-    renderComposer();
+  it('names every property field, rather than showing eight unlabelled controls', async () => {
+    const { user } = renderComposer();
 
-    for (const field of ['Team', 'Status', 'Assignee', 'Priority', 'Repeat']) {
-      const control = screen.getByLabelText(field) as HTMLSelectElement | HTMLInputElement;
-      // `.labels` is the DOM's own answer to "what names this control", so it is only
-      // populated by a real `<label for>` — an aria-label would pass `getByLabelText` and
-      // leave nothing visible on the page.
-      const labels = [...(control.labels ?? [])];
-      expect(labels.map((label) => label.textContent?.trim())).toEqual([field]);
-    }
-
-    // The menu triggers cannot take a `<label for>` — a button's own text is its name — so
-    // they carry the same word as a description, exactly as the detail rail's triggers do.
-    for (const [value, field] of [
-      ['No project', 'Project'],
-      ['No template', 'Template'],
-      ['No form', 'Form'],
-    ]) {
-      const trigger = screen.getByRole('button', { name: value as string });
-      const describedBy = trigger.getAttribute('aria-describedby');
+    const describedAs = (pill: HTMLElement): string | undefined => {
+      const describedBy = pill.getAttribute('aria-describedby');
       expect(describedBy).not.toBeNull();
-      expect(document.getElementById(describedBy as string)?.textContent?.trim()).toBe(field);
+      return document.getElementById(describedBy as string)?.textContent?.trim();
+    };
+
+    for (const [value, field] of [
+      ['ENG', 'Team'],
+      ['Todo', 'Status'],
+      ['No assignee', 'Assignee'],
+      ['No priority', 'Priority'],
+      ['No project', 'Project'],
+      ['No labels', 'Labels'],
+    ]) {
+      expect(describedAs(screen.getByRole('button', { name: value as string }))).toBe(field);
     }
+
+    // The overflow properties are described the same way once they stand in the row.
+    await user.click(screen.getByRole('button', { name: 'More properties' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Repeat' }));
+    expect(describedAs(screen.getByRole('button', { name: 'Does not repeat' }))).toBe('Repeat');
+
+    // And a pill that holds a value is still described by its property, not only its value.
+    await user.click(screen.getByRole('button', { name: 'Todo' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'In Progress' }));
+    expect(describedAs(screen.getByRole('button', { name: 'In Progress' }))).toBe('Status');
   });
 
   it('closes on an ordinary create, as it always did', async () => {
@@ -396,13 +415,21 @@ describe('CreateIssueModal', () => {
    * `none` is a team saying it does not size work, and a points field on such a team can
    * only produce a value nothing will ever read.
    */
-  it('shows an estimate control only on a team that estimates', () => {
+  it('shows an estimate control only on a team that estimates', async () => {
     renderComposer();
-    expect(screen.queryByLabelText('Estimate')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'No estimate' })).toBeNull();
 
     cleanup();
-    renderVariant({ team: { estimateScale: 'fibonacci' } as Partial<Entity> });
-    expect(screen.getByLabelText('Estimate')).toBeTruthy();
+    const { user } = renderVariant({ team: { estimateScale: 'fibonacci' } as Partial<Entity> });
+    const pill = screen.getByRole('button', { name: 'No estimate' });
+    expect(document.getElementById(pill.getAttribute('aria-describedby') ?? '')?.textContent).toBe(
+      'Estimate',
+    );
+
+    // And it is a working picker, not a placeholder: the chosen points become the pill's name.
+    await user.click(pill);
+    await user.click(await screen.findByRole('menuitem', { name: '3' }));
+    expect(screen.getByRole('button', { name: '3' })).toBeTruthy();
   });
 
   /**
@@ -449,5 +476,50 @@ describe('CreateIssueModal', () => {
 
     await waitFor(() => expect(filed).toHaveBeenCalledTimes(1));
     expect(filed.mock.calls[0]?.[1]).toMatchObject({ labelIds: [BUG] });
+  });
+});
+
+/**
+ * What the pill composer added: properties that wait in the overflow, filter rows that
+ * teach their chord, and a template picker that opens from a pill not yet on screen.
+ */
+describe('CreateIssueModal pills', () => {
+  /**
+   * A due date is set on a minority of issues, so it waits in the overflow rather than
+   * standing in every composer — and once asked for, it is a date field the create sends.
+   */
+  it('keeps the due date in the overflow until asked for, then files it', async () => {
+    const { user } = renderComposer();
+    expect(screen.queryByLabelText('Due date')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'More properties' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Due date' }));
+
+    const due = screen.getByLabelText('Due date') as HTMLInputElement;
+    fireEvent.change(due, { target: { value: '2026-03-04' } });
+    await user.type(screen.getByLabelText('Title'), 'Dated');
+    await user.click(screen.getByRole('button', { name: 'Create issue' }));
+
+    await waitFor(() => expect(filed).toHaveBeenCalledTimes(1));
+    expect(filed.mock.calls[0]?.[1]).toMatchObject({ dueDate: '2026-03-04' });
+  });
+
+  it('teaches the chord that opens a picker in its filter row', async () => {
+    const { user } = renderComposer();
+
+    await user.click(screen.getByRole('button', { name: 'Todo' }));
+
+    const filter = await screen.findByRole('textbox', { name: 'Status' });
+    expect(filter.getAttribute('placeholder')).toBe('Change status…');
+    expect(screen.getByText('S', { selector: 'kbd' })).toBeTruthy();
+  });
+
+  it('opens the template picker from a hidden template pill for Alt+C', async () => {
+    renderVariant({
+      rows: [['issueTemplate', template(TEMPLATE, [])]],
+      seed: { openTemplatePicker: true },
+    });
+
+    expect(await screen.findByRole('menuitem', { name: 'Chores' })).toBeTruthy();
   });
 });

@@ -25,6 +25,8 @@ interface PickerProps {
   onClose: () => void;
   trigger: RefObject<HTMLElement | null>;
   placement?: MenuPlacement | undefined;
+  /** The chord that opens this picker, taught in its filter row. See Menu. */
+  filterHint?: string | undefined;
 }
 
 export interface ProjectPickerProps extends PickerProps {
@@ -45,6 +47,7 @@ export function ProjectPicker({
   onClose,
   trigger,
   placement,
+  filterHint,
   teamIds = [],
   value,
   onSelect,
@@ -89,7 +92,8 @@ export function ProjectPicker({
       label="Project"
       placement={placement}
       filterable
-      filterPlaceholder="Set project…"
+      filterPlaceholder="Add to project…"
+      filterHint={filterHint}
       emptyLabel="No matching project"
     />
   );
