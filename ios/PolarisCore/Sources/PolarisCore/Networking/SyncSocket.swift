@@ -292,6 +292,9 @@ public actor SyncSocket {
 
     private let tokenProvider: @Sendable () async throws -> String
     private let versionProvider: @Sendable () async -> Int?
+    /// Told every time `isConnected` flips, so an owner can stop polling while the socket is
+    /// up and show something while it is down without reading an actor property on a timer.
+    private let onConnectionChange: (@Sendable (Bool) async -> Void)?
     private let connector: any SyncConnecting
     private let coalescer: SignalCoalescer
     private var backoff: ReconnectBackoff
@@ -314,6 +317,7 @@ public actor SyncSocket {
         tokenProvider: @escaping @Sendable () async throws -> String,
         versionProvider: @escaping @Sendable () async -> Int?,
         onSignal: @escaping @Sendable (Int) async -> Void,
+        onConnectionChange: (@Sendable (Bool) async -> Void)? = nil,
         connector: any SyncConnecting = URLSessionSyncConnector(),
         backoff: ReconnectBackoff = ReconnectBackoff(),
         coalesceWindow: Duration = .milliseconds(500)
@@ -323,6 +327,7 @@ public actor SyncSocket {
         self.clientId = clientId
         self.tokenProvider = tokenProvider
         self.versionProvider = versionProvider
+        self.onConnectionChange = onConnectionChange
         self.connector = connector
         self.backoff = backoff
         self.coalescer = SignalCoalescer(window: coalesceWindow, deliver: onSignal)
@@ -342,8 +347,15 @@ public actor SyncSocket {
         runTask = nil
         connection?.close()
         connection = nil
-        isConnected = false
+        setConnected(false)
         Task { await coalescer.cancel() }
+    }
+
+    private func setConnected(_ connected: Bool) {
+        guard connected != isConnected else { return }
+        isConnected = connected
+        guard let onConnectionChange else { return }
+        Task { await onConnectionChange(connected) }
     }
 
     private func run() async {
@@ -357,7 +369,7 @@ public actor SyncSocket {
             }
             connection?.close()
             connection = nil
-            isConnected = false
+            setConnected(false)
             if Task.isCancelled { return }
 
             let delay = backoff.next()
@@ -394,7 +406,7 @@ public actor SyncSocket {
             throw SyncSocketError.unexpectedFirstFrame
         }
 
-        isConnected = true
+        setConnected(true)
         backoff.reset()
         lastHeard = ContinuousClock.now
 
