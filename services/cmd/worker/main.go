@@ -146,6 +146,20 @@ func run() error {
 			},
 		},
 		{
+			// Registration at /oauth/register is unauthenticated, so this table is the
+			// one an outsider can append to. A client holding a live token is never
+			// swept, however quiet it has been.
+			name:  "sweep idle dynamic oauth clients",
+			every: 24 * time.Hour,
+			run: func(ctx context.Context) error {
+				n, err := svc.SweepIdleDynamicClients(ctx)
+				if err == nil && n > 0 {
+					log.Info("swept idle dynamic oauth clients", "rows", n)
+				}
+				return err
+			},
+		},
+		{
 			name:  "prune expired sessions",
 			every: 24 * time.Hour,
 			run: func(ctx context.Context) error {

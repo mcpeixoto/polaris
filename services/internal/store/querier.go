@@ -457,6 +457,10 @@ type Querier interface {
 	DeleteGitLabConnection(ctx context.Context, workspaceID uuid.UUID) error
 	DeleteGitLabTeamAutomation(ctx context.Context, arg DeleteGitLabTeamAutomationParams) error
 	DeleteGitLabUserLink(ctx context.Context, arg DeleteGitLabUserLinkParams) error
+	// Registration is unauthenticated, so the only thing stopping the table from growing
+	// forever is this. Clients that never completed a token exchange are swept on the same
+	// clock as ones that stopped: a registration nobody consented to is worth less, not more.
+	DeleteIdleDynamicOauthApplications(ctx context.Context, lastUsedAt *time.Time) (int64, error)
 	DeleteInitiativeProject(ctx context.Context, id uuid.UUID) (InitiativeProject, error)
 	DeleteInitiativeRelation(ctx context.Context, id uuid.UUID) (InitiativeRelation, error)
 	DeleteInitiativeSubscription(ctx context.Context, id uuid.UUID) error
@@ -1038,7 +1042,7 @@ type Querier interface {
 	// change.
 	//
 	ListNotificationsForIssue(ctx context.Context, arg ListNotificationsForIssueParams) ([]Notification, error)
-	ListOauthApplicationsForWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]ListOauthApplicationsForWorkspaceRow, error)
+	ListOauthApplicationsForWorkspace(ctx context.Context, workspaceID *uuid.UUID) ([]ListOauthApplicationsForWorkspaceRow, error)
 	// Open work in a closing cycle: unstarted and started, not backlog/triage/canceled/completed.
 	ListOpenIssuesInCycle(ctx context.Context, cycleID *uuid.UUID) ([]ListOpenIssuesInCycleRow, error)
 	ListPendingInvites(ctx context.Context, workspaceID uuid.UUID) ([]Invite, error)
@@ -1711,6 +1715,10 @@ type Querier interface {
 	//
 	TouchAPIKeyLastUsed(ctx context.Context, id uuid.UUID) error
 	TouchAccountCredential(ctx context.Context, id uuid.UUID) error
+	// Proof that somebody is still using a self-registered client. Written on a successful
+	// token exchange rather than on every API call: this feeds a 90-day sweep, so an update
+	// per request would be write amplification for a column read four times a year.
+	TouchOauthApplicationLastUsed(ctx context.Context, id uuid.UUID) error
 	TouchOauthTokenLastUsed(ctx context.Context, id uuid.UUID) error
 	TouchSession(ctx context.Context, id uuid.UUID) error
 	TouchUserLastSeen(ctx context.Context, id uuid.UUID) error

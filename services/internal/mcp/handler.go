@@ -18,16 +18,31 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/peixotolabs/polaris/services/internal/agent/tools"
 	"github.com/peixotolabs/polaris/services/internal/authz"
 	"github.com/peixotolabs/polaris/services/internal/domain"
 )
 
-const protocolVersion = "2025-03-26"
+// The newest revision we implement, and the one we answer with when a client does not ask
+// for a particular one. 2025-06-18 is what current clients negotiate; 2025-03-26 stays
+// supported because the clients pinned to it are exactly the ones least likely to update.
+const (
+	latestProtocolVersion = "2025-06-18"
+	priorProtocolVersion  = "2025-03-26"
+)
+
+func supportedProtocol(v string) bool {
+	return v == latestProtocolVersion || v == priorProtocolVersion
+}
 
 type Server struct {
 	Svc       *domain.Service
 	PublicURL string
 	ReadOnly  bool
+
+	// Tools overrides the shared catalogue. Nil in production, where every server uses the
+	// same registry; tests set it to exercise the transport against a known set.
+	Tools *tools.Registry
 }
 
 type rpcRequest struct {
@@ -71,6 +86,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handlePOST(w http.ResponseWriter, r *http.Request) {
+	// From 2025-06-18 a client states the negotiated version on every subsequent request.
+	// A version we do not implement is refused here rather than half-served: the frames
+	// would parse and the semantics would not match.
+	if v := strings.TrimSpace(r.Header.Get("MCP-Protocol-Version")); v != "" && !supportedProtocol(v) {
+		writeRPC(w, r, rpcResponse{
+			JSONRPC: "2.0",
+			Error:   &rpcError{Code: -32600, Message: "unsupported MCP-Protocol-Version: " + v},
+		})
+		return
+	}
+
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {
 		writeRPC(w, r, rpcResponse{
@@ -118,7 +144,7 @@ func (s *Server) handlePOST(w http.ResponseWriter, r *http.Request) {
 func (s *Server) dispatch(r *http.Request, p *authz.Principal, req rpcRequest) (any, *rpcError) {
 	switch req.Method {
 	case "initialize":
-		return s.initialize(), nil
+		return s.initialize(req.Params), nil
 	case "ping":
 		return map[string]any{}, nil
 	case "tools/list":
@@ -131,15 +157,29 @@ func (s *Server) dispatch(r *http.Request, p *authz.Principal, req rpcRequest) (
 	case "resources/list":
 		return map[string]any{"resources": []any{}}, nil
 	case "prompts/list":
-		return map[string]any{"prompts": []any{}}, nil
+		return s.listPrompts(), nil
+	case "prompts/get":
+		return s.getPrompt(req.Params)
 	default:
 		return nil, &rpcError{Code: -32601, Message: "method not found"}
 	}
 }
 
-func (s *Server) initialize() map[string]any {
+// initialize echoes the client's protocol version when we speak it, and otherwise names
+// the newest one we do. Answering with our own version unconditionally is what makes an
+// older client give up: it has no way to tell "newer than you" from "not MCP".
+func (s *Server) initialize(raw json.RawMessage) map[string]any {
+	negotiated := latestProtocolVersion
+	if len(raw) > 0 {
+		var params struct {
+			ProtocolVersion string `json:"protocolVersion"`
+		}
+		if err := json.Unmarshal(raw, &params); err == nil && supportedProtocol(params.ProtocolVersion) {
+			negotiated = params.ProtocolVersion
+		}
+	}
 	return map[string]any{
-		"protocolVersion": protocolVersion,
+		"protocolVersion": negotiated,
 		"capabilities": map[string]any{
 			"tools":     map[string]any{},
 			"resources": map[string]any{},
@@ -150,7 +190,7 @@ func (s *Server) initialize() map[string]any {
 			"version": "1",
 			"title":   "Polaris",
 		},
-		"instructions": "Polaris issue tracker. Use list_issues / get_issue to read, create_issue and update_issue to write. Identifiers like ENG-123 work anywhere an id is accepted.",
+		"instructions": "Polaris issue tracker. Use list_issues / get_issue to read, create_issue and update_issue to write. Identifiers like ENG-123 work anywhere an id is accepted, and a team, state, label or person can be named instead of given as a UUID.",
 	}
 }
 
@@ -209,6 +249,7 @@ func WellKnownAuthorizationServer(publicURL string) http.HandlerFunc {
 			"authorization_endpoint":                base + "/oauth/authorize",
 			"token_endpoint":                        base + "/oauth/token",
 			"revocation_endpoint":                   base + "/oauth/revoke",
+			"registration_endpoint":                 base + "/oauth/register",
 			"response_types_supported":              []string{"code"},
 			"grant_types_supported":                 []string{"authorization_code", "refresh_token"},
 			"code_challenge_methods_supported":      []string{"S256", "plain"},

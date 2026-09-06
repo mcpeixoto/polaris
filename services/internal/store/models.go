@@ -706,8 +706,8 @@ type OauthAppUser struct {
 
 type OauthApplication struct {
 	ID                       uuid.UUID
-	WorkspaceID              uuid.UUID
-	CreatorID                uuid.UUID
+	WorkspaceID              *uuid.UUID
+	CreatorID                *uuid.UUID
 	Name                     string
 	Description              *string
 	Developer                *string
@@ -724,6 +724,8 @@ type OauthApplication struct {
 	ArchivedAt               *time.Time
 	CreatedAt                time.Time
 	UpdatedAt                time.Time
+	DynamicallyRegistered    bool
+	LastUsedAt               *time.Time
 }
 
 type OauthAuthorizationCode struct {

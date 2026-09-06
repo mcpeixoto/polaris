@@ -1,10 +1,11 @@
 /**
  * How to point an MCP client at this workspace.
  *
- * Interactive OAuth with dynamic client registration is deferred. v1 authenticates with the
- * same bearer API key (or OAuth token) every other integration uses, which is how Jules and
- * any client that can set a header already talk to Linear. This page exists so that hop is
- * written down next to the keys, not in a README somebody has to find.
+ * The command is the whole setup now: the server registers the client itself (RFC 7591) and
+ * the client sends the person here to consent, so nobody has to mint a credential and paste
+ * it into a config file before they have seen what the product does. The API-key hop stays
+ * documented below, because clients that cannot do the browser round trip still exist and
+ * telling them "use OAuth" is not an answer.
  *
  * Every value on it is copied rather than read, so each one gets a `CopyButton` — the shared
  * one, not the local `copyText(…).then(ok => ok && setCopied(…))` this file used to carry,
@@ -29,13 +30,12 @@ export function McpSettings() {
     <SettingsPage title="MCP">
       <SettingsSection
         title="Connect a client"
-        description="Polaris speaks Streamable HTTP MCP. Create a personal API key, then send it as an Authorization: Bearer header. The read-only URL never exposes write tools."
+        description="Polaris speaks Streamable HTTP MCP. Point a client at the read-write URL and it will open a browser for you to approve the connection. The read-only URL never exposes write tools."
       >
         <SettingsRow>
           <p className={styles.note}>
-            <Link className={styles.link} to="/settings/api-keys">
-              Create an API key
-            </Link>
+            The client registers itself, so there is nothing to create here first. It acts as you,
+            in this workspace, and reaches exactly what you can.
           </p>
         </SettingsRow>
       </SettingsSection>
@@ -47,9 +47,22 @@ export function McpSettings() {
 
       <SettingsSection
         title="Claude Code"
-        description="Then set the Authorization header to your API key in the client’s MCP config. OAuth sign-in from the client is not wired yet."
+        description="Run this, then /mcp in Claude Code to approve the connection."
       >
         <Endpoint label="Add the server" value={claude} copyLabel="Copy command" />
+      </SettingsSection>
+
+      <SettingsSection
+        title="Clients that cannot sign in"
+        description="Some clients can set a header but not complete a browser sign-in. Those authenticate with a personal API key sent as Authorization: Bearer — it acts as you, and never reaches further than you can."
+      >
+        <SettingsRow>
+          <p className={styles.note}>
+            <Link className={styles.link} to="/settings/api-keys">
+              Create an API key
+            </Link>
+          </p>
+        </SettingsRow>
       </SettingsSection>
     </SettingsPage>
   );

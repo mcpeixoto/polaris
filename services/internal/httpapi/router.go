@@ -247,6 +247,9 @@ func NewRouter(d Deps) http.Handler {
 	oauth := &oauthHandlers{svc: d.Service}
 	mux.Handle("POST /oauth/token", d.Limits.Anonymous(http.HandlerFunc(oauth.token)))
 	mux.Handle("POST /oauth/revoke", d.Limits.Anonymous(http.HandlerFunc(oauth.revoke)))
+	// Unauthenticated on purpose (RFC 7591): an MCP client registers before anyone has
+	// signed in. The anonymous budget is what bounds it.
+	mux.Handle("POST /oauth/register", d.Limits.Anonymous(http.HandlerFunc(oauth.register)))
 
 	mcpRW := &mcp.Server{Svc: d.Service, PublicURL: d.Config.PublicURL, ReadOnly: false}
 	mcpRO := &mcp.Server{Svc: d.Service, PublicURL: d.Config.PublicURL, ReadOnly: true}
@@ -258,6 +261,13 @@ func NewRouter(d Deps) http.Handler {
 	mux.Handle("GET /.well-known/oauth-protected-resource",
 		d.Limits.Anonymous(mcp.WellKnownProtectedResource(d.Config.PublicURL)))
 	mux.Handle("GET /.well-known/oauth-authorization-server",
+		d.Limits.Anonymous(mcp.WellKnownAuthorizationServer(d.Config.PublicURL)))
+	// The resource-suffixed forms from RFC 9728 and RFC 8414. Clients differ on which one
+	// they probe and a miss reads to them as "not an OAuth-protected resource", so both
+	// spellings answer rather than only the one we would have picked.
+	mux.Handle("GET /.well-known/oauth-protected-resource/mcp",
+		d.Limits.Anonymous(mcp.WellKnownProtectedResource(d.Config.PublicURL)))
+	mux.Handle("GET /.well-known/oauth-authorization-server/mcp",
 		d.Limits.Anonymous(mcp.WellKnownAuthorizationServer(d.Config.PublicURL)))
 
 	var h http.Handler = mux

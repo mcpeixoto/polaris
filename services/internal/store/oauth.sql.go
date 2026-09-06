@@ -20,7 +20,7 @@ RETURNING id
 
 type ArchiveOauthApplicationParams struct {
 	ID          uuid.UUID
-	WorkspaceID uuid.UUID
+	WorkspaceID *uuid.UUID
 }
 
 func (q *Queries) ArchiveOauthApplication(ctx context.Context, arg ArchiveOauthApplicationParams) (uuid.UUID, error) {
@@ -123,13 +123,14 @@ const createOauthApplication = `-- name: CreateOauthApplication :one
 INSERT INTO oauth_application (
   id, workspace_id, creator_id, name, description, developer, developer_url, image_url,
   client_id, client_secret_hash, client_secret_prefix, redirect_uris, allowed_scopes,
-  public_enabled, client_credentials_enabled, webhook_url
+  public_enabled, client_credentials_enabled, webhook_url, dynamically_registered
 ) VALUES (
   $1, $2, $3, $4,
   $5, $6, $7, $8,
   $9, $10, $11,
   $12, $13,
-  $14, $15, $16
+  $14, $15, $16,
+  $17
 )
 RETURNING id, workspace_id, creator_id, name, description, developer, developer_url, image_url,
           client_id, client_secret_prefix, redirect_uris, allowed_scopes,
@@ -139,8 +140,8 @@ RETURNING id, workspace_id, creator_id, name, description, developer, developer_
 
 type CreateOauthApplicationParams struct {
 	ID                       uuid.UUID
-	WorkspaceID              uuid.UUID
-	CreatorID                uuid.UUID
+	WorkspaceID              *uuid.UUID
+	CreatorID                *uuid.UUID
 	Name                     string
 	Description              *string
 	Developer                *string
@@ -154,12 +155,13 @@ type CreateOauthApplicationParams struct {
 	PublicEnabled            bool
 	ClientCredentialsEnabled bool
 	WebhookUrl               *string
+	DynamicallyRegistered    bool
 }
 
 type CreateOauthApplicationRow struct {
 	ID                       uuid.UUID
-	WorkspaceID              uuid.UUID
-	CreatorID                uuid.UUID
+	WorkspaceID              *uuid.UUID
+	CreatorID                *uuid.UUID
 	Name                     string
 	Description              *string
 	Developer                *string
@@ -201,6 +203,7 @@ func (q *Queries) CreateOauthApplication(ctx context.Context, arg CreateOauthApp
 		arg.PublicEnabled,
 		arg.ClientCredentialsEnabled,
 		arg.WebhookUrl,
+		arg.DynamicallyRegistered,
 	)
 	var i CreateOauthApplicationRow
 	err := row.Scan(
@@ -388,6 +391,27 @@ func (q *Queries) CreateOauthToken(ctx context.Context, arg CreateOauthTokenPara
 	return i, err
 }
 
+const deleteIdleDynamicOauthApplications = `-- name: DeleteIdleDynamicOauthApplications :execrows
+DELETE FROM oauth_application
+WHERE dynamically_registered
+  AND COALESCE(oauth_application.last_used_at, oauth_application.created_at) < $1
+  AND NOT EXISTS (
+    SELECT 1 FROM oauth_token t
+    WHERE t.application_id = oauth_application.id AND t.revoked_at IS NULL
+  )
+`
+
+// Registration is unauthenticated, so the only thing stopping the table from growing
+// forever is this. Clients that never completed a token exchange are swept on the same
+// clock as ones that stopped: a registration nobody consented to is worth less, not more.
+func (q *Queries) DeleteIdleDynamicOauthApplications(ctx context.Context, lastUsedAt *time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteIdleDynamicOauthApplications, lastUsedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getOauthAppUser = `-- name: GetOauthAppUser :one
 SELECT application_id, workspace_id, user_id, created_at
 FROM oauth_app_user
@@ -422,8 +446,8 @@ WHERE id = $1 AND archived_at IS NULL
 
 type GetOauthApplicationRow struct {
 	ID                       uuid.UUID
-	WorkspaceID              uuid.UUID
-	CreatorID                uuid.UUID
+	WorkspaceID              *uuid.UUID
+	CreatorID                *uuid.UUID
 	Name                     string
 	Description              *string
 	Developer                *string
@@ -471,6 +495,7 @@ const getOauthApplicationByClientID = `-- name: GetOauthApplicationByClientID :o
 SELECT id, workspace_id, creator_id, name, description, developer, developer_url, image_url,
        client_id, client_secret_prefix, redirect_uris, allowed_scopes,
        public_enabled, client_credentials_enabled, webhook_url,
+       dynamically_registered,
        archived_at, created_at, updated_at
 FROM oauth_application
 WHERE client_id = $1 AND archived_at IS NULL
@@ -478,8 +503,8 @@ WHERE client_id = $1 AND archived_at IS NULL
 
 type GetOauthApplicationByClientIDRow struct {
 	ID                       uuid.UUID
-	WorkspaceID              uuid.UUID
-	CreatorID                uuid.UUID
+	WorkspaceID              *uuid.UUID
+	CreatorID                *uuid.UUID
 	Name                     string
 	Description              *string
 	Developer                *string
@@ -492,6 +517,7 @@ type GetOauthApplicationByClientIDRow struct {
 	PublicEnabled            bool
 	ClientCredentialsEnabled bool
 	WebhookUrl               *string
+	DynamicallyRegistered    bool
 	ArchivedAt               *time.Time
 	CreatedAt                time.Time
 	UpdatedAt                time.Time
@@ -516,6 +542,7 @@ func (q *Queries) GetOauthApplicationByClientID(ctx context.Context, clientID st
 		&i.PublicEnabled,
 		&i.ClientCredentialsEnabled,
 		&i.WebhookUrl,
+		&i.DynamicallyRegistered,
 		&i.ArchivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -524,16 +551,18 @@ func (q *Queries) GetOauthApplicationByClientID(ctx context.Context, clientID st
 }
 
 const getOauthApplicationSecretHashByClientID = `-- name: GetOauthApplicationSecretHashByClientID :one
-SELECT id, workspace_id, client_secret_hash, client_credentials_enabled, archived_at
+SELECT id, workspace_id, client_secret_hash, client_credentials_enabled,
+       dynamically_registered, archived_at
 FROM oauth_application
 WHERE client_id = $1 AND archived_at IS NULL
 `
 
 type GetOauthApplicationSecretHashByClientIDRow struct {
 	ID                       uuid.UUID
-	WorkspaceID              uuid.UUID
+	WorkspaceID              *uuid.UUID
 	ClientSecretHash         []byte
 	ClientCredentialsEnabled bool
+	DynamicallyRegistered    bool
 	ArchivedAt               *time.Time
 }
 
@@ -545,6 +574,7 @@ func (q *Queries) GetOauthApplicationSecretHashByClientID(ctx context.Context, c
 		&i.WorkspaceID,
 		&i.ClientSecretHash,
 		&i.ClientCredentialsEnabled,
+		&i.DynamicallyRegistered,
 		&i.ArchivedAt,
 	)
 	return i, err
@@ -878,8 +908,8 @@ ORDER BY created_at DESC
 
 type ListOauthApplicationsForWorkspaceRow struct {
 	ID                       uuid.UUID
-	WorkspaceID              uuid.UUID
-	CreatorID                uuid.UUID
+	WorkspaceID              *uuid.UUID
+	CreatorID                *uuid.UUID
 	Name                     string
 	Description              *string
 	Developer                *string
@@ -897,7 +927,7 @@ type ListOauthApplicationsForWorkspaceRow struct {
 	UpdatedAt                time.Time
 }
 
-func (q *Queries) ListOauthApplicationsForWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]ListOauthApplicationsForWorkspaceRow, error) {
+func (q *Queries) ListOauthApplicationsForWorkspace(ctx context.Context, workspaceID *uuid.UUID) ([]ListOauthApplicationsForWorkspaceRow, error) {
 	rows, err := q.db.Query(ctx, listOauthApplicationsForWorkspace, workspaceID)
 	if err != nil {
 		return nil, err
@@ -1073,13 +1103,13 @@ type RotateOauthApplicationSecretParams struct {
 	ClientSecretHash   []byte
 	ClientSecretPrefix string
 	ID                 uuid.UUID
-	WorkspaceID        uuid.UUID
+	WorkspaceID        *uuid.UUID
 }
 
 type RotateOauthApplicationSecretRow struct {
 	ID                       uuid.UUID
-	WorkspaceID              uuid.UUID
-	CreatorID                uuid.UUID
+	WorkspaceID              *uuid.UUID
+	CreatorID                *uuid.UUID
 	Name                     string
 	Description              *string
 	Developer                *string
@@ -1128,6 +1158,20 @@ func (q *Queries) RotateOauthApplicationSecret(ctx context.Context, arg RotateOa
 	return i, err
 }
 
+const touchOauthApplicationLastUsed = `-- name: TouchOauthApplicationLastUsed :exec
+UPDATE oauth_application
+SET last_used_at = now()
+WHERE id = $1 AND dynamically_registered
+`
+
+// Proof that somebody is still using a self-registered client. Written on a successful
+// token exchange rather than on every API call: this feeds a 90-day sweep, so an update
+// per request would be write amplification for a column read four times a year.
+func (q *Queries) TouchOauthApplicationLastUsed(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, touchOauthApplicationLastUsed, id)
+	return err
+}
+
 const touchOauthTokenLastUsed = `-- name: TouchOauthTokenLastUsed :exec
 UPDATE oauth_token SET last_used_at = now()
 WHERE id = $1
@@ -1170,13 +1214,13 @@ type UpdateOauthApplicationParams struct {
 	ClientCredentialsEnabled bool
 	WebhookUrl               *string
 	ID                       uuid.UUID
-	WorkspaceID              uuid.UUID
+	WorkspaceID              *uuid.UUID
 }
 
 type UpdateOauthApplicationRow struct {
 	ID                       uuid.UUID
-	WorkspaceID              uuid.UUID
-	CreatorID                uuid.UUID
+	WorkspaceID              *uuid.UUID
+	CreatorID                *uuid.UUID
 	Name                     string
 	Description              *string
 	Developer                *string
