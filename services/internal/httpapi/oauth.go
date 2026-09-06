@@ -79,10 +79,18 @@ func (h *oauthHandlers) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// We issue no secret, so the only auth method a registered client can use is none.
-	// A client asking for a secret-based method is told now rather than at its first
-	// token exchange, when the failure would look like a bad credential.
-	if m := strings.TrimSpace(body.TokenEndpointAuthMethod); m != "" && m != "none" {
+	// We issue no secret, so every client registered here authenticates with none.
+	//
+	// A client that asked for a secret-based method is not refused for it. RFC 7591 §3.2.1
+	// lets the server answer with metadata other than what was requested, and the response
+	// below says token_endpoint_auth_method=none — so the client learns what it got at
+	// registration, which was the whole point of the 400 this replaces. Refusing outright
+	// is what stopped Claude connecting: its registration asks for client_secret_post.
+	//
+	// Methods that cannot degrade to a public client are still refused. private_key_jwt
+	// and the tls_client_auth pair are not a preference this server can quietly narrow;
+	// a client asking for one is misconfigured in a way it needs to hear about.
+	if !downgradableAuthMethod(body.TokenEndpointAuthMethod) {
 		writeOAuthError(w, http.StatusBadRequest, "invalid_client_metadata",
 			"only token_endpoint_auth_method=none is supported; this server issues public clients")
 		return
@@ -142,6 +150,20 @@ func (h *oauthHandlers) revoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+// downgradableAuthMethod reports whether a requested token_endpoint_auth_method can be
+// answered with `none` rather than refused. The secret-based two can: this server simply
+// issues no secret, and the registration response says so. Anything else asks for a
+// credential type the token endpoint could never verify for a dynamically registered
+// client, so it is a real mismatch rather than a preference.
+func downgradableAuthMethod(requested string) bool {
+	switch strings.TrimSpace(requested) {
+	case "", "none", "client_secret_post", "client_secret_basic":
+		return true
+	default:
+		return false
+	}
 }
 
 func basicClient(r *http.Request) (id, secret string, ok bool) {

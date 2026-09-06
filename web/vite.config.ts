@@ -30,7 +30,12 @@ export default defineConfig({
       '/auth': API_TARGET,
       '/oauth/token': API_TARGET,
       '/oauth/revoke': API_TARGET,
+      // Not '/oauth': /oauth/authorize is the consent screen and must stay with the SPA,
+      // the same split the Caddyfile makes at the edge.
+      '/oauth/register': API_TARGET,
       '/mcp': API_TARGET,
+      '/agent': API_TARGET,
+      '/files': API_TARGET,
       '/asks': API_TARGET,
       '/billing': API_TARGET,
       '/webhooks': API_TARGET,

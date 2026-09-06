@@ -8,12 +8,21 @@ import (
 	"github.com/peixotolabs/polaris/services/internal/platform"
 )
 
-// CORS, for the desktop app and for nothing else.
+// CORS, in two disjoint policies.
 //
 // The web client is served by this same origin and needs none of this — that is stated in
-// NewRouter and it is still true. What changed is that the packaged desktop app is a
-// separate origin by construction: it loads its renderer locally and talks to whichever
-// server the user pointed it at.
+// NewRouter and it is still true. Two things do need it, and they need opposite answers.
+//
+//  1. The packaged desktop app is a separate origin by construction: it loads its renderer
+//     locally and talks to whichever server the user pointed it at. It authenticates with
+//     an HttpOnly cookie, so it gets the credentialed policy described below — an
+//     allowlist, echoed.
+//
+//  2. The MCP and OAuth surface is called by browser-hosted MCP clients this server has
+//     never heard of and cannot allowlist. Those paths get Access-Control-Allow-Origin: *
+//     and never Allow-Credentials. See isPublicCORSPath for why that is safe.
+//
+// The two sets are disjoint by path and must stay that way.
 //
 // Two decisions here are load-bearing, and both are about the fact that this API
 // authenticates with an HttpOnly cookie.
@@ -49,6 +58,63 @@ var allowedHeaders = strings.Join([]string{
 }, ", ")
 
 var allowedMethods = "GET, POST, PATCH, DELETE, OPTIONS"
+
+// isPublicCORSPath is the bearer-only surface: the MCP transport, and the OAuth documents
+// and endpoints an MCP client walks on its way to a token.
+//
+// These are answered with a wildcard because the clients cannot be enumerated. Claude,
+// MCP Inspector and anything else browser-hosted registers itself dynamically, from an
+// origin this server learns about for the first time when the preflight arrives; an
+// allowlist would mean a code change per client, and before this branch existed the
+// preflight simply 403'd and no browser client could connect at all.
+//
+// The wildcard is safe on exactly these paths because Authenticate resolves a caller from
+// Authorization: Bearer and from nothing else — there is no cookie-to-principal path, so a
+// cross-origin page making these requests supplies no credential it did not already hold.
+// mcp_cors_test.go pins that invariant, because the 403 preflight was standing in front of
+// it by accident and is about to stop.
+//
+// Exact matches rather than a prefix: "/.well-known/oauth-" as a prefix would also cover
+// "/.well-known/oauth-protected-resource-anything", and the value of this list is that it
+// can be read end to end.
+func isPublicCORSPath(path string) bool {
+	switch strings.TrimSuffix(path, "/") {
+	case "/mcp",
+		"/mcp/readonly",
+		"/oauth/register",
+		"/oauth/token",
+		"/oauth/revoke",
+		"/.well-known/oauth-protected-resource",
+		"/.well-known/oauth-protected-resource/mcp",
+		"/.well-known/oauth-authorization-server",
+		"/.well-known/oauth-authorization-server/mcp":
+		return true
+	default:
+		return false
+	}
+}
+
+// publicAllowedMethods is what the router actually registers on those paths. Not PATCH.
+var publicAllowedMethods = "GET, POST, DELETE, OPTIONS"
+
+// publicAllowedHeaders is the Streamable HTTP request headers, listed rather than
+// reflected for the same reason allowedHeaders is.
+var publicAllowedHeaders = strings.Join([]string{
+	"Authorization",
+	"Content-Type",
+	"Accept",
+	"Mcp-Session-Id",
+	"MCP-Protocol-Version",
+	"Last-Event-ID",
+}, ", ")
+
+// publicExposedHeaders is what a browser client may read back off the response.
+//
+// WWW-Authenticate is the load-bearing one. It is not on the CORS safelist, so without it
+// a browser MCP client sees a bare 401 and never reads the resource_metadata= pointer that
+// mcp.Unauthorized exists to hand it — the first step of discovery, dead-ended on a header
+// the client is not allowed to look at.
+var publicExposedHeaders = "WWW-Authenticate, Mcp-Session-Id, MCP-Protocol-Version"
 
 /*
 usableOrigin normalises a configured origin, and refuses the ones that cannot safely be
@@ -110,6 +176,28 @@ func CORS(extra []string, next http.Handler) http.Handler {
 		// no-CORS response to the desktop app, which then sees the request fail for no
 		// visible reason.
 		w.Header().Add("Vary", "Origin")
+
+		if isPublicCORSPath(r.URL.Path) {
+			// Wildcard unconditionally, including when there is no Origin at all, so the
+			// response is byte-identical whoever asks for it and a shared cache cannot
+			// hand one caller a policy meant for another.
+			//
+			// And never Allow-Credentials, even when the origin IS on the allowlist or is
+			// the desktop app. A wildcard paired with credentials is refused outright by
+			// every browser, so blessing a known origin here would break the very clients
+			// this branch exists for.
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
+				w.Header().Set("Access-Control-Allow-Methods", publicAllowedMethods)
+				w.Header().Set("Access-Control-Allow-Headers", publicAllowedHeaders)
+				w.Header().Set("Access-Control-Max-Age", corsMaxAge)
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			w.Header().Set("Access-Control-Expose-Headers", publicExposedHeaders)
+			next.ServeHTTP(w, r)
+			return
+		}
 
 		if origin != "" && allowed[origin] {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
