@@ -150,8 +150,8 @@ func (s *Service) CreateOauthClient(
 	err = s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
 		row, err := q.CreateOauthApplication(ctx, store.CreateOauthApplicationParams{
 			ID:                       id,
-			WorkspaceID:              p.WorkspaceID,
-			CreatorID:                p.UserID,
+			WorkspaceID:              &p.WorkspaceID,
+			CreatorID:                &p.UserID,
 			Name:                     name,
 			Description:              trimOauthString(in.Description),
 			Developer:                trimOauthString(in.Developer),
@@ -196,7 +196,7 @@ func (s *Service) UpdateOauthClient(
 			}
 			return platform.Internal(err)
 		}
-		if cur.WorkspaceID != p.WorkspaceID {
+		if !ownedBy(cur.WorkspaceID, p.WorkspaceID) {
 			return platform.NotFound("oauth application")
 		}
 
@@ -258,7 +258,7 @@ func (s *Service) UpdateOauthClient(
 			ClientCredentialsEnabled: ccEnabled,
 			WebhookUrl:               hook,
 			ID:                       in.ID,
-			WorkspaceID:              p.WorkspaceID,
+			WorkspaceID:              &p.WorkspaceID,
 		})
 		if err != nil {
 			if store.IsNotFound(err) {
@@ -295,7 +295,7 @@ func (s *Service) RotateOauthClientSecret(
 			ClientSecretHash:   secretHash,
 			ClientSecretPrefix: secretPrefix,
 			ID:                 id,
-			WorkspaceID:        p.WorkspaceID,
+			WorkspaceID:        &p.WorkspaceID,
 		})
 		if err != nil {
 			if store.IsNotFound(err) {
@@ -325,7 +325,7 @@ func (s *Service) DeleteOauthClient(ctx context.Context, p *authz.Principal, id 
 	var version int64
 	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
 		if _, err := q.ArchiveOauthApplication(ctx, store.ArchiveOauthApplicationParams{
-			ID: id, WorkspaceID: p.WorkspaceID,
+			ID: id, WorkspaceID: &p.WorkspaceID,
 		}); err != nil {
 			if store.IsNotFound(err) {
 				return platform.NotFound("oauth application")
@@ -349,7 +349,7 @@ func (s *Service) ListOauthClients(ctx context.Context, p *authz.Principal) ([]m
 	if !authz.Can(p, authz.ActionOauthClientManage) {
 		return nil, platform.Forbidden("only admins can list OAuth applications")
 	}
-	rows, err := s.db.Queries().ListOauthApplicationsForWorkspace(ctx, p.WorkspaceID)
+	rows, err := s.db.Queries().ListOauthApplicationsForWorkspace(ctx, &p.WorkspaceID)
 	if err != nil {
 		return nil, platform.Internal(err)
 	}
@@ -371,7 +371,7 @@ func (s *Service) GetOauthClient(ctx context.Context, p *authz.Principal, id uui
 		}
 		return model.OauthClient{}, platform.Internal(err)
 	}
-	if row.WorkspaceID != p.WorkspaceID {
+	if !ownedBy(row.WorkspaceID, p.WorkspaceID) {
 		return model.OauthClient{}, platform.NotFound("oauth application")
 	}
 	return toOauthClientFromGet(row), nil
@@ -390,7 +390,7 @@ func (s *Service) GetOauthClientInfo(ctx context.Context, p *authz.Principal, cl
 		}
 		return model.OauthClientInfo{}, platform.Internal(err)
 	}
-	if row.WorkspaceID != p.WorkspaceID && !row.PublicEnabled {
+	if !ownedBy(row.WorkspaceID, p.WorkspaceID) && !row.PublicEnabled {
 		return model.OauthClientInfo{}, platform.NotFound("oauth application")
 	}
 	return model.OauthClientInfo{
@@ -593,11 +593,25 @@ func slugDisplayName(name string) string {
 	return out
 }
 
+// ownedBy reports whether a row belongs to the given workspace. A dynamically registered
+// client has no owner (see migration 000082), so it is owned by nobody and reachable only
+// where public_enabled is also checked.
+func ownedBy(owner *uuid.UUID, workspace uuid.UUID) bool {
+	return owner != nil && *owner == workspace
+}
+
+func derefUUID(id *uuid.UUID) uuid.UUID {
+	if id == nil {
+		return uuid.Nil
+	}
+	return *id
+}
+
 func toOauthClient(r store.CreateOauthApplicationRow) model.OauthClient {
 	return model.OauthClient{
 		ID:                       r.ID,
-		WorkspaceID:              r.WorkspaceID,
-		CreatorID:                r.CreatorID,
+		WorkspaceID:              derefUUID(r.WorkspaceID),
+		CreatorID:                derefUUID(r.CreatorID),
 		ClientID:                 r.ClientID,
 		Name:                     r.Name,
 		Description:              r.Description,
@@ -618,8 +632,8 @@ func toOauthClient(r store.CreateOauthApplicationRow) model.OauthClient {
 func toOauthClientListed(r store.ListOauthApplicationsForWorkspaceRow) model.OauthClient {
 	return model.OauthClient{
 		ID:                       r.ID,
-		WorkspaceID:              r.WorkspaceID,
-		CreatorID:                r.CreatorID,
+		WorkspaceID:              derefUUID(r.WorkspaceID),
+		CreatorID:                derefUUID(r.CreatorID),
 		ClientID:                 r.ClientID,
 		Name:                     r.Name,
 		Description:              r.Description,
@@ -640,8 +654,8 @@ func toOauthClientListed(r store.ListOauthApplicationsForWorkspaceRow) model.Oau
 func toOauthClientFromGet(r store.GetOauthApplicationRow) model.OauthClient {
 	return model.OauthClient{
 		ID:                       r.ID,
-		WorkspaceID:              r.WorkspaceID,
-		CreatorID:                r.CreatorID,
+		WorkspaceID:              derefUUID(r.WorkspaceID),
+		CreatorID:                derefUUID(r.CreatorID),
 		ClientID:                 r.ClientID,
 		Name:                     r.Name,
 		Description:              r.Description,
@@ -662,8 +676,8 @@ func toOauthClientFromGet(r store.GetOauthApplicationRow) model.OauthClient {
 func toOauthClientFromByClientID(r store.GetOauthApplicationByClientIDRow) model.OauthClient {
 	return model.OauthClient{
 		ID:                       r.ID,
-		WorkspaceID:              r.WorkspaceID,
-		CreatorID:                r.CreatorID,
+		WorkspaceID:              derefUUID(r.WorkspaceID),
+		CreatorID:                derefUUID(r.CreatorID),
 		ClientID:                 r.ClientID,
 		Name:                     r.Name,
 		Description:              r.Description,
@@ -684,8 +698,8 @@ func toOauthClientFromByClientID(r store.GetOauthApplicationByClientIDRow) model
 func toOauthClientFromUpdate(r store.UpdateOauthApplicationRow) model.OauthClient {
 	return model.OauthClient{
 		ID:                       r.ID,
-		WorkspaceID:              r.WorkspaceID,
-		CreatorID:                r.CreatorID,
+		WorkspaceID:              derefUUID(r.WorkspaceID),
+		CreatorID:                derefUUID(r.CreatorID),
 		ClientID:                 r.ClientID,
 		Name:                     r.Name,
 		Description:              r.Description,
@@ -706,8 +720,8 @@ func toOauthClientFromUpdate(r store.UpdateOauthApplicationRow) model.OauthClien
 func toOauthClientFromRotate(r store.RotateOauthApplicationSecretRow) model.OauthClient {
 	return model.OauthClient{
 		ID:                       r.ID,
-		WorkspaceID:              r.WorkspaceID,
-		CreatorID:                r.CreatorID,
+		WorkspaceID:              derefUUID(r.WorkspaceID),
+		CreatorID:                derefUUID(r.CreatorID),
 		ClientID:                 r.ClientID,
 		Name:                     r.Name,
 		Description:              r.Description,

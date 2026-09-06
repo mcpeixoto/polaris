@@ -43,6 +43,12 @@ var notInTheAPI = map[string]string{
 	// Auth is REST, not GraphQL: sign-in has to set an HttpOnly cookie, and a GraphQL
 	// mutation that sets cookies as a side effect is both surprising and impossible to
 	// express in the schema.
+	// Registration is unauthenticated by specification (RFC 7591): the client is asking
+	// for an identity before anybody has signed in, so there is no session for a GraphQL
+	// request to carry. The sweep behind it is a cron, like SweepLapsedPlans above.
+	"RegisterDynamicClient":   "POST /oauth/register — RFC 7591, unauthenticated by specification",
+	"SweepIdleDynamicClients": "worker cron: expires self-registered clients nobody came back for",
+
 	"Register":         "POST /auth/register",
 	"SignInWithSocial": "POST /auth/oidc/{provider} — same cookie, same reason",
 	"Login":            "POST /auth/login",

@@ -9,13 +9,14 @@
 INSERT INTO oauth_application (
   id, workspace_id, creator_id, name, description, developer, developer_url, image_url,
   client_id, client_secret_hash, client_secret_prefix, redirect_uris, allowed_scopes,
-  public_enabled, client_credentials_enabled, webhook_url
+  public_enabled, client_credentials_enabled, webhook_url, dynamically_registered
 ) VALUES (
-  sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(creator_id), sqlc.arg(name),
+  sqlc.arg(id), sqlc.narg(workspace_id), sqlc.narg(creator_id), sqlc.arg(name),
   sqlc.narg(description), sqlc.narg(developer), sqlc.narg(developer_url), sqlc.narg(image_url),
   sqlc.arg(client_id), sqlc.arg(client_secret_hash), sqlc.arg(client_secret_prefix),
   sqlc.arg(redirect_uris), sqlc.arg(allowed_scopes),
-  sqlc.arg(public_enabled), sqlc.arg(client_credentials_enabled), sqlc.narg(webhook_url)
+  sqlc.arg(public_enabled), sqlc.arg(client_credentials_enabled), sqlc.narg(webhook_url),
+  sqlc.arg(dynamically_registered)
 )
 RETURNING id, workspace_id, creator_id, name, description, developer, developer_url, image_url,
           client_id, client_secret_prefix, redirect_uris, allowed_scopes,
@@ -43,12 +44,14 @@ WHERE id = $1 AND archived_at IS NULL;
 SELECT id, workspace_id, creator_id, name, description, developer, developer_url, image_url,
        client_id, client_secret_prefix, redirect_uris, allowed_scopes,
        public_enabled, client_credentials_enabled, webhook_url,
+       dynamically_registered,
        archived_at, created_at, updated_at
 FROM oauth_application
 WHERE client_id = $1 AND archived_at IS NULL;
 
 -- name: GetOauthApplicationSecretHashByClientID :one
-SELECT id, workspace_id, client_secret_hash, client_credentials_enabled, archived_at
+SELECT id, workspace_id, client_secret_hash, client_credentials_enabled,
+       dynamically_registered, archived_at
 FROM oauth_application
 WHERE client_id = $1 AND archived_at IS NULL;
 
@@ -260,3 +263,23 @@ FROM "user"
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND display_name = sqlc.arg(display_name)
   AND archived_at IS NULL;
+
+-- Proof that somebody is still using a self-registered client. Written on a successful
+-- token exchange rather than on every API call: this feeds a 90-day sweep, so an update
+-- per request would be write amplification for a column read four times a year.
+-- name: TouchOauthApplicationLastUsed :exec
+UPDATE oauth_application
+SET last_used_at = now()
+WHERE id = $1 AND dynamically_registered;
+
+-- Registration is unauthenticated, so the only thing stopping the table from growing
+-- forever is this. Clients that never completed a token exchange are swept on the same
+-- clock as ones that stopped: a registration nobody consented to is worth less, not more.
+-- name: DeleteIdleDynamicOauthApplications :execrows
+DELETE FROM oauth_application
+WHERE dynamically_registered
+  AND COALESCE(oauth_application.last_used_at, oauth_application.created_at) < $1
+  AND NOT EXISTS (
+    SELECT 1 FROM oauth_token t
+    WHERE t.application_id = oauth_application.id AND t.revoked_at IS NULL
+  );
