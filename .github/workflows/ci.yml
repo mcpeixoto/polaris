@@ -496,6 +496,11 @@ jobs:
           # coming back as text/html means the edge handed the request to the SPA, whatever
           # the status code says.
           #
+          # This list has to grow whenever a route is added, and it did not when the agent
+          # shipped: /agent/* went to production unrouted and answered the SPA, which is the
+          # exact failure this step exists to catch. A check that is not extended alongside
+          # the thing it checks is a check that passes while the feature is broken.
+          #
           # It deliberately does not require JSON, and does not check the status. GET
           # /graphql is a 405 in text/plain because the endpoint is POST-only, and 401 and
           # 404 are correct answers for the rest — pinning either would make this step fail
@@ -504,7 +509,8 @@ jobs:
           for path in /mcp /graphql /sync/bootstrap /billing/config \
                       /.well-known/oauth-authorization-server \
                       /.well-known/oauth-protected-resource \
-                      /asks/probe /calendars/cycles/probe; do
+                      /asks/probe /calendars/cycles/probe \
+                      /agent/sessions/00000000-0000-0000-0000-000000000000/stream; do
             type=$(curl -s -o /dev/null --max-time 10 -w '%{content_type}' "$BASE_URL$path" || true)
             case "$type" in
               text/html*)
