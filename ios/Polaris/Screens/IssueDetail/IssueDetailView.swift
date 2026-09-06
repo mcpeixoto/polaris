@@ -1,9 +1,9 @@
 import SwiftUI
 import PolarisCore
 
-/// One issue: where it is, what it says, its properties as a row of pills, and the thread
-/// under it. The bar carries the identifier; the body carries everything else, flat, with
-/// the composer pinned under it.
+/// One issue: where it is, what it says, its properties as a row of pills, what hangs off
+/// it — sub-issues, relations, links — and the thread under all of that. The bar carries
+/// the identifier; the body carries everything else, flat, with the composer pinned under it.
 struct IssueDetailView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -11,10 +11,19 @@ struct IssueDetailView: View {
     @State private var draftComment = ""
     @State private var draftTitle = ""
     @State private var editingDescription: String?
+    @State private var editingComment: Comment?
+    @State private var deletingComment: Comment?
     @State private var isConfirmingArchive = false
+    @State private var isConfirmingDelete = false
+    @State private var sheet: DetailSheet?
+    /// An issue reached from this one — the parent, a relation, a child — pushed on top.
+    @State private var linkedIssue: Issue?
+    @State private var linkError: PolarisError?
+    @State private var relationError: PolarisError?
     @State private var commentsPosted = 0
     @State private var writeFailures = 0
-    @State private var assigneePickerOpen = false
+    /// Bumped on every property write, which is what drives the success haptic.
+    @State private var writes = 0
     @FocusState private var titleFocused: Bool
     @FocusState private var commentFocused: Bool
 
@@ -22,6 +31,19 @@ struct IssueDetailView: View {
 
     init(issue: Issue) {
         self.seed = issue
+    }
+
+    /// Every sheet the screen can present, as one item so two can never stack.
+    private enum DetailSheet: Identifiable {
+        case assignee, labels, dueDate, estimate, project, cycle, parent, addLink
+        case relation(RelationsSection.Choice)
+
+        var id: String {
+            switch self {
+            case .relation(let choice): "relation-\(choice.rawValue)"
+            default: String(describing: self)
+            }
+        }
     }
 
     var body: some View {
@@ -43,7 +65,7 @@ struct IssueDetailView: View {
             // refreshed in place. A detail view that spinners over data the app already had is
             // the most common self-inflicted slowness in a list-detail app.
             if store == nil {
-                let created = IssueDetailStore(api: model.api, issue: seed) { updated in
+                let created = IssueDetailStore(api: model.api, issue: seed, viewerId: model.currentUser?.id) { updated in
                     // Otherwise the row and the "N open" count keep the old status after the
                     // reader comes back: nothing reloads on return, and refreshIfStale
                     // short-circuits because the version did not move — this client made the
@@ -57,12 +79,14 @@ struct IssueDetailView: View {
             await store?.load()
         }
         .sensoryFeedback(.success, trigger: commentsPosted)
+        .sensoryFeedback(.success, trigger: writes)
         .sensoryFeedback(.error, trigger: writeFailures)
     }
 
     @ViewBuilder
     private func content(store: IssueDetailStore) -> some View {
         let issue = store.issue.value ?? seed
+        let detail = store.detail.value
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: Theme.Space.md) {
@@ -79,8 +103,50 @@ struct IssueDetailView: View {
                 }
                 .padding(.top, Theme.Space.xl)
 
-                comments(store: store)
-                    .padding(.top, Theme.Space.xl)
+                SubIssuesSection(
+                    children: detail?.children ?? [],
+                    progress: issue.progress,
+                    onOpen: { linkedIssue = $0 },
+                    onAdd: { title in
+                        let ok = await store.createSubIssue(title: title)
+                        if ok { writes += 1 } else { writeFailures += 1 }
+                        return ok
+                    }
+                )
+                .padding(.top, Theme.Space.xl)
+
+                RelationsSection(
+                    issueId: issue.id,
+                    relations: detail?.relations ?? [],
+                    blockedBy: detail?.blockedBy ?? [],
+                    error: relationError,
+                    onOpen: open(_:),
+                    onAdd: { sheet = .relation($0) }
+                )
+                .padding(.top, Theme.Space.xl)
+
+                LinksSection(attachments: detail?.attachments ?? []) {
+                    sheet = .addLink
+                }
+                .padding(.top, Theme.Space.xl)
+
+                ActivityThreadView(
+                    store: store,
+                    names: names,
+                    viewerId: model.currentUser?.id,
+                    author: author(for:),
+                    authorName: authorName(for:),
+                    onEdit: { editingComment = $0 },
+                    onDelete: { deletingComment = $0 },
+                    onReact: { comment, emoji in
+                        guard let viewerId = model.currentUser?.id else { return }
+                        Task {
+                            await store.toggleReaction(commentId: comment.id, emoji: emoji, viewerId: viewerId)
+                            writes += 1
+                        }
+                    }
+                )
+                .padding(.top, Theme.Space.xl)
             }
             .padding(.horizontal, Theme.Space.lg)
             .padding(.top, Theme.Space.md)
@@ -105,25 +171,40 @@ struct IssueDetailView: View {
         .onChange(of: store.propertyError == nil) { _, isClear in
             if !isClear { writeFailures += 1 }
         }
+        .onChange(of: store.commentError == nil) { _, isClear in
+            if !isClear { writeFailures += 1 }
+        }
         .onChange(of: issue.title) { _, updated in
             // The server's title wins, unless the reader is in the middle of typing one.
             if !titleFocused { draftTitle = updated }
         }
+        .navigationDestination(item: $linkedIssue) { IssueDetailView(issue: $0) }
         .sheet(item: Binding(
-            get: { editingDescription.map(DescriptionDraft.init) },
+            get: { editingDescription.map(TextDraft.init) },
             set: { editingDescription = $0?.text }
         )) { draft in
-            DescriptionEditor(text: draft.text) { updated in
-                Task { await store.setDescription(updated) }
+            TextEditorSheet(
+                title: String(localized: "Description"),
+                prompt: String(localized: "What is this issue about?"),
+                text: draft.text
+            ) { updated in
+                Task { await store.setDescription(updated); writes += 1 }
             }
         }
-        .sheet(isPresented: $assigneePickerOpen) {
-            AssigneePicker(
-                people: model.workspaceData.users.value ?? [],
-                selected: issue.assignee?.id
-            ) { person in
-                Task { await store.setAssignee(person) }
+        .sheet(item: $editingComment) { comment in
+            TextEditorSheet(
+                title: String(localized: "Edit comment"),
+                prompt: String(localized: "Say something"),
+                text: comment.body,
+                identifier: "comment.editor"
+            ) { updated in
+                Task {
+                    if await store.editComment(id: comment.id, body: updated) { writes += 1 }
+                }
             }
+        }
+        .sheet(item: $sheet) { which in
+            pickerSheet(which, issue: issue, store: store)
         }
         .confirmationDialog(
             Text("Archive this issue?"),
@@ -139,11 +220,158 @@ struct IssueDetailView: View {
         } message: {
             Text("It leaves every list. An admin can bring it back.")
         }
+        .confirmationDialog(
+            Text("Delete this issue?"),
+            isPresented: $isConfirmingDelete,
+            titleVisibility: .visible
+        ) {
+            Button(role: .destructive) {
+                Task { if await store.delete() { dismiss() } }
+            } label: {
+                Text("Delete")
+            }
+            Button(role: .cancel) {} label: { Text("Cancel") }
+        } message: {
+            Text("It goes to the trash, with its comments and sub-issues.")
+        }
+        .confirmationDialog(
+            Text("Delete this comment?"),
+            isPresented: Binding(get: { deletingComment != nil }, set: { if !$0 { deletingComment = nil } }),
+            titleVisibility: .visible,
+            presenting: deletingComment
+        ) { comment in
+            Button(role: .destructive) {
+                Task { if await store.deleteComment(id: comment.id) { writes += 1 } }
+            } label: {
+                Text("Delete comment")
+            }
+            Button(role: .cancel) {} label: { Text("Cancel") }
+        } message: { _ in
+            Text("This can't be undone.")
+        }
+        .alert(
+            Text("Couldn't open that issue"),
+            isPresented: Binding(get: { linkError != nil }, set: { if !$0 { linkError = nil } }),
+            presenting: linkError
+        ) { _ in
+            Button { linkError = nil } label: { Text("OK") }
+        } message: { error in
+            Text(error.displayMessage)
+        }
     }
 
-    /// Where the issue lives: the team's mark, then the identifier. One `Text`, so it is one
-    /// thing to VoiceOver — and so it is not a second element whose label is the identifier
-    /// the bar already carries.
+    // MARK: - Sheets
+
+    @ViewBuilder
+    private func pickerSheet(_ which: DetailSheet, issue: Issue, store: IssueDetailStore) -> some View {
+        switch which {
+        case .assignee:
+            AssigneePicker(
+                people: model.workspaceData.users.value ?? [],
+                selected: issue.assignee?.id
+            ) { person in
+                Task { await store.setAssignee(person); writes += 1 }
+            }
+        case .labels:
+            LabelPicker(
+                labels: model.workspaceData.labels(forTeam: issue.team.id),
+                selected: Set(issue.labels.map(\.id))
+            ) { label, isOn in
+                Task {
+                    if isOn { await store.addLabel(label) } else { await store.removeLabel(label) }
+                    writes += 1
+                }
+            }
+        case .dueDate:
+            DatePickerSheet(title: String(localized: "Due date"), selected: issue.dueDate) { day in
+                Task { await store.setDueDate(day); writes += 1 }
+            }
+        case .estimate:
+            EstimatePicker(selected: issue.estimate) { points in
+                Task { await store.setEstimate(points); writes += 1 }
+            }
+        case .project:
+            ProjectPicker(
+                projects: model.workspaceData.projects(forTeam: issue.team.id),
+                selected: issue.projectId
+            ) { project in
+                Task { await store.setProject(project); writes += 1 }
+            }
+        case .cycle:
+            CyclePicker(api: model.api, teamId: issue.team.id, selected: issue.cycleId) { cycle in
+                Task { await store.setCycle(cycle); writes += 1 }
+            }
+        case .parent:
+            IssuePicker(
+                title: String(localized: "Parent issue"),
+                api: model.api,
+                excluding: [issue.id],
+                clearTitle: issue.parent == nil ? nil : String(localized: "Remove parent")
+            ) { parent in
+                Task { await store.setParent(parent); writes += 1 }
+            }
+        case .addLink:
+            AddLinkSheet { url, title in
+                Task {
+                    if await store.addLink(url: url, title: title) { writes += 1 }
+                }
+            }
+        case .relation(let choice):
+            IssuePicker(
+                title: choice.title,
+                api: model.api,
+                excluding: [issue.id]
+            ) { other in
+                guard let other else { return }
+                Task { await addRelation(choice, other: other, issue: issue, store: store) }
+            }
+        }
+    }
+
+    /// Relations have no store method, so the write goes straight to the API and the detail
+    /// is reloaded — the server owns which end of a `BLOCKS` row is which.
+    private func addRelation(
+        _ choice: RelationsSection.Choice,
+        other: IssueRef,
+        issue: Issue,
+        store: IssueDetailStore
+    ) async {
+        relationError = nil
+        let (subject, object, type): (String, String, RelationType) = switch choice {
+        case .blocks: (issue.id, other.id, .blocks)
+        case .blockedBy: (other.id, issue.id, .blocks)
+        case .related: (issue.id, other.id, .related)
+        case .duplicateOf: (issue.id, other.id, .duplicate)
+        }
+        do {
+            _ = try await model.api.createIssueRelation(
+                issueId: subject, relatedIssueId: object, type: type, opId: UUIDv7.string()
+            )
+            writes += 1
+            await store.load()
+        } catch {
+            relationError = PolarisError.mapped(error)
+            writeFailures += 1
+        }
+    }
+
+    /// Pushes another issue by reference. The row only carries an identifier and a title,
+    /// so the full issue is fetched first; a fixture answers instantly, a server in a few
+    /// hundred milliseconds — short enough that a spinner would flash.
+    private func open(_ ref: IssueRef) {
+        Task {
+            do {
+                linkedIssue = try await model.api.issue(id: ref.id)
+            } catch {
+                linkError = PolarisError.mapped(error)
+            }
+        }
+    }
+
+    // MARK: - Header
+
+    /// Where the issue lives: the team's mark, the parent when there is one, then the
+    /// identifier. The parent is the one tappable part — it is the way up the tree.
     private func breadcrumb(issue: Issue) -> some View {
         HStack(spacing: Theme.Space.sm) {
             Text(issue.team.key)
@@ -153,12 +381,34 @@ struct IssueDetailView: View {
                 .frame(minHeight: 20)
                 .background(Theme.raised)
                 .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sm, style: .continuous))
-            Text(verbatim: "\(issue.team.name) › \(issue.identifier)")
-                .font(PolarisText.caption)
-                .foregroundStyle(Theme.textSecondary)
-                .lineLimit(1)
+                .accessibilityLabel(Text("Team \(issue.team.name)"))
+            if let parent = issue.parent {
+                Button {
+                    open(parent)
+                } label: {
+                    Text(parent.identifier)
+                        .font(PolarisText.caption)
+                        .foregroundStyle(Theme.accentBright)
+                        .lineLimit(1)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("Parent issue \(parent.identifier), \(parent.title)"))
+                .accessibilityIdentifier("issue.parentLink")
+                Text(verbatim: "›")
+                    .font(PolarisText.caption)
+                    .foregroundStyle(Theme.textTertiary)
+                    .accessibilityHidden(true)
+                Text(issue.identifier)
+                    .font(PolarisText.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineLimit(1)
+            } else {
+                Text(verbatim: "\(issue.team.name) › \(issue.identifier)")
+                    .font(PolarisText.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineLimit(1)
+            }
         }
-        .accessibilityElement(children: .combine)
     }
 
     /// The title, editable in place.
@@ -192,16 +442,13 @@ struct IssueDetailView: View {
         .accessibilityIdentifier("issue.title")
     }
 
-    /// The description, edited in a sheet rather than in place.
+    /// The description, rendered as the Markdown it is and edited in a sheet.
     ///
-    /// In-place editing of a multi-paragraph body inside a scroll view that also holds a
-    /// comment thread fights the keyboard for the same space; a sheet has the whole screen and
-    /// an explicit Save.
+    /// A tap anywhere on the block opens the editor; a tap on a link inside it follows the
+    /// link, because `Text` claims its links before the block's gesture sees the tap.
     @ViewBuilder
     private func descriptionBlock(issue: Issue) -> some View {
-        Button {
-            editingDescription = issue.description
-        } label: {
+        Group {
             if issue.description.isEmpty {
                 HStack(spacing: Theme.Space.sm) {
                     Image(systemName: "text.alignleft")
@@ -212,23 +459,24 @@ struct IssueDetailView: View {
                 .font(PolarisText.body)
                 .foregroundStyle(Theme.placeholder)
             } else {
-                Text(issue.description)
-                    .font(PolarisText.body)
-                    .foregroundStyle(Theme.textPrimary)
-                    .lineSpacing(3)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .multilineTextAlignment(.leading)
+                MarkdownView(source: issue.description)
             }
         }
-        .buttonStyle(PressableStyle())
-        .accessibilityLabel(Text("Description"))
+        .contentShape(Rectangle())
+        .onTapGesture { editingDescription = issue.description }
+        .accessibilityElement(children: issue.description.isEmpty ? .ignore : .contain)
+        .accessibilityLabel(Text(issue.description.isEmpty ? "Add a description" : "Description"))
         .accessibilityHint(Text("Opens the description editor"))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { editingDescription = issue.description }
         .accessibilityIdentifier("issue.description")
     }
 
+    // MARK: - Properties
+
     /// The properties as a wrapping row of pills, the way Linear lays them out on a phone:
-    /// status, priority, assignee, then whatever else the issue carries.
+    /// status, priority, assignee, then everything else the issue can carry — each a pill
+    /// whether it is set or not, so a reader can see what can be set.
     private func properties(issue: Issue, store: IssueDetailStore) -> some View {
         VStack(alignment: .leading, spacing: Theme.Space.sm) {
             SectionLabel(text: String(localized: "Properties"))
@@ -236,25 +484,14 @@ struct IssueDetailView: View {
                 statusChip(issue: issue, store: store)
                 priorityChip(issue: issue, store: store)
                 assigneeChip(issue: issue)
-                ForEach(issue.labels) { LabelChip(label: $0) }
-                if let dueDate = issue.dueDate, let due = DueDateFormat.present(dueDate) {
-                    PropertyChip(text: due.text, tint: due.isOverdue ? Theme.danger : Theme.textPrimary) {
-                        Image(systemName: "calendar")
-                            .font(.system(size: 12))
-                            .foregroundStyle(due.isOverdue ? Theme.danger : Theme.textSecondary)
-                    }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(Text(due.isOverdue ? "Overdue, due \(due.text)" : "Due \(due.text)"))
+                labelsChip(issue: issue)
+                dueDateChip(issue: issue)
+                estimateChip(issue: issue)
+                projectChip(issue: issue)
+                if issue.team.cyclesEnabled {
+                    cycleChip(issue: issue)
                 }
-                if let estimate = issue.estimate {
-                    PropertyChip(text: "\(estimate)") {
-                        Image(systemName: "number")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Theme.textSecondary)
-                    }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(Text("Estimate \(estimate)"))
-                }
+                parentChip(issue: issue)
             }
         }
     }
@@ -284,7 +521,7 @@ struct IssueDetailView: View {
             Menu {
                 ForEach(states) { state in
                     Button {
-                        Task { await store.setState(state) }
+                        Task { await store.setState(state); writes += 1 }
                     } label: {
                         SwiftUI.Label(state.name, systemImage: state.category.symbolName)
                     }
@@ -305,7 +542,7 @@ struct IssueDetailView: View {
         Menu {
             ForEach(Priority.allCases, id: \.self) { value in
                 Button {
-                    Task { await store.setPriority(value) }
+                    Task { await store.setPriority(value); writes += 1 }
                 } label: {
                     SwiftUI.Label(value.label, systemImage: value.symbolName)
                 }
@@ -319,11 +556,9 @@ struct IssueDetailView: View {
         .accessibilityIdentifier("issue.priority")
     }
 
-    /// A sheet rather than a menu: a workspace's people list is unbounded, and a menu of two
-    /// hundred names is not a picker.
     private func assigneeChip(issue: Issue) -> some View {
         Button {
-            assigneePickerOpen = true
+            sheet = .assignee
         } label: {
             PropertyChip(text: issue.assignee?.displayName ?? String(localized: "Unassigned")) {
                 AvatarView(user: issue.assignee, size: 16)
@@ -335,12 +570,148 @@ struct IssueDetailView: View {
         .accessibilityIdentifier("issue.assignee")
     }
 
+    private func labelsChip(issue: Issue) -> some View {
+        let names = issue.labels.map(\.name).joined(separator: ", ")
+        return Button {
+            sheet = .labels
+        } label: {
+            PropertyChip(
+                text: names.isEmpty ? String(localized: "Add label") : names,
+                tint: names.isEmpty ? Theme.textSecondary : Theme.textPrimary
+            ) {
+                if issue.labels.isEmpty {
+                    Image(systemName: "tag")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.textSecondary)
+                } else {
+                    LabelDots(labels: issue.labels, shown: 3)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Labels, \(names.isEmpty ? String(localized: "none") : names)"))
+        .accessibilityIdentifier("issue.labels")
+    }
+
+    private func dueDateChip(issue: Issue) -> some View {
+        let due = issue.dueDate.flatMap { DueDateFormat.present($0) }
+        let overdue = due?.isOverdue ?? false
+        return Button {
+            sheet = .dueDate
+        } label: {
+            PropertyChip(
+                text: due?.text ?? String(localized: "Set due date"),
+                tint: overdue ? Theme.danger : (due == nil ? Theme.textSecondary : Theme.textPrimary)
+            ) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 12))
+                    .foregroundStyle(overdue ? Theme.danger : Theme.textSecondary)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(
+            due.map { overdue ? "Due date, overdue, \($0.text)" : "Due date, \($0.text)" }
+                ?? String(localized: "Due date, none")
+        ))
+        .accessibilityIdentifier("issue.dueDate")
+    }
+
+    private func estimateChip(issue: Issue) -> some View {
+        Button {
+            sheet = .estimate
+        } label: {
+            PropertyChip(
+                text: issue.estimate.map { $0 == 1 ? "1 point" : "\($0) points" } ?? String(localized: "Set estimate"),
+                tint: issue.estimate == nil ? Theme.textSecondary : Theme.textPrimary
+            ) {
+                Image(systemName: "number")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Estimate, \(issue.estimate.map(String.init) ?? String(localized: "none"))"))
+        .accessibilityIdentifier("issue.estimate")
+    }
+
+    private func projectChip(issue: Issue) -> some View {
+        let project = model.workspaceData.project(id: issue.projectId)
+        return Button {
+            sheet = .project
+        } label: {
+            PropertyChip(
+                text: issue.project?.name ?? String(localized: "Add to project"),
+                tint: issue.project == nil ? Theme.textSecondary : Theme.textPrimary
+            ) {
+                Image(systemName: project?.status.category.symbolName ?? "square.stack.3d.up")
+                    .font(.system(size: 12))
+                    .foregroundStyle(project.map { Theme.hex($0.status.color) } ?? Theme.textSecondary)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Project, \(issue.project?.name ?? String(localized: "none"))"))
+        .accessibilityIdentifier("issue.project")
+    }
+
+    private func cycleChip(issue: Issue) -> some View {
+        Button {
+            sheet = .cycle
+        } label: {
+            PropertyChip(
+                text: issue.cycle?.displayName ?? String(localized: "Add to cycle"),
+                tint: issue.cycle == nil ? Theme.textSecondary : Theme.textPrimary
+            ) {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Cycle, \(issue.cycle?.displayName ?? String(localized: "none"))"))
+        .accessibilityIdentifier("issue.cycle")
+    }
+
+    private func parentChip(issue: Issue) -> some View {
+        Button {
+            sheet = .parent
+        } label: {
+            PropertyChip(
+                text: issue.parent?.identifier ?? String(localized: "Set parent"),
+                tint: issue.parent == nil ? Theme.textSecondary : Theme.textPrimary
+            ) {
+                Image(systemName: "arrow.turn.down.right")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Parent, \(issue.parent?.identifier ?? String(localized: "none"))"))
+        .accessibilityIdentifier("issue.parent")
+    }
+
+    // MARK: - Menu
+
+    /// `https://<host>/issue/ENG-1` — the address the web client answers, so a link pasted
+    /// into a chat opens for somebody without the app.
+    private var webURL: URL? {
+        URL(string: "https://\(model.displayHost)/issue/\(seed.identifier)")
+    }
+
     private func overflowMenu(store: IssueDetailStore) -> some View {
-        Menu {
+        let issue = store.issue.value ?? seed
+        return Menu {
             Button {
-                // The desktop app registers `polaris://` (docs/03-architecture/07-desktop-apps.md),
-                // so a link copied here opens the issue there rather than a browser tab.
-                UIPasteboard.general.string = "polaris://issue/\(seed.id)"
+                Task { await store.setSubscribed(!store.isSubscribed); writes += 1 }
+            } label: {
+                if store.isSubscribed {
+                    SwiftUI.Label("Unsubscribe", systemImage: "bell.slash")
+                } else {
+                    SwiftUI.Label("Subscribe", systemImage: "bell")
+                }
+            }
+            Divider()
+            Button {
+                UIPasteboard.general.string = webURL?.absoluteString ?? "polaris://issue/\(seed.id)"
             } label: {
                 SwiftUI.Label("Copy link", systemImage: "link")
             }
@@ -349,11 +720,37 @@ struct IssueDetailView: View {
             } label: {
                 SwiftUI.Label("Copy identifier", systemImage: "doc.on.doc")
             }
+            if let webURL {
+                Link(destination: webURL) {
+                    SwiftUI.Label("Open in browser", systemImage: "safari")
+                }
+                ShareLink(item: webURL, subject: Text(issue.identifier), message: Text(issue.title)) {
+                    SwiftUI.Label("Share", systemImage: "square.and.arrow.up")
+                }
+            }
+            if issue.state.category == .triage {
+                Divider()
+                Button {
+                    Task { await store.acceptTriage(); writes += 1 }
+                } label: {
+                    SwiftUI.Label("Accept", systemImage: "checkmark.circle")
+                }
+                Button {
+                    Task { await store.declineTriage(); writes += 1 }
+                } label: {
+                    SwiftUI.Label("Decline", systemImage: "xmark.circle")
+                }
+            }
             Divider()
             Button(role: .destructive) {
                 isConfirmingArchive = true
             } label: {
                 SwiftUI.Label("Archive", systemImage: "archivebox")
+            }
+            Button(role: .destructive) {
+                isConfirmingDelete = true
+            } label: {
+                SwiftUI.Label("Delete", systemImage: "trash")
             }
         } label: {
             Image(systemName: "ellipsis")
@@ -362,51 +759,28 @@ struct IssueDetailView: View {
         .accessibilityIdentifier("issue.menu")
     }
 
-    @ViewBuilder
-    private func comments(store: IssueDetailStore) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Space.sm) {
-            SectionLabel(text: String(localized: "Comments"))
+    // MARK: - Thread
 
-            switch store.comments {
-            case .idle, .loading:
-                HStack(spacing: Theme.Space.md) {
-                    ProgressView().controlSize(.small).tint(Theme.textSecondary)
-                    Text("Loading comments")
-                        .font(PolarisText.caption)
-                        .foregroundStyle(Theme.textSecondary)
-                }
-                .padding(.vertical, Theme.Space.sm)
-
-            case .failed(let error):
-                InlineErrorLabel(
-                    text: error.displayMessage,
-                    retryLabel: error.isRetryable ? String(localized: "Try again") : nil,
-                    onRetry: error.isRetryable ? { Task { await store.load() } } : nil
-                )
-
-            case .loaded(let comments) where comments.isEmpty:
-                Text("No comments yet.")
-                    .font(PolarisText.caption)
-                    .foregroundStyle(Theme.textTertiary)
-                    .padding(.vertical, Theme.Space.xs)
-
-            case .loaded(let comments):
-                VStack(spacing: 0) {
-                    ForEach(Array(comments.enumerated()), id: \.element.id) { index, comment in
-                        if index > 0 { HairlineDivider() }
-                        CommentRow(
-                            comment: comment,
-                            author: author(for: comment),
-                            name: authorName(for: comment)
-                        )
-                    }
-                }
-            }
-
-            if let error = store.commentError {
-                InlineErrorLabel(text: error.displayMessage)
-            }
+    /// Everything the feed can look an id up in, from what the app already holds.
+    private var names: HistoryText.Names {
+        let data = model.workspaceData
+        var names = HistoryText.Names()
+        for user in data.users.value ?? [] { names.users[user.id] = user.displayName }
+        for states in data.statesByTeam.values {
+            for state in states { names.states[state.id] = state.name }
         }
+        for label in data.labels.value ?? [] { names.labels[label.id] = label.name }
+        for project in data.projects.value ?? [] { names.projects[project.id] = project.name }
+        if let detail = store?.detail.value {
+            for child in detail.children { names.issues[child.id] = child.identifier }
+            for relation in detail.relations + detail.blockedBy {
+                names.issues[relation.relatedIssue.id] = relation.relatedIssue.identifier
+                if let issue = relation.issue { names.issues[issue.id] = issue.identifier }
+            }
+            if let parent = detail.issue.parent { names.issues[parent.id] = parent.identifier }
+            if let cycle = detail.issue.cycle { names.cycles[cycle.id] = cycle.displayName }
+        }
+        return names
     }
 
     private func composer(store: IssueDetailStore) -> some View {
@@ -485,168 +859,5 @@ struct IssueDetailView: View {
         case .integration: String(localized: "Integration")
         case .system: String(localized: "Polaris")
         }
-    }
-}
-
-/// One comment in the thread: avatar, name and time on a line, the body under them. Flat;
-/// the hairline between rows is the only separation the thread gets.
-private struct CommentRow: View {
-    let comment: Comment
-    let author: User?
-    let name: String
-    @State private var showsAbsoluteDate = false
-
-    var body: some View {
-        HStack(alignment: .top, spacing: Theme.Space.sm + 2) {
-            AvatarView(user: author, size: 24)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: Theme.Space.xs) {
-                HStack(spacing: Theme.Space.sm) {
-                    Text(name)
-                        .font(.system(.footnote).weight(.semibold))
-                        .foregroundStyle(Theme.textPrimary)
-                    // Relative by default, because "2h ago" is what a thread is read in.
-                    // The absolute date is a tap away rather than gone.
-                    Group {
-                        if showsAbsoluteDate {
-                            Text(comment.createdAt.formatted(date: .abbreviated, time: .shortened))
-                        } else {
-                            Text(comment.createdAt, format: .relative(presentation: .numeric))
-                        }
-                    }
-                    .font(PolarisText.captionSmall)
-                    .foregroundStyle(Theme.textTertiary)
-                }
-                Text(comment.body)
-                    .font(PolarisText.body)
-                    .foregroundStyle(Theme.textPrimary)
-                    .lineSpacing(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .padding(.vertical, Theme.Space.md)
-        .contentShape(Rectangle())
-        .onTapGesture { withAnimation(Theme.easing(0.25)) { showsAbsoluteDate.toggle() } }
-        .contextMenu {
-            Button {
-                UIPasteboard.general.string = comment.body
-            } label: {
-                SwiftUI.Label("Copy text", systemImage: "doc.on.doc")
-            }
-        }
-        .accessibilityElement(children: .combine)
-    }
-}
-
-/// A sheet needs an `Identifiable` item, and a bare `String?` is not one.
-private struct DescriptionDraft: Identifiable {
-    let text: String
-    var id: String { text }
-}
-
-private struct DescriptionEditor: View {
-    @State private var draft: String
-    @Environment(\.dismiss) private var dismiss
-    private let onSave: (String) -> Void
-
-    init(text: String, onSave: @escaping (String) -> Void) {
-        _draft = State(initialValue: text)
-        self.onSave = onSave
-    }
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                Theme.background.ignoresSafeArea()
-                TextField(
-                    "",
-                    text: $draft,
-                    prompt: Text("What is this issue about?").foregroundStyle(Theme.placeholder),
-                    axis: .vertical
-                )
-                .lineLimit(6...30)
-                .font(PolarisText.body)
-                .foregroundStyle(Theme.textPrimary)
-                .tint(Theme.accentBright)
-                .padding(Theme.Space.lg)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .accessibilityIdentifier("issue.descriptionEditor")
-            }
-            .navigationTitle(Text("Description"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button { dismiss() } label: { Text("Cancel") }
-                        .tint(Theme.textSecondary)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button {
-                        onSave(draft)
-                        dismiss()
-                    } label: {
-                        Text("Save").font(.system(.body).weight(.semibold))
-                    }
-                    .tint(Theme.accentBright)
-                }
-            }
-        }
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
-    }
-}
-
-private struct AssigneePicker: View {
-    let people: [User]
-    let selected: String?
-    let onPick: (User?) -> Void
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Button {
-                    onPick(nil)
-                    dismiss()
-                } label: {
-                    row(name: String(localized: "Unassigned"), user: nil, isSelected: selected == nil)
-                }
-                ForEach(people) { person in
-                    Button {
-                        onPick(person)
-                        dismiss()
-                    } label: {
-                        row(name: person.displayName, user: person, isSelected: person.id == selected)
-                    }
-                }
-            }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .background(Theme.background)
-            .navigationTitle(Text("Assignee"))
-            .navigationBarTitleDisplayMode(.inline)
-        }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-    }
-
-    private func row(name: String, user: User?, isSelected: Bool) -> some View {
-        HStack(spacing: Theme.Space.md) {
-            AvatarView(user: user, size: 24)
-                .accessibilityHidden(true)
-            Text(name)
-                .font(PolarisText.body)
-                .foregroundStyle(Theme.textPrimary)
-            Spacer(minLength: 0)
-            if isSelected {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Theme.accentBright)
-            }
-        }
-        .frame(minHeight: Theme.rowHeight - Theme.Space.lg)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 }
