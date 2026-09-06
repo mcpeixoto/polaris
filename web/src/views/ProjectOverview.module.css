@@ -21,50 +21,156 @@
   }
 }
 
-.section {
+/* The document column: 720px of measure, set in from the left the way a detail view's
+   content is, with room beneath for the last section to scroll clear of the edge. */
+.column {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
+  width: 100%;
+  max-width: calc(720px + var(--space-12) + var(--space-8));
+  padding: var(--space-10) var(--space-8) var(--space-16) var(--space-12);
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* The emoji at the title's own size, or the project glyph in the title's weight of grey. */
+.mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--space-8);
+  height: var(--space-8);
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xl);
+  line-height: var(--line-height-none);
+}
+
+/* 24px at semibold — two steps up the ladder plus the half-step, so the size still follows
+   the font-size preference rather than being pinned. */
+.title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  font-size: calc(var(--font-size-2xl) + var(--space-0-5));
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary {
+  margin-top: var(--space-2);
+  font-size: var(--font-size-lg);
+}
+
+.description {
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-relaxed);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-6);
+  margin-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .sectionTitle {
   margin: 0;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
 
-.latestMeta {
+.muted {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-md);
+}
+
+.updates {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/*
+ * One update. The left edge is the health it claimed, in that health's colour; the badge in
+ * the head says the same word, so the edge is emphasis and not the message.
+ */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-inline-start: 3px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+}
+
+.cardHead {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
 }
 
-.metaText {
-  color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
-}
-
-.body {
-  margin: 0;
+.cardMeta {
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
+}
+
+.cardEdit {
+  margin-inline-start: auto;
+}
+
+.cardBody {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
   line-height: var(--line-height-normal);
   white-space: pre-wrap;
 }
 
-.form {
+/* The composer is a card with nothing in it yet: the same box, the text unboxed inside it,
+   the health and the button along the bottom the way the issue comment box ends. */
+.composer {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  transition: border-color var(--duration-fast) var(--ease-out);
 }
 
-.actions {
+.composer:focus-within {
+  border-color: var(--border-default);
+}
+
+.composerFoot {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: var(--space-2);
 }
 
 /* Field's error treatment, on a message the form draws itself. */

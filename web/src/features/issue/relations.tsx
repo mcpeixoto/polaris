@@ -51,7 +51,9 @@ import {
   type UUID,
 } from '~/store';
 
+import { CrossGlyph, PlusGlyph } from './glyphs';
 import { createRelation, createSubIssue, deleteRelation, report, updateIssue } from './mutations';
+import { Section } from './Section';
 import styles from './relations.module.css';
 
 /**
@@ -223,13 +225,12 @@ export function SubIssues({ issueId, teamId, onDetach, className }: SubIssuesPro
   };
 
   return (
-    <section
-      className={[styles.panel, className].filter(Boolean).join(' ')}
-      aria-label="Sub-issues"
-    >
-      <div className={styles.head}>
-        <h2 className={styles.title}>Sub-issues</h2>
-        {progress.total === 0 ? null : (
+    <Section
+      title="Sub-issues"
+      className={className}
+      count={children.length === 0 ? undefined : children.length}
+      detail={
+        progress.total === 0 ? null : (
           <>
             <Progress
               percent={(progress.completed / progress.total) * 100}
@@ -244,13 +245,18 @@ export function SubIssues({ issueId, teamId, onDetach, className }: SubIssuesPro
               {progress.completed}/{progress.total}
             </span>
           </>
-        )}
-        <div className={styles.spacer} />
-        <Button size="sm" variant="ghost" icon={<PlusGlyph />} onClick={() => setAdding(true)}>
-          Add sub-issue
-        </Button>
-      </div>
-
+        )
+      }
+      action={
+        <IconButton
+          size="sm"
+          icon={<PlusGlyph />}
+          aria-label="Add sub-issue"
+          keys="mod+shift+o"
+          onClick={() => setAdding(true)}
+        />
+      }
+    >
       {children.length === 0 && !adding ? (
         <p className={styles.quiet}>Nothing underneath this one yet.</p>
       ) : null}
@@ -335,7 +341,7 @@ export function SubIssues({ issueId, teamId, onDetach, className }: SubIssuesPro
           onClose={() => setDetaching(null)}
         />
       )}
-    </section>
+    </Section>
   );
 }
 
@@ -613,18 +619,22 @@ export function Relations({ issueId, className }: RelationsProps) {
   })).filter((section) => section.rows.length > 0);
 
   return (
-    <section className={[styles.panel, className].filter(Boolean).join(' ')} aria-label="Relations">
-      <div className={styles.head}>
-        {/* "Relations", not "Links": the attachments panel directly beneath this one is
-            called Links, and two adjacent headings with one name are indistinguishable in a
-            screen reader's heading list. */}
-        <h2 className={styles.title}>Relations</h2>
-        <div className={styles.spacer} />
-        <Button size="sm" variant="ghost" icon={<PlusGlyph />} onClick={() => setAdding(true)}>
-          Add link
-        </Button>
-      </div>
-
+    // "Relations", not "Links": the attachments panel directly beneath this one is called
+    // Links, and two adjacent headings with one name are indistinguishable in a screen
+    // reader's heading list.
+    <Section
+      title="Relations"
+      className={className}
+      count={rows.length === 0 ? undefined : rows.length}
+      action={
+        <IconButton
+          size="sm"
+          icon={<PlusGlyph />}
+          aria-label="Add link"
+          onClick={() => setAdding(true)}
+        />
+      }
+    >
       {sections.length === 0 && !adding ? (
         <p className={styles.quiet}>Nothing linked to this one.</p>
       ) : null}
@@ -726,7 +736,7 @@ export function Relations({ issueId, className }: RelationsProps) {
           {refusal}
         </p>
       )}
-    </section>
+    </Section>
   );
 }
 
@@ -888,28 +898,4 @@ function searchIssues(store: Store, issueId: UUID, query: string): Candidate[] {
   // Ordered within the page rather than across the corpus: which eight you get is the store's
   // order, and typing more is how you reach a particular one.
   return found.sort((a, b) => a.identifier.localeCompare(b.identifier));
-}
-
-/* Two 16px glyphs, drawn here rather than pulled from a set: the component library has no icon
-   module, and a dependency for two paths is a dependency to keep current. */
-
-function PlusGlyph() {
-  return (
-    <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
-      <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function CrossGlyph() {
-  return (
-    <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
-      <path
-        d="M4.5 4.5l7 7M11.5 4.5l-7 7"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
 }

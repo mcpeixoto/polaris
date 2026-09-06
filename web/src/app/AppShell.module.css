@@ -2,6 +2,10 @@
  * A dense, two-pane shell. The sidebar is fixed-width and the main pane owns its own
  * scrolling, so a long issue list never moves the navigation — losing your place in the
  * sidebar every time you scroll a list is the thing that makes a tracker feel unsteady.
+ *
+ * The ground is the sidebar's colour, not the page's. The main pane is a bordered panel
+ * sitting on that ground (see `.main`), which is how Linear draws it and why the sidebar has
+ * no border of its own any more: the panel's edge is the edge.
  */
 .shell {
   display: grid;
@@ -11,7 +15,7 @@
      box rather than taking a column of their own — see their rules below. */
   position: relative;
   overflow: hidden;
-  background: var(--bg-primary);
+  background: var(--bg-sidebar);
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--font-size-md);
@@ -40,6 +44,12 @@
   grid-template-columns: 0 1fr;
 }
 
+/* With no sidebar the panel would touch the window's left edge while keeping its inset on
+   the other three, and a panel inset on three sides reads as cropped. */
+.shellCollapsed .main {
+  margin-inline-start: var(--space-2);
+}
+
 /*
  * The way back to a sidebar that is not there.
  *
@@ -49,8 +59,9 @@
  */
 .showSidebar {
   position: absolute;
-  top: var(--space-2);
-  inset-inline-start: var(--space-2);
+  /* Just inside the panel's corner, which now starts a gutter in from the window. */
+  top: var(--space-3);
+  inset-inline-start: var(--space-3);
   z-index: var(--z-sticky);
 }
 
@@ -101,13 +112,14 @@
 .workspace {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
+  gap: var(--space-1);
+  flex: none;
+  /* The header's own height, so the switcher lines up with the breadcrumb across the gap. */
+  min-height: calc(var(--header-height) - var(--space-2));
   /* Positioned so the hidden jump triggers below can show themselves against this row when
      they take focus, rather than against whatever ancestor happens to be positioned. */
   position: relative;
-  padding: var(--space-1) var(--space-2);
-  padding-top: var(--space-2);
+  padding: 0;
 }
 
 /*
@@ -146,10 +158,11 @@
 /*
  * Windows puts its controls top-right, over the main pane rather than over the sidebar. The
  * strip they sit in is a drag region the pane starts below, so the sidebar still runs to the
- * top edge and no view header is ever underneath a close button.
+ * top edge and no view header is ever underneath a close button. The panel already starts a
+ * gutter down from the window edge, so that much of the strip is not over it.
  */
 :global(html[data-desktop-chrome='windows']) .main {
-  padding-top: 38px;
+  padding-top: calc(38px - var(--space-2));
 }
 
 :global(html[data-desktop-chrome='windows']) .shell::before {
@@ -164,7 +177,7 @@
 }
 
 .workspaceSwitch {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -173,6 +186,7 @@
      continued upwards, and a literal here is how it would eventually stop being. */
   height: var(--control-height-md);
   padding: 0 var(--space-1);
+  margin-inline-end: auto;
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
@@ -203,13 +217,31 @@
 }
 
 .workspaceName {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   font-weight: var(--font-weight-semibold);
   letter-spacing: -0.014em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The arrow that says the name is a menu. Secondary rather than tertiary: it sits on the
+   sidebar's ground, which the composition doc measures tertiary as unsafe on. */
+.workspaceChevron {
+  flex: none;
+  display: inline-flex;
+  color: var(--text-secondary);
+}
+
+/*
+ * The new-issue button, which Linear draws with a hairline the search button beside it does
+ * not have — it is the one control on the row that makes something. Two classes so this
+ * outranks IconButton's own transparent border on specificity rather than on bundle order.
+ */
+.workspace .compose {
+  border-color: var(--border-subtle);
+  background: var(--bg-primary);
 }
 
 /*
@@ -376,15 +408,104 @@
   height: var(--control-height-sm);
   padding: 0;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: color var(--duration-fast) var(--ease-out);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .teamDisclosure:hover {
+  background: var(--bg-hover);
   color: var(--text-primary);
+}
+
+/*
+ * The team's emoji, in the column the key badge would otherwise take, so the names of a team
+ * with an icon and a team without one start in the same place.
+ */
+.teamIcon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-none);
+}
+
+/*
+ * Rows that belong to the row above them — Current and Upcoming under Cycles.
+ *
+ * The hairline is the whole statement: it says these two are the contents of Cycles rather
+ * than three siblings that happen to be indented. It starts at the parent row's own inset,
+ * which the inline style hands this box, and the rows inside it are inset only by the line's
+ * gap, so their labels line up under the parent's label rather than under its icon.
+ */
+.nested {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* Two classes so the hairline outranks .navItem's own `border: 0` on specificity. */
+.nested .nestedRow {
+  margin-inline-start: var(--space-2);
+  border-inline-start: 1px solid var(--border-subtle);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  padding-inline-start: var(--space-4);
+}
+
+/*
+ * The foot of the sidebar.
+ *
+ * Pushed to the bottom with an auto margin, and stuck there: the column scrolls when nine
+ * teams are open, and help and the plan are the two things that should not scroll away with
+ * them. Sticky rather than a second flex region because the nav is one scroll container and
+ * splitting it would put the scrollbar in the middle of the column. It paints its own ground
+ * so the rows sliding under it do not show through, and it reclaims the column's bottom
+ * padding as its own so the pin lands on the window's edge rather than a gutter above it.
+ */
+.footer {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-base);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  margin-top: auto;
+  margin-bottom: calc(-1 * var(--space-2));
+  padding: var(--space-2) 0;
+  background: var(--bg-sidebar);
+}
+
+/* Round, and bordered, because a bare "?" at the foot of a column is a stray glyph. Two
+   classes so this outranks IconButton's own corner and border on specificity. */
+.footer .help {
+  border-radius: var(--radius-full);
+  border-color: var(--border-subtle);
+}
+
+/*
+ * Which plan this is. A pill at the pill rung, secondary ink, and a hairline — the same
+ * anatomy as a property pill in a list row, because that is what it is: one property of the
+ * workspace, read rather than acted on. Billing is reached through the workspace menu.
+ */
+.plan {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-height-pill);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
 }
 
 /*
@@ -495,11 +616,25 @@
   letter-spacing: 0.01em;
 }
 
+/*
+ * The main pane, drawn as a panel.
+ *
+ * A white card on the sidebar's ground, inset a gutter from the top, right and bottom of the
+ * window with a hairline round it and rounded corners — Linear's framing, and the thing that
+ * makes the sidebar read as furniture and the pane as the page. The left edge sits flush
+ * against the sidebar column; the gutter there is the sidebar's own padding.
+ *
+ * The rounding is on the panel and the clipping is too, so a screen's own header paints
+ * inside the corner rather than squaring it off.
+ */
 .main {
   overflow: hidden;
   display: flex;
   flex-direction: column;
   min-width: 0;
+  margin: var(--space-2) var(--space-2) var(--space-2) 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
   background: var(--bg-primary);
 }
 
@@ -606,6 +741,15 @@
 @media (max-width: 720px) {
   .shell {
     grid-template-columns: calc(var(--sidebar-width) - var(--space-12)) 1fr;
+  }
+
+  /* The panel's gutter and corners are desktop framing. In a narrow window the eight pixels
+     on each side are list width, and a card that fills the screen is a screen. */
+  .main,
+  .shellCollapsed .main {
+    margin: 0;
+    border: 0;
+    border-radius: 0;
   }
 }
 

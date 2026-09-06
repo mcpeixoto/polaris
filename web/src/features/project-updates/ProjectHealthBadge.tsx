@@ -1,34 +1,42 @@
 /**
  * Health badge for a project update — on track, at risk, or off track.
  *
- * The dot and the word travel together, always. Health is the one thing on a project list
- * a reader scans for, and a bare coloured dot puts the whole meaning in a hue: the third
+ * The glyph and the word travel together, always. Health is the one thing on a project list
+ * a reader scans for, and a bare coloured mark puts the whole meaning in a hue: the third
  * of readers who cannot separate amber from green would be reading a list that says
- * nothing. The dot is the fast path; the word is the answer.
+ * nothing. The glyph is the fast path — and since it is a tick, a bang or a cross rather
+ * than a disc, it is a fast path that works in greyscale; the word is the answer.
  *
- * `HealthDot` is that same dot on its own, for the one place the word is already supplied
+ * `HealthDot` is the older disc on its own, for the one place the word is already supplied
  * by something else — the leading glyph inside a health `<select>`, where the chosen
  * option *is* the text.
  */
 
 import type { ProjectUpdateHealth } from '~/store';
 
+import { HealthGlyph } from './glyphs';
 import { PROJECT_UPDATE_HEALTH_LABEL, PROJECT_UPDATE_HEALTH_TOKEN } from './helpers';
 import styles from './ProjectHealthBadge.module.css';
 
 interface ProjectHealthBadgeProps {
   readonly health: ProjectUpdateHealth;
   readonly compact?: boolean | undefined;
+  /**
+   * How old the update is — "8w" — drawn after the word as "At risk · 8w". Its own span,
+   * so the word stays a text node of its own and a test or a screen reader can find it.
+   */
+  readonly since?: string | undefined;
 }
 
-export function ProjectHealthBadge({ health, compact = false }: ProjectHealthBadgeProps) {
+export function ProjectHealthBadge({ health, compact = false, since }: ProjectHealthBadgeProps) {
   return (
     <span
       className={compact ? styles.compact : styles.badge}
       style={{ color: `var(${PROJECT_UPDATE_HEALTH_TOKEN[health]})` }}
     >
-      <HealthDot health={health} />
-      {PROJECT_UPDATE_HEALTH_LABEL[health]}
+      <HealthGlyph health={health} />
+      <span>{PROJECT_UPDATE_HEALTH_LABEL[health]}</span>
+      {since === undefined ? null : <span className={styles.since}>· {since}</span>}
     </span>
   );
 }

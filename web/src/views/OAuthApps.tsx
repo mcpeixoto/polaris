@@ -8,9 +8,21 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type RefObject } from 'react';
 
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Badge, Button, Checkbox, EmptyState, Input, Modal, Spinner, Textarea } from '~/components';
+import {
+  Badge,
+  Button,
+  Checkbox,
+  EmptyState,
+  Input,
+  Modal,
+  SettingsPage,
+  SettingsSection,
+  Spinner,
+  Textarea,
+} from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { SecretField } from '~/components/SecretField';
+import { SettingsRow } from '~/components/SettingsSection';
 import {
   createOauthClient,
   deleteOauthClient,
@@ -87,53 +99,52 @@ export function OAuthApps() {
   );
 
   return (
-    <div className={styles.screen}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>OAuth apps</h1>
-        {apps === null ? null : (
-          <Badge>{apps.length === 1 ? '1 app' : `${apps.length} apps`}</Badge>
-        )}
-        <div className={styles.spacer} />
-        <Button variant="primary" onClick={() => openCreate.current()}>
-          New OAuth app
-        </Button>
-      </header>
-
-      <div className={styles.body}>
-        <section className={styles.intro} aria-labelledby="oauth-about">
-          <h2 className={styles.sectionTitle} id="oauth-about">
-            Third-party access
-          </h2>
-          <p className={styles.sectionHint}>
-            An application you create here can ask members of this workspace — or, if you mark it
-            public, of any workspace — to authorize it. The client secret is shown once. Give the
-            app its own workspace if more than one admin should manage it.
-          </p>
-        </section>
-
+    <SettingsPage
+      title="OAuth apps"
+      actions={
+        <>
+          {apps === null ? null : (
+            <Badge>{apps.length === 1 ? '1 app' : `${apps.length} apps`}</Badge>
+          )}
+          <Button variant="primary" onClick={() => openCreate.current()}>
+            New OAuth app
+          </Button>
+        </>
+      }
+    >
+      <SettingsSection
+        title="Third-party access"
+        description="An application you create here can ask members of this workspace — or, if you mark it public, of any workspace — to authorize it. The client secret is shown once. Give the app its own workspace if more than one admin should manage it."
+      >
         {loadError === null ? null : (
-          <div className={styles.failure} role="alert">
-            <p className={styles.failureText}>{loadError}</p>
-            <Button onClick={reload}>Try again</Button>
-          </div>
+          <SettingsRow>
+            <div className={styles.failure} role="alert">
+              <p className={styles.failureText}>{loadError}</p>
+              <Button onClick={reload}>Try again</Button>
+            </div>
+          </SettingsRow>
         )}
 
         {loading ? (
-          <div className={styles.loading}>
-            <Spinner label="Loading OAuth applications" />
-          </div>
+          <SettingsRow>
+            <div className={styles.loading}>
+              <Spinner label="Loading OAuth applications" />
+            </div>
+          </SettingsRow>
         ) : null}
 
         {apps === null || apps.length > 0 ? null : (
-          <EmptyState
-            title="No OAuth applications yet"
-            description="Create one to let a third-party integration sign in as a user or as an app actor, with the scopes you allow."
-            action={
-              <Button variant="primary" onClick={() => setCreating(true)}>
-                Create an OAuth app
-              </Button>
-            }
-          />
+          <SettingsRow>
+            <EmptyState
+              title="No OAuth applications yet"
+              description="Create one to let a third-party integration sign in as a user or as an app actor, with the scopes you allow."
+              action={
+                <Button variant="primary" onClick={() => setCreating(true)}>
+                  Create an OAuth app
+                </Button>
+              }
+            />
+          </SettingsRow>
         )}
 
         {apps === null || apps.length === 0 ? null : (
@@ -163,7 +174,7 @@ export function OAuthApps() {
             </tbody>
           </table>
         )}
-      </div>
+      </SettingsSection>
 
       {creating ? (
         <CreateAppDialog
@@ -216,7 +227,7 @@ export function OAuthApps() {
             .finally(() => setBusy(false));
         }}
       />
-    </div>
+    </SettingsPage>
   );
 }
 

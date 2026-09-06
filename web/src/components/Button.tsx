@@ -3,10 +3,14 @@ import type { ButtonHTMLAttributes, MouseEvent, ReactNode, Ref } from 'react';
 import { Spinner } from './Spinner';
 import styles from './Button.module.css';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
-export type ButtonSize = 'sm' | 'md';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'pill';
+export type ButtonSize = 'xs' | 'sm' | 'md';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  /**
+   * `pill` is the property trigger: a 24px capsule with a hairline edge, a 14px glyph and
+   * the value beside it. It sets its own height, so `size` is ignored for it.
+   */
   variant?: ButtonVariant | undefined;
   size?: ButtonSize | undefined;
   /**
@@ -80,7 +84,10 @@ export function Button({
           {icon}
         </span>
       )}
-      <span className={styles.label}>{children}</span>
+      {/* Omitted, not emptied, for a glyph-only pill: an empty span still claims the gap. */}
+      {children === undefined || children === null || children === '' ? null : (
+        <span className={styles.label}>{children}</span>
+      )}
       {loading ? (
         <span className={styles.spinner}>
           <Spinner size="sm" />

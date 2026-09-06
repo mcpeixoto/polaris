@@ -518,6 +518,9 @@ export function DisplayMenu({
 
   const style: CSSProperties = point === null ? {} : { top: point.top, left: point.left };
   const layoutLabelId = `${baseId}-layout`;
+  const groupingId = `${baseId}-grouping`;
+  const swimlanesId = `${baseId}-swimlanes`;
+  const orderingId = `${baseId}-ordering`;
   const directionLabelId = `${baseId}-direction`;
   const propertiesLabelId = `${baseId}-properties`;
 
@@ -547,12 +550,12 @@ export function DisplayMenu({
           {changed === 0 ? 'All defaults' : changed === 1 ? '1 changed' : `${changed} changed`}
         </span>
         {onSetDefault === undefined ? null : (
-          <Button size="sm" variant="ghost" disabled={!canSetDefault} onClick={onSetDefault}>
+          <Button size="xs" variant="ghost" disabled={!canSetDefault} onClick={onSetDefault}>
             Set as default
           </Button>
         )}
         <Button
-          size="sm"
+          size="xs"
           variant="ghost"
           disabled={changed === 0}
           onClick={() => onChange({ ...defaults })}
@@ -561,24 +564,30 @@ export function DisplayMenu({
         </Button>
       </div>
 
+      {/* The layout leads, and it is the one control drawn as a segmented pair rather than a
+          row: it is what the panel is *about* — everything below describes how the chosen
+          layout draws itself. */}
       <div className={styles.section} role="group" aria-labelledby={layoutLabelId}>
-        <span className={styles.sectionLabel} id={layoutLabelId}>
+        <span className={styles.srOnly} id={layoutLabelId}>
           Layout
         </span>
         <div className={styles.segmented}>
           {LAYOUT_ORDER.map((value) => (
-            <Button
+            <button
               key={value}
-              size="sm"
-              variant={display.layout === value ? 'primary' : 'ghost'}
+              type="button"
+              className={[styles.segment, display.layout === value ? styles.segmentOn : null]
+                .filter(Boolean)
+                .join(' ')}
               // Pressed rather than selected: these are two buttons that stay put, not a
               // pair of options in a listbox, and `aria-pressed` is what says which one is
               // in force without inventing a widget the keyboard does not implement.
               aria-pressed={display.layout === value}
               onClick={() => onChange({ layout: value })}
             >
+              <LayoutGlyph layout={value} />
               {LAYOUT_LABELS[value]}
-            </Button>
+            </button>
           ))}
         </div>
         {display.layout === defaults.layout ? null : (
@@ -586,117 +595,140 @@ export function DisplayMenu({
         )}
       </div>
 
-      <Select
-        label="Grouping"
-        className={styles.section}
-        value={display.groupBy}
-        hint={
-          display.groupBy === defaults.groupBy
-            ? undefined
-            : `Default: ${GROUP_LABELS[defaults.groupBy]}`
-        }
-        onChange={(event) => {
-          // Matched against the list this select was built from rather than cast: a cast
-          // here would be a promise about a string the DOM produced, and the lookup costs
-          // nine comparisons once per change.
-          const next = GROUP_ORDER.find((candidate) => candidate === event.target.value);
-          if (next !== undefined) onChange({ groupBy: next });
-        }}
-      >
-        {GROUP_ORDER.map((value) => (
-          <option key={value} value={value}>
-            {GROUP_LABELS[value]}
-          </option>
-        ))}
-      </Select>
-
-      {/* The swimlane inside each group. Offered second because it is a refinement of the
-          answer above it: "status, then by assignee" is one sentence read downwards.
-          Named for the thing it draws rather than "Sub-grouping": the label above it is
-          "Grouping", and a name that contains another control's name in full makes the two
-          impossible to tell apart by accessible name. */}
-      <Select
-        label="Swimlanes"
-        className={styles.section}
-        value={subGroup}
-        // Nothing to slice when the list is one run of rows, and a swimlane inside no group
-        // is simply a grouping — which the control above already is.
-        disabled={display.groupBy === 'none'}
-        hint={
-          display.groupBy === 'none'
-            ? 'Choose a grouping first'
-            : subGroup === subGroupValue(defaults)
-              ? undefined
-              : `Default: ${GROUP_LABELS[subGroupValue(defaults)]}`
-        }
-        onChange={(event) => {
-          const next = GROUP_ORDER.find((candidate) => candidate === event.target.value);
-          if (next !== undefined) onChange({ subGroupBy: next });
-        }}
-      >
-        {/* "No sub-grouping" rather than GROUP_LABELS' "No grouping": the same value, and a
-            different sentence, because this select is answering a different question. */}
-        <option value="none">No sub-grouping</option>
-        {GROUP_ORDER.filter((value) => value !== 'none' && value !== display.groupBy).map(
-          (value) => (
-            <option key={value} value={value}>
-              {GROUP_LABELS[value]}
-            </option>
-          ),
+      {/*
+       * Label left, value right, one row per option. The label is a real `<label for>` on
+       * the select rather than the Field's own, so the row can put the two side by side while
+       * the control keeps its name and clicking the word still opens it.
+       */}
+      <div className={styles.section}>
+        <div className={styles.row}>
+          <label className={styles.rowLabel} htmlFor={groupingId}>
+            Grouping
+          </label>
+          <Select
+            id={groupingId}
+            className={styles.control}
+            value={display.groupBy}
+            onChange={(event) => {
+              // Matched against the list this select was built from rather than cast: a cast
+              // here would be a promise about a string the DOM produced, and the lookup costs
+              // nine comparisons once per change.
+              const next = GROUP_ORDER.find((candidate) => candidate === event.target.value);
+              if (next !== undefined) onChange({ groupBy: next });
+            }}
+          >
+            {GROUP_ORDER.map((value) => (
+              <option key={value} value={value}>
+                {GROUP_LABELS[value]}
+              </option>
+            ))}
+          </Select>
+        </div>
+        {display.groupBy === defaults.groupBy ? null : (
+          <p className={styles.changed}>Default: {GROUP_LABELS[defaults.groupBy]}</p>
         )}
-      </Select>
 
-      <Select
-        label="Ordering"
-        className={styles.section}
-        value={display.orderBy}
-        hint={
-          display.orderBy === defaults.orderBy
-            ? undefined
-            : `Default: ${ORDER_LABELS[defaults.orderBy]}`
-        }
-        onChange={(event) => {
-          const next = ORDER_ORDER.find((candidate) => candidate === event.target.value);
-          if (next !== undefined) onChange({ orderBy: next });
-        }}
-      >
-        {ORDER_ORDER.map((value) => (
-          <option key={value} value={value}>
-            {ORDER_LABELS[value]}
-          </option>
-        ))}
-      </Select>
+        {/* The swimlane inside each group. Offered second because it is a refinement of the
+            answer above it: "status, then by assignee" is one sentence read downwards.
+            Named for the thing it draws rather than "Sub-grouping": the label above it is
+            "Grouping", and a name that contains another control's name in full makes the two
+            impossible to tell apart by accessible name. */}
+        <div className={styles.row}>
+          <label className={styles.rowLabel} htmlFor={swimlanesId}>
+            Swimlanes
+          </label>
+          <Select
+            id={swimlanesId}
+            className={styles.control}
+            value={subGroup}
+            // Nothing to slice when the list is one run of rows, and a swimlane inside no
+            // group is simply a grouping — which the control above already is.
+            disabled={display.groupBy === 'none'}
+            onChange={(event) => {
+              const next = GROUP_ORDER.find((candidate) => candidate === event.target.value);
+              if (next !== undefined) onChange({ subGroupBy: next });
+            }}
+          >
+            {/* "No sub-grouping" rather than GROUP_LABELS' "No grouping": the same value, and
+                a different sentence, because this select is answering a different question. */}
+            <option value="none">No sub-grouping</option>
+            {GROUP_ORDER.filter((value) => value !== 'none' && value !== display.groupBy).map(
+              (value) => (
+                <option key={value} value={value}>
+                  {GROUP_LABELS[value]}
+                </option>
+              ),
+            )}
+          </Select>
+        </div>
+        {display.groupBy === 'none' ? (
+          <p className={styles.changed}>Choose a grouping first</p>
+        ) : subGroup === subGroupValue(defaults) ? null : (
+          <p className={styles.changed}>Default: {GROUP_LABELS[subGroupValue(defaults)]}</p>
+        )}
 
-      {note === null ? null : (
-        <p className={styles.note} role="note">
-          {note}
-        </p>
-      )}
+        <div className={styles.row}>
+          <label className={styles.rowLabel} htmlFor={orderingId}>
+            Ordering
+          </label>
+          <Select
+            id={orderingId}
+            className={styles.control}
+            value={display.orderBy}
+            onChange={(event) => {
+              const next = ORDER_ORDER.find((candidate) => candidate === event.target.value);
+              if (next !== undefined) onChange({ orderBy: next });
+            }}
+          >
+            {ORDER_ORDER.map((value) => (
+              <option key={value} value={value}>
+                {ORDER_LABELS[value]}
+              </option>
+            ))}
+          </Select>
+        </div>
+        {display.orderBy === defaults.orderBy ? null : (
+          <p className={styles.changed}>Default: {ORDER_LABELS[defaults.orderBy]}</p>
+        )}
 
-      <div className={styles.section} role="group" aria-labelledby={directionLabelId}>
-        <span className={styles.sectionLabel} id={directionLabelId}>
-          Direction
-        </span>
-        <div className={styles.segmented}>
-          {DIRECTION_ORDER.map((value) => (
-            <Button
-              key={value}
-              size="sm"
-              variant={display.direction === value ? 'primary' : 'ghost'}
-              aria-pressed={display.direction === value}
-              onClick={() => onChange({ direction: value })}
-            >
-              {DIRECTION_LABELS[value]}
-            </Button>
-          ))}
+        {note === null ? null : (
+          <p className={styles.note} role="note">
+            {note}
+          </p>
+        )}
+
+        <div className={styles.row} role="group" aria-labelledby={directionLabelId}>
+          <span className={styles.rowLabel} id={directionLabelId}>
+            Direction
+          </span>
+          <div className={[styles.segmented, styles.control].join(' ')}>
+            {DIRECTION_ORDER.map((value) => (
+              <button
+                key={value}
+                type="button"
+                className={[styles.segment, display.direction === value ? styles.segmentOn : null]
+                  .filter(Boolean)
+                  .join(' ')}
+                aria-pressed={display.direction === value}
+                onClick={() => onChange({ direction: value })}
+              >
+                {DIRECTION_LABELS[value]}
+              </button>
+            ))}
+          </div>
         </div>
         {display.direction === defaults.direction ? null : (
           <p className={styles.changed}>Default: {DIRECTION_LABELS[defaults.direction]}</p>
         )}
       </div>
 
+      {/* Checkboxes rather than switches, and laid out box-right so each reads as a row of
+          the same shape as the selects above. A `role="switch"` would say the same thing to
+          a screen reader in a different word, and every caller and test knows these as
+          checkboxes; the shape of the row is the part Linear's panel is teaching. */}
       <div className={styles.section}>
         <Checkbox
+          className={styles.toggle}
           label="Show sub-issues"
           checked={display.showSubIssues}
           onChange={(event) => onChange({ showSubIssues: event.target.checked })}
@@ -708,6 +740,7 @@ export function DisplayMenu({
           </p>
         )}
         <Checkbox
+          className={styles.toggle}
           label="Show completed"
           checked={display.showCompleted}
           onChange={(event) => onChange({ showCompleted: event.target.checked })}
@@ -719,6 +752,7 @@ export function DisplayMenu({
           </p>
         )}
         <Checkbox
+          className={styles.toggle}
           label="Show empty groups"
           checked={display.showEmptyGroups}
           onChange={(event) => onChange({ showEmptyGroups: event.target.checked })}
@@ -733,6 +767,7 @@ export function DisplayMenu({
         {triage ? (
           <>
             <Checkbox
+              className={styles.toggle}
               label="Show snoozed"
               checked={display.showSnoozed}
               onChange={(event) => onChange({ showSnoozed: event.target.checked })}
@@ -749,16 +784,19 @@ export function DisplayMenu({
 
       <div className={styles.section} role="group" aria-labelledby={propertiesLabelId}>
         <span className={styles.sectionLabel} id={propertiesLabelId}>
-          Properties
+          Display properties
         </span>
-        {PROPERTY_ORDER.map((value) => (
-          <Checkbox
-            key={value}
-            label={PROPERTY_LABELS[value]}
-            checked={properties.has(value)}
-            onChange={(event) => onProperty(value, event.target.checked)}
-          />
-        ))}
+        <div className={styles.properties}>
+          {PROPERTY_ORDER.map((value) => (
+            <Checkbox
+              key={value}
+              className={styles.property}
+              label={PROPERTY_LABELS[value]}
+              checked={properties.has(value)}
+              onChange={(event) => onProperty(value, event.target.checked)}
+            />
+          ))}
+        </div>
         {sameProperties(display.properties, defaults.properties) ? null : (
           <p className={styles.changed}>
             Default: {defaults.properties.map((value) => PROPERTY_LABELS[value]).join(', ')}
@@ -767,5 +805,55 @@ export function DisplayMenu({
       </div>
     </div>,
     document.body,
+  );
+}
+
+/**
+ * The two layouts as 14px line icons, so the segmented pair reads at a glance the way
+ * Linear's does. Decorative: the word beside each is the accessible name.
+ */
+function LayoutGlyph({ layout }: { layout: ViewLayout }) {
+  if (layout === 'board') {
+    return (
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+        <rect
+          x="2"
+          y="2.5"
+          width="3.5"
+          height="11"
+          rx="1"
+          stroke="currentColor"
+          strokeWidth="1.4"
+        />
+        <rect
+          x="6.25"
+          y="2.5"
+          width="3.5"
+          height="8"
+          rx="1"
+          stroke="currentColor"
+          strokeWidth="1.4"
+        />
+        <rect
+          x="10.5"
+          y="2.5"
+          width="3.5"
+          height="6"
+          rx="1"
+          stroke="currentColor"
+          strokeWidth="1.4"
+        />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+      <path
+        d="M2.5 4h11M2.5 8h11M2.5 12h11"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }

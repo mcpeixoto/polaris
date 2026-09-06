@@ -1,9 +1,12 @@
 /*
- * The filter bar sits between the header and the list, so it obeys the list's density
- * rules: 22px controls, no cards, no shadows on anything that is not floating. It is read
- * far more often than it is used — most visits to a filtered view are somebody checking
- * what the link they followed actually says — so the resting state is quiet type on the
- * page colour, and only the popover it opens is a surface.
+ * The filter bar sits in the toolbar between the scope pills and the Display button, so it
+ * obeys the toolbar's density rules: pills at the pill height, no cards, no shadows on
+ * anything that is not floating. It is read far more often than it is used — most visits to
+ * a filtered view are somebody checking what the link they followed actually says — so the
+ * resting state is quiet type on the page colour, and only the popover it opens is a surface.
+ *
+ * An empty filter draws nothing but the Add button. The toolbar's own "All issues" pill
+ * already says what an empty filter means, and a second caption beside it said it twice.
  *
  * The row wraps rather than scrolls. A filter of six clauses is a legitimate thing to build
  * and a horizontal scroller would hide half of it behind a gesture nobody makes at a
@@ -29,9 +32,19 @@
   position: relative;
 }
 
-.quiet {
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
+/*
+ * One toolbar control tall, whatever size the button ships as: it stands beside the header's
+ * 28px bordered buttons and a shorter one reads as a chip among the chips rather than as the
+ * control that adds the next. Two classes, so it wins on specificity and not on bundle order.
+ */
+.bar .add {
+  height: var(--control-height-md);
+  padding-inline: var(--space-2) var(--space-3);
+  border-color: var(--border-subtle);
+}
+
+.bar .add:hover {
+  border-color: var(--border-default);
 }
 
 /* --- The chips ---------------------------------------------------------------------- */
@@ -40,15 +53,24 @@
  * A clause is its chip and its remove button, joined into one pill so the two read as one
  * object. The editor is absolutely positioned against this, which is what keeps a popover
  * under the chip it belongs to when the row wraps onto three lines.
+ *
+ * The pill is the property pill every row and every composer draws — 24px, a hairline edge,
+ * 12px/500 — because a filter clause is a property with a condition on it, and the same
+ * shape is what says so.
  */
 .clause {
   position: relative;
   display: inline-flex;
   align-items: center;
-  height: var(--control-height-sm);
+  height: var(--control-height-pill);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background-color: var(--bg-secondary);
+  border-radius: var(--radius-full);
+  background-color: transparent;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.clause:hover {
+  border-color: var(--border-default);
 }
 
 .chip {
@@ -58,11 +80,12 @@
   height: 100%;
   padding: 0 var(--space-1) 0 var(--space-2);
   border: 0;
-  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  border-radius: var(--radius-full) 0 0 var(--radius-full);
   background: none;
   color: var(--text-primary);
   font: inherit;
   font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   line-height: var(--line-height-none);
   white-space: nowrap;
   cursor: pointer;
@@ -79,28 +102,38 @@
 }
 
 /*
- * Three weights in one sentence: the field is what the clause is about and is read first,
- * the operator is grammar, and the value is the answer. Losing the distinction makes a row
- * of six chips a wall of small grey text.
+ * Two weights in one sentence: the field and the operator are grammar, and the value is the
+ * answer. Secondary rather than tertiary for the grammar — the words are 12px, and at that
+ * size tertiary on the panel is legible only in the light theme.
  */
 .chipField {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 .chipOp {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-normal);
 }
 
 .chipValue {
-  font-weight: var(--font-weight-medium);
   max-width: 28ch;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.remove {
+/*
+ * The remove glyph rides inside the pill rather than standing as a control beside it: a
+ * 22px button inside a 24px capsule would be the capsule. Two classes, so the size wins on
+ * specificity over the button's own. The hit target is the chip's full height, which is what
+ * a 24px pill has to offer.
+ */
+.clause .remove {
   flex: none;
+  width: var(--control-height-xs);
+  height: var(--control-height-xs);
   margin-right: var(--space-0-5);
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
 }
 
 /*

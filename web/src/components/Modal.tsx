@@ -16,7 +16,11 @@ import { IconButton } from './IconButton';
 import { useOptionalKeyContext } from './keyContext';
 import styles from './Modal.module.css';
 
-export type ModalSize = 'sm' | 'md' | 'lg';
+/**
+ * `composer` is the create-issue shape: 750px, the large radius and the modal shadow,
+ * pinned a little lower than the others so the title field sits where the eye already is.
+ */
+export type ModalSize = 'sm' | 'md' | 'lg' | 'composer';
 
 export interface ModalProps {
   open: boolean;
@@ -31,6 +35,13 @@ export interface ModalProps {
   /** A line under the title, wired up as the dialog's accessible description. */
   description?: string | undefined;
   size?: ModalSize | undefined;
+  /**
+   * Replaces the title row — heading, description and close button — with the caller's
+   * own. `title` still names the dialog: it is rendered for assistive technology only, so a
+   * breadcrumb header can say "ENG › New issue" while the dialog is still announced as
+   * "New issue". A custom header owes the user a close affordance of its own.
+   */
+  header?: ReactNode | undefined;
   /** Footer actions, laid out trailing-aligned. Usually a Cancel and a primary Button. */
   footer?: ReactNode | undefined;
   /**
@@ -111,6 +122,7 @@ export function Modal({
   title,
   description,
   size = 'md',
+  header,
   footer,
   initialFocus,
   className,
@@ -316,35 +328,49 @@ export function Modal({
         tabIndex={-1}
         onKeyDown={onKeyDown}
       >
-        <div className={styles.header}>
-          <div className={styles.headings}>
-            <h2 id={titleId} className={styles.title}>
+        {header !== undefined ? (
+          <>
+            <h2 id={titleId} className={styles.hiddenTitle}>
               {title}
             </h2>
             {description === undefined ? null : (
-              <p id={descriptionId} className={styles.description}>
+              <p id={descriptionId} className={styles.hiddenTitle}>
                 {description}
               </p>
             )}
+            <div className={styles.customHeader}>{header}</div>
+          </>
+        ) : (
+          <div className={styles.header}>
+            <div className={styles.headings}>
+              <h2 id={titleId} className={styles.title}>
+                {title}
+              </h2>
+              {description === undefined ? null : (
+                <p id={descriptionId} className={styles.description}>
+                  {description}
+                </p>
+              )}
+            </div>
+            <IconButton
+              ref={closeRef}
+              aria-label="Close"
+              keys="Escape"
+              size="sm"
+              onClick={onClose}
+              icon={
+                <svg viewBox="0 0 16 16" fill="none">
+                  <path
+                    d="m4.5 4.5 7 7m0-7-7 7"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              }
+            />
           </div>
-          <IconButton
-            ref={closeRef}
-            aria-label="Close"
-            keys="Escape"
-            size="sm"
-            onClick={onClose}
-            icon={
-              <svg viewBox="0 0 16 16" fill="none">
-                <path
-                  d="m4.5 4.5 7 7m0-7-7 7"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-              </svg>
-            }
-          />
-        </div>
+        )}
         <div className={styles.body}>{children}</div>
         {footer === undefined ? null : <div className={styles.footer}>{footer}</div>}
       </div>

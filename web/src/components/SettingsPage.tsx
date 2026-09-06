@@ -37,8 +37,12 @@ export interface SettingsPageProps {
  * The frame is deliberately not configurable beyond `width`: a page differs from its
  * siblings in what it says, never in how it is set.
  *
- * The header is the app's standard bar height so the chrome does not jump as you move
- * between settings and the rest of the shell.
+ * There is no header bar. The rest of the shell puts a 44px bar over every view because a
+ * list needs its toolbar pinned while it scrolls; a settings page is a document, and a
+ * document's title scrolls with it. The column is centred and capped so the page reads at
+ * one measure whatever the window is, and the title sits well below the top edge — a
+ * settings screen is arrived at deliberately, and the room above the title is what says
+ * "you are somewhere else now" without a border saying it.
  */
 export function SettingsPage({
   title,
@@ -50,19 +54,22 @@ export function SettingsPage({
 }: SettingsPageProps) {
   return (
     <div className={styles.screen}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>{title}</h1>
-        {actions === undefined ? null : <div className={styles.actions}>{actions}</div>}
-      </header>
-
       <div className={width === 'wide' ? `${styles.body} ${styles.wide}` : styles.body}>
-        {description === undefined ? null : <p className={styles.description}>{description}</p>}
+        <header className={styles.header}>
+          <div className={styles.titleRow}>
+            <h1 className={styles.title}>{title}</h1>
+            {actions === undefined ? null : <div className={styles.actions}>{actions}</div>}
+          </div>
+          {description === undefined ? null : <p className={styles.description}>{description}</p>}
+        </header>
+
         {error === undefined ? null : (
           <p className={styles.error} role="alert">
             {error}
           </p>
         )}
-        {children}
+
+        <div className={styles.sections}>{children}</div>
       </div>
     </div>
   );

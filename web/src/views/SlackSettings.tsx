@@ -29,6 +29,7 @@ import {
   useSaveState,
 } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
+import { SettingsRow } from '~/components/SettingsSection';
 import {
   disconnectSlack,
   enableSlackConnection,
@@ -185,35 +186,38 @@ export function SlackSettings() {
       }
     >
       <SettingsSection title="Channel notifications and slash commands">
-        <p className={styles.hint}>
-          Paste a Slack incoming-webhook URL to post issue and comment events to a channel. Slash
-          commands create or comment on issues; <code>/asks</code> and a leading 🎫 file a triage
-          Ask when that is on in Settings → Asks. Link unfurls and magic-word linkbacks need a Slack
-          app. Bot token and signing secret live in process env, not in this workspace.
-        </p>
+        <SettingsRow>
+          <p className={styles.note}>
+            Paste a Slack incoming-webhook URL to post issue and comment events to a channel. Slash
+            commands create or comment on issues; <code>/asks</code> and a leading 🎫 file a triage
+            Ask when that is on in Settings → Asks. Link unfurls and magic-word linkbacks need a
+            Slack app. Bot token and signing secret live in process env, not in this workspace.
+          </p>
+        </SettingsRow>
       </SettingsSection>
 
       <SettingsSection
         title="Workspace"
+        description={
+          connection === null
+            ? 'One Slack connection per workspace. Admins pick a public team for slash-created issues, then optionally paste a channel webhook.'
+            : undefined
+        }
         status={<SaveIndicator state={save.state} />}
         error={save.error}
       >
         {connection === null ? (
-          <>
-            <p className={styles.hint}>
-              One Slack connection per workspace. Admins pick a public team for slash-created
-              issues, then optionally paste a channel webhook.
-            </p>
-            {isAdmin ? (
-              <form
-                className={styles.form}
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void onEnable();
-                }}
-              >
+          isAdmin ? (
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void onEnable();
+              }}
+            >
+              <SettingsRow label="Default team" wide>
                 <Select
                   label="Default team"
+                  hideLabel
                   value={teamId}
                   onChange={(event) => setTeamId(event.target.value)}
                   disabled={pending || teams.length === 0}
@@ -224,100 +228,126 @@ export function SlackSettings() {
                     </option>
                   ))}
                 </Select>
+              </SettingsRow>
+              <SettingsRow label="Channel name" description="Optional. Display only — #eng" wide>
                 <Input
                   label="Channel name"
+                  hideLabel
                   value={channelName}
                   onChange={(event) => setChannelName(event.target.value)}
-                  hint="Optional. Display only — #eng"
                   disabled={pending}
                 />
+              </SettingsRow>
+              <SettingsRow
+                label="Incoming webhook URL"
+                description="Optional. From Slack: Incoming Webhooks → Add to Slack. Used to notify the channel."
+                wide
+              >
                 <Input
                   label="Incoming webhook URL"
+                  hideLabel
                   value={webhookUrl}
                   onChange={(event) => setWebhookUrl(event.target.value)}
-                  hint="Optional. From Slack: Incoming Webhooks → Add to Slack. Used to notify the channel."
                   disabled={pending}
                   autoComplete="off"
                   spellCheck={false}
                 />
+              </SettingsRow>
+              <SettingsRow label="Notify on issue create and update">
                 <Checkbox
-                  label="Notify on issue create and update"
+                  aria-label="Notify on issue create and update"
                   checked={notifyIssues}
                   onChange={(event) => setNotifyIssues(event.target.checked)}
                   disabled={pending}
                 />
+              </SettingsRow>
+              <SettingsRow label="Notify on comments">
                 <Checkbox
-                  label="Notify on comments"
+                  aria-label="Notify on comments"
                   checked={notifyComments}
                   onChange={(event) => setNotifyComments(event.target.checked)}
                   disabled={pending}
                 />
-                <div className={styles.row}>
+              </SettingsRow>
+              <SettingsRow>
+                <div className={styles.actions}>
                   <Button variant="primary" disabled={pending || teamId === ''} type="submit">
                     Connect
                   </Button>
                 </div>
-              </form>
-            ) : (
-              <p className={styles.hint}>Ask an admin to connect Slack.</p>
-            )}
-          </>
+              </SettingsRow>
+            </form>
+          ) : (
+            <SettingsRow>
+              <p className={styles.note}>Ask an admin to connect Slack.</p>
+            </SettingsRow>
+          )
         ) : (
-          <form className={styles.form} onSubmit={(event) => void onSave(event)}>
-            <Select
-              label="Default team"
-              value={teamId}
-              onChange={(event) => setTeamId(event.target.value)}
-              disabled={!isAdmin || pending}
-            >
-              {teams.map((team) => (
-                <option key={team.id} value={team.id}>
-                  {team.name}
-                </option>
-              ))}
-            </Select>
-            <Input
-              label="Channel name"
-              value={channelName}
-              onChange={(event) => setChannelName(event.target.value)}
-              hint="Optional. Display only."
-              disabled={!isAdmin || pending}
-            />
+          <form onSubmit={(event) => void onSave(event)}>
+            <SettingsRow label="Default team" wide>
+              <Select
+                label="Default team"
+                hideLabel
+                value={teamId}
+                onChange={(event) => setTeamId(event.target.value)}
+                disabled={!isAdmin || pending}
+              >
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.name}
+                  </option>
+                ))}
+              </Select>
+            </SettingsRow>
+            <SettingsRow label="Channel name" description="Optional. Display only." wide>
+              <Input
+                label="Channel name"
+                hideLabel
+                value={channelName}
+                onChange={(event) => setChannelName(event.target.value)}
+                disabled={!isAdmin || pending}
+              />
+            </SettingsRow>
             {webhookSaved && !webhookEditing ? (
               // A saved webhook is a fact, not an empty field: the URL is never sent back to
               // this client, so a box that could only ever show a blank was telling the reader
               // nothing about what Slack actually has. Replace is the only action offered:
               // updateSlackConnection ignores an empty webhookUrl, so a "Remove" button here
               // would report a removal the server never performed. Disconnecting drops it.
-              <div className={styles.statusRow}>
-                <p className={styles.statusText}>
-                  Incoming webhook saved. Channel notifications post to it.
-                </p>
+              <SettingsRow
+                label="Incoming webhook URL"
+                description="Incoming webhook saved. Channel notifications post to it."
+              >
                 {isAdmin ? (
                   <Button type="button" disabled={pending} onClick={() => setWebhookEditing(true)}>
                     Replace webhook
                   </Button>
-                ) : null}
-              </div>
+                ) : undefined}
+              </SettingsRow>
             ) : (
-              <>
-                <Input
-                  label="Incoming webhook URL"
-                  value={webhookUrl}
-                  onChange={(event) => setWebhookUrl(event.target.value)}
-                  hint={
-                    webhookSaved
-                      ? 'Paste the new URL. Leaving this blank keeps the saved one.'
-                      : 'Optional. Paste a Slack incoming-webhook URL to notify a channel.'
-                  }
-                  disabled={!isAdmin || pending}
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                {webhookSaved ? (
-                  <div className={styles.row}>
+              <SettingsRow
+                label="Incoming webhook URL"
+                description={
+                  webhookSaved
+                    ? 'Paste the new URL. Leaving this blank keeps the saved one.'
+                    : 'Optional. Paste a Slack incoming-webhook URL to notify a channel.'
+                }
+                wide
+              >
+                <div className={styles.stack}>
+                  <Input
+                    label="Incoming webhook URL"
+                    hideLabel
+                    value={webhookUrl}
+                    onChange={(event) => setWebhookUrl(event.target.value)}
+                    disabled={!isAdmin || pending}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  {webhookSaved ? (
                     <Button
                       variant="ghost"
+                      size="sm"
                       type="button"
                       disabled={pending}
                       onClick={() => {
@@ -327,48 +357,60 @@ export function SlackSettings() {
                     >
                       Keep the saved webhook
                     </Button>
-                  </div>
-                ) : null}
-              </>
+                  ) : null}
+                </div>
+              </SettingsRow>
             )}
-            <Checkbox
-              label="Notify on issue create and update"
-              checked={notifyIssues}
-              onChange={(event) => setNotifyIssues(event.target.checked)}
-              disabled={!isAdmin || pending}
-            />
-            <Checkbox
-              label="Notify on comments"
-              checked={notifyComments}
-              onChange={(event) => setNotifyComments(event.target.checked)}
-              disabled={!isAdmin || pending}
-            />
+            <SettingsRow label="Notify on issue create and update">
+              <Checkbox
+                aria-label="Notify on issue create and update"
+                checked={notifyIssues}
+                onChange={(event) => setNotifyIssues(event.target.checked)}
+                disabled={!isAdmin || pending}
+              />
+            </SettingsRow>
+            <SettingsRow label="Notify on comments">
+              <Checkbox
+                aria-label="Notify on comments"
+                checked={notifyComments}
+                onChange={(event) => setNotifyComments(event.target.checked)}
+                disabled={!isAdmin || pending}
+              />
+            </SettingsRow>
             {isAdmin ? (
-              <div className={styles.row}>
-                <Button variant="primary" disabled={pending} type="submit">
-                  Save
-                </Button>
-              </div>
+              <SettingsRow>
+                <div className={styles.actions}>
+                  <Button variant="primary" disabled={pending} type="submit">
+                    Save
+                  </Button>
+                </div>
+              </SettingsRow>
             ) : null}
           </form>
         )}
       </SettingsSection>
 
       {connection !== null && isAdmin && inbound !== null ? (
-        <SettingsSection title="Slack app" flush>
-          <p className={styles.hint}>
-            Point a Slack slash command at the command URL and the Events API at the events URL.
-            Signing secret is <code>POLARIS_SLACK_SIGNING_SECRET</code>
-            {inbound.signingSecretConfigured ? ' (set)' : ' (not set)'}. Bot token is{' '}
-            <code>POLARIS_SLACK_BOT_TOKEN</code>
-            {inbound.botTokenConfigured ? ' (set)' : ' (not set)'}; needed for link unfurls.
-            Subscribe to <code>link_shared</code> and <code>message.channels</code>. Command:{' '}
-            <code>/polaris create Title</code>, <code>/polaris ENG-123</code>,{' '}
-            <code>/polaris comment ENG-123 text</code>. Magic words such as{' '}
-            <code>fixes ENG-123</code> post a linkback on the issue.
-          </p>
-          <p className={styles.mono}>{inbound.commandUrl}</p>
-          <p className={styles.mono}>{inbound.eventsUrl}</p>
+        <SettingsSection title="Slack app">
+          <SettingsRow>
+            <p className={styles.note}>
+              Point a Slack slash command at the command URL and the Events API at the events URL.
+              Signing secret is <code>POLARIS_SLACK_SIGNING_SECRET</code>
+              {inbound.signingSecretConfigured ? ' (set)' : ' (not set)'}. Bot token is{' '}
+              <code>POLARIS_SLACK_BOT_TOKEN</code>
+              {inbound.botTokenConfigured ? ' (set)' : ' (not set)'}; needed for link unfurls.
+              Subscribe to <code>link_shared</code> and <code>message.channels</code>. Command:{' '}
+              <code>/polaris create Title</code>, <code>/polaris ENG-123</code>,{' '}
+              <code>/polaris comment ENG-123 text</code>. Magic words such as{' '}
+              <code>fixes ENG-123</code> post a linkback on the issue.
+            </p>
+          </SettingsRow>
+          <SettingsRow label="Command URL">
+            <span className={styles.mono}>{inbound.commandUrl}</span>
+          </SettingsRow>
+          <SettingsRow label="Events URL">
+            <span className={styles.mono}>{inbound.eventsUrl}</span>
+          </SettingsRow>
         </SettingsSection>
       ) : null}
 
@@ -377,18 +419,12 @@ export function SlackSettings() {
           <DangerZoneRow
             title="Disconnect Slack"
             consequence="Channel notifications, slash commands and unfurls stop. The saved webhook URL is dropped with the connection. Issues Slack already filed stay."
-            action={
-              <Button
-                variant="danger"
-                disabled={pending}
-                onClick={() => {
-                  setDisconnectError(null);
-                  setDisconnecting(true);
-                }}
-              >
-                Disconnect Slack
-              </Button>
-            }
+            actionLabel="Disconnect Slack"
+            disabled={pending}
+            onAction={() => {
+              setDisconnectError(null);
+              setDisconnecting(true);
+            }}
           />
         </DangerZone>
       ) : null}

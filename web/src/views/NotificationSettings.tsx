@@ -28,6 +28,7 @@ import {
   SettingsSection,
   Select,
 } from '~/components';
+import { SettingsRow } from '~/components/SettingsSection';
 import { report, updateNotificationPrefs } from '~/features/inbox/mutations';
 import { requestNotificationPermission } from '~/platform/runtime';
 import {
@@ -353,41 +354,47 @@ export function NotificationSettings() {
       actions={<SaveIndicator state={saved ? 'saved' : 'idle'} />}
       error={saveError ?? undefined}
     >
-      <SettingsSection title="Desktop">
-        <p className={styles.sectionNote}>
-          Browser notifications for new inbox items. The tab badge still updates either way.
-        </p>
-        <Checkbox
-          checked={prefs.desktop === true}
-          onChange={(event) => {
-            const on = event.target.checked;
-            if (!on) {
-              write({ desktop: false });
-              return;
-            }
-            void requestNotificationPermission().then((granted) => {
-              if (granted) write({ desktop: true });
-            });
-          }}
+      <SettingsSection
+        title="Desktop"
+        description="Browser notifications for new inbox items. The tab badge still updates either way."
+      >
+        <SettingsRow
           label="Browser notifications"
-        />
-        {prefs.desktop === true ? (
-          <p className={styles.warning}>
-            New unread items also appear as a system notification once this page has permission.
-          </p>
-        ) : null}
+          description={
+            prefs.desktop === true
+              ? 'New unread items also appear as a system notification once this page has permission.'
+              : undefined
+          }
+        >
+          <Checkbox
+            aria-label="Browser notifications"
+            checked={prefs.desktop === true}
+            onChange={(event) => {
+              const on = event.target.checked;
+              if (!on) {
+                write({ desktop: false });
+                return;
+              }
+              void requestNotificationPermission().then((granted) => {
+                if (granted) write({ desktop: true });
+              });
+            }}
+          />
+        </SettingsRow>
       </SettingsSection>
 
-      <SettingsSection title="Email">
-        <p className={styles.sectionNote}>
-          Everything still arrives in your inbox here. This is only about what is also sent to you
-          by email.
-        </p>
-
-        <div className={styles.field}>
+      <SettingsSection
+        title="Email"
+        description="Everything still arrives in your inbox here. This is only about what is also sent to you by email."
+      >
+        <SettingsRow
+          label="Digest"
+          description="One message summarising what happened, rather than one per event."
+          wide
+        >
           <Select
             label="Digest"
-            hint="One message summarising what happened, rather than one per event."
+            hideLabel
             value={cadence}
             onChange={(event) =>
               write({ emailDigest: event.target.value as NotificationPrefs['emailDigest'] })
@@ -399,212 +406,197 @@ export function NotificationSettings() {
               </option>
             ))}
           </Select>
-        </div>
+        </SettingsRow>
 
-        <Checkbox
-          checked={prefs.emailPerNotification === true}
-          onChange={(event) => write({ emailPerNotification: event.target.checked })}
-          label="Email me for every notification"
-        />
         {/* Said plainly rather than left to be discovered. This is the switch that turns a
-              quiet product into a noisy one, and somebody turning it on should know that
-              before their inbox tells them. */}
-        <p className={styles.warning}>
-          One message per event. On a busy team this is a great deal of mail.
-        </p>
+            quiet product into a noisy one, and somebody turning it on should know that
+            before their inbox tells them. */}
+        <SettingsRow
+          label="Email me for every notification"
+          description="One message per event. On a busy team this is a great deal of mail."
+        >
+          <Checkbox
+            aria-label="Email me for every notification"
+            checked={prefs.emailPerNotification === true}
+            onChange={(event) => write({ emailPerNotification: event.target.checked })}
+          />
+        </SettingsRow>
       </SettingsSection>
 
-      <SettingsSection title="What to notify me about">
-        <p className={styles.sectionNote}>
-          Switching one off stops it entirely — it will not reach your inbox here either, and it
-          cannot reach an email. You stay subscribed to the issue.
-        </p>
-
-        <ul className={styles.types}>
-          {TYPES.map((type) => (
-            <li key={type.value} className={styles.type}>
-              <Checkbox
-                checked={!muted.has(type.value)}
-                onChange={(event) => setMuted(type.value, !event.target.checked)}
-                label={type.label}
-              />
-              <span className={styles.typeHint}>{type.hint}</span>
-            </li>
-          ))}
-        </ul>
+      <SettingsSection
+        title="What to notify me about"
+        description="Switching one off stops it entirely — it will not reach your inbox here either, and it cannot reach an email. You stay subscribed to the issue."
+      >
+        {TYPES.map((type) => (
+          <SettingsRow key={type.value} label={type.label} description={type.hint}>
+            <Checkbox
+              aria-label={type.label}
+              checked={!muted.has(type.value)}
+              onChange={(event) => setMuted(type.value, !event.target.checked)}
+            />
+          </SettingsRow>
+        ))}
       </SettingsSection>
 
-      <SettingsSection title="Saved views you follow">
-        <p className={styles.sectionNote}>
-          Subscribe from a saved view’s header. Turning both kinds of event off here is the same as
-          unsubscribing.
-        </p>
+      <SettingsSection
+        title="Saved views you follow"
+        description="Subscribe from a saved view’s header. Turning both kinds of event off here is the same as unsubscribing."
+      >
         {watches.length === 0 ? (
-          <p className={styles.warning}>You are not watching any saved views.</p>
+          <SettingsRow>
+            <p className={styles.note}>You are not watching any saved views.</p>
+          </SettingsRow>
         ) : (
-          <ul className={styles.types}>
-            {watches.map((watch) => (
-              <li key={watch.id} className={styles.watch}>
-                <div className={styles.watchMeta}>
-                  <span>{watch.name}</span>
-                  <span className={styles.typeHint}>
-                    {[
-                      watch.added ? 'issues added' : null,
-                      watch.completed ? 'issues completed' : null,
-                    ]
-                      .filter(Boolean)
-                      .join(', ')}
-                  </span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setViewSubscription(engine, {
-                      viewId: watch.viewId,
-                      userId: viewerId,
-                      added: false,
-                      completed: false,
-                    }).catch(report);
-                  }}
-                >
-                  Unsubscribe
-                </Button>
-              </li>
-            ))}
-          </ul>
+          watches.map((watch) => (
+            <SettingsRow
+              key={watch.id}
+              label={watch.name}
+              description={[
+                watch.added ? 'issues added' : null,
+                watch.completed ? 'issues completed' : null,
+              ]
+                .filter(Boolean)
+                .join(', ')}
+            >
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setViewSubscription(engine, {
+                    viewId: watch.viewId,
+                    userId: viewerId,
+                    added: false,
+                    completed: false,
+                  }).catch(report);
+                }}
+              >
+                Unsubscribe
+              </Button>
+            </SettingsRow>
+          ))
         )}
       </SettingsSection>
 
-      <SettingsSection title="Projects you follow">
-        <p className={styles.sectionNote}>
-          Subscribe from a project’s header. Turning every event off here is the same as
-          unsubscribing.
-        </p>
+      <SettingsSection
+        title="Projects you follow"
+        description="Subscribe from a project’s header. Turning every event off here is the same as unsubscribing."
+      >
         {projectWatches.length === 0 ? (
-          <p className={styles.warning}>You are not watching any projects.</p>
+          <SettingsRow>
+            <p className={styles.note}>You are not watching any projects.</p>
+          </SettingsRow>
         ) : (
-          <ul className={styles.types}>
-            {projectWatches.map((watch) => (
-              <li key={watch.id} className={styles.watch}>
-                <div className={styles.watchMeta}>
-                  <span>{watch.name}</span>
-                  <span className={styles.typeHint}>
-                    {[
-                      watch.issuesAdded ? 'issues added' : null,
-                      watch.issuesCompleted ? 'issues completed' : null,
-                      watch.updates ? 'updates' : null,
-                    ]
-                      .filter(Boolean)
-                      .join(', ')}
-                  </span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setProjectSubscription(engine, {
-                      projectId: watch.projectId,
-                      userId: viewerId,
-                      issuesAdded: false,
-                      issuesCompleted: false,
-                      updates: false,
-                    }).catch(report);
-                  }}
-                >
-                  Unsubscribe
-                </Button>
-              </li>
-            ))}
-          </ul>
+          projectWatches.map((watch) => (
+            <SettingsRow
+              key={watch.id}
+              label={watch.name}
+              description={[
+                watch.issuesAdded ? 'issues added' : null,
+                watch.issuesCompleted ? 'issues completed' : null,
+                watch.updates ? 'updates' : null,
+              ]
+                .filter(Boolean)
+                .join(', ')}
+            >
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setProjectSubscription(engine, {
+                    projectId: watch.projectId,
+                    userId: viewerId,
+                    issuesAdded: false,
+                    issuesCompleted: false,
+                    updates: false,
+                  }).catch(report);
+                }}
+              >
+                Unsubscribe
+              </Button>
+            </SettingsRow>
+          ))
         )}
       </SettingsSection>
 
-      <SettingsSection title="Initiatives you follow">
-        <p className={styles.sectionNote}>
-          Subscribe from an initiative’s header. Turning every event off here is the same as
-          unsubscribing.
-        </p>
+      <SettingsSection
+        title="Initiatives you follow"
+        description="Subscribe from an initiative’s header. Turning every event off here is the same as unsubscribing."
+      >
         {initiativeWatches.length === 0 ? (
-          <p className={styles.warning}>You are not watching any initiatives.</p>
+          <SettingsRow>
+            <p className={styles.note}>You are not watching any initiatives.</p>
+          </SettingsRow>
         ) : (
-          <ul className={styles.types}>
-            {initiativeWatches.map((watch) => (
-              <li key={watch.id} className={styles.watch}>
-                <div className={styles.watchMeta}>
-                  <span>{watch.name}</span>
-                  <span className={styles.typeHint}>
-                    {[
-                      watch.issuesAdded ? 'issues added' : null,
-                      watch.issuesCompleted ? 'issues completed' : null,
-                      watch.updates ? 'updates' : null,
-                    ]
-                      .filter(Boolean)
-                      .join(', ')}
-                  </span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setInitiativeSubscription(engine, {
-                      initiativeId: watch.initiativeId,
-                      userId: viewerId,
-                      issuesAdded: false,
-                      issuesCompleted: false,
-                      updates: false,
-                    }).catch(report);
-                  }}
-                >
-                  Unsubscribe
-                </Button>
-              </li>
-            ))}
-          </ul>
+          initiativeWatches.map((watch) => (
+            <SettingsRow
+              key={watch.id}
+              label={watch.name}
+              description={[
+                watch.issuesAdded ? 'issues added' : null,
+                watch.issuesCompleted ? 'issues completed' : null,
+                watch.updates ? 'updates' : null,
+              ]
+                .filter(Boolean)
+                .join(', ')}
+            >
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setInitiativeSubscription(engine, {
+                    initiativeId: watch.initiativeId,
+                    userId: viewerId,
+                    issuesAdded: false,
+                    issuesCompleted: false,
+                    updates: false,
+                  }).catch(report);
+                }}
+              >
+                Unsubscribe
+              </Button>
+            </SettingsRow>
+          ))
         )}
       </SettingsSection>
 
-      <SettingsSection title="Customers you follow">
-        <p className={styles.sectionNote}>
-          Subscribe from a customer’s page. Turning every event off here is the same as
-          unsubscribing.
-        </p>
+      <SettingsSection
+        title="Customers you follow"
+        description="Subscribe from a customer’s page. Turning every event off here is the same as unsubscribing."
+      >
         {customerWatches.length === 0 ? (
-          <p className={styles.warning}>You are not watching any customers.</p>
+          <SettingsRow>
+            <p className={styles.note}>You are not watching any customers.</p>
+          </SettingsRow>
         ) : (
-          <ul className={styles.types}>
-            {customerWatches.map((watch) => (
-              <li key={watch.id} className={styles.watch}>
-                <div className={styles.watchMeta}>
-                  <span>{watch.name}</span>
-                  <span className={styles.typeHint}>
-                    {[
-                      watch.requestAdded ? 'requests added' : null,
-                      watch.requestImportant ? 'marked important' : null,
-                      watch.requestCompleted ? 'requests completed' : null,
-                    ]
-                      .filter(Boolean)
-                      .join(', ')}
-                  </span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setCustomerSubscription(engine, {
-                      customerId: watch.customerId,
-                      userId: viewerId,
-                      requestAdded: false,
-                      requestImportant: false,
-                      requestCompleted: false,
-                    }).catch(report);
-                  }}
-                >
-                  Unsubscribe
-                </Button>
-              </li>
-            ))}
-          </ul>
+          customerWatches.map((watch) => (
+            <SettingsRow
+              key={watch.id}
+              label={watch.name}
+              description={[
+                watch.requestAdded ? 'requests added' : null,
+                watch.requestImportant ? 'marked important' : null,
+                watch.requestCompleted ? 'requests completed' : null,
+              ]
+                .filter(Boolean)
+                .join(', ')}
+            >
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setCustomerSubscription(engine, {
+                    customerId: watch.customerId,
+                    userId: viewerId,
+                    requestAdded: false,
+                    requestImportant: false,
+                    requestCompleted: false,
+                  }).catch(report);
+                }}
+              >
+                Unsubscribe
+              </Button>
+            </SettingsRow>
+          ))
         )}
       </SettingsSection>
     </SettingsPage>

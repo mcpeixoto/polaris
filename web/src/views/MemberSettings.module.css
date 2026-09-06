@@ -1,102 +1,24 @@
 /*
  * Members, invitations and seats.
  *
- * A settings page rather than a list view, so the density rules relax: these are decisions
- * made rarely, some of them irreversible, and a row that is one pixel from its neighbour is
- * a row somebody suspends by accident.
+ * The frame is SettingsPage's and the cards are SettingsSection's. What is left is the two
+ * lists the cards hold: the invitation rows, and the member table — a real <table>, not a
+ * grid of divs. Every row is the same five facts about a different person, which is what a
+ * table is for, and it gives row and column headers to a screen reader for free, which a
+ * div grid has to reconstruct with ARIA and usually gets wrong.
  *
- * The member table is a real <table>, not a grid of divs. Every row is the same five facts
- * about a different person, which is what a table is for — and it gives row and column
- * headers to a screen reader for free, which a div grid has to reconstruct with ARIA and
- * usually gets wrong.
+ * Secondary rather than tertiary for every quiet line here: all of it sits on the card, and
+ * tertiary only clears 4.5:1 on the page.
  */
-
-.screen {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex: none;
-  height: var(--header-height);
-  padding-inline: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.title {
-  margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-}
 
 .spacer {
   flex: 1;
 }
 
-.body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: var(--space-6) var(--space-8);
-  max-width: 92ch;
-}
-
-.section,
-.seats {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding-bottom: var(--space-6);
-  margin-bottom: var(--space-6);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.sectionTitle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+.note {
   margin: 0;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-}
-
-.sectionHint {
-  margin: 0;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-normal);
-}
-
-/*
- * The seat ceiling, when it has been reached.
- *
- * Takes the urgent pair rather than a --danger role, which the token layer does not have —
- * the same bargain Field.module.css makes, and for the same reason: that pair is the only
- * red already tuned against both page colours.
- */
-.blocked {
-  margin: 0;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-md);
-  background-color: color-mix(in srgb, var(--priority-medium) 14%, transparent);
-  color: var(--priority-medium);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-normal);
-}
-
-.error {
-  margin: 0 0 var(--space-4);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-md);
-  background-color: color-mix(in srgb, var(--priority-urgent) 12%, transparent);
-  color: var(--priority-urgent);
-  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
   line-height: var(--line-height-normal);
 }
 
@@ -105,7 +27,6 @@
 .invites {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -116,10 +37,11 @@
   align-items: center;
   gap: var(--space-3);
   min-height: var(--row-height);
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background-color: var(--bg-secondary);
+  padding: var(--space-2) var(--space-4);
+}
+
+.invite + .invite {
+  border-top: 1px solid var(--border-subtle);
 }
 
 /*
@@ -131,7 +53,7 @@
  * which state this is; the dimming only stops it competing with the live ones.
  */
 .inviteStale {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 .inviteEmail {
@@ -142,7 +64,7 @@
 
 .inviteExpiry {
   flex: none;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
 }
 
@@ -151,13 +73,17 @@
  *
  * Always in the document, empty until there is something to say — a live region inserted
  * already populated is frequently never announced at all, which would make this an empty
- * gesture rather than the point of it.
+ * gesture rather than the point of it. Under the card, where the row it is about just was.
  */
 .revoked {
-  margin: 0;
-  color: var(--text-tertiary);
+  margin: var(--space-3) 0 0;
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
+}
+
+.revoked:empty {
+  margin: 0;
 }
 
 /*
@@ -170,15 +96,21 @@
 .loading {
   display: flex;
   justify-content: center;
-  padding: var(--space-6) 0;
+  padding: var(--space-4) 0;
 }
 
 /* --- the member table ------------------------------------------------------ */
 
+/*
+ * The table takes the card's edge as its own: hairlines above each row rather than below, so
+ * the last row meets the card's bottom edge without drawing a second line on it. The line
+ * above the table itself is the one between the filter row and the caption.
+ */
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--font-size-sm);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--font-size-md);
 }
 
 /*
@@ -189,22 +121,27 @@
  * would leave two audiences with different information about the same page.
  */
 .caption {
-  padding-bottom: var(--space-2);
-  color: var(--text-tertiary);
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
   text-align: start;
 }
 
 .table th,
 .table td {
-  padding: var(--space-2);
-  border-bottom: 1px solid var(--border-subtle);
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
   text-align: start;
   vertical-align: middle;
 }
 
+.table tbody td,
+.table tbody th {
+  height: var(--row-height);
+}
+
 .table thead th {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
 }
@@ -227,7 +164,7 @@
 }
 
 .secondary {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
 }
 
@@ -237,7 +174,7 @@
  * question rather than a visible state.
  */
 .suspendedRow {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 .actions {
@@ -247,9 +184,10 @@
   gap: var(--space-1);
 }
 
+/* Not on a card: the page itself is the surface, so secondary is generous rather than owed. */
 .footnote {
   margin: 0;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }
@@ -285,6 +223,7 @@
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--space-3);
   align-items: end;
+  flex: 1;
 }
 
 @media (max-width: 720px) {

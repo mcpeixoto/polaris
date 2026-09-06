@@ -1,18 +1,38 @@
 /*
- * Only what `SettingsPage` and `SettingsSection` do not already draw. The screen, header,
- * title, body measure and section heading scale are now the frame's.
+ * Only what `SettingsPage`, `SettingsSection` and `SettingsRow` do not already draw.
  */
 
 .loading {
   display: flex;
   justify-content: center;
-  padding: var(--space-8);
+  padding: var(--space-4);
   color: var(--text-tertiary);
 }
 
 .note {
   margin: 0;
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   line-height: var(--line-height-normal);
+}
+
+.note + .note {
+  margin-top: var(--space-2);
+}
+
+/*
+ * The button on the right edge of its row, and the note about what the download held on the
+ * left of it — the note is the answer to the click, so it sits beside the thing clicked.
+ */
+.download {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-4);
+  flex: 1;
+}
+
+.download .note {
+  flex: 1;
+  margin: 0;
 }

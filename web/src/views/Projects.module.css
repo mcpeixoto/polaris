@@ -5,6 +5,8 @@
   min-height: 0;
 }
 
+/* The view header: 44px, no rule beneath it — the toolbar row carries the hairline, so the
+   two rows read as one head rather than as a header and a second header. */
 .header {
   display: flex;
   align-items: center;
@@ -12,7 +14,6 @@
   flex: none;
   height: var(--header-height);
   padding-inline: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
 }
 
 .title {
@@ -20,42 +21,146 @@
   flex: 1;
   min-width: 0;
   font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
-  letter-spacing: -0.014em;
 }
 
-.headerActions {
+.newProject {
+  color: var(--text-secondary);
+}
+
+.toolbar {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   flex: none;
-}
-
-.list {
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
-.group {
+  min-height: var(--space-10);
+  padding: var(--space-1) var(--space-4);
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.toolbarEnd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  margin-inline-start: auto;
+}
+
+.pills {
+  display: flex;
+  align-items: center;
+  gap: var(--space-0-5);
+  min-width: 0;
+  overflow-x: auto;
+}
+
+/*
+ * One pressed pill at a time. The pressed one wears the tertiary surface and primary text,
+ * the rest are text on nothing — a segmented control drawn as a row of pills, which is what
+ * every list view's "Active / Backlog / All" is.
+ */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: var(--control-height-md);
+  padding-inline: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.pill:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.pill.pillActive {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.pill:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/*
+ * The table. One grid template, declared once here and read by the column header and every
+ * row, so the two cannot drift: a header that says "Lead" over a column of target dates is
+ * the failure a shared template makes impossible.
+ *
+ * Widths are in `ch` for the text columns so they scale with the font-size preference, and
+ * in tokens for the glyph columns.
+ */
+.table {
+  --project-grid: minmax(0, 1fr) 16ch 7ch 5ch 12ch 6ch 9ch;
+
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: var(--space-8);
+}
+
+.tableSparkline {
+  --project-grid: minmax(0, 1fr) 16ch 7ch 5ch 12ch 6ch 9ch var(--space-10);
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: var(--project-grid);
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--control-height-lg);
+  padding-inline: var(--space-4);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.columnEnd {
+  text-align: right;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The issue list's group header, unchanged: 36px on the tertiary surface, inset from the
+   panel edge with the row radius, the band's glyph and name and a count. */
 .groupTitle {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin: 0;
-  padding: var(--space-2) var(--space-4);
+  height: 36px;
+  margin: var(--space-2) var(--space-2) 0;
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-lg);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+}
+
+.groupCount {
   color: var(--text-secondary);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-weight: var(--font-weight-normal);
+  font-variant-numeric: tabular-nums;
 }
 
 .groupTitleOver {
-  background: var(--bg-hover);
+  background: var(--bg-selected);
 }
 
 .groupList {
@@ -64,28 +169,27 @@
   padding: 0;
 }
 
+/* 51px: the project row is taller than an issue row because its name cell carries a second
+   fact — the milestone — and the health cell a second word. */
 .row {
   display: grid;
-  grid-template-columns: var(--space-4) minmax(0, 1fr) 12ch 14ch 12ch 16ch 18ch 8ch;
+  grid-template-columns: var(--project-grid);
   align-items: center;
   gap: var(--space-3);
-  height: var(--row-height);
+  height: 51px;
   padding-inline: var(--space-4);
   color: inherit;
   text-decoration: none;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   border-bottom: 1px solid var(--border-subtle);
-  transition: background-color var(--duration-instant) var(--ease-out);
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 .rowDragging {
   opacity: 0.5;
 }
 
-.rowOver {
-  background: var(--bg-hover);
-}
-
+.rowOver,
 .row:hover {
   background: var(--bg-hover);
 }
@@ -95,18 +199,25 @@
   outline-offset: calc(-1 * var(--focus-ring-width));
 }
 
-.mark {
-  width: var(--space-2);
-  height: var(--space-2);
-  border-radius: var(--radius-full);
-  justify-self: center;
+.nameCell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
-.body {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  gap: 1px;
+/* The emoji the project chose, or the product's project glyph when it chose none. A fixed
+   box either way, so names line up whether or not their neighbours have an icon. */
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--space-4);
+  height: var(--space-4);
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-none);
 }
 
 .name {
@@ -117,76 +228,101 @@
   white-space: nowrap;
 }
 
+/* The milestone the project is on, after the name in the same cell: a checkpoint reads as
+   a qualifier of the name, not as a column of its own. */
+/* The summary takes the milestone's slot until there is a milestone: same ink, no glyph. */
 .summary {
-  overflow: hidden;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.priority,
-.status,
-.health,
-.healthMuted,
-.lead,
-.leadMuted,
-.labels,
-.labelMuted,
-.count {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 40%;
   overflow: hidden;
   color: var(--text-secondary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.labels {
-  display: flex;
+.milestone {
+  display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  min-width: 0;
-}
-
-.labelMuted {
-  color: var(--text-tertiary);
-}
-
-.priority {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.status {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.statusDot {
-  width: var(--space-1);
-  height: var(--space-1);
   flex: none;
-  border-radius: var(--radius-full);
+  min-width: 0;
+  max-width: 40%;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+.health {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.priority,
 .lead {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
 }
 
-.leadMuted,
-.healthMuted,
-.count {
+.leadAvatar {
+  display: inline-flex;
+}
+
+.noLead {
+  display: inline-flex;
   color: var(--text-tertiary);
 }
 
+.target {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .count {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
   text-align: right;
 }
 
-/* The export cap notice, in the banner slot under the header. */
+/* The ring in the status's own colour, the number beside it. */
+.status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.spark {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.sparkline {
+  display: block;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The export cap notice, in the banner slot under the toolbar. */
 .exportNote {
   display: flex;
   align-items: center;
@@ -226,4 +362,33 @@
 /* The skeleton stands where the rows will be, so the header does not jump when they land. */
 .loading {
   padding: var(--space-4);
+}
+
+/* Seven columns do not fit a narrow window. Target and the sparkline go first: both are
+   repeated on the project's own overview, and neither is what the list is scanned for. */
+@media (max-width: 1100px) {
+  .table,
+  .tableSparkline {
+    --project-grid: minmax(0, 1fr) 16ch 7ch 5ch 6ch 9ch;
+  }
+
+  .target,
+  .spark,
+  .columns > :nth-child(5),
+  .columns > :nth-child(8) {
+    display: none;
+  }
+}
+
+/* Off the page, on the accessibility tree. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
 }

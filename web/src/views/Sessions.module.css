@@ -1,139 +1,91 @@
 /*
- * Personal sessions.
+ * Personal sessions, and the authorised-apps screen that shares this sheet.
  *
- * A settings page, so the density rules relax the way they do in API keys: these are
- * decisions made rarely, one of them signs you out, and a row a pixel from its neighbour
- * is a laptop somebody revokes by accident.
- *
- * The listing is a real <table>. Every row is the same facts about a different login, and
- * the questions asked of it — which of these is this browser, which has not been seen in
- * a month, which IP is a hotel wifi — are comparisons down a column.
+ * The settings frame owns the page and the card; what is left here is the table inside the
+ * card. It is a real <table>: every row is the same facts about a different login, and the
+ * questions asked of it — which of these is this browser, which has not been seen in a
+ * month, which IP is a hotel wifi — are comparisons down a column.
  */
 
-.screen {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex: none;
-  height: var(--header-height);
-  padding-inline: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.title {
-  margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-}
-
-.spacer {
-  flex: 1;
-}
-
-.body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: var(--space-6) var(--space-8);
-  max-width: 110ch;
-}
-
-.intro {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding-bottom: var(--space-6);
-  margin-bottom: var(--space-6);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.sectionTitle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-}
-
-.sectionHint {
-  margin: 0;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-normal);
-}
-
 /*
- * The load failure, in the same panel the auth screens use — 8% fill, ringed edge.
- *
- * The fill was 12%, and red text on a 12% wash of itself measures 4.27:1 on the light page:
- * under the 4.5:1 floor, because the tint is made of the same colour as the words and every
- * point it adds to the background is a point taken off the contrast. 8% reads 4.55:1 light
- * and 5.98:1 dark, and the ring is what keeps it looking like a panel rather than a stain
- * once the fill is that light.
- *
- * `align-items: start` rather than centre: the offline sentence is three lines wide on a
- * narrow settings pane, and a Try again button floated to the middle of a paragraph reads as
- * belonging to the line it happens to be beside.
+ * A failed fetch, with its way out beside it. The card is the boundary now, so the panel
+ * this used to be drawn as has gone: red words and a button on a quiet row are findable
+ * without a wash behind them. `align-items: start` because the offline sentence runs to
+ * three lines on a narrow pane, and a button centred on a paragraph reads as belonging to
+ * whichever line it happens to sit beside.
  */
 .failure {
   display: flex;
   align-items: start;
   gap: var(--space-3);
-  margin-bottom: var(--space-4);
-  padding: var(--space-3);
-  border-radius: var(--radius-md);
-  background-color: color-mix(in srgb, var(--priority-urgent) 8%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--priority-urgent) 30%, transparent);
-  color: var(--priority-urgent);
+  color: var(--text-danger);
 }
 
 .failureText {
   margin: 0;
   flex: 1;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   line-height: var(--line-height-normal);
 }
 
 .loading {
   display: flex;
   justify-content: center;
-  padding: var(--space-10) 0;
+  padding: var(--space-6) 0;
   color: var(--text-tertiary);
+}
+
+/* The card clips its corners, so a table wider than it scrolls inside its own box rather
+   than losing its last column under the edge. */
+.scroll {
+  overflow-x: auto;
 }
 
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
 }
 
 .caption {
-  padding-bottom: var(--space-2);
+  padding: var(--space-3) var(--space-4) 0;
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
   text-align: start;
 }
 
+/*
+ * Cells take the card's own inset at the edges, so the first column lines up with a row
+ * label on any other card. Hairlines between rows are the table's; the outer edge is the
+ * card's, which is why the last row draws none.
+ */
 .table th,
 .table td {
-  padding: var(--space-2);
+  padding: var(--space-3);
   border-bottom: 1px solid var(--border-subtle);
   text-align: start;
   vertical-align: middle;
   white-space: nowrap;
 }
 
+.table th:first-child,
+.table td:first-child {
+  padding-inline-start: var(--space-4);
+}
+
+.table th:last-child,
+.table td:last-child {
+  padding-inline-end: var(--space-4);
+}
+
+.table tbody tr:last-child th,
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
 .table thead th {
+  padding-block: var(--space-2);
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);

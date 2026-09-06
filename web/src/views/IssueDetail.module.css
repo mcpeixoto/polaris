@@ -1,10 +1,12 @@
 /*
- * The issue, laid out as a document with a properties rail beside it.
+ * The issue, laid out as Linear lays one out: a 44px header carrying the breadcrumb and the
+ * issue's actions, then two columns — a reading column capped at 720px with the title, the
+ * description, what the issue is attached to and what has happened to it, and a 300px rail
+ * of properties on the right. On a narrow window the rail folds under the document.
  *
- * The reading column is capped rather than filling the window: a title and a paragraph of
- * markdown set across 1600 pixels is unreadable, and the rail is where the eye goes for the
- * facts anyway. On a narrow window the rail folds above the document, because the properties
- * are what you came for on a phone and the description is what you scroll to.
+ * Sizes below that are not tokens are Linear's measured ones — the 24px title, the 68px
+ * gutter, the 720px column — and are the reason this file exists; the type scale's stops
+ * were chosen for a 13px list and have no seat for a document title.
  */
 
 .screen {
@@ -25,9 +27,10 @@
  * A visible <h1> would be a second copy of the title sitting above the first, so it is
  * hidden the way Search.module.css's .screenTitle is, and for the same reason: `display:
  * none` and `visibility: hidden` take an element out of both trees, which is the one thing a
- * heading must never be.
+ * heading must never be. `.srOnly` is the same rule for the rail's labels.
  */
-.screenTitle {
+.screenTitle,
+.srOnly {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -39,35 +42,40 @@
   clip-path: inset(50%);
 }
 
+/* --- The header ------------------------------------------------------------------------ */
+
+/* No bottom edge: the header and the page are one surface, and the breadcrumb is what says
+   where the page begins. */
 .header {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-1);
   flex: none;
   height: var(--header-height);
   padding-inline: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
 }
 
-.identifier {
-  color: var(--text-tertiary);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-sm);
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: var(--font-size-md);
 }
 
 /*
  * The way back to the team's list. A link rather than a button, and shaped to sit on the same
  * line as the controls beside it without pretending to be one of them.
  */
-.link {
+.crumb {
   display: inline-flex;
   align-items: center;
+  flex: none;
   height: var(--control-height-md);
   padding-inline: var(--space-2);
   margin-left: calc(var(--space-2) * -1);
   border-radius: var(--radius-md);
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   text-decoration: none;
   white-space: nowrap;
@@ -76,47 +84,102 @@
     color var(--duration-fast) var(--ease-out);
 }
 
-.link:hover {
+.crumb:hover {
   background-color: var(--bg-hover);
   color: var(--text-primary);
-  text-decoration: underline;
 }
 
-.link:focus-visible {
+.crumb:focus-visible {
   outline: var(--focus-ring-width) solid var(--border-focus);
   outline-offset: var(--focus-ring-offset);
 }
 
+.crumbChevron {
+  flex: none;
+  width: var(--space-3);
+  height: var(--space-3);
+  color: var(--text-tertiary);
+}
+
+.crumbCurrent {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-inline: var(--space-1);
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.identifier {
+  flex: none;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.crumbTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The star, lit. Accent rather than a yellow: the palette has no yellow role and the
+   sidebar's favourites are what this joins. Doubled with `.header` so it outweighs the
+   button's own colour whichever order the two modules are emitted in. */
+.header .starOn,
+.header .starOn:hover {
+  color: var(--accent-text);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+}
+
 .spacer {
   flex: 1;
+  min-width: 0;
 }
+
+/* --- The two columns ------------------------------------------------------------------- */
 
 .body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  gap: var(--space-8);
+  grid-template-columns: minmax(0, 1fr) 300px;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: var(--space-5) var(--space-8);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 960px) {
   .body {
     grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-6);
-    padding: var(--space-4);
   }
 }
 
+/* Linear's 720px column behind a 68px gutter. The bottom padding is what stops the comment
+   box sitting on the window's edge when the page is short. */
 .main {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-4);
   min-width: 0;
-  max-width: 72ch;
+  max-width: calc(720px + 68px + var(--space-6));
+  padding: var(--space-10) var(--space-6) var(--space-10) 68px;
 }
+
+@media (max-width: 960px) {
+  .main {
+    max-width: none;
+    padding: var(--space-6) var(--space-4);
+  }
+}
+
+/* --- The document ---------------------------------------------------------------------- */
 
 .titleForm {
   display: flex;
@@ -144,10 +207,10 @@
   padding: var(--space-1) var(--space-2);
   border-color: transparent;
   background-color: transparent;
-  font-size: var(--font-size-xl);
+  font-size: 24px;
   font-weight: var(--font-weight-semibold);
   letter-spacing: -0.02em;
-  line-height: var(--line-height-tight);
+  line-height: 1.3;
   /* The comment above says the border and the surface "arrive on focus". Without a ramp they
      did not arrive, they appeared — which made a heading look like it had been replaced by a
      text box rather than revealed as one. */
@@ -174,6 +237,38 @@
 }
 
 /*
+ * The description at document size: 15px on a 1.6 leading, in the primary colour.
+ *
+ * The editor draws its text at the list size and paints it through a `<pre>` behind a
+ * transparent textarea, and both have to move together or a mark drifts off the word it
+ * names. Neither element is this screen's to restyle through a class, so both are reached
+ * by the one attribute each carries — the textarea's name and the backdrop's `aria-hidden` —
+ * which is narrow enough not to touch the comment-thread fields the same editor mounts.
+ */
+.description {
+  min-width: 0;
+}
+
+.description textarea[aria-label='Description'],
+.description pre[aria-hidden='true'] {
+  font-size: var(--font-size-lg);
+  line-height: 1.6;
+}
+
+.description pre[aria-hidden='true'] {
+  color: var(--text-primary);
+}
+
+/* The paperclip, the sub-issue glyph and the "Add sub-issues" ghost, one line under the
+   description. */
+.quickActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: calc(var(--space-1) * -1);
+}
+
+/*
  * The issue this one duplicates, said before anything else on the page.
  *
  * A status strip rather than an error tone: being a duplicate is a settled fact about the
@@ -184,55 +279,134 @@
   margin: 0;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background-color: var(--bg-secondary);
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   line-height: var(--line-height-normal);
 }
 
-.properties {
+.link {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-sm);
+}
+
+/* The four attachment sections, spaced as a group. */
+.sections {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-6);
+  margin-top: var(--space-4);
+}
+
+.divider {
+  margin: var(--space-4) 0;
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* --- The rail -------------------------------------------------------------------------- */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
   align-content: start;
-  padding-top: var(--space-1);
+  min-width: 0;
+  padding: var(--space-10) var(--space-6);
+  border-left: 1px solid var(--border-subtle);
+}
+
+@media (max-width: 960px) {
+  .rail {
+    padding: 0 var(--space-4) var(--space-6);
+    border-left: 0;
+    border-top: 1px solid var(--border-subtle);
+  }
+}
+
+.railTitle,
+.railGroup {
+  margin: 0 0 var(--space-1);
+  padding-inline: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--control-height-md);
+}
+
+.railGroup {
+  margin-top: var(--space-6);
 }
 
 .property {
-  display: grid;
-  grid-template-columns: 7rem minmax(0, 1fr);
-  align-items: center;
-  gap: var(--space-2);
-  min-height: var(--control-height-md);
-}
-
-.propertyLabel {
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-normal);
-}
-
-.propertyTrigger {
-  justify-content: flex-start;
+  display: flex;
   min-width: 0;
-  padding-inline: var(--space-2);
 }
 
 /*
- * A rail value that opens nothing: the milestone, the subscribers, the recurrence.
+ * One row per property: a 14px glyph and the value at 13px/500 primary, the row itself the
+ * hover surface. Doubled with `.rail` so the value colour beats the ghost variant's
+ * secondary at a weight the bundler cannot reorder.
+ */
+.rail .propertyTrigger {
+  justify-content: flex-start;
+  min-width: 0;
+  min-height: var(--control-height-md);
+  height: auto;
+  padding: var(--space-0-5) var(--space-2);
+  color: var(--text-primary);
+  white-space: normal;
+  text-align: left;
+}
+
+.rail .propertyTrigger:hover {
+  color: var(--text-primary);
+}
+
+/* An unset property reads as an invitation — "Set estimate", "Add label" — and recedes. */
+.rail .unset {
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/*
+ * A rail value that opens nothing: the milestone, the recurrence.
  *
  * Deliberately *not* `.propertyTrigger`. Trigger styling on a non-interactive span is the row
  * offering an affordance it does not have, which is the "one group, one affordance" rule read
- * from the other side — and it is exactly what the Repeats row was doing.
+ * from the other side.
  */
 .propertyValue {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   min-width: 0;
+  min-height: var(--control-height-md);
   padding-inline: var(--space-2);
   color: var(--text-primary);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
   line-height: var(--line-height-normal);
   overflow-wrap: anywhere;
+}
+
+.valueGlyph {
+  flex: none;
+  color: var(--text-secondary);
 }
 
 /*
@@ -246,6 +420,7 @@
  * every duration to 1ms; a second answer here would be a second place to keep in step.
  */
 .propertyTrigger svg {
+  color: var(--text-secondary);
   transition:
     color var(--duration-fast) var(--ease-out),
     fill var(--duration-fast) var(--ease-out),
@@ -253,25 +428,54 @@
 }
 
 .provenance {
-  margin: 0;
-  padding-top: var(--space-3);
+  margin: var(--space-6) 0 0;
+  padding: var(--space-3) var(--space-2) 0;
   border-top: 1px solid var(--border-subtle);
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }
 
-.sectionTitle {
-  margin: 0 0 var(--space-3);
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-}
+/* --- Activity -------------------------------------------------------------------------- */
 
 .activity,
 .comments {
-  border-top: 1px solid var(--border-subtle);
-  padding-top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.activityHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-md);
+}
+
+.activityTitle {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+/* The people watching, overlapped the way a stack of avatars is everywhere. */
+.subscribers {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.subscriber + .subscriber {
+  margin-left: calc(var(--space-1) * -1);
+}
+
+.subscriberAvatar {
+  display: inline-flex;
+  border-radius: var(--radius-full);
+  box-shadow: 0 0 0 2px var(--bg-primary);
 }
 
 .feed,
@@ -285,7 +489,7 @@
 .feed {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 /*
@@ -295,23 +499,40 @@
  */
 .event {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-2);
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
+  min-height: var(--control-height-md);
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
   line-height: var(--line-height-normal);
+}
+
+.eventGlyph {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-4);
+  color: var(--text-tertiary);
 }
 
 .eventText {
   min-width: 0;
 }
 
+.eventActor {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
 .eventWhen {
   flex: none;
   color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   white-space: nowrap;
 }
+
+/* --- Comments -------------------------------------------------------------------------- */
 
 .threads {
   display: flex;
@@ -354,8 +575,8 @@
 
 .commentAuthor {
   color: var(--text-primary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
 }
 
 /*
@@ -372,12 +593,34 @@
   overflow-wrap: anywhere;
 }
 
+/*
+ * The comment box: one bordered surface holding the field and its submit, the way Linear
+ * draws it, rather than a field with a button floating under it. The border is the focus
+ * affordance for the whole box, so the plain field's own bottom edge is put out — it would
+ * be a second line inside the first.
+ */
 .composer {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-1);
   width: 100%;
-  margin-top: var(--space-4);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-primary);
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.composer:focus-within {
+  border-color: var(--border-focus);
+}
+
+.composerField {
+  min-width: 0;
+}
+
+.composer .composerField textarea:focus {
+  border-bottom-color: transparent;
 }
 
 .composerActions {
@@ -424,7 +667,7 @@
   gap: var(--space-2);
   margin: 0;
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
 }
 
 .feedSkeleton {

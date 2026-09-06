@@ -21,98 +21,113 @@
   }
 }
 
+/* The view header: 44px, no rule beneath it. Breadcrumb, tabs, then the standing facts. */
 .header {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+  align-items: center;
+  gap: var(--space-4);
   flex: none;
-  padding: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
+  height: var(--header-height);
+  padding-inline: var(--space-4);
 }
 
-.titleRow {
+.crumbs {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
+  flex: 0 1 auto;
 }
 
-/*
- * The project's mark: its icon over its colour, or the colour alone.
- *
- * --project-mark-color is set inline from workspace data, and a project created without a
- * colour carries an empty string — `background: ''` is not a colour, so the fallback here
- * is what stops a new project's mark from disappearing.
- */
-.mark {
-  --project-mark-color: var(--text-tertiary);
+.crumb {
+  flex: none;
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  transition: color var(--duration-fast) var(--ease-out);
+}
 
+.crumb:hover {
+  color: var(--text-primary);
+}
+
+.crumb:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.crumbSeparator {
+  color: var(--text-tertiary);
+}
+
+/* The project's emoji, or the product's project glyph when it has none. */
+.mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--space-5);
-  height: var(--space-5);
-  border-radius: var(--radius-md);
+  width: var(--space-4);
+  height: var(--space-4);
   flex: none;
-  background: var(--project-mark-color);
-  color: var(--accent-contrast);
-  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
   line-height: var(--line-height-none);
 }
 
-/* One standing fact about the project — its status, its lead, its target date. Not a
-   control: everything here is editable in the rail, and a chip that looked clickable would
-   be promising a second place to edit it. */
+.title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* One standing fact about the project — its status, its target date. */
 .chip {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
   flex: none;
   max-width: 16rem;
+  height: var(--control-height-pill);
   padding-inline: var(--space-2);
-  min-height: var(--control-height-sm);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-full);
-  background: var(--bg-secondary);
   color: var(--text-secondary);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.title {
-  margin: 0;
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-  letter-spacing: -0.018em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Health and the notification bell are about the reader's relationship to the project
-   rather than about the project, so they sit at the far end away from its identity. */
 .headerEnd {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  flex: none;
   margin-inline-start: auto;
 }
 
 .tabs {
   display: flex;
-  gap: var(--space-1);
+  align-items: center;
+  gap: var(--space-0-5);
+  flex: none;
 }
 
 .tab {
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-height-md);
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-md);
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-medium);
   text-decoration: none;
   transition:
@@ -127,7 +142,7 @@
 
 .tabActive {
   color: var(--text-primary);
-  background: var(--bg-secondary);
+  background: var(--bg-tertiary);
 }
 
 /* NavLink sets aria-current on the active tab, so selection is announced; this is the
@@ -152,24 +167,23 @@
   min-height: 0;
 }
 
+/* The rail: 300px, the properties heading at the same height the overview's title sits. */
 .properties {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   flex: none;
-  width: 280px;
-  padding: var(--space-4);
+  width: 300px;
+  padding: var(--space-8) var(--space-5) var(--space-8);
   border-left: 1px solid var(--border-subtle);
   overflow-y: auto;
 }
 
 .propertiesTitle {
-  margin: 0;
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
   color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 @media (max-width: 960px) {
@@ -179,6 +193,7 @@
 
   .properties {
     width: auto;
+    padding: var(--space-4);
     border-left: none;
     border-top: 1px solid var(--border-subtle);
   }

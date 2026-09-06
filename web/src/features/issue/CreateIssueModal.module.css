@@ -1,135 +1,227 @@
 /*
- * The create dialog: a document at the top, a labelled property grid under it.
+ * The create dialog: a breadcrumb, a document, a row of pills.
  *
- * Title and description are unboxed because they are a document and not a form. The
- * properties below them used to be a wrapping flex row of `flex: 0 1 14ch` chips with every
- * visible label suppressed, and that row is the specimen `docs/03-architecture/08-ui-
- * composition.md` was written against: it wrapped raggedly, it truncated "Does not repeat"
- * mid-word, and it named none of its own fields — the whole group read as
- * "No assignee · No priority · No project · No form".
- *
- * It is a grid of equal columns now. A grid cannot wrap raggedly and cannot size a cell
- * smaller than the column it shares, so the truncation and the ragged wrap are gone by
- * construction rather than by a chosen basis width; it collapses three columns to two to one
- * rather than letting a cell shrink under its content.
- *
- * Every cell carries a visible label in the detail rail's treatment — see `.propertyLabel` in
- * IssueDetail.module.css, which this deliberately matches — because a row of placeholders
- * names nothing, and the person filling it in should not have to open a control to discover
- * what it is.
+ * The property row used to be a labelled grid of native selects, and before that a wrapping
+ * flex row of `flex: 0 1 14ch` chips — the specimen `docs/03-architecture/08-ui-composition.md`
+ * was written against. It is a wrapping row again, and deliberately: every pill is sized to
+ * its own content and nothing else, so there is nothing to truncate and no column to wrap
+ * raggedly out of. What the doc actually forbade was a fixed character basis and a group of
+ * eight controls with no names; each pill here carries its property as a description and
+ * its value as its name, and a pill with no value shows the property's name in its place.
  */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-md);
+}
+
+.crumb {
+  display: flex;
+  align-items: center;
+  color: var(--text-tertiary);
+}
+
+.heading {
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
+/* The chip reads as a label rather than a value — it is the one pill that is always set —
+ * so it takes the quieter ink the header's crumbs are written in. */
+.header .teamPill.teamPill {
+  color: var(--text-secondary);
+}
+
+.emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-4);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-none);
+}
 
 .form {
   display: grid;
   gap: var(--space-2);
+  padding-top: var(--space-3);
 }
 
 /*
  * The title's typography, and the title's alone.
  *
- * This was `.form :global(input)`, which set a page heading's size and weight on every input
- * in the subtree — the `First due` date field and every form-template answer came out
- * oversized and semibold, which is exactly the failure the house rule against bare-element
- * `:global()` selectors describes. The selector is now scoped to one field's wrapper, so it
- * cannot reach an input this dialog has not put there itself.
- *
- * It has to go through the element rather than through the wrapper: `Input` hands a caller's
- * className to the field frame, and the control inside it takes `font-size` from its own box
- * rather than by inheritance, so a rule on the frame would never arrive.
+ * Scoped to one field's wrapper rather than written as `.form :global(input)`, which set a
+ * page heading's size on every input in the subtree — the due date and every form-template
+ * answer included. It has to go through the element rather than the wrapper: `Input` hands
+ * a caller's className to the field frame, and the control inside takes `font-size` from its
+ * own box rather than by inheritance.
  */
 .title input {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-medium);
   letter-spacing: -0.016em;
 }
 
+.description textarea {
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+}
+
 .properties {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-3) var(--space-2);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
   padding-top: var(--space-2);
 }
 
-/* Three to two to one. A cell never shrinks under its content; the grid loses a column
-   instead, which is the one move that cannot truncate a product string. */
-@media (max-width: 720px) {
-  .properties {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+/*
+ * A pill holding nothing is written in the quieter ink, so the row can be read for the
+ * properties that have been set. Doubled because `Button`'s own pill rule leaves colour to
+ * inherit, and a single class here would still be settled by emission order against any
+ * variant that does not.
+ */
+.properties .unset.unset {
+  color: var(--text-secondary);
 }
 
-@media (max-width: 520px) {
-  .properties {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-.property {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
+/* A pill that is its glyph and nothing else: the cycle before one is chosen, the overflow.
+ * Three classes, because `.button.pill` sets the asymmetric padding at two. */
+.properties .glyphOnly.glyphOnly {
+  padding: 0 var(--space-1);
 }
 
 /*
- * The label, in the detail rail's treatment rather than the form frame's.
- *
- * These sit above a row of sibling controls of two different kinds — native selects and menu
- * triggers — and the label is the only thing that makes the group read as one row of
- * properties. `Field` would style the selects' own labels and could not reach the buttons',
- * which would leave one row wearing two label treatments; written here, they all agree.
+ * The date field, dressed as a pill. A native date input cannot be a Button, so the capsule
+ * is drawn around it by hand to the same measurements: the same height, edge, radius and
+ * glyph slot as `Button`'s pill, so the row does not have one control a shade taller.
  */
-.propertyLabel {
-  color: var(--text-tertiary);
+.datePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--control-height-pill);
+  padding: 0 var(--space-2) 0 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  color: var(--text-primary);
   font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-normal);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.datePill:hover {
+  background-color: var(--bg-hover);
+}
+
+/* The ring on the capsule, not the field: the field has no edge of its own to draw it on. */
+.datePill:focus-within {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.dateInput {
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.dateInput:focus {
+  outline: none;
+}
+
+/* A value the composer was handed and cannot change — the milestone a link asked for. */
+.staticPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--control-height-pill);
+  padding: 0 var(--space-2) 0 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   line-height: var(--line-height-none);
 }
 
-/*
- * The menu triggers, shaped to sit in a group of native selects.
- *
- * They were `variant="ghost"` with no border and no fill, so half this row looked like
- * controls and half looked like static text. `secondary` is the rule for a trigger standing
- * in a horizontal group; the border colour is pulled to the selects' own so the group has one
- * affordance rather than two hairlines a shade apart, and the inline padding matches the
- * select's text inset so the values line up in their columns.
- *
- * The class is doubled, as `Input`'s `.box.plain` is. `border-color` here and `.secondary`'s
- * in Button.module.css are both one class on the same element, so which hairline these wore
- * was decided by which stylesheet the bundler emitted last — and when Button won, the group
- * was back to the two shades this rule exists to collapse. Specificity, not stylesheet order.
- */
-.propertyTrigger.propertyTrigger {
-  justify-content: flex-start;
-  min-width: 0;
-  padding-inline: var(--space-2);
-  border-color: var(--border-subtle);
+.pillGlyph {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  color: var(--text-secondary);
+}
+
+/* Modal's footer is trailing-aligned; this fills it and puts the link at the other end. */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.footerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
 }
 
 /*
  * The `V` composer: the dialog with the window given to it.
  *
- * Doubled for the same reason `.propertyTrigger` is — `Modal`'s own `.lg` sets `max-width`
- * with one class, and which of the two won would otherwise be a question about emission
- * order. The scrim keeps its padding, so this is a dialog filling the screen rather than a
- * page pretending not to be a dialog.
+ * Doubled for the same reason the pill rules are — `Modal`'s own `.composer` sets
+ * `max-width` at two classes, and this has to beat it whatever the emission order. The
+ * scrim keeps its padding, so this is a dialog filling the screen rather than a page
+ * pretending not to be a dialog.
  */
-.fullScreen.fullScreen {
+.fullScreen.fullScreen.fullScreen {
   max-width: none;
   min-height: 100%;
 }
 
 .error {
   margin: 0;
-  color: var(--priority-urgent);
+  color: var(--text-danger);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }
 
+/* Secondary, not tertiary: this text sits on --bg-elevated, where tertiary fails 4.5:1 in
+ * dark. See the composition doc. */
 .dropped {
   margin: 0;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
+}
+
+/* Off the page, on the accessibility tree — the property names the pills are described by. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
 }

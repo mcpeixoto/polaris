@@ -17,6 +17,7 @@ import {
   SettingsSection,
   useSaveState,
 } from '~/components';
+import { SettingsRow } from '~/components/SettingsSection';
 import { EntityLoading, useEntityState } from '~/features/entity-gate/EntityGate';
 import { report } from '~/features/issue/mutations';
 import { updateWorkspaceCustomers } from '~/features/workspace/mutations';
@@ -104,7 +105,7 @@ export function CustomerRequestSettings() {
         {workspaceState === 'loading' ? (
           <EntityLoading label="Loading customer request settings…" lines={4} />
         ) : (
-          <p className={styles.hint}>
+          <p className={styles.note}>
             This workspace could not be read. Reload the page, or check that you are still signed
             in.
           </p>
@@ -120,79 +121,101 @@ export function CustomerRequestSettings() {
         status={<SaveIndicator state={unit.state} />}
         error={unit.error}
       >
-        <Checkbox
-          label="Enable customer requests"
-          checked={workspace.customerRequestsEnabled}
-          onChange={(event) => save({ customerRequestsEnabled: event.target.checked })}
-        />
+        <SettingsRow label="Enable customer requests">
+          <Checkbox
+            aria-label="Enable customer requests"
+            checked={workspace.customerRequestsEnabled}
+            onChange={(event) => save({ customerRequestsEnabled: event.target.checked })}
+          />
+        </SettingsRow>
 
-        <Select
+        <SettingsRow
           label="Default team"
-          hint="Used when creating an issue from a customer page. Public teams only."
-          value={workspace.customerDefaultTeamId ?? ''}
-          disabled={!workspace.customerRequestsEnabled}
-          onChange={(event) =>
-            save({
-              customerDefaultTeamId: event.target.value === '' ? null : event.target.value,
-            })
-          }
+          description="Used when creating an issue from a customer page. Public teams only."
+          wide
         >
-          <option value="">No default — the creator picks</option>
-          {teams.map((team) => (
-            <option key={team.id} value={team.id}>
-              {team.name}
-            </option>
-          ))}
-        </Select>
+          <Select
+            label="Default team"
+            hideLabel
+            value={workspace.customerDefaultTeamId ?? ''}
+            disabled={!workspace.customerRequestsEnabled}
+            onChange={(event) =>
+              save({
+                customerDefaultTeamId: event.target.value === '' ? null : event.target.value,
+              })
+            }
+          >
+            <option value="">No default — the creator picks</option>
+            {teams.map((team) => (
+              <option key={team.id} value={team.id}>
+                {team.name}
+              </option>
+            ))}
+          </Select>
+        </SettingsRow>
 
-        <RevenueUnit
-          value={workspace.customerRevenueUnit}
-          disabled={!workspace.customerRequestsEnabled}
-          save={unit}
-          onSave={(next) => updateWorkspaceCustomers(engine, { customerRevenueUnit: next })}
-        />
+        <SettingsRow
+          label="Revenue unit"
+          description="Shown next to a customer's revenue. USD, seats, or leave blank."
+          wide
+        >
+          <RevenueUnit
+            value={workspace.customerRevenueUnit}
+            disabled={!workspace.customerRequestsEnabled}
+            save={unit}
+            onSave={(next) => updateWorkspaceCustomers(engine, { customerRevenueUnit: next })}
+          />
+        </SettingsRow>
       </SettingsSection>
 
       <SettingsSection
         title="Tiers"
         description="Named plans offered when attributing a customer — Enterprise, Pro, self-serve. The customer's tier field stores the name."
-        flush
       >
-        <form className={styles.create} onSubmit={addTier}>
-          <Input
-            label="Tier name"
-            value={tierName}
-            disabled={!workspace.customerRequestsEnabled}
-            onChange={(event) => setTierName(event.target.value)}
-          />
-          <Button type="submit" disabled={!workspace.customerRequestsEnabled}>
-            Add
-          </Button>
+        <form onSubmit={addTier}>
+          <SettingsRow label="Tier name" wide>
+            <Input
+              label="Tier name"
+              hideLabel
+              value={tierName}
+              disabled={!workspace.customerRequestsEnabled}
+              onChange={(event) => setTierName(event.target.value)}
+            />
+            <Button type="submit" disabled={!workspace.customerRequestsEnabled}>
+              Add
+            </Button>
+          </SettingsRow>
         </form>
 
-        {workspace.customerTiers.length === 0 ? (
-          <p className={styles.hint}>No tiers yet. The customer page accepts any label.</p>
-        ) : (
-          <ul className={styles.tiers}>
-            {workspace.customerTiers.map((tier) => (
-              <li key={tier} className={styles.tier}>
-                <span>{tier}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  aria-label={`Remove ${tier}`}
-                  disabled={!workspace.customerRequestsEnabled}
-                  onClick={() => {
-                    setRemoveError(null);
-                    setRemoving(tier);
-                  }}
-                >
-                  Remove
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
+        {/* The list follows the form on the same card, with its own hairline: the form's row
+            is inside the <form>, so the card cannot draw that one for us. */}
+        <div className={styles.tail}>
+          {workspace.customerTiers.length === 0 ? (
+            <SettingsRow>
+              <p className={styles.note}>No tiers yet. The customer page accepts any label.</p>
+            </SettingsRow>
+          ) : (
+            <ul className={styles.tiers}>
+              {workspace.customerTiers.map((tier) => (
+                <li key={tier} className={styles.tier}>
+                  <span>{tier}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Remove ${tier}`}
+                    disabled={!workspace.customerRequestsEnabled}
+                    onClick={() => {
+                      setRemoveError(null);
+                      setRemoving(tier);
+                    }}
+                  >
+                    Remove
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </SettingsSection>
 
       <ConfirmDialog
@@ -244,7 +267,7 @@ function RevenueUnit({ value, disabled, save, onSave }: RevenueUnitProps) {
   return (
     <Input
       label="Revenue unit"
-      hint="Shown next to a customer's revenue. USD, seats, or leave blank."
+      hideLabel
       value={draft}
       disabled={disabled}
       onChange={(event) => {

@@ -33,13 +33,14 @@
 .panel {
   display: flex;
   flex-direction: column;
-  min-width: 18ch;
+  /* Wide enough for a filter box and its key cap; the label column still truncates. */
+  min-width: 220px;
   max-width: 40ch;
   padding: var(--space-1);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   background-color: var(--bg-elevated);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-popover);
   font-family: var(--font-sans);
   animation: surfaceIn var(--duration-fast) var(--ease-out);
 }
@@ -158,9 +159,17 @@
 
 .filter {
   display: flex;
-  padding: var(--space-1) var(--space-2) var(--space-2);
+  align-items: center;
+  gap: var(--space-2);
+  height: calc(var(--control-height-lg) + var(--space-1));
+  padding: 0 var(--space-2) var(--space-1);
   border-bottom: 1px solid var(--border-subtle);
   margin-bottom: var(--space-1);
+}
+
+/* The chord that opens the menu, taught at the edge of the box it opened into. */
+.filterHint {
+  flex: none;
 }
 
 /*
@@ -170,9 +179,9 @@
  * active item, below.
  */
 .filterInput {
-  width: 100%;
+  flex: 1 1 auto;
   min-width: 0;
-  height: var(--control-height-md);
+  height: var(--control-height-lg);
   padding: 0;
   border: 0;
   background-color: transparent;
@@ -207,7 +216,7 @@
 .list {
   /* Ten rows. Past that the list is a scroll, and a menu taller than a hand's worth of
    * choices wants a filter rather than more height. */
-  max-height: calc(var(--control-height-md) * 10);
+  max-height: calc(var(--control-height-lg) * 10);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -242,7 +251,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  height: var(--control-height-md);
+  height: var(--control-height-lg);
   padding-inline: var(--space-2);
   border-radius: var(--radius-md);
   color: var(--text-primary);
@@ -288,28 +297,38 @@
 }
 
 /*
- * The tick column is always present, even when nothing in the menu is selected. Reserving
- * it means the labels sit on one edge whatever the current value is, so changing a status
- * does not slide the whole list sideways under the pointer.
+ * The tick column is always present, even when nothing in the menu is selected. It sits at
+ * the trailing edge, after the hint, so a row reads glyph, value, shortcut, chosen — and
+ * reserving it means the hints sit on one edge whatever the current value is, so changing
+ * a status does not slide the column sideways under the pointer.
  */
 .tick {
   display: flex;
   align-items: center;
   justify-content: center;
   flex: none;
-  width: var(--space-3);
-  color: var(--accent-text);
+  width: var(--space-4);
+  margin-left: var(--space-2);
+  color: var(--text-primary);
 }
 
 .tick svg {
-  width: var(--space-3);
-  height: var(--space-3);
+  width: var(--space-4);
+  height: var(--space-4);
 }
 
 .icon {
   display: flex;
   align-items: center;
+  justify-content: center;
   flex: none;
+  width: var(--space-4);
+}
+
+/* A row's glyph is 14px; a StateIcon or Avatar that sizes itself is left alone. */
+.icon > svg {
+  width: 14px;
+  height: 14px;
 }
 
 /* The chevron is the whole affordance for a submenu row — there is no other way to tell it
@@ -338,9 +357,11 @@
 .hint {
   flex: none;
   margin-left: var(--space-4);
-  /* See the placeholder above: tertiary fails 4.5:1 on this panel's surface in dark. */
+  /* See the placeholder above: tertiary fails 4.5:1 on this panel's surface in dark, and a
+   * shortcut hint nobody can read is a shortcut nobody learns. */
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
 }
 
 .empty {

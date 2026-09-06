@@ -7,6 +7,8 @@
  * name, so the fill and the digits are announced once rather than twice.
  */
 
+import { ProgressRing } from '~/features/projects/ProgressRing';
+
 import type { Progress } from './progress';
 import styles from './ProgressBar.module.css';
 
@@ -22,12 +24,23 @@ export function ProgressBar({ progress, label, compact = false }: ProgressBarPro
     return <span className={styles.muted}>No issues</span>;
   }
 
+  const detail = `${progress.completed} of ${progress.total} issues completed, ${progress.percent}%`;
+
+  // In a row the bar becomes a ring: the column is a few characters wide, and a ring says
+  // the same ratio in the width of a glyph, with the digits beside it as before.
+  if (compact) {
+    return (
+      <span className={styles.compact}>
+        <ProgressRing percent={progress.percent} label={label} detail={detail} />
+        <span className={styles.value} aria-hidden="true">
+          {progress.percent}%
+        </span>
+      </span>
+    );
+  }
+
   return (
-    <span
-      className={compact ? `${styles.wrap ?? ''} ${styles.compact ?? ''}` : styles.wrap}
-      role="img"
-      aria-label={`${label}: ${progress.completed} of ${progress.total} issues completed, ${progress.percent}%`}
-    >
+    <span className={styles.wrap} role="img" aria-label={`${label}: ${detail}`}>
       <span className={styles.track} aria-hidden="true">
         <span className={styles.fill} style={{ width: `${progress.percent}%` }} />
       </span>

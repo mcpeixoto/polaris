@@ -80,6 +80,8 @@ export interface LabelPickerProps {
   /** The control the menu belongs to: what it is positioned against, and where focus returns. */
   trigger: RefObject<HTMLElement | null>;
   placement?: MenuPlacement | undefined;
+  /** The chord that opens this picker, taught in its filter row. See Menu. */
+  filterHint?: string | undefined;
   /**
    * The team whose labels are offered, alongside the workspace's.
    *
@@ -108,6 +110,7 @@ export function LabelPicker({
   onClose,
   trigger,
   placement,
+  filterHint,
   teamId,
   value,
   onApply,
@@ -165,7 +168,8 @@ export function LabelPicker({
       label="Labels"
       placement={placement}
       filterable
-      filterPlaceholder="Label…"
+      filterPlaceholder="Add labels…"
+      filterHint={filterHint}
       // Two different facts, and a list that said "no matches" to a workspace with no labels
       // would send somebody looking for a filter they never typed.
       emptyLabel={items.length === 0 ? 'No labels for this team yet' : 'No labels match'}

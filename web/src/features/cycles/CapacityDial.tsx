@@ -8,6 +8,7 @@
  */
 
 import { Progress } from '~/components';
+import { ProgressRing } from '~/features/projects/ProgressRing';
 
 import type { CycleCapacity } from './computeCapacity';
 import styles from './CapacityDial.module.css';
@@ -26,18 +27,19 @@ export function CapacityDial({ data, compact = false }: CapacityDialProps) {
       ? `from the last ${data.cyclesSampled === 1 ? 'cycle' : `${data.cyclesSampled} cycles`}`
       : 'estimated from team size';
 
+  // The row form says the percentage in words — "40% of capacity" — because a row is read
+  // left to right and the ring beside it is a picture of the same number, not a second one.
   if (compact) {
     return (
       <span className={styles.compact}>
-        <Progress
+        <ProgressRing
           percent={Math.min(data.percent, 100)}
           label="Capacity"
           detail={detail}
-          size="sm"
+          className={over ? styles.ringOver : undefined}
         />
         <span className={over ? styles.over : styles.muted}>
-          {data.scoped}/{data.capacity}
-          {over ? ' over' : ''}
+          {data.percent}% of capacity{over ? ' — over' : ''}
         </span>
       </span>
     );

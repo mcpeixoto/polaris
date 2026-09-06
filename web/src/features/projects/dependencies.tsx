@@ -261,7 +261,7 @@ export function ProjectDependencyFilterSelect({
 }) {
   return (
     <Select
-      label="Dependencies"
+      aria-label="Dependencies"
       value={value}
       onChange={(event) => onChange(event.target.value as ProjectDependencyFilter)}
     >

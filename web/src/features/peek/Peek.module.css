@@ -6,21 +6,26 @@
  * side of the screen.
  *
  * The transform is safe here in a way it is not in Menu — nothing measures this element —
- * and it costs no layout: a transformed flex item still occupies its untransformed 22rem,
+ * and it costs no layout: a transformed flex item still occupies its untransformed width,
  * so the list beside it settles to its final width on the first frame instead of being
  * reflowed for the length of the animation.
+ *
+ * What is inside is the issue screen's shape in one column: the header's identifier, the
+ * document's title and description, then the rail. The rows below restate the rail's rules
+ * rather than importing them, because the two stylesheets belong to two surfaces and a
+ * `composes` across features is a coupling the module graph would have to carry forever.
  */
 .panel {
   display: flex;
   flex-direction: column;
   flex: none;
-  width: 22rem;
+  width: 360px;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: var(--space-4);
+  padding: var(--space-5) var(--space-6);
   border-left: 1px solid var(--border-subtle);
-  background: var(--bg-elevated);
+  background: var(--bg-primary);
   animation: peekIn var(--duration-fast) var(--ease-out);
 }
 
@@ -50,51 +55,41 @@
   animation: peekOut var(--duration-instant) var(--ease-in) forwards;
 }
 
-/*
- * The identifier over the title, with the close control beside both.
- *
- * A grid rather than the column it was, because the button is a sibling of two stacked lines
- * and not a third line under them: it belongs at the top-right corner of the header, where
- * every other dismissable surface in the product puts it.
- */
+/* The identifier and the close control on one 28px line, as the issue screen's header. */
 .header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 0 var(--space-2);
-  margin-bottom: var(--space-3);
-}
-
-.identifier,
-.title {
-  grid-column: 1;
-}
-
-.close {
-  grid-column: 2;
-  grid-row: 1 / span 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--control-height-md);
+  margin-bottom: var(--space-2);
 }
 
 .identifier {
-  color: var(--text-tertiary);
-  margin-bottom: var(--space-1);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+.close {
+  flex: none;
 }
 
 .title {
-  margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
+  margin: 0 0 var(--space-3);
   color: var(--text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
   letter-spacing: -0.014em;
   line-height: var(--line-height-tight);
+  overflow-wrap: anywhere;
 }
 
 .description {
-  margin: 0 0 var(--space-4);
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+  margin: 0 0 var(--space-6);
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
   line-height: var(--line-height-normal);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -102,58 +97,91 @@
   overflow: hidden;
 }
 
-.parentId {
-  flex: none;
-  color: var(--text-tertiary);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-xs);
+.railTitle {
+  margin: 0 0 var(--space-1);
+  padding-inline: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--control-height-md);
 }
 
 .facts {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  margin: 0 0 var(--space-3);
+  gap: var(--space-0-5);
+  margin: 0 0 var(--space-4);
 }
 
 .fact {
-  display: grid;
-  grid-template-columns: 7rem minmax(0, 1fr);
-  align-items: center;
-  gap: var(--space-2);
-  min-height: var(--control-height-sm);
+  display: flex;
+  min-width: 0;
 }
 
-.fact dt {
-  color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-}
-
+/* The rail row: 28px, a 14px glyph and the value at 13px/500. Not a trigger — nothing
+   here opens a picker, so there is no hover wash to promise one. */
 .fact dd {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   margin: 0;
   min-width: 0;
+  min-height: var(--control-height-md);
+  padding-inline: var(--space-2);
   color: var(--text-primary);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.labels {
-  display: flex;
+/* Labels wrap: a row of chips is not a value that truncates. */
+.fact dd.factWrap {
   flex-wrap: wrap;
-  gap: var(--space-1);
-  margin-bottom: var(--space-3);
+  padding-block: var(--space-1);
+  white-space: normal;
+}
+
+.glyph {
+  flex: none;
+  color: var(--text-secondary);
+}
+
+/* Present to a screen reader, absent to everyone else — see IssueDetail's `.srOnly`. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.unset {
+  color: var(--text-secondary);
+}
+
+.parentId {
+  flex: none;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.parentTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .entityLink {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
   color: inherit;
   text-decoration: none;
 }
@@ -173,13 +201,15 @@
 
 .dates {
   margin: 0 0 var(--space-4);
+  padding-inline: var(--space-2);
   color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
 }
 
 .hint {
   margin-top: auto;
   margin-bottom: 0;
+  padding-inline: var(--space-2);
   color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
 }

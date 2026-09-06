@@ -1,18 +1,29 @@
 /*
- * GitHub settings. The chrome — measure, padding, headings, page and section error slots —
- * comes from SettingsPage and SettingsSection; what is left here is the handful of shapes
- * that frame does not draw: a wrapped button row, a secondary note, and the webhook URL.
+ * GitHub settings. The chrome — measure, headings, cards, rows, error slots — comes from
+ * SettingsPage, SettingsSection and SettingsRow; what is left here is the handful of shapes
+ * the row does not draw: a right-aligned button row, a secondary note, and the webhook URL.
  */
 
-.row {
+/* The submit row. Buttons sit on the right edge like every other control on the card; a
+   note that has to travel with them takes the space on the left. */
+.actions {
   display: flex;
+  flex: 1;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--space-3);
 }
 
-.hint {
+.actions > .note {
+  flex: 1;
+  min-width: 20ch;
   margin: 0;
+}
+
+/* Centred in a row of its own, so a one-line note is not stuck to the top of a 64px slot. */
+.note {
+  margin: auto 0;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
@@ -21,6 +32,7 @@
 /* The webhook URL is copied into GitHub character for character, so it never wraps at a
    word boundary that hides where a slash was. */
 .mono {
+  margin: var(--space-2) 0 0;
   font-family: var(--font-mono);
   font-size: var(--font-size-sm);
   word-break: break-all;

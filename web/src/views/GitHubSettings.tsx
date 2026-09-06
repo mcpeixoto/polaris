@@ -31,6 +31,7 @@ import {
   Spinner,
   useSaveState,
 } from '~/components';
+import { SettingsRow } from '~/components/SettingsSection';
 import { DEFAULT_GIT_BRANCH_FORMAT } from '~/features/github/branch';
 import {
   disconnectGitHub,
@@ -194,28 +195,36 @@ export function GitHubSettings() {
   const retry = () => setAttempt((n) => n + 1);
 
   const webhookPanel = loading ? (
-    <Spinner label="Loading webhook details" />
+    <SettingsRow>
+      <Spinner label="Loading webhook details" />
+    </SettingsRow>
   ) : webhook === null ? (
-    <EmptyState
-      title="Webhook details could not be loaded"
-      description={
-        loadError ??
-        'The server did not return a URL and secret for this connection. Nothing is broken on GitHub — this page simply has nothing to show you yet.'
-      }
-      action={<Button onClick={retry}>Try again</Button>}
-    />
+    <SettingsRow>
+      <EmptyState
+        title="Webhook details could not be loaded"
+        description={
+          loadError ??
+          'The server did not return a URL and secret for this connection. Nothing is broken on GitHub — this page simply has nothing to show you yet.'
+        }
+        action={<Button onClick={retry}>Try again</Button>}
+      />
+    </SettingsRow>
   ) : (
     <>
-      <p className={styles.hint}>
-        Add a GitHub org or repo webhook for Push events, content type application/json, with this
-        URL and secret.
-      </p>
-      <p className={styles.mono}>{webhook.url}</p>
-      <SecretField
-        label="Webhook secret"
-        value={webhook.secret}
-        consequence="Paste this into GitHub's webhook secret field. This page shows the secret currently in force, so a later visit can read it again; if it is ever rotated, every webhook still sending the old one is rejected until each is updated."
-      />
+      <SettingsRow>
+        <p className={styles.note}>
+          Add a GitHub org or repo webhook for Push events, content type application/json, with this
+          URL and secret.
+        </p>
+        <p className={styles.mono}>{webhook.url}</p>
+      </SettingsRow>
+      <SettingsRow>
+        <SecretField
+          label="Webhook secret"
+          value={webhook.secret}
+          consequence="Paste this into GitHub's webhook secret field. This page shows the secret currently in force, so a later visit can read it again; if it is ever rotated, every webhook still sending the old one is rejected until each is updated."
+        />
+      </SettingsRow>
     </>
   );
 
@@ -227,17 +236,18 @@ export function GitHubSettings() {
     >
       <SettingsSection
         title="Workspace"
+        description={
+          connection === null
+            ? 'One GitHub connection per workspace. Admins enable it here; a GitHub App is optional until you set POLARIS_GITHUB_CLIENT_ID on the server.'
+            : undefined
+        }
         status={<SaveIndicator state={workspaceSave.state} />}
         error={workspaceSave.error}
       >
         {connection === null ? (
-          <>
-            <p className={styles.hint}>
-              One GitHub connection per workspace. Admins enable it here; a GitHub App is optional
-              until you set POLARIS_GITHUB_CLIENT_ID on the server.
-            </p>
-            {isAdmin ? (
-              <div className={styles.row}>
+          isAdmin ? (
+            <SettingsRow>
+              <div className={styles.actions}>
                 <Button
                   variant="primary"
                   disabled={savingWorkspace}
@@ -246,41 +256,57 @@ export function GitHubSettings() {
                   Enable GitHub
                 </Button>
               </div>
-            ) : (
-              <p className={styles.hint}>Ask an admin to enable GitHub for this workspace.</p>
-            )}
-          </>
+            </SettingsRow>
+          ) : (
+            <SettingsRow>
+              <p className={styles.note}>Ask an admin to enable GitHub for this workspace.</p>
+            </SettingsRow>
+          )
         ) : (
           <form onSubmit={(event) => void onSaveWorkspace(event)}>
-            <div className={styles.row}>
+            <SettingsRow label="Status">
               <Badge>{connection.enabled ? 'Enabled' : 'Disabled'}</Badge>
-            </div>
-            <Input
+            </SettingsRow>
+            <SettingsRow
               label="Organisation"
-              value={orgLogin}
-              onChange={(event) => {
-                setOrgLogin(event.target.value);
-                workspaceSave.clear();
-              }}
-              hint="GitHub org login, if this workspace maps to one."
-              disabled={!isAdmin || savingWorkspace}
-            />
-            <Input
+              description="GitHub org login, if this workspace maps to one."
+              wide
+            >
+              <Input
+                label="Organisation"
+                hideLabel
+                value={orgLogin}
+                onChange={(event) => {
+                  setOrgLogin(event.target.value);
+                  workspaceSave.clear();
+                }}
+                disabled={!isAdmin || savingWorkspace}
+              />
+            </SettingsRow>
+            <SettingsRow
               label="Branch name format"
-              value={branchFormat}
-              onChange={(event) => {
-                setBranchFormat(event.target.value);
-                workspaceSave.clear();
-              }}
-              hint="Placeholders: {identifier}, {title}, {user}."
-              disabled={!isAdmin || savingWorkspace}
-            />
+              description="Placeholders: {identifier}, {title}, {user}."
+              wide
+            >
+              <Input
+                label="Branch name format"
+                hideLabel
+                value={branchFormat}
+                onChange={(event) => {
+                  setBranchFormat(event.target.value);
+                  workspaceSave.clear();
+                }}
+                disabled={!isAdmin || savingWorkspace}
+              />
+            </SettingsRow>
             {isAdmin ? (
-              <div className={styles.row}>
-                <Button variant="primary" disabled={savingWorkspace} type="submit">
-                  Save
-                </Button>
-              </div>
+              <SettingsRow>
+                <div className={styles.actions}>
+                  <Button variant="primary" disabled={savingWorkspace} type="submit">
+                    Save
+                  </Button>
+                </div>
+              </SettingsRow>
             ) : null}
           </form>
         )}
@@ -292,12 +318,14 @@ export function GitHubSettings() {
           status={<SaveIndicator state={commitsSave.state} />}
           error={commitsSave.error}
         >
-          <Checkbox
-            label="Link commits to issues with magic words"
-            checked={connection.linkCommits}
-            disabled={commitsSave.state === 'saving'}
-            onChange={(event) => void onToggleCommits(event.target.checked)}
-          />
+          <SettingsRow label="Link commits to issues with magic words">
+            <Checkbox
+              aria-label="Link commits to issues with magic words"
+              checked={connection.linkCommits}
+              disabled={commitsSave.state === 'saving'}
+              onChange={(event) => void onToggleCommits(event.target.checked)}
+            />
+          </SettingsRow>
           {connection.linkCommits ? webhookPanel : null}
         </SettingsSection>
       ) : null}
@@ -308,16 +336,17 @@ export function GitHubSettings() {
           status={<SaveIndicator state={linkbacksSave.state} />}
           error={linkbacksSave.error}
         >
-          <Checkbox
+          <SettingsRow
             label="Post a comment on the pull request or commit when it links to an issue"
-            checked={connection.linkbacks}
-            disabled={linkbacksSave.state === 'saving'}
-            onChange={(event) => void onToggleLinkbacks(event.target.checked)}
-          />
-          <p className={styles.hint}>
-            Private teams get the issue URL only. Turn this off if GitHub notifications from those
-            comments are noise.
-          </p>
+            description="Private teams get the issue URL only. Turn this off if GitHub notifications from those comments are noise."
+          >
+            <Checkbox
+              aria-label="Post a comment on the pull request or commit when it links to an issue"
+              checked={connection.linkbacks}
+              disabled={linkbacksSave.state === 'saving'}
+              onChange={(event) => void onToggleLinkbacks(event.target.checked)}
+            />
+          </SettingsRow>
         </SettingsSection>
       ) : null}
 
@@ -326,52 +355,57 @@ export function GitHubSettings() {
         description="Linking your login attributes pull requests to you. Without OAuth app credentials on the server you can type the username yourself."
         status={<SaveIndicator state={loginSave.state} />}
         error={loginSave.error}
-        flush={connection === null || !isAdmin}
       >
-        {userLink !== null ? (
-          <p className={styles.hint}>Connected as @{userLink.githubLogin}</p>
-        ) : null}
         <form onSubmit={(event) => void onSaveLogin(event)}>
-          <Input
+          <SettingsRow
             label="GitHub username"
-            value={loginDraft}
-            onChange={(event) => {
-              setLoginDraft(event.target.value);
-              loginSave.clear();
-            }}
-            disabled={savingLogin}
-          />
-          <div className={styles.row}>
-            <Button
-              variant="primary"
-              disabled={savingLogin || loginDraft.trim() === ''}
-              type="submit"
-            >
-              Save username
-            </Button>
-            {userLink !== null ? (
+            description={userLink === null ? undefined : `Connected as @${userLink.githubLogin}`}
+            wide
+          >
+            <Input
+              label="GitHub username"
+              hideLabel
+              value={loginDraft}
+              onChange={(event) => {
+                setLoginDraft(event.target.value);
+                loginSave.clear();
+              }}
+              disabled={savingLogin}
+            />
+          </SettingsRow>
+          <SettingsRow>
+            <div className={styles.actions}>
+              {oauthConfigured ? null : (
+                <p className={styles.note}>
+                  Connect with GitHub stays off until this install has POLARIS_GITHUB_CLIENT_ID and
+                  POLARIS_GITHUB_CLIENT_SECRET.
+                </p>
+              )}
               <Button
-                disabled={savingLogin}
-                type="button"
-                onClick={() => void loginSave.run(unlinkGitHubLogin)}
+                variant="primary"
+                disabled={savingLogin || loginDraft.trim() === ''}
+                type="submit"
               >
-                Disconnect account
+                Save username
               </Button>
-            ) : null}
-            <Button
-              disabled={savingLogin || !oauthConfigured}
-              type="button"
-              onClick={() => void loginSave.run(startGitHubOAuth)}
-            >
-              Connect with GitHub
-            </Button>
-          </div>
-          {oauthConfigured ? null : (
-            <p className={styles.hint}>
-              Connect with GitHub stays off until this install has POLARIS_GITHUB_CLIENT_ID and
-              POLARIS_GITHUB_CLIENT_SECRET.
-            </p>
-          )}
+              {userLink !== null ? (
+                <Button
+                  disabled={savingLogin}
+                  type="button"
+                  onClick={() => void loginSave.run(unlinkGitHubLogin)}
+                >
+                  Disconnect account
+                </Button>
+              ) : null}
+              <Button
+                disabled={savingLogin || !oauthConfigured}
+                type="button"
+                onClick={() => void loginSave.run(startGitHubOAuth)}
+              >
+                Connect with GitHub
+              </Button>
+            </div>
+          </SettingsRow>
         </form>
       </SettingsSection>
 
@@ -380,15 +414,9 @@ export function GitHubSettings() {
           <DangerZoneRow
             title="Disconnect GitHub"
             consequence="Issues keep any pull request or commit cards already attached. New events stop linking until GitHub is enabled again."
-            action={
-              <Button
-                variant="danger"
-                disabled={disconnectBusy}
-                onClick={() => setDisconnecting(true)}
-              >
-                Disconnect GitHub
-              </Button>
-            }
+            actionLabel="Disconnect GitHub"
+            busy={disconnectBusy}
+            onAction={() => setDisconnecting(true)}
           />
         </DangerZone>
       ) : null}

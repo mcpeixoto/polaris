@@ -13,7 +13,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { Button, IconButton } from '~/components';
+import { IconButton } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { CreateCustomerRequestModal } from '~/features/customers/CreateCustomerRequestModal';
 import { CustomerRequestEditor } from '~/features/customers/CustomerRequestEditor';
@@ -21,7 +21,9 @@ import {
   deleteCustomerRequest,
   toggleCustomerRequestImportant,
 } from '~/features/customers/mutations';
+import { PlusGlyph } from '~/features/issue/glyphs';
 import { report } from '~/features/issue/mutations';
+import { Section } from '~/features/issue/Section';
 import { PencilGlyph, TrashGlyph } from '~/features/project-updates/glyphs';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewer } from '~/hooks/useViewer';
@@ -69,13 +71,19 @@ export function IssueCustomers({
   };
 
   return (
-    <section className={styles.section} aria-label="Customers">
-      <div className={styles.head}>
-        <h2 className={styles.title}>Customers</h2>
-        <Button variant="ghost" onClick={() => setOpen(true)}>
-          Add request
-        </Button>
-      </div>
+    <Section
+      title="Customers"
+      aria-label="Customers"
+      count={rows.length === 0 ? undefined : rows.length}
+      action={
+        <IconButton
+          size="sm"
+          icon={<PlusGlyph />}
+          aria-label="Add request"
+          onClick={() => setOpen(true)}
+        />
+      }
+    >
       {writeError === null ? null : (
         <p className={styles.error} role="alert">
           {writeError}
@@ -171,7 +179,7 @@ export function IssueCustomers({
         }}
         onClose={() => setRemoving(null)}
       />
-    </section>
+    </Section>
   );
 }
 

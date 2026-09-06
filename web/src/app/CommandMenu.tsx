@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 
 import { useEngine, useQuery } from '~/app/context';
-import { Kbd } from '~/components';
+import { Avatar, Kbd, StateIcon } from '~/components';
 import { useFocusTrap } from '~/hooks/useFocusTrap';
 import { usePresence } from '~/hooks/usePresence';
 import { type Action, type Platform } from '~/keys';
@@ -31,6 +31,7 @@ import {
   save as saveRecents,
   type RecentUses,
 } from './commandMenuRecents';
+import { commandGlyph } from './commandMenuGlyphs';
 import { useKeymap } from './keymap';
 import styles from './CommandMenu.module.css';
 
@@ -98,7 +99,7 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
     what this replaced. Teams are in the dependency list because an issue's identifier is
     built from its team's key.
   */
-  const issueIndex = useQuery(buildIssueIndex, ['issue', 'team']);
+  const issueIndex = useQuery(buildIssueIndex, ['issue', 'team', 'workflowState']);
 
   const rows = useMemo((): Row[] => {
     if (!present) return [];
@@ -240,7 +241,11 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
 
   useEffect(() => {
     const el = listRef.current?.querySelector<HTMLElement>('[data-active="true"]');
-    el?.scrollIntoView({ block: 'nearest' });
+    // Guarded because this is decoration, not behaviour: jsdom lays nothing out and does not
+    // implement scrollIntoView, and a cursor that cannot scroll is still a cursor.
+    if (el !== null && el !== undefined && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ block: 'nearest' });
+    }
   }, [active]);
 
   if (!present) return null;
@@ -260,21 +265,38 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
         tabIndex={-1}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <input
-          ref={inputRef}
-          className={styles.input}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={onInputKeyDown}
-          placeholder="Type > commands, # issues, @ people…"
-          aria-label="Search commands"
-          aria-controls="command-menu-results"
-          aria-activedescendant={activeRow ? `command-${activeRow.id}` : undefined}
-          role="combobox"
-          aria-expanded="true"
-          autoComplete="off"
-          spellCheck={false}
-        />
+        <div className={styles.inputRow}>
+          <input
+            ref={inputRef}
+            className={styles.input}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={onInputKeyDown}
+            placeholder="Type a command or search…"
+            aria-label="Search commands"
+            aria-controls="command-menu-results"
+            aria-activedescendant={activeRow ? `command-${activeRow.id}` : undefined}
+            role="combobox"
+            aria-expanded="true"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {/* The scoping grammar, where the eye lands after the placeholder. It used to be
+              the placeholder itself, which made the box read as a syntax reference rather
+              than a search field; the sentence form survives in the empty state, which is
+              where somebody who typed the wrong thing is looking. */}
+          <span className={styles.grammar} aria-hidden="true">
+            <span className={styles.grammarItem}>
+              <span className={styles.prefix}>&gt;</span> commands
+            </span>
+            <span className={styles.grammarItem}>
+              <span className={styles.prefix}>#</span> issues
+            </span>
+            <span className={styles.grammarItem}>
+              <span className={styles.prefix}>@</span> people
+            </span>
+          </span>
+        </div>
 
         <ul
           className={styles.results}
@@ -314,6 +336,7 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
                   }}
                   onClick={() => run(row)}
                 >
+                  <span className={styles.icon}>{rowGlyph(row)}</span>
                   <span className={styles.title}>
                     {row.kind === 'action' ? row.action.title : row.hit.title}
                   </span>
@@ -407,6 +430,22 @@ function emptyTitle(scope: CommandScope, needle: string): string {
   if (scope === 'user') return `Nobody matches “${needle}”`;
   if (scope === 'command') return `No command matches “${needle}”`;
   return `Nothing matches “${needle}”`;
+}
+
+/**
+ * The glyph at the left of a row: an issue's state, a person's avatar, a command's group.
+ *
+ * Decorative in every case — the row's text already says what it is, and a screen reader
+ * hearing "Started, DES-5 Bulk status change" has been told the state twice.
+ */
+function rowGlyph(row: Row) {
+  if (row.kind === 'action') return commandGlyph(row.action.group);
+  if (row.id.startsWith('user:')) {
+    return <Avatar name={row.hit.title} src={row.hit.avatar} size="xs" decorative />;
+  }
+  const state = row.hit.state;
+  if (state === undefined) return commandGlyph('Issues');
+  return <StateIcon category={state.category} color={state.color} decorative />;
 }
 
 function platform(): Platform {

@@ -321,8 +321,11 @@ export function NavSection({
           aria-expanded={open}
           onClick={onToggle}
         >
+          {/* The word first and the arrow after it, as Linear draws it: the label is what the
+              eye is scanning for, and a chevron leading every heading is a column of chevrons
+              before it is a list of names. */}
+          <span className={styles.sectionLabel}>{title}</span>
           <NavChevron open={open} />
-          {title}
         </button>
         {action}
       </div>
@@ -359,12 +362,28 @@ export function NavChevron({ open }: { open: boolean }) {
 }
 
 /**
- * The square beside the workspace name: its logo if it has one, its initial otherwise.
+ * The workspace's initials: the first letter of its first two words, so "Peixoto Labs" reads
+ * "PL" and a one-word workspace keeps its single letter. Exported for the test; nothing else
+ * should need to spell a workspace this way.
+ */
+export function workspaceInitials(name: string): string {
+  const words = name
+    .trim()
+    .split(/\s+/)
+    .filter((word) => word !== '');
+  return words
+    .slice(0, 2)
+    .map((word) => [...word][0]?.toUpperCase() ?? '')
+    .join('');
+}
+
+/**
+ * The square beside the workspace name: its logo if it has one, its initials otherwise.
  *
- * The letter is not a placeholder waiting for an upload — most workspaces never set a logo,
- * and it is what Settings → Workspace promises is kept when the field is blank. Which makes
- * the image the exception, and the fallback the thing that has to be right: a URL that
- * 404s, or one that pointed at an image somebody has since deleted, falls back to the letter
+ * The letters are not a placeholder waiting for an upload — most workspaces never set a
+ * logo, and it is what Settings → Workspace promises is kept when the field is blank. Which
+ * makes the image the exception, and the fallback the thing that has to be right: a URL that
+ * 404s, or one that pointed at an image somebody has since deleted, falls back to the letters
  * rather than leaving a broken-image glyph in the corner of every screen.
  *
  * Keyed by url rather than by a boolean, as `Avatar` is, so replacing a broken logo with a
@@ -386,7 +405,7 @@ export function WorkspaceMark({ name, logoUrl }: { name: string; logoUrl?: strin
           onError={() => setBrokenSrc(logoUrl)}
         />
       ) : (
-        [...name][0]?.toUpperCase()
+        workspaceInitials(name)
       )}
     </span>
   );

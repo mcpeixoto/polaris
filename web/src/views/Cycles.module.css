@@ -20,6 +20,7 @@
   }
 }
 
+/* The view header: the team, a chevron, the view — 44px, no rule beneath it. */
 .header {
   display: flex;
   align-items: center;
@@ -27,69 +28,129 @@
   flex: none;
   height: var(--header-height);
   padding-inline: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
 }
 
 .title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   margin: 0;
   flex: 1;
   min-width: 0;
   font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
-  letter-spacing: -0.014em;
+}
+
+.teamIcon {
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-none);
+}
+
+.crumbSeparator {
+  color: var(--text-tertiary);
 }
 
 .list {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: var(--space-3) 0 var(--space-8);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
 
+/*
+ * Gutter and body. The gutter is where the timeline lives: a hairline down its right edge,
+ * a dot at each row's centre, and the day the window opened as a label. The running cycle's
+ * segment and dot take the accent, which is the one thing the gutter has to say.
+ */
 .item {
-  display: flex;
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
   align-items: stretch;
-  border-bottom: 1px solid var(--border-subtle);
+}
+
+.tick {
+  position: relative;
+}
+
+.tick::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(100% - var(--space-4));
+  width: 1px;
+  background: var(--border-default);
+}
+
+.tick::after {
+  content: '';
+  position: absolute;
+  top: calc(var(--row-height) / 2 - var(--space-1));
+  left: calc(100% - var(--space-4) - var(--space-1) + 0.5px);
+  width: var(--space-2);
+  height: var(--space-2);
+  box-sizing: border-box;
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  background: var(--bg-primary);
+}
+
+.tickLabel {
+  position: absolute;
+  top: calc(var(--row-height) / 2);
+  right: var(--space-6);
+  transform: translateY(-50%);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.currentItem .tick::before {
+  width: 2px;
+  margin-left: -0.5px;
+  background: var(--accent);
+}
+
+.currentItem .tick::after {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.currentItem .tickLabel {
+  color: var(--accent-text);
+  font-weight: var(--font-weight-medium);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-inline-end: var(--space-2);
+}
+
+.rowLine {
+  display: flex;
+  align-items: center;
+  min-width: 0;
 }
 
 .row {
   display: grid;
-  grid-template-columns: 10ch minmax(0, 1fr) 9ch;
+  grid-template-columns: var(--space-4) auto auto minmax(0, 1fr) 18ch 9ch;
   align-items: center;
   flex: 1;
   gap: var(--space-3);
   min-width: 0;
   height: var(--row-height);
-  padding-inline: var(--space-4);
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-lg);
   color: inherit;
   text-decoration: none;
-  font-size: var(--font-size-sm);
-  transition: background-color var(--duration-instant) var(--ease-out);
-}
-
-.menuButton {
-  flex: none;
-  align-self: center;
-  margin-inline: var(--space-2) var(--space-3);
-}
-
-.gapRow {
-  display: grid;
-  grid-template-columns: 10ch minmax(0, 1fr);
-  align-items: center;
-  gap: var(--space-3);
-  height: calc(var(--row-height) - 4px);
-  padding-inline: var(--space-4);
-  border-bottom: 1px dashed var(--border-subtle);
-  background: color-mix(in srgb, var(--bg-secondary) 60%, transparent);
-  font-size: var(--font-size-sm);
-}
-
-.gapWindow {
-  color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-md);
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 .row:hover {
@@ -101,19 +162,9 @@
   outline-offset: calc(-1 * var(--focus-ring-width));
 }
 
-.phase {
-  color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.body {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  gap: 1px;
+.glyph {
+  display: inline-flex;
+  color: var(--text-secondary);
 }
 
 .name {
@@ -124,46 +175,99 @@
   white-space: nowrap;
 }
 
-.summary {
+/* Planned / Upcoming / Current / Completed, a word on the tertiary surface. The same word
+   for every tense, so the current one is found by the gutter rather than by a louder chip. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-height-xs);
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.window {
   overflow: hidden;
   color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* The window you are in is the one the page is about, so it is the row that carries a
-   mark and a heavier name. Every other row is history or a plan. */
-.currentItem {
-  background: var(--accent-subtle);
-  box-shadow: inset 2px 0 0 0 var(--accent);
-}
-
-.currentItem .name {
-  font-weight: var(--font-weight-semibold);
-}
-
-.currentItem .phase {
-  color: var(--accent-text);
-}
-
-.progress {
+.meter {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  justify-content: flex-end;
+  gap: var(--space-2);
+  white-space: nowrap;
 }
 
-.ratio {
+.meterText {
   color: var(--text-secondary);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   font-variant-numeric: tabular-nums;
 }
 
-.count {
-  overflow: hidden;
-  color: var(--text-tertiary);
-  text-align: right;
-  text-overflow: ellipsis;
+.scope {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.menuButton {
+  flex: none;
+  margin-inline-start: var(--space-1);
+}
+
+/* The burn-up, under the running cycle's row and inset to its name. */
+.graph {
+  padding: var(--space-1) var(--space-3) var(--space-4)
+    calc(var(--space-3) + var(--space-4) + var(--space-3));
+}
+
+.gapRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--row-height);
+  padding-inline: var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+.gapLabel {
+  color: var(--text-tertiary);
+  font-weight: var(--font-weight-medium);
+}
+
+.gapWindow {
+  color: var(--text-tertiary);
+}
+
+/* A pause is a break in the line as well as a row: the segment beside it is dashed. */
+.gapItem .tick::before {
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--border-default) 0 3px,
+    transparent 3px 7px
+  );
+}
+
+.gapItem .tick::after {
+  display: none;
+}
+
+@media (max-width: 960px) {
+  .row {
+    grid-template-columns: var(--space-4) auto auto minmax(0, 1fr) 18ch;
+  }
+
+  .scope {
+    display: none;
+  }
 }

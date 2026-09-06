@@ -26,6 +26,27 @@ export const PROJECT_UPDATE_HEALTH_TOKEN: Readonly<Record<ProjectUpdateHealth, s
   off_track: '--priority-urgent',
 };
 
+/**
+ * How old an update is, in the width a table cell can spare: "3d", "8w", "now".
+ *
+ * Beside the health word, because "At risk" from this morning and "At risk" from two
+ * months ago are different facts, and the list is where a reader decides which projects to
+ * open. Weeks past seven days rather than months: an update is expected every week or two,
+ * and "2mo" hides how many of those were missed. `features/time`'s `when` writes the
+ * sentence form; this is the same clock at a glance.
+ */
+export function updateAge(iso: string, now: number = Date.now()): string {
+  const elapsed = now - Date.parse(iso);
+  if (Number.isNaN(elapsed) || elapsed < HOUR) return 'now';
+  if (elapsed < DAY) return `${Math.floor(elapsed / HOUR)}h`;
+  if (elapsed < WEEK) return `${Math.floor(elapsed / DAY)}d`;
+  return `${Math.floor(elapsed / WEEK)}w`;
+}
+
+const HOUR = 60 * 60 * 1000;
+const DAY = 24 * HOUR;
+const WEEK = 7 * DAY;
+
 export function latestProjectUpdate(store: Store, projectId: UUID): ProjectUpdate | undefined {
   let latest: ProjectUpdate | undefined;
   for (const id of store.projectUpdateIdsFor(projectId)) {

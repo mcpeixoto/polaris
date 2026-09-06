@@ -42,14 +42,24 @@
   color: var(--text-primary);
 }
 
+/*
+ * Bordered, and no fill. The edge is the whole difference from ghost: a header's filter and
+ * display buttons wear it so they read as controls against the panel they sit on, and a fill
+ * as well would make three of them in a row read as a segmented control they are not.
+ */
 .secondary {
-  background-color: var(--bg-tertiary);
+  background-color: transparent;
   border-color: var(--border-subtle);
-  color: var(--text-primary);
+  color: var(--text-secondary);
 }
 
 .secondary:hover {
   border-color: var(--border-default);
+  color: var(--text-primary);
+}
+
+.round {
+  border-radius: var(--radius-full);
 }
 
 /*

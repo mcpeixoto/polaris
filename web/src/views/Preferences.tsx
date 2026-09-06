@@ -14,6 +14,7 @@
 import { useCallback, useSyncExternalStore } from 'react';
 
 import { Checkbox, Select, SettingsPage, SettingsSection } from '~/components';
+import { SettingsRow } from '~/components/SettingsSection';
 import {
   applyPrefs,
   getPrefs,
@@ -26,7 +27,6 @@ import {
   type WeekStart,
 } from '~/features/prefs/prefs';
 import { applyTheme, type ThemeName } from '~/styles/theme';
-import styles from './Preferences.module.css';
 
 export function Preferences() {
   const prefs = useSyncExternalStore(subscribePrefs, getPrefs, getPrefs);
@@ -42,15 +42,18 @@ export function Preferences() {
       title="Preferences"
       description="How this client behaves on this device. Nothing here leaves it."
     >
-      <SettingsSection title="General">
-        <p className={styles.sectionNote}>
-          Where you land, how people are named, and which key posts a comment.
-        </p>
-
-        <div className={styles.field}>
+      <SettingsSection
+        title="General"
+        description="Where you land, how people are named, and which key posts a comment."
+      >
+        <SettingsRow
+          label="Default home view"
+          description="Opened on launch. Favourites still live in the sidebar."
+          wide
+        >
           <Select
             label="Default home view"
-            hint="Opened on launch. Favourites still live in the sidebar."
+            hideLabel
             value={prefs.homeView}
             onChange={(event) => write({ homeView: event.target.value as HomeView })}
           >
@@ -59,57 +62,72 @@ export function Preferences() {
             <option value="inbox">Inbox</option>
             <option value="drafts">Drafts</option>
           </Select>
-        </div>
+        </SettingsRow>
 
-        <Checkbox
-          checked={prefs.fullNames}
-          onChange={(event) => write({ fullNames: event.target.checked })}
+        <SettingsRow
           label="Show full names"
-        />
-        <p className={styles.hint}>
-          Off uses usernames. Mentions and the assignee picker follow this.
-        </p>
+          description="Off uses usernames. Mentions and the assignee picker follow this."
+        >
+          <Checkbox
+            aria-label="Show full names"
+            checked={prefs.fullNames}
+            onChange={(event) => write({ fullNames: event.target.checked })}
+          />
+        </SettingsRow>
 
-        <div className={styles.field}>
+        <SettingsRow label="First day of the week" wide>
           <Select
             label="First day of the week"
+            hideLabel
             value={prefs.weekStartsOn}
             onChange={(event) => write({ weekStartsOn: event.target.value as WeekStart })}
           >
             <option value="monday">Monday</option>
             <option value="sunday">Sunday</option>
           </Select>
-        </div>
+        </SettingsRow>
 
-        <Checkbox
-          checked={prefs.convertEmoticons}
-          onChange={(event) => write({ convertEmoticons: event.target.checked })}
+        <SettingsRow
           label="Convert text emoticons into emoji"
-        />
-        <p className={styles.hint}>
-          Turns <code>:)</code> into 🙂 in comments. Off by default so a code review that wrote
-          those characters keeps them.
-        </p>
+          description={
+            <>
+              Turns <code>:)</code> into 🙂 in comments. Off by default so a code review that wrote
+              those characters keeps them.
+            </>
+          }
+        >
+          <Checkbox
+            aria-label="Convert text emoticons into emoji"
+            checked={prefs.convertEmoticons}
+            onChange={(event) => write({ convertEmoticons: event.target.checked })}
+          />
+        </SettingsRow>
 
-        <div className={styles.field}>
+        <SettingsRow
+          label="Comment submit key"
+          description="⌘⏎ always works. Enter is a preference for people who never want a newline."
+          wide
+        >
           <Select
             label="Comment submit key"
-            hint="⌘⏎ always works. Enter is a preference for people who never want a newline."
+            hideLabel
             value={prefs.commentSubmit}
             onChange={(event) => write({ commentSubmit: event.target.value as CommentSubmit })}
           >
             <option value="mod-enter">⌘⏎ / Ctrl+Enter</option>
             <option value="enter">Enter</option>
           </Select>
-        </div>
+        </SettingsRow>
       </SettingsSection>
 
-      <SettingsSection title="Interface">
-        <p className={styles.sectionNote}>Theme, type size, and how links and pointers look.</p>
-
-        <div className={styles.field}>
+      <SettingsSection
+        title="Interface"
+        description="Theme, type size, and how links and pointers look."
+      >
+        <SettingsRow label="Theme" wide>
           <Select
             label="Theme"
+            hideLabel
             value={prefs.theme}
             onChange={(event) => write({ theme: event.target.value as ThemeName })}
           >
@@ -117,11 +135,12 @@ export function Preferences() {
             <option value="dark">Dark</option>
             <option value="light">Light</option>
           </Select>
-        </div>
+        </SettingsRow>
 
-        <div className={styles.field}>
+        <SettingsRow label="Font size" wide>
           <Select
             label="Font size"
+            hideLabel
             value={prefs.fontSize}
             onChange={(event) => write({ fontSize: event.target.value as FontSize })}
           >
@@ -129,36 +148,44 @@ export function Preferences() {
             <option value="default">Default</option>
             <option value="large">Large</option>
           </Select>
-        </div>
+        </SettingsRow>
 
-        <Checkbox
-          checked={prefs.pointerCursor}
-          onChange={(event) => write({ pointerCursor: event.target.checked })}
-          label="Pointer cursor on buttons and links"
-        />
-        <Checkbox
-          checked={prefs.underlineLinks}
-          onChange={(event) => write({ underlineLinks: event.target.checked })}
-          label="Underline links"
-        />
+        <SettingsRow label="Pointer cursor on buttons and links">
+          <Checkbox
+            aria-label="Pointer cursor on buttons and links"
+            checked={prefs.pointerCursor}
+            onChange={(event) => write({ pointerCursor: event.target.checked })}
+          />
+        </SettingsRow>
+
+        <SettingsRow label="Underline links">
+          <Checkbox
+            aria-label="Underline links"
+            checked={prefs.underlineLinks}
+            onChange={(event) => write({ underlineLinks: event.target.checked })}
+          />
+        </SettingsRow>
       </SettingsSection>
 
-      <SettingsSection title="Automations">
-        <p className={styles.sectionNote}>
-          There is no workspace-wide default assignee. These two habits cover the cases people
-          actually ask for.
-        </p>
+      <SettingsSection
+        title="Automations"
+        description="There is no workspace-wide default assignee. These two habits cover the cases people actually ask for."
+      >
+        <SettingsRow label="Assign issues I create to myself">
+          <Checkbox
+            aria-label="Assign issues I create to myself"
+            checked={prefs.autoAssignOnCreate}
+            onChange={(event) => write({ autoAssignOnCreate: event.target.checked })}
+          />
+        </SettingsRow>
 
-        <Checkbox
-          checked={prefs.autoAssignOnCreate}
-          onChange={(event) => write({ autoAssignOnCreate: event.target.checked })}
-          label="Assign issues I create to myself"
-        />
-        <Checkbox
-          checked={prefs.autoAssignOnStart}
-          onChange={(event) => write({ autoAssignOnStart: event.target.checked })}
-          label="Assign to myself when I move an issue to started"
-        />
+        <SettingsRow label="Assign to myself when I move an issue to started">
+          <Checkbox
+            aria-label="Assign to myself when I move an issue to started"
+            checked={prefs.autoAssignOnStart}
+            onChange={(event) => write({ autoAssignOnStart: event.target.checked })}
+          />
+        </SettingsRow>
       </SettingsSection>
     </SettingsPage>
   );

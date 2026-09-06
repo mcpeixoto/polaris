@@ -1,9 +1,10 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
 
 import { DangerZone, DangerZoneRow } from './DangerZone';
 import { SettingsPage } from './SettingsPage';
-import { SettingsSection } from './SettingsSection';
+import { SettingsRow, SettingsSection } from './SettingsSection';
 
 describe('SettingsPage', () => {
   // The frame exists so thirty screens share one document outline: one h1 per page, and
@@ -89,5 +90,84 @@ describe('DangerZone', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Danger zone' })).toBeTruthy();
     expect(screen.getByText('Every issue in it goes with it.')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Delete team' })).toBeTruthy();
+  });
+});
+
+describe('SettingsRow', () => {
+  // The row's label is drawn, not wired: the control keeps its own accessible name, so the
+  // row must not be a second `<label>` competing for it.
+  it('draws the label and description beside the control without relabelling it', () => {
+    render(
+      <SettingsSection title="Identity">
+        <SettingsRow label="Display name" description="Shown when full names are on.">
+          <input aria-label="Display name" defaultValue="Ada" />
+        </SettingsRow>
+      </SettingsSection>,
+    );
+
+    expect(screen.getByText('Display name')).toBeTruthy();
+    expect(screen.getByText('Shown when full names are on.')).toBeTruthy();
+    expect(screen.getByRole('textbox', { name: 'Display name' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { level: 3 })).toBeNull();
+  });
+
+  it('renders a row with no label as a plain slot for its content', () => {
+    render(
+      <SettingsRow>
+        <table>
+          <tbody>
+            <tr>
+              <td>one</td>
+            </tr>
+          </tbody>
+        </table>
+      </SettingsRow>,
+    );
+
+    expect(screen.getByRole('table')).toBeTruthy();
+  });
+});
+
+describe('DangerZoneRow', () => {
+  it('draws its own red text action and runs it', async () => {
+    const onAction = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <DangerZone>
+        <DangerZoneRow
+          title="Leave Polaris"
+          consequence="You stop being a member."
+          actionLabel="Leave workspace"
+          onAction={onAction}
+        />
+      </DangerZone>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Leave workspace' }));
+    expect(onAction).toHaveBeenCalledTimes(1);
+  });
+
+  // Busy keeps the button in the tab order and holds focus where the click put it; it is
+  // the click that is refused, not the element.
+  it('refuses the action while busy without disabling the element', async () => {
+    const onAction = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <DangerZone>
+        <DangerZoneRow
+          title="Delete team"
+          consequence="Everything in it goes."
+          actionLabel="Delete team"
+          onAction={onAction}
+          busy
+        />
+      </DangerZone>,
+    );
+
+    const button = screen.getByRole('button', { name: 'Delete team' });
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(button.hasAttribute('disabled')).toBe(false);
+    await user.click(button);
+    expect(onAction).not.toHaveBeenCalled();
   });
 });

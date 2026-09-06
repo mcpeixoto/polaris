@@ -33,6 +33,8 @@ export interface FormTemplatePickerProps {
   onClose: () => void;
   trigger: RefObject<HTMLElement | null>;
   placement?: MenuPlacement | undefined;
+  /** The chord that opens this picker, taught in its filter row. See Menu. */
+  filterHint?: string | undefined;
   teamId: UUID;
   value: UUID | null;
   onSelect: (template: FormTemplate | null) => void;
@@ -43,6 +45,7 @@ export function FormTemplatePicker({
   onClose,
   trigger,
   placement,
+  filterHint,
   teamId,
   value,
   onSelect,
@@ -83,7 +86,8 @@ export function FormTemplatePicker({
       label="Form template"
       placement={placement}
       filterable
-      filterPlaceholder="Form template…"
+      filterPlaceholder="Use form…"
+      filterHint={filterHint}
       emptyLabel={templates.length === 0 ? 'No form templates for this team yet' : 'No forms match'}
     />
   );

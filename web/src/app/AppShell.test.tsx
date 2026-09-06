@@ -415,7 +415,7 @@ describe('the settings navigation', () => {
   it('drops a group whose every row is withheld', () => {
     viewerRole = 'guest';
     renderShell(seeded(), SETTINGS);
-    expect(screen.getByRole('heading', { name: 'Account' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Personal' })).toBeTruthy();
     for (const title of ['Workspace', 'Features', 'Integrations', 'Data']) {
       expect(screen.queryByRole('heading', { name: title }), `${title} stood empty`).toBeNull();
     }

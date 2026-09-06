@@ -139,6 +139,7 @@ export function HelpOverlay({ open, onClose }: { open: boolean; onClose: () => v
       onClose={onClose}
       title="Keyboard shortcuts"
       size="lg"
+      className={styles.sheet}
       initialFocus={filterRef}
     >
       <Input

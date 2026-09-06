@@ -4,6 +4,7 @@ import { Store, type Change, type Entity } from '~/store';
 
 import {
   buildCreateURL,
+  createUrlForGroup,
   parseCreateURL,
   parseEstimate,
   parsePriority,
@@ -240,5 +241,35 @@ describe('buildCreateURL', () => {
         milestone: 'Beta',
       }),
     ).toBe('/team/ENG/new?title=Fix+the+flake&labels=Bug%2CChore&milestone=Beta');
+  });
+});
+
+describe('createUrlForGroup', () => {
+  const doing = { label: 'In Progress', stateId: ENG_DOING };
+
+  it('seeds the status by name, so a column plus and a pasted URL are one code path', () => {
+    expect(createUrlForGroup(doing, 'state')).toBe('/new?status=In+Progress');
+    expect(createUrlForGroup(doing, 'state', 'ENG')).toBe('/team/ENG/new?status=In+Progress');
+  });
+
+  it('seeds nothing for a status group with no state behind it', () => {
+    expect(createUrlForGroup({ label: 'No status' }, 'state', 'ENG')).toBe('/team/ENG/new');
+  });
+
+  it('seeds the priority and the assignee under their own groupings', () => {
+    expect(createUrlForGroup({ label: 'High', priority: 2 }, 'priority')).toBe(
+      '/new?priority=High',
+    );
+    expect(createUrlForGroup({ label: 'Ada', userId: 'user-ada' }, 'assignee', 'ENG')).toBe(
+      '/team/ENG/new?assignee=user-ada',
+    );
+  });
+
+  it('leaves the dimension alone under a grouping that is not a field', () => {
+    // A label group carries no labelId here on purpose: the URL would have to guess what to
+    // do about the other labels the issue might carry, so it says nothing about any of them.
+    expect(createUrlForGroup({ label: 'Bug' }, 'label', 'ENG')).toBe('/team/ENG/new');
+    expect(createUrlForGroup({ label: 'Unassigned' }, 'assignee')).toBe('/new');
+    expect(createUrlForGroup(doing, 'dueDate')).toBe('/new');
   });
 });

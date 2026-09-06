@@ -37,8 +37,20 @@ import { Link, useSearchParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Avatar, Badge, Button, EmptyState, Input, Select, Spinner, Tooltip } from '~/components';
+import {
+  Avatar,
+  Badge,
+  Button,
+  EmptyState,
+  Input,
+  Select,
+  SettingsPage,
+  SettingsSection,
+  Spinner,
+  Tooltip,
+} from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
+import { SettingsRow } from '~/components/SettingsSection';
 import { seatBlock, seatSummary, useEntitlements } from '~/features/admin/entitlements';
 import { PlanBlock } from '~/features/admin/PlanBlock';
 import { InviteDialog } from '~/features/admin/InviteDialog';
@@ -414,90 +426,78 @@ export function MemberSettings() {
   );
 
   return (
-    <div className={styles.screen}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>Members</h1>
-        <Badge>{members.length === 1 ? '1 person' : `${members.length} people`}</Badge>
-        <div className={styles.spacer} />
-        {/* Absent for a member rather than disabled with a reason. The plan gates on this
-            screen are disabled-and-explained, because naming the plan is the upgrade prompt;
-            a permission gate is not — telling somebody "only admins can invite people" beside
-            a button they will never be allowed to press is an explanation of somebody else's
-            feature. */}
-        {canAdminister === true ? (
-          <Tooltip label="Invite somebody" keys="i">
-            <Button variant="primary" disabled={seats !== null} onClick={() => setInviting(true)}>
-              Invite people
-            </Button>
-          </Tooltip>
-        ) : null}
-      </header>
+    <SettingsPage
+      title="Members"
+      width="wide"
+      actions={
+        <>
+          <Badge>{members.length === 1 ? '1 person' : `${members.length} people`}</Badge>
+          {/* Absent for a member rather than disabled with a reason. The plan gates on this
+              screen are disabled-and-explained, because naming the plan is the upgrade prompt;
+              a permission gate is not — telling somebody "only admins can invite people" beside
+              a button they will never be allowed to press is an explanation of somebody else's
+              feature. */}
+          {canAdminister === true ? (
+            <Tooltip label="Invite somebody" keys="i">
+              <Button variant="primary" disabled={seats !== null} onClick={() => setInviting(true)}>
+                Invite people
+              </Button>
+            </Tooltip>
+          ) : null}
+        </>
+      }
+      error={error ?? undefined}
+    >
+      {/* Plain: the block draws its own box when there is one, and when there is not the
+          heading and its sentence are the whole section. */}
+      <SettingsSection
+        title="Seats"
+        description={`${seatSummary(entitlements.facts)} Suspending somebody frees their seat; removing them does too. App users are never counted — an integration is not a person.`}
+        surface="plain"
+      >
+        <PlanBlock block={seats} />
+      </SettingsSection>
 
-      <div className={styles.body}>
-        {error === null ? null : (
-          <p className={styles.error} role="alert">
-            {error}
-          </p>
-        )}
-
-        <section className={styles.seats} aria-labelledby="seats-heading">
-          <h2 className={styles.sectionTitle} id="seats-heading">
-            Seats
-          </h2>
-          <p className={styles.sectionHint}>
-            {seatSummary(entitlements.facts)} Suspending somebody frees their seat; removing them
-            does too. App users are never counted — an integration is not a person.
-          </p>
-          <PlanBlock block={seats} className={styles.blocked} />
-        </section>
-
-        {/* Two sources for one question, and either is enough to hide the section. The
-            replica's answer is on hand in the first frame, so a member never watches
-            "Pending invitations" appear and then be taken away when the 403 lands; the
-            server's answer is the authoritative one, and covers the moment after somebody's
-            role has been changed in another session but the delta has not reached here. */}
-        {invites.phase === 'forbidden' || canAdminister === false ? null : (
-          <section className={styles.section} aria-labelledby="invites-heading">
-            <h2 className={styles.sectionTitle} id="invites-heading">
-              Pending invitations
-            </h2>
-            <p className={styles.sectionHint}>
-              The link each of these carries was shown once, when it was created, and cannot be
-              shown again — not by us and not by anybody. Revoke one and invite the person afresh if
-              the link went astray. An invitation that is accepted, revoked, or left until it runs
-              out stops being listed here; the ones below are the ones still live.
-            </p>
-
-            {/*
-              A live region that is in the document from the first render.
-              A successful revoke takes its own row off the screen, which is proof of nothing to
-              somebody who was not watching that row — and a region inserted already populated is
-              frequently never announced at all.
-            */}
-            <p className={styles.revoked} role="status" aria-live="polite">
-              {revoked ?? ''}
-            </p>
-
+      {/* Two sources for one question, and either is enough to hide the section. The
+          replica's answer is on hand in the first frame, so a member never watches
+          "Pending invitations" appear and then be taken away when the 403 lands; the
+          server's answer is the authoritative one, and covers the moment after somebody's
+          role has been changed in another session but the delta has not reached here. */}
+      {invites.phase === 'forbidden' || canAdminister === false ? null : (
+        // A named region, so the section can be found by what it is called rather than by
+        // a class name. SettingsSection draws the heading but does not wire it to the
+        // landmark; the wrapper does.
+        <div role="region" aria-label="Pending invitations">
+          <SettingsSection
+            title="Pending invitations"
+            description="The link each of these carries was shown once, when it was created, and cannot be shown again — not by us and not by anybody. Revoke one and invite the person afresh if the link went astray. An invitation that is accepted, revoked, or left until it runs out stops being listed here; the ones below are the ones still live."
+          >
             {invites.phase === 'loading' ? (
-              <div className={styles.loading}>
-                <Spinner label="Loading pending invitations" />
-              </div>
+              <SettingsRow>
+                <div className={styles.loading}>
+                  <Spinner label="Loading pending invitations" />
+                </div>
+              </SettingsRow>
             ) : null}
 
             {invites.phase === 'failed' ? (
               // Wrapped rather than given role="alert" itself: the empty state renders a
               // paragraph and a button, and the whole block is the announcement.
-              <div role="alert">
-                <EmptyState
-                  title="Pending invitations could not be loaded"
-                  description={invites.message}
-                  action={<Button onClick={() => reloadInvites.current()}>Try again</Button>}
-                />
-              </div>
+              <SettingsRow>
+                <div role="alert">
+                  <EmptyState
+                    title="Pending invitations could not be loaded"
+                    description={invites.message}
+                    action={<Button onClick={() => reloadInvites.current()}>Try again</Button>}
+                  />
+                </div>
+              </SettingsRow>
             ) : null}
 
             {invites.phase === 'ready' && invites.invites.length === 0 ? (
-              <p className={styles.sectionHint}>Nobody is waiting on an invitation.</p>
+              <SettingsRow>
+                <p className={styles.note}>Nobody is waiting on an invitation.</p>
+              </SettingsRow>
             ) : null}
 
             {invites.phase === 'ready' && invites.invites.length > 0 ? (
@@ -512,67 +512,85 @@ export function MemberSettings() {
                 ))}
               </ul>
             ) : null}
-          </section>
-        )}
+          </SettingsSection>
 
+          {/*
+            A live region that is in the document from the first render.
+            A successful revoke takes its own row off the screen, which is proof of nothing to
+            somebody who was not watching that row — and a region inserted already populated is
+            frequently never announced at all.
+          */}
+          <p className={styles.revoked} role="status" aria-live="polite">
+            {revoked ?? ''}
+          </p>
+        </div>
+      )}
+
+      <SettingsSection>
         {members.length === 0 ? null : (
-          <div className={styles.filters} role="search">
-            <Input
-              label="Search people"
-              hideLabel
-              type="search"
-              placeholder="Search by name or email"
-              value={query}
-              autoComplete="off"
-              onChange={(event) => setQuery(event.target.value)}
-            />
-            <Select
-              label="Role"
-              value={roleFilter}
-              onChange={(event) => setRoleFilter(event.target.value as 'all' | UserRole)}
-            >
-              <option value="all">Every role</option>
-              {ROLE_ORDER.map((role) => (
-                <option key={role} value={role}>
-                  {ROLE_LABELS[role]}
-                </option>
-              ))}
-            </Select>
-            <Select
-              label="Status"
-              value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(event.target.value as 'all' | 'active' | 'suspended')
-              }
-            >
-              <option value="all">Active and suspended</option>
-              <option value="active">Active only</option>
-              <option value="suspended">Suspended only</option>
-            </Select>
-          </div>
+          <SettingsRow>
+            <div className={styles.filters} role="search">
+              <Input
+                label="Search people"
+                hideLabel
+                type="search"
+                placeholder="Search by name or email"
+                value={query}
+                autoComplete="off"
+                onChange={(event) => setQuery(event.target.value)}
+              />
+              <Select
+                label="Role"
+                value={roleFilter}
+                onChange={(event) => setRoleFilter(event.target.value as 'all' | UserRole)}
+              >
+                <option value="all">Every role</option>
+                {ROLE_ORDER.map((role) => (
+                  <option key={role} value={role}>
+                    {ROLE_LABELS[role]}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                label="Status"
+                value={statusFilter}
+                onChange={(event) =>
+                  setStatusFilter(event.target.value as 'all' | 'active' | 'suspended')
+                }
+              >
+                <option value="all">Active and suspended</option>
+                <option value="active">Active only</option>
+                <option value="suspended">Suspended only</option>
+              </Select>
+            </div>
+          </SettingsRow>
         )}
 
         {members.length === 0 ? (
-          <EmptyState
-            title="Nobody here yet"
-            description="Members appear as soon as the workspace has finished replicating."
-          />
+          <SettingsRow>
+            <EmptyState
+              title="Nobody here yet"
+              description="Members appear as soon as the workspace has finished replicating."
+            />
+          </SettingsRow>
         ) : shown.length === 0 ? (
-          <EmptyState
-            title="Nobody matches"
-            description="No member of this workspace matches the search and filters above."
-            action={
-              <Button
-                onClick={() => {
-                  setQuery('');
-                  setRoleFilter('all');
-                  setStatusFilter('all');
-                }}
-              >
-                Clear the filters
-              </Button>
-            }
-          />
+          <SettingsRow>
+            <EmptyState
+              title="Nobody matches"
+              description="No member of this workspace matches the search and filters above."
+              action={
+                <Button
+                  onClick={() => {
+                    setQuery('');
+                    setRoleFilter('all');
+                    setStatusFilter('all');
+                  }}
+                >
+                  Clear the filters
+                </Button>
+              }
+            />
+          </SettingsRow>
         ) : (
           <table className={styles.table}>
             <caption className={styles.caption}>
@@ -623,12 +641,12 @@ export function MemberSettings() {
             </tbody>
           </table>
         )}
+      </SettingsSection>
 
-        <p className={styles.footnote}>
-          Deleted issues are recoverable for thirty days — see{' '}
-          <Link to="/settings/trash">Trash</Link>.
-        </p>
-      </div>
+      <p className={styles.footnote}>
+        Deleted issues are recoverable for thirty days — see <Link to="/settings/trash">Trash</Link>
+        .
+      </p>
 
       <InviteDialog
         open={inviting}
@@ -670,7 +688,7 @@ export function MemberSettings() {
         onConfirm={() => void confirmRemove()}
         onClose={() => setRemoving(null)}
       />
-    </div>
+    </SettingsPage>
   );
 }
 

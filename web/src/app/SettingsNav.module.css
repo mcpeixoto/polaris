@@ -1,27 +1,77 @@
 /*
- * Settings borrows the sidebar's shape from `nav.module.css` and adds one thing: a title.
- *
- * The workspace sidebar names itself with the workspace mark, which is a control. This one
- * names the mode, and a mode needs saying — the two navigations are the same width, the same
- * row height and the same colours, so without a word at the top the only signal that the
- * application has changed footing is that the rows are different.
+ * Settings borrows the sidebar's shape from `nav.module.css` — the column, the row, the
+ * active treatment — and adds the three things a mode needs that a workspace does not: a way
+ * out at the top, a search box, and a footer saying whose settings these are.
  */
 
-.title {
-  margin: 0;
+.sidebar {
+  gap: var(--space-4);
+}
+
+/*
+ * The top row: the way back, the shell's badge and its collapse control.
+ *
+ * Same height and padding as the workspace sidebar's switcher row, so entering settings
+ * moves what is at the top a pixel rather than moving it somewhere else. The margin is room
+ * for the macOS traffic lights, which the desktop shell draws over the app's own chrome;
+ * harmless in a browser tab.
+ */
+.top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-height-md);
+  margin-top: var(--space-1);
+}
+
+/*
+ * The back link is a nav row that is never "active": `/` is not a settings route, so
+ * `NavLink` would never mark it, and the row is drawn from the shared rule set by hand so the
+ * hover matches its siblings without inheriting a rail it will never light.
+ */
+.back {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  height: var(--control-height-md);
   padding: 0 var(--space-2);
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.014em;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.back:hover {
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
 /*
- * The workspace this settings mode belongs to.
- *
- * Same row height and same padding as the workspace sidebar's switcher, so entering settings
- * moves the name a pixel rather than moving it somewhere else. It is not a button: see the
- * argument at the call site.
+ * The search box. `Input` draws the 28px bordered field; this only keeps it from stretching
+ * to the sidebar's edges, so it sits inside the same 8px inset the rows do.
+ */
+.search {
+  display: flex;
+  flex-direction: column;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/*
+ * The workspace this settings mode belongs to, at the foot of the column where the other
+ * sidebar keeps its plan pill. It is not a button: see the argument at the call site.
  */
 .identity {
   display: flex;
@@ -29,16 +79,14 @@
   gap: var(--space-2);
   height: var(--control-height-md);
   padding: 0 var(--space-2);
-  /* Room for the macOS traffic lights, which the desktop shell draws over the app's own
-     chrome. Harmless in a browser tab. */
-  margin-top: var(--space-1);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .identityName {
   flex: 1;
   min-width: 0;
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.014em;
+  font-weight: var(--font-weight-medium);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

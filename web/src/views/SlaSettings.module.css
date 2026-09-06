@@ -3,15 +3,14 @@
  *
  * It used to import `features/labels/LabelSettings.module.css` — a stylesheet whose `.create`
  * grid is five columns sized for the label form — and pad itself out with an empty `<span />`
- * to make the columns line up. So editing the labels screen silently relaid out the SLA
- * screen, which nobody would think to check. The grid below is sized for the controls that
- * are actually on this page.
+ * to make the columns line up. The rows are the frame's now; what is left is the plan-gate
+ * box and the ordered list under the add-a-rule form.
  */
 
 /* `--text-danger` rather than the priority ramp: a theme that recolours urgency must not
    silently recolour a refusal. */
 .error {
-  margin: 0 0 var(--space-4);
+  margin: 0;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   background-color: color-mix(in srgb, var(--text-danger) 12%, transparent);
@@ -20,44 +19,41 @@
   line-height: var(--line-height-normal);
 }
 
-/*
- * Three controls and a button, with the duration cell simply absent when the action has no
- * duration — `auto` last so the button never stretches, and equal `minmax(0, 1fr)` columns
- * so nothing can be sized below its own content.
- */
-.create {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+/* The submit row. Buttons sit on the right edge like every other control on the card. */
+.actions {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
   gap: var(--space-3);
-  align-items: end;
 }
 
-/* Collapse rather than shrink: a select squeezed under its own longest option is the ragged
-   wrap the composition doc bans. */
-@media (max-width: 44rem) {
-  .create {
-    grid-template-columns: 1fr;
-    align-items: stretch;
-  }
+/* What comes after the form on the same card. Its rows are inside a <form>, so the card
+   cannot draw the hairline between the last of them and the list. */
+.tail {
+  border-top: 1px solid var(--border-subtle);
 }
 
 .rules {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* One rule per row, at the row's own padding, so the list lines up with the fields above. */
 .rule {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: var(--space-3);
   align-items: center;
-  min-height: var(--control-height-lg);
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-md);
+  min-height: var(--row-height);
+  padding: var(--space-2) var(--space-4);
+}
+
+.rule + .rule {
+  border-top: 1px solid var(--border-subtle);
 }
 
 .rule:hover {
@@ -83,7 +79,7 @@
 .ruleText {
   min-width: 0;
   color: var(--text-primary);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
 }
 
 .ruleActions {
