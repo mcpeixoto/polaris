@@ -3,19 +3,28 @@ import PolarisCore
 
 /// The issue list, wherever it appears: My Issues, a team, a search result.
 ///
-/// A `List` rather than the `LazyVStack` this started as, and that is the whole point of the
-/// type. `.swipeActions` is a `List` affordance and cannot be attached to anything else, and
+/// A `List` rather than a `LazyVStack`, and that is the whole point of the type:
+/// `.swipeActions` is a `List` affordance and cannot be attached to anything else, and
 /// swipe-to-change-status is the single largest "feels less native" gap a list like this can
-/// have. The list styling is stripped back to plain with clear row backgrounds so the rows
-/// keep the card look they had.
+/// have. Rows are flat and separated by a hairline; there is no card chrome anywhere.
+///
+/// Grouped by workflow state by default, the way Linear's lists are: a small heading per
+/// state, states in the workspace's order with open work first. My Issues opts out and keeps
+/// `IssueOrder`'s flat priority order, which is Linear's own default for that view.
 ///
 /// Navigation is value-based: rows push `Issue` and the *caller* owns the destination, so the
 /// same list works inside a `NavigationStack` on a phone and inside the content column of a
 /// `NavigationSplitView` on an iPad.
 struct IssueListView: View {
+    enum Grouping {
+        case status
+        case none
+    }
+
     let issues: [Issue]
     /// Rows with a write in flight, which show a spinner where their avatar goes.
     var pendingIDs: Set<String> = []
+    var grouping: Grouping = .status
     /// The states this issue's team defines, for the swipe action and the context menu. Empty
     /// disables both rather than offering a menu with nothing in it.
     let statesFor: (Issue) -> [WorkflowState]
@@ -29,13 +38,32 @@ struct IssueListView: View {
 
     var body: some View {
         List {
-            ForEach(issues) { issue in
-                row(issue)
+            switch grouping {
+            case .none:
+                ForEach(issues) { issue in
+                    row(issue)
+                }
+            case .status:
+                ForEach(IssueGrouping.byStatus(issues, statesFor: statesFor)) { group in
+                    Section {
+                        ForEach(group.issues) { issue in
+                            row(issue)
+                        }
+                    } header: {
+                        StatusGroupHeader(state: group.state, count: group.issues.count)
+                    }
+                }
             }
         }
         .listStyle(.plain)
+        .listSectionSeparator(.hidden)
+        // No air between a group's last row and the next heading, and none above the first:
+        // the headings are bands of the list, and a band with a margin is a card.
+        .listSectionSpacing(0)
+        .contentMargins(.top, 0, for: .scrollContent)
         .scrollContentBackground(.hidden)
         .scrollIndicators(.hidden)
+        .environment(\.defaultMinListRowHeight, Theme.rowHeight)
         // The store re-sorts on every merge, create and status change. Without this the row
         // teleports: change an issue from Todo to Done and its row snaps to the bottom of the
         // list with no motion tying the two positions together.
@@ -44,16 +72,22 @@ struct IssueListView: View {
     }
 
     private func row(_ issue: Issue) -> some View {
-        NavigationLink(value: issue) {
-            IssueRow(issue: issue, isPending: pendingIDs.contains(issue.id))
-        }
+        IssueRow(issue: issue, isPending: pendingIDs.contains(issue.id))
+            // The link is behind the row rather than around it, so the cell does not draw
+            // the disclosure chevron — Linear's rows have none, and forty chevrons down the
+            // right edge are forty marks saying nothing. A tap on the cell still activates
+            // it; the row itself says it is a button so VoiceOver and XCUITest agree.
+            .background(NavigationLink(value: issue) { EmptyView() }.opacity(0))
         .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
+        .listRowSeparatorTint(Theme.hairline)
         .listRowInsets(EdgeInsets(
-            top: Theme.Space.xs, leading: Theme.Space.xl,
-            bottom: Theme.Space.xs, trailing: Theme.Space.xl
+            top: 0, leading: Theme.Space.lg,
+            bottom: 0, trailing: Theme.Space.lg
         ))
-        .transition(.opacity.combined(with: .move(edge: .top)))
+        // The separator runs from the row's leading inset rather than from the text, so the
+        // list reads as one column of rows rather than as rows hanging off their titles.
+        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+        .transition(.opacity)
         // The title, the identifier and the state icon all exist on both screens; on iOS 18
         // they are the same element crossing between them rather than two that happen to
         // look alike.
@@ -126,6 +160,35 @@ struct IssueListView: View {
     }
 }
 
+/// The heading over a status group: the state's glyph, its name, and how many rows are under
+/// it. Drawn on the raised tint the web's group bar uses, so the groups read as bands of the
+/// list rather than as rows of it.
+struct StatusGroupHeader: View {
+    let state: WorkflowState
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: Theme.Space.sm) {
+            StateIcon(state: state, size: 14)
+            Text(state.name)
+                .font(.system(.footnote).weight(.medium))
+                .foregroundStyle(Theme.textPrimary)
+            Text("\(count)")
+                .font(.system(.footnote).monospacedDigit())
+                .foregroundStyle(Theme.textSecondary)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Theme.Space.lg)
+        .frame(minHeight: 32)
+        .background(Theme.raised)
+        .textCase(nil)
+        .listRowInsets(EdgeInsets())
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("issues.group.\(state.name)")
+    }
+}
+
 /// The real row's geometry over placeholder text.
 ///
 /// Redacted fixture content rather than grey rectangles, so the layout the reader is about to
@@ -135,12 +198,13 @@ struct SkeletonIssueList: View {
     var rows: Int = 4
 
     var body: some View {
-        VStack(spacing: Theme.Space.sm) {
+        VStack(spacing: 0) {
             ForEach(0..<rows, id: \.self) { index in
-                SkeletonIssueRow(titleWidth: index.isMultiple(of: 2) ? 230 : 150)
+                SkeletonIssueRow(titleWidth: index.isMultiple(of: 2) ? 200 : 140)
+                HairlineDivider()
             }
         }
-        .padding(.horizontal, Theme.Space.xl)
+        .padding(.horizontal, Theme.Space.lg)
         .redacted(reason: .placeholder)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Loading issues")
@@ -152,30 +216,24 @@ private struct SkeletonIssueRow: View {
     let titleWidth: CGFloat
 
     var body: some View {
-        HStack(spacing: 11) {
+        HStack(spacing: Theme.Space.sm) {
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(Theme.chipInactive)
+                .frame(width: 14, height: 14)
+            Capsule()
+                .fill(Theme.chipInactive)
+                .frame(width: 44, height: 10)
             Circle()
                 .fill(Theme.chipInactive)
-                .frame(width: 15, height: 15)
-            VStack(alignment: .leading, spacing: Theme.Space.xs) {
-                Capsule()
-                    .fill(Theme.chipInactive)
-                    .frame(width: titleWidth, height: 13)
-                Capsule()
-                    .fill(Theme.chipInactive)
-                    .frame(width: 90, height: 10)
-            }
+                .frame(width: 14, height: 14)
+            Capsule()
+                .fill(Theme.chipInactive)
+                .frame(width: titleWidth, height: 12)
             Spacer(minLength: Theme.Space.sm)
             Circle()
                 .fill(Theme.chipInactive)
-                .frame(width: 26, height: 26)
+                .frame(width: 22, height: 22)
         }
-        .padding(.horizontal, Theme.Space.lg)
-        .padding(.vertical, Theme.Space.md)
-        .background(Theme.card)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous)
-                .stroke(Theme.border, lineWidth: 1)
-        )
+        .frame(minHeight: Theme.rowHeight)
     }
 }

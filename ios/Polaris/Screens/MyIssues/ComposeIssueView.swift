@@ -1,6 +1,8 @@
 import SwiftUI
 import PolarisCore
 
+/// The composer, shaped like Linear's: the team as a pill at the top, a big title, a
+/// description, and the properties as a row of pills that sits above the keyboard.
 struct ComposeIssueView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -43,15 +45,17 @@ struct ComposeIssueView: View {
                 Theme.background.ignoresSafeArea()
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: Theme.Space.md) {
+                        teamPill
+
                         TextField(
                             "",
                             text: $title,
-                            prompt: prompt("What needs doing?"),
+                            prompt: prompt("Issue title"),
                             axis: .vertical
                         )
                         .lineLimit(1...3)
-                        .bodyFont(18, weight: .semibold)
+                        .font(PolarisText.issueTitle)
                         .foregroundStyle(Theme.textPrimary)
                         .tint(Theme.accentBright)
                         .focused($focused, equals: .title)
@@ -60,90 +64,36 @@ struct ComposeIssueView: View {
                         TextField(
                             "",
                             text: $details,
-                            prompt: prompt("Add detail (optional)"),
+                            prompt: prompt("Add description…"),
                             axis: .vertical
                         )
-                        .lineLimit(3...10)
-                        .bodyFont(14)
-                        .foregroundStyle(Theme.textSecondary)
+                        .lineLimit(3...12)
+                        .font(PolarisText.body)
+                        .foregroundStyle(Theme.textPrimary)
                         .tint(Theme.accentBright)
                         .focused($focused, equals: .details)
                         .accessibilityLabel("Description")
-
-                        HairlineDivider()
-
-                        Card {
-                            VStack(spacing: 0) {
-                                Picker(selection: $teamId) {
-                                    // A nil tag so the picker has a valid selection before a
-                                    // team is chosen; without it SwiftUI shows an empty row.
-                                    Text("Choose a team").tag(String?.none)
-                                    ForEach(teams) { team in
-                                        Text("\(team.key) · \(team.name)").tag(String?.some(team.id))
-                                    }
-                                } label: {
-                                    Text("Team").bodyFont(14).foregroundStyle(Theme.textSecondary)
-                                }
-                                .tint(Theme.accentBright)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 4)
-
-                                HairlineDivider().padding(.horizontal, 16)
-
-                                // Defaulted on, and offered rather than assumed. This screen
-                                // is reached from My Issues, which the server filters strictly
-                                // by assignee — so an unassigned issue is created, appears once
-                                // because the store appends it locally, and then vanishes on
-                                // the next load. That reads as data loss.
-                                Toggle(isOn: $assignToMe) {
-                                    Text("Assign to me")
-                                        .bodyFont(14)
-                                        .foregroundStyle(Theme.textSecondary)
-                                }
-                                .tint(Theme.accent)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-
-                                HairlineDivider().padding(.horizontal, 16)
-
-                                Picker(selection: $stateId) {
-                                    Text("Team default").tag(String?.none)
-                                    ForEach(states) { state in
-                                        Text(state.name).tag(String?.some(state.id))
-                                    }
-                                } label: {
-                                    Text("Status").bodyFont(14).foregroundStyle(Theme.textSecondary)
-                                }
-                                .tint(Theme.accentBright)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 4)
-                                .accessibilityIdentifier("compose.status")
-
-                                HairlineDivider().padding(.horizontal, 16)
-
-                                Picker(selection: $priority) {
-                                    ForEach(Priority.allCases, id: \.self) { value in
-                                        Text(value.label).tag(value)
-                                    }
-                                } label: {
-                                    Text("Priority").bodyFont(14).foregroundStyle(Theme.textSecondary)
-                                }
-                                .tint(Theme.accentBright)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 4)
-                            }
-                        }
 
                         if let error {
                             InlineErrorLabel(text: error.displayMessage)
                         }
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
-                    .padding(.bottom, 24)
+                    .padding(.horizontal, Theme.Space.lg)
+                    .padding(.top, Theme.Space.md)
+                    .padding(.bottom, Theme.Space.xxl)
                 }
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
+            }
+            // Pinned under the text and over the keyboard, where the thumb already is.
+            .safeAreaInset(edge: .bottom) {
+                VStack(spacing: 0) {
+                    HairlineDivider()
+                    propertyPills
+                        .padding(.horizontal, Theme.Space.lg)
+                        .padding(.vertical, Theme.Space.sm)
+                }
+                .background(Theme.background)
             }
             .navigationTitle("New Issue")
             .navigationBarTitleDisplayMode(.inline)
@@ -161,7 +111,7 @@ struct ComposeIssueView: View {
                         if isSaving {
                             ProgressView().tint(Theme.accentBright)
                         } else {
-                            Text("Create").bodyFont(15, weight: .bold)
+                            Text("Create").font(.system(.body).weight(.semibold))
                         }
                     }
                     .tint(Theme.accentBright)
@@ -198,6 +148,101 @@ struct ComposeIssueView: View {
                 Text("What you have typed will not be saved.")
             }
         }
+    }
+
+    /// Which team the issue goes to, as the pill at the top-left of the sheet.
+    private var teamPill: some View {
+        HStack {
+            Picker(selection: $teamId) {
+                // A nil tag so the picker has a valid selection before a team is chosen;
+                // without it SwiftUI shows an empty row.
+                Text("Choose a team").tag(String?.none)
+                ForEach(teams) { team in
+                    Text("\(team.key) · \(team.name)").tag(String?.some(team.id))
+                }
+            } label: {
+                Text("Team")
+            }
+            .pickerStyle(.menu)
+            .tint(Theme.textPrimary)
+            .font(.system(.footnote).weight(.medium))
+            .padding(.horizontal, Theme.Space.xs)
+            .frame(minHeight: 28)
+            .background(Theme.raised)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+            Spacer(minLength: 0)
+        }
+    }
+
+    /// Status, priority, and whether it is yours. Menu pickers in pill clothing, so the
+    /// labels the platform reads out are still "Status" and "Priority".
+    private var propertyPills: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: Theme.Space.sm) {
+                pill {
+                    Picker(selection: $stateId) {
+                        Text("Team default").tag(String?.none)
+                        ForEach(states) { state in
+                            Text(state.name).tag(String?.some(state.id))
+                        }
+                    } label: {
+                        Text("Status")
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("compose.status")
+                }
+
+                pill {
+                    Picker(selection: $priority) {
+                        ForEach(Priority.allCases, id: \.self) { value in
+                            Text(value.label).tag(value)
+                        }
+                    } label: {
+                        Text("Priority")
+                    }
+                    .pickerStyle(.menu)
+                }
+
+                // Defaulted on, and offered rather than assumed. This screen is reached from
+                // My Issues, which the server filters strictly by assignee — so an unassigned
+                // issue is created, appears once because the store appends it locally, and
+                // then vanishes on the next load. That reads as data loss.
+                Toggle(isOn: $assignToMe) {
+                    HStack(spacing: Theme.Space.xs + 2) {
+                        Image(systemName: assignToMe ? "person.fill" : "person")
+                            .font(.system(size: 12))
+                        Text("Assign to me")
+                            .font(.system(.footnote).weight(.medium))
+                    }
+                    .foregroundStyle(assignToMe ? Theme.accentBright : Theme.textSecondary)
+                    .padding(.horizontal, Theme.Space.sm + 2)
+                    .frame(minHeight: 30)
+                    .background(assignToMe ? Theme.accentTint : Theme.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous)
+                            .stroke(assignToMe ? Theme.accent : Theme.border, lineWidth: 1)
+                    )
+                }
+                .toggleStyle(.button)
+                .buttonStyle(PressableStyle())
+            }
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private func pill<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
+            .tint(Theme.textPrimary)
+            .font(.system(.footnote).weight(.medium))
+            .padding(.horizontal, Theme.Space.xs)
+            .frame(minHeight: 30)
+            .background(Theme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous)
+                    .stroke(Theme.border, lineWidth: 1)
+            )
     }
 
     private func prompt(_ text: String) -> Text {

@@ -26,8 +26,7 @@ struct SearchView: View {
             }
         }
         .navigationTitle(Text("Search"))
-        .navigationBarTitleDisplayMode(.large)
-        .toolbarBackground(.hidden, for: .navigationBar)
+        .navigationBarTitleDisplayMode(.inline)
         .searchable(
             text: $text,
             placement: .navigationBarDrawer(displayMode: .always),
@@ -54,7 +53,6 @@ struct SearchView: View {
                 title: String(localized: "Search this workspace"),
                 message: String(localized: "Looks inside issue titles and descriptions, across every team you can see.")
             )
-            .padding(Theme.Space.xl)
             .readableColumn()
 
         case .loading:
@@ -62,7 +60,6 @@ struct SearchView: View {
                 SkeletonIssueList()
                 Spacer(minLength: 0)
             }
-            .padding(.top, Theme.Space.sm)
             .readableColumn()
 
         case .failed(let error):
@@ -77,7 +74,6 @@ struct SearchView: View {
                 title: String(localized: "No matches"),
                 message: String(localized: "Nothing matched “\(store.lastQuery)”. Try fewer words, or a different team's vocabulary.")
             )
-            .padding(Theme.Space.xl)
             .readableColumn()
 
         case .loaded(let results):
@@ -85,16 +81,17 @@ struct SearchView: View {
                 if results.issueCount > results.issues.count {
                     // The server caps the response; saying so is the difference between "these
                     // are the matches" and "these are the first forty".
-                    MonoEyebrow(
-                        text: String(localized: "Showing \(results.issues.count) of \(results.issueCount)")
-                    )
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, Theme.Space.xl)
-                    .padding(.bottom, Theme.Space.sm)
-                    .readableColumn()
+                    Text("Showing \(results.issues.count) of \(results.issueCount)")
+                        .font(PolarisText.caption.monospacedDigit())
+                        .foregroundStyle(Theme.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, Theme.Space.lg)
+                        .padding(.vertical, Theme.Space.sm)
+                        .readableColumn()
                 }
                 IssueListView(
                     issues: results.issues,
+                    grouping: .status,
                     statesFor: { model.workspaceData.states(forTeam: $0.team.id) },
                     // Routed through the shared issue store, so a result row that is also in
                     // My Issues does not end up with two different statuses in two lists.
