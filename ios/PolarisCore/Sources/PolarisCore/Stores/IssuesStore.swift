@@ -30,7 +30,10 @@ public final class IssuesStore {
 
     private let api: any PolarisAPI
     private let cache: (any IssueCache)?
-    private var lastSeenVersion: Int?
+    /// The `syncVersion` the last successful load observed. Read by the realtime coordinator
+    /// as the point to resume the sync socket from, so a reconnect replays what was missed as
+    /// one signal instead of losing it.
+    public private(set) var lastSeenVersion: Int?
 
     public init(api: any PolarisAPI, cache: (any IssueCache)? = nil) {
         self.api = api

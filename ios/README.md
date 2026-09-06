@@ -40,32 +40,86 @@ paths different binaries, and the one that ships would be the one never run.
 loopback — both the `Host` header and the TCP peer — and a physical device over the LAN is
 neither. On a device, sign in normally with `dev@polaris.local` / `polaris-dev-password`.
 
-## Architecture: no replica, no socket
+## Architecture: no replica, a signal-only socket
 
 The web and desktop clients hold a full local replica fed by a delta stream over WebSocket.
-This client deliberately does neither. It calls GraphQL directly and polls
-`viewer.syncVersion` — the cheapest query in the schema — refetching only when that number
-moves.
+This client holds no replica. It calls GraphQL directly, and it keeps what it has shown fresh
+two ways:
 
-That is a considered trade, not a shortcut:
+- **The sync socket, as a doorbell.** `RealtimeCoordinator` opens `/sync` with
+  `signalOnly: true` in the hello. The server accepts that hello without the client-schema
+  check — there are no local rows a mismatch could corrupt — and strips the payload from every
+  `delta` it sends (`services/internal/syncsrv/session.go`). The client reads a delta as
+  nothing more than "something you can see moved to version N" and refetches: the issue list,
+  the inbox if it has been opened, the badge otherwise. A screen with a store of its own — the
+  detail screen, a team's list — adopts `.refreshOnRealtime { await store.load() }`, which
+  fires once per coalesced signal. The socket resumes from the `syncVersion` the last load
+  observed, so a reconnect after backgrounding replays what was missed as one signal.
+- **The thirty-second `syncVersion` poll, as the fallback.** It ticks only while the socket is
+  down. A poll alongside a live socket is a query every thirty seconds for information the
+  socket already delivered, so the two are alternatives, never a pair. Under
+  `-polaris-fixtures` there is no socket at all and the poll runs every tick, which keeps a UI
+  test run from dialling whatever happens to be on `localhost:8088`.
 
-- Using the delta stream requires first implementing the NDJSON bootstrap, a local store
-  across ~40 entity types, the revoke cascade, gap detection and resync. Weeks of work
+Both run only while the app is in front. On `.background` the socket is closed and the poll
+stops; on `.active` one `syncVersion` check runs immediately, then the socket reconnects.
+
+The replica is still deliberately absent:
+
+- Using the delta stream *for data* requires first implementing the NDJSON bootstrap, a local
+  store across ~40 entity types, the revoke cascade, gap detection and resync. Weeks of work
   before the first issue renders.
 - It would pin the app to the server's `ClientSchemaVersion` constant, which bumps between
   releases. A mobile app that must ship an App Store update to keep syncing is the wrong
-  coupling.
+  coupling. The signal-only hello is exempt from that check, which is the whole reason the
+  socket is affordable here.
 - The read queries are whole-collection anyway — `issues(teamId:)` has no pagination — so a
-  poll and a sync move comparable amounts of data.
+  refetch on signal and a delta apply move comparable amounts of data.
 
 What it keeps from the local-first design is the part that matters most for correctness:
 every mutation carries `clientId` and `opId`, so a retry after a timeout replays the original
 result instead of creating a duplicate, and `createIssue` mints its own v7 UUID.
 
-The cost is honest: no live updates beyond a thirty-second `syncVersion` poll while the app
-sits in the foreground, and no offline *writes* — a cold-start read comes from the cache
-described under **Offline** below. If realtime is wanted later, the middle path is to open the socket and use `delta`
-frames purely as invalidation signals — refetch what changed — without holding a replica.
+The cost is honest: no offline *writes* — a cold-start read comes from the cache described
+under **Offline** below — and a refetch of the whole list per signal rather than a row-level
+patch.
+
+While the last read failed with something a retry could fix — no network, a timeout, a 5xx —
+the shell shows an "Offline" / "Reconnecting" pill (`ConnectionBanner`) at the top. A refused
+read is not a pill; it is a sentence on the screen it happened on.
+
+## Deep links
+
+`polaris://` is registered in `project.yml` (`CFBundleURLTypes`) — the same scheme the desktop
+app claims, so a link copied from one client opens the issue in whichever client is on the
+device that receives it. The web routes are accepted too, from any host; the
+associated-domains entitlement is what restricts universal links in production, not the
+parser. `DeepLink.parse` in `PolarisCore/Navigation/DeepLink.swift` is pure and fully tested.
+
+| Link | Opens |
+|---|---|
+| `polaris://issue/ENG-1`, `/issue/ENG-1`, `/issue/<uuid>` | The issue, pushed onto the tab that is up |
+| `polaris://inbox`, `/inbox` | The inbox tab |
+| `polaris://my-issues`, `/my-issues` | The My Issues tab |
+| `polaris://search?q=…`, `/search?q=…` | The search tab; the query is parked on `DeepLinkRouter.pendingSearchQuery` for the search screen to read |
+| `polaris://team/ENG`, `/team/ENG`, `/team/ENG/triage|cycles|projects` | The team, pushed on My Issues. The page is parsed but not yet routed — the hub opens on its issues |
+| `/projects` | The My Issues tab, where the team pills are; there is no projects list yet |
+| `/project/<id>` | Pushes the `Project` value; renders once a destination for it is declared |
+
+A link that arrives before sign-in is queued by `DeepLinkRouter` and applied when the shell
+appears. A link to something that does not exist gets an alert, not silence. For UI tests,
+`-polaris-open-url <url>` delivers a link at launch through the same router.
+
+## Background refresh, and the badge
+
+`com.peixotolabs.polaris.refresh` is registered with `BGTaskScheduler` at launch and requested
+on every move to the background. When iOS grants the wake-up — a few times a day, on its own
+schedule — the task restores the session, asks for `unreadNotificationCount` and sets the icon
+badge. In the foreground the badge mirrors the inbox tab's count, whichever path moved it.
+Badge permission is requested once, for the badge alone; nothing here asks to alert.
+
+`BGTaskScheduler` refuses every submit in the Simulator, so the path can only be exercised on
+a device (or with the `_simulateLaunchForTaskWithIdentifier` debugger call).
 
 ## Screens
 
@@ -87,12 +141,13 @@ first and closed work last; My Issues stays flat in priority order, which is als
 default for that view. The inbox is grouped by day, the detail screen lays its properties out
 as a wrapping row of pills, and Settings is a standard inset-grouped list.
 
-### The inbox is pull-only, and that is a backend gap
+### There are no push notifications, and that is a backend gap
 
 The server has no push infrastructure at all — no device-token schema, no APNs sender — so
-there is nothing for this client to register with and nothing to receive. The inbox is
-therefore a list plus a badge, refreshed on foreground and on the same thirty-second poll that
-checks `syncVersion`. Push notifications are a backend project, not an iOS one.
+there is nothing for this client to register with and nothing to receive. While the app is in
+front the inbox and its badge move on the sync signal; while it is not, the badge moves only
+when iOS grants a background refresh. Nothing arrives on a locked phone. Push notifications
+are a backend project, not an iOS one.
 
 ## Theme
 
@@ -116,11 +171,11 @@ urgent — so the two clients say the same thing with the same shapes.
 
 ## Offline
 
-There is still no replica and no socket (see below), but a successful load of "my issues" is
-now written to a JSON file in Application Support and put back on screen before the first
-request of the next launch — marked as a saved copy, and replaced the moment a request
-answers. That is the cold-start half of offline; live updates while the app sits open are
-still the poll.
+There is still no replica (see above), but a successful load of "my issues" is written to a
+JSON file in Application Support and put back on screen before the first request of the next
+launch — marked as a saved copy, and replaced the moment a request answers. That is the
+cold-start half of offline; live updates while the app sits open come over the socket, or the
+poll while the socket is down.
 
 ## Signing and TestFlight
 

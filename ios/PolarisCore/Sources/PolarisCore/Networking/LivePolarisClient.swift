@@ -913,7 +913,9 @@ public actor LivePolarisClient: PolarisAPI {
     }
 
     public nonisolated func syncSocketURL() -> URL {
-        environment.syncSocketURL
+        // The hub's own address where the environment names one (a `make dev` stack), the
+        // API origin's `/sync` otherwise (behind the production proxy).
+        environment.syncHubURL ?? environment.syncSocketURL
     }
 
     /// The caller's variables plus the idempotency pair every `@idempotent` mutation carries.

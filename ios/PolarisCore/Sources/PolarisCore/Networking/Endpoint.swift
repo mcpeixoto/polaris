@@ -9,6 +9,13 @@ import Foundation
 public struct PolarisEnvironment: Sendable, Hashable {
     public let apiBaseURL: URL
     public let allowsDevSession: Bool
+    /// Where the sync hub is when it is not `/sync` on the API origin.
+    ///
+    /// Behind the production proxy it is: nginx routes `/sync` to the hub. `make dev` runs the
+    /// hub as its own process on :8089 with nothing in front of it — the web dev server
+    /// proxies `/sync` there (web/vite.config.ts), and this app, which talks to the ports
+    /// directly, needs the address. Nil means derive from the API origin.
+    public let syncHubURL: URL?
 
     /// What to show a reader beside their chosen URL key. A self-hoster on their own domain
     /// was previously shown `polaris.app/`, which is not their address and not ours to claim.
@@ -16,9 +23,10 @@ public struct PolarisEnvironment: Sendable, Hashable {
         (apiBaseURL.host ?? "polaris").replacingOccurrences(of: "^www\\.", with: "", options: .regularExpression)
     }
 
-    public init(apiBaseURL: URL, allowsDevSession: Bool) {
+    public init(apiBaseURL: URL, allowsDevSession: Bool, syncHubURL: URL? = nil) {
         self.apiBaseURL = apiBaseURL
         self.allowsDevSession = allowsDevSession
+        self.syncHubURL = syncHubURL
     }
 
     /// The sync stream's WebSocket, derived from the API origin the way
@@ -41,7 +49,8 @@ public struct PolarisEnvironment: Sendable, Hashable {
     /// Vite: one fewer moving part, and the app has no use for the SPA's origin.
     public static let localDevelopment = PolarisEnvironment(
         apiBaseURL: URL(string: "http://localhost:8088")!,
-        allowsDevSession: true
+        allowsDevSession: true,
+        syncHubURL: URL(string: "ws://localhost:8089/sync")!
     )
 
     public static let hosted = PolarisEnvironment(
