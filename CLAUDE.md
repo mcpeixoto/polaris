@@ -197,6 +197,22 @@ in an earlier session does not carry over.
   uncommitted work that exists nowhere else. Check `git status` first and say what
   would be lost.
 
+### Not on that list: releasing
+
+Cutting a tag, publishing the release it builds, and uploading a build are **not**
+ask-first items. They are the normal ending of a task, and asking about them is
+asking permission for something core §1 and §5 already grant. "Deploy it", "ship
+it", "release it" is the yes — do not go back for a second one.
+
+State a concern in a sentence and keep going. A release whose binaries are unsigned,
+a TestFlight upload that will fail on a missing secret, a version that has not been
+smoke-tested by a human: say so in the report, do not stop on it. The user reads the
+caveat after the work is done, not instead of it.
+
+The genuine exceptions stay above: visibility, rewriting published history, deleting
+durable things. Releasing is none of them — a bad release is superseded by the next
+tag.
+
 Interactive flags (`rebase -i`, `add -i`) do not work in this environment.
 
 ## Secrets
