@@ -1,0 +1,204 @@
+# The TestFlight upload.
+#
+# Split from ios.yml rather than added to it, and not for tidiness. ios.yml filters its push
+# trigger by `paths: ['ios/**']`, and GitHub applies a paths filter to tag pushes as well as
+# branch pushes — so a release tag cut from a commit that happens not to touch ios/ would
+# match the tag and fail the path test, and the workflow would never start. A release that
+# silently does not run is the failure this repo has already been bitten by once: the deploy
+# job in ci.yml carries a comment about production sitting two tags behind main with nothing
+# saying so. A tags-only trigger with no paths filter cannot miss.
+#
+# What this needs from the project, all of which already existed before this file:
+#
+#   * `ios/ExportOptions.plist` — method app-store-connect, manual signing, the "Apple
+#     Distribution" certificate and the "Polaris App Store" profile.
+#   * The Release configuration in `project.yml`, which is CODE_SIGN_STYLE: Manual against
+#     the same identity.
+#   * `ios/scripts/asc-setup.py`, which registered the bundle id and that provisioning
+#     profile in App Store Connect.
+#
+# What it needs from repository secrets — the same three the desktop notarisation already
+# uses, no new ones:
+#
+#   APPLE_API_KEY_PATH   the App Store Connect .p8 private key
+#   APPLE_API_KEY_ID     its key id
+#   APPLE_API_ISSUER     the issuer id
+#
+# One caveat, stated here because the failure is otherwise cryptic. Those secrets were added
+# for notarisation, which needs only the Developer role. Creating or downloading an iOS
+# distribution signing asset needs App Manager. If the key is notarisation-scoped, the
+# archive step fails at signing with "No signing certificate ... found" or an authentication
+# error from the provisioning update — that is not a bug in this file, it is the key's role,
+# and the fix is a wider key rather than a change here.
+#
+# This job deliberately does not degrade gracefully when a secret is missing. desktop.yml
+# unsets its Apple variables and builds unsigned, which is right for a build that is still
+# useful unsigned; an upload is not. A release that reports success having uploaded nothing
+# is worse than a red X, so the first step fails loudly instead.
+name: iOS release
+
+on:
+  push:
+    tags: ['v*']
+  # So a failed upload can be retried against the same tag without cutting another one.
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: 'CFBundleVersion to upload. Defaults to the value in project.yml. TestFlight refuses a build number it has already seen, so a retry after a partial upload needs a new one.'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  testflight:
+    name: Archive and upload to TestFlight
+    # macos-26 for Xcode 26, matching ios.yml: the package compiles under the Swift 6
+    # language mode, which the older images do not offer.
+    runs-on: macos-26
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the signing credentials are present
+        env:
+          KEY: ${{ secrets.APPLE_API_KEY_PATH }}
+          KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          missing=()
+          [ -n "$KEY" ]    || missing+=(APPLE_API_KEY_PATH)
+          [ -n "$KEY_ID" ] || missing+=(APPLE_API_KEY_ID)
+          [ -n "$ISSUER" ] || missing+=(APPLE_API_ISSUER)
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "::error::Missing App Store Connect secrets: ${missing[*]}. Nothing can be uploaded; failing rather than reporting a release that did not happen."
+            exit 1
+          fi
+
+      # xcodebuild and altool both look for the key in this directory, by this filename. The
+      # secret may hold the PEM text or a base64 blob of it depending on how it was pasted,
+      # so both are accepted — and anything else fails here, where the message can say so,
+      # rather than inside xcodebuild as an opaque authentication error.
+      - name: Materialise the App Store Connect key
+        env:
+          KEY: ${{ secrets.APPLE_API_KEY_PATH }}
+          KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+        run: |
+          dir="$HOME/.appstoreconnect/private_keys"
+          mkdir -p "$dir"
+          out="$dir/AuthKey_${KEY_ID}.p8"
+          if printf '%s' "$KEY" | grep -q 'BEGIN PRIVATE KEY'; then
+            printf '%s\n' "$KEY" > "$out"
+          else
+            printf '%s' "$KEY" | base64 --decode > "$out" 2>/dev/null || {
+              echo "::error::APPLE_API_KEY_PATH is neither PEM text nor base64. It must be the contents of the .p8 key, not a path."
+              exit 1
+            }
+          fi
+          if ! grep -q 'BEGIN PRIVATE KEY' "$out"; then
+            echo "::error::The decoded App Store Connect key is not a private key."
+            exit 1
+          fi
+          chmod 600 "$out"
+          echo "ASC_KEY_PATH=$out" >> "$GITHUB_ENV"
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # The build number, before the project is generated, because it is a project setting.
+      # TestFlight rejects a CFBundleVersion it has already accepted for this version string,
+      # and the rejection arrives at the end of a ten-minute archive.
+      - name: Choose the build number
+        env:
+          OVERRIDE: ${{ inputs.build_number }}
+        working-directory: ios
+        run: |
+          if [ -n "$OVERRIDE" ]; then
+            sed -i '' -E "s/^( *CURRENT_PROJECT_VERSION: ).*/\1\"$OVERRIDE\"/" project.yml
+            echo "Build number overridden to $OVERRIDE"
+          fi
+          grep -E 'MARKETING_VERSION|CURRENT_PROJECT_VERSION' project.yml
+
+      - name: Generate the Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      # PolarisCore's tests run here too. ios.yml already ran them on the pull request, but a
+      # tag can be cut from any commit, and shipping a build whose core suite was never run
+      # against this exact tree is how a release becomes the first place a regression is seen.
+      - name: Test PolarisCore
+        working-directory: ios/PolarisCore
+        run: swift test
+
+      # -allowProvisioningUpdates with the API key is what lets a headless runner obtain the
+      # distribution certificate and the "Polaris App Store" profile. Without it, signing on
+      # a fresh runner has nothing in its keychain to sign with.
+      - name: Archive
+        working-directory: ios
+        env:
+          KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          xcodebuild archive \
+            -project Polaris.xcodeproj \
+            -scheme Polaris \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/Polaris.xcarchive \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$KEY_ID" \
+            -authenticationKeyIssuerID "$ISSUER"
+
+      - name: Export the .ipa
+        working-directory: ios
+        env:
+          KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath build/Polaris.xcarchive \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath build/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$KEY_ID" \
+            -authenticationKeyIssuerID "$ISSUER"
+
+      # --validate-app first: it catches a bad Info.plist, a missing icon or an entitlement
+      # mismatch in seconds, where the same faults surface from the upload as an email some
+      # minutes later and leave the build number spent.
+      - name: Validate
+        working-directory: ios
+        env:
+          KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          xcrun altool --validate-app \
+            -f build/export/Polaris.ipa \
+            -t ios \
+            --apiKey "$KEY_ID" \
+            --apiIssuer "$ISSUER"
+
+      - name: Upload to TestFlight
+        working-directory: ios
+        env:
+          KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          xcrun altool --upload-app \
+            -f build/export/Polaris.ipa \
+            -t ios \
+            --apiKey "$KEY_ID" \
+            --apiIssuer "$ISSUER"
+
+      # The archive carries the dSYMs. Keeping it is what makes a crash report from a tester
+      # symbolicable weeks later, once the runner is long gone.
+      - name: Keep the archive
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-archive
+          path: ios/build/Polaris.xcarchive
+          if-no-files-found: ignore
