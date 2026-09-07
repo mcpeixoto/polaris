@@ -287,3 +287,27 @@
     transition: none;
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * Narrow windows
+ * ------------------------------------------------------------------ */
+
+/*
+ * The panel takes the window below sm, and does it by width alone.
+ *
+ * It cannot do it by position: DisplayMenu.tsx measures the panel's rect and writes `top`
+ * and `left` as an inline style, and an inline style outranks anything this file has to
+ * say short of `!important`. But it does not have to. `horizontalShift` already pulls the
+ * panel back from whichever window edge it overhangs, so a panel that asks for the whole
+ * width is placed at the margin and stays there — the script's clamp is doing exactly the
+ * work a full-width rule would otherwise have to duplicate and keep in step.
+ *
+ * The keyframes stay vertical-only, which is the constraint that makes this safe: the
+ * measurement the placement depends on reads `left`, `right` and `width`, and nothing in
+ * this file animates any of them.
+ */
+@media (max-width: 720px) {
+  .panel {
+    width: calc(100vw - var(--space-4));
+  }
+}

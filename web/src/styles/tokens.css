@@ -146,6 +146,40 @@
   --header-height: 44px;
   --sidebar-width: 232px;
 
+  /* --- Breakpoints ---------------------------------------------------
+   * Three widths, and there may not be a fourth.
+   *
+   * These are not custom properties and cannot be: `@media (max-width: var(--bp-md))` is
+   * not valid CSS, a media condition is resolved before the cascade exists, and there is
+   * no postcss step in this build to fold a `@custom-media` for us. Adding one to spell
+   * three numbers is a build dependency bought with the entire stylesheet pipeline.
+   *
+   * So they live here as prose and scripts/lint-breakpoints.sh enforces the prose: every
+   * `@media` width query in web/src and ee/web must name one of these three, and it fails
+   * the build otherwise. That is the whole mechanism. The rule matters more than the
+   * mechanism, because what it replaced was nine ad hoc widths — 420, 520, 560, 640, 720,
+   * 860, 900, 901, 960, 1100 and one in rem — which meant no two surfaces reflowed at the
+   * same window size and dragging a window narrow rearranged the product a piece at a
+   * time.
+   *
+   *   sm  720px  — one column. Below this there is no room for a panel beside anything:
+   *                the peek drawer and the display menu take the width, search stacks,
+   *                the board shows one column at a time.
+   *   md  960px  — no persistent second pane. The sidebar becomes a drawer over the
+   *                content, the issue list drops its secondary columns rather than
+   *                squeezing them, and the detail rails fold under their documents.
+   *   lg 1100px  — the widest thing the product draws. Above it nothing more appears;
+   *                below it, the layouts that assume three regions give one up.
+   *
+   * Always `max-width`, so every rule reads as "and narrower than this" and the desktop
+   * layout is the one the file states first. A `min-width` query would have to be written
+   * at 721/961/1101 to avoid overlapping its own partner, which is three more numbers.
+   *
+   * views/landingMotion.ts's useDisclosure takes the md width as its default so the
+   * marketing header's menu closes at the same edge its stylesheet stops drawing it. That
+   * is the only place JavaScript needs to know one of these, and it says so there too.
+   */
+
   /* The height every action on the auth card agrees on, and the one number in this file
    * chosen by somebody else. Google's sign-in button is an iframe, and it paints at 44px
    * whatever width it is asked for — measured against the live client id at eight widths

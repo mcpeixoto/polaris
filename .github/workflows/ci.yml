@@ -319,6 +319,10 @@ jobs:
       - uses: actions/checkout@v4
       - run: bash scripts/lint-keymap.sh
       - run: bash scripts/lint-tokens.sh
+      # Ten ad hoc breakpoints is not a responsive design, it is ten surfaces each reflowing
+      # at a window size none of the others agree with. A media condition cannot reference a
+      # token, so this is the only place the three widths can be held together.
+      - run: bash scripts/lint-breakpoints.sh
       # A fractional order key compared with localeCompare. Byte order and linguistic order
       # agree for the first five entries of any list and part company at the sixth, so this
       # is invisible in every fixture and permanent in every workspace somebody uses.

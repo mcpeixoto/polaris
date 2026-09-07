@@ -19,7 +19,7 @@
  * list.
  *
  * The keyboard is the issue list's, through `useListCursor`: `j`/`k` move, Enter opens,
- * right-click opens the row's menu. Before this the screen registered one action — export —
+ * Space peeks the row without leaving the list, right-click opens the row's menu. Before this the screen registered one action — export —
  * and claimed no key context at all, so every affordance on it was mouse-only.
  *
  * Drag a row onto another to reorder it, and onto a group heading to move it into that
@@ -115,6 +115,7 @@ import { UserPicker } from '~/features/members/UserPicker';
 import { listProjectMilestones } from '~/features/project-milestones/helpers';
 import { ProjectHealthCell } from '~/features/project-updates/ProjectHealthCell';
 import { projectProgress, type Progress } from '~/features/initiatives/progress';
+import { ProjectPeek } from '~/features/peek/ProjectPeek';
 import { useContextMenu } from '~/hooks/useContextMenu';
 import { useListCursor, listRowDomId } from '~/hooks/useListCursor';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -124,6 +125,9 @@ import { PRIORITY_LEVELS } from '~/components/PriorityIcon';
 import { compareOrderKeys } from '~/store';
 import type { Project, ProjectStatus, Store, TimeframeGranularity, UUID } from '~/store';
 import styles from './Projects.module.css';
+
+/** A Space tap keeps Peek; a hold longer than this puts it away on release. */
+const PEEK_HOLD_MS = 280;
 
 interface ProjectRow {
   readonly id: UUID;
@@ -364,6 +368,25 @@ export function Projects() {
     returnFocusTo: scrollerRef,
   });
 
+  /*
+    Peek, exactly as the issue list has it: a tap of Space keeps the panel, a hold is a
+    glance that goes away on release, Enter is still the commitment that opens the project.
+
+    The open state is mirrored into a ref because the registered actions read it at dispatch
+    — `enabled` on the Escape binding decides whether Escape belongs to Peek or falls through
+    to the screen behind it, and it has to be answered with what is true now.
+  */
+  const [peekOpen, setPeekOpen] = useState(false);
+  const peekOpenRef = useRef(false);
+  const peekHoldAt = useRef<number | null>(null);
+  const setPeek = (open: boolean) => {
+    peekOpenRef.current = open;
+    setPeekOpen(open);
+    // The list keeps the keyboard: Peek is a panel beside the rows, not a surface to move
+    // into, so closing it puts focus back on the scroller the cursor lives on.
+    if (!open) requestAnimationFrame(() => scrollerRef.current?.focus());
+  };
+
   /**
    * The property picker a context-menu item opened, and where it hangs.
    *
@@ -445,6 +468,45 @@ export function Projects() {
   useActions(
     [
       {
+        id: 'projects.peek',
+        title: 'Peek project',
+        keys: ['space'],
+        when: 'list',
+        group: 'Projects',
+        ignoreRepeat: true,
+        enabled: () => ids.length > 0,
+        run: (ctx) => {
+          if (ctx.source !== 'key') {
+            setPeek(!peekOpenRef.current);
+            return;
+          }
+          if (peekOpenRef.current) {
+            setPeek(false);
+            peekHoldAt.current = null;
+            return;
+          }
+          setPeek(true);
+          peekHoldAt.current = Date.now();
+        },
+        keyup: () => {
+          const at = peekHoldAt.current;
+          peekHoldAt.current = null;
+          if (at !== null && Date.now() - at >= PEEK_HOLD_MS) setPeek(false);
+        },
+      },
+      {
+        id: 'projects.peek.close',
+        title: 'Close peek',
+        keys: ['Escape'],
+        when: 'list',
+        group: 'Projects',
+        hidden: true,
+        // Disabled reads as unbound, so with the panel shut Escape falls through to the
+        // shell's dismiss rather than being swallowed by a command with nothing to do.
+        enabled: () => peekOpenRef.current,
+        run: () => setPeek(false),
+      },
+      {
         id: 'projects.exportCsv',
         title: 'Export projects as CSV',
         group: 'Projects',
@@ -462,7 +524,7 @@ export function Projects() {
         },
       },
     ],
-    [engine, rows, heading, viewer],
+    [engine, rows, heading, viewer, ids.length === 0],
   );
 
   const rowById = useCallback(
@@ -661,223 +723,233 @@ export function Projects() {
 
       {/* The gate stands above the layout switch, not inside one branch of it. The timeline
           used to be returned before it and drew an unsettled replica as a plan with nothing
-          in it. */}
-      {rows.length === 0 && !settled ? (
-        <EntityLoading className={styles.loading} label="Loading projects…" lines={6} />
-      ) : rows.length === 0 ? (
-        <EmptyState
-          title={filtered ? 'Nothing matches these filters' : 'No projects yet'}
-          description={
-            filtered
-              ? 'Every project here is excluded by the filters above.'
-              : 'A project is a unit of work with a clear outcome. Create one, then file issues into it with Shift+P.'
-          }
-          action={
-            filtered ? (
-              <Button variant="secondary" onClick={clearFilters}>
-                Clear the filters
-              </Button>
-            ) : (
-              <Button variant="primary" onClick={create}>
-                New project
-              </Button>
-            )
-          }
-        />
-      ) : display.layout === 'timeline' ? (
-        <ProjectTimeline
-          teamId={team?.id}
-          depFilter={filters.dependency}
-          customerFilter={hideCustomers ? 'all' : filters.customer}
-          statusFilter={filters.status}
-          display={display}
-          onClearFilters={clearFilters}
-        />
-      ) : display.layout === 'board' ? (
-        <div
-          ref={scrollerRef}
-          className={styles.board}
-          role="listbox"
-          aria-label={heading}
-          aria-activedescendant={
-            cursor.cursorId === null ? undefined : listRowDomId(CURSOR_PREFIX, cursor.cursorId)
-          }
-          tabIndex={0}
-        >
-          {statuses.map((status) => {
-            const columnRows = rows.filter((row) => row.statusId === status.id);
-            const key = `status-${status.id}`;
-            return (
-              <section
-                key={status.id}
-                className={overId === key ? `${styles.column} ${styles.columnOver}` : styles.column}
-                aria-label={status.name}
-                onDragOver={(event) => {
-                  if (draggingId === null) return;
-                  event.preventDefault();
-                  setOverId(key);
-                }}
-                onDragLeave={() => {
-                  if (overId === key) setOverId(null);
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  void onDropOnStatus(status.id);
-                }}
-              >
-                <header className={styles.columnHead}>
-                  <span
-                    className={styles.columnDot}
-                    aria-hidden="true"
-                    // The status's own colour is workspace data, and no theme overrules it.
-                    style={status.color === '' ? undefined : { color: status.color }}
-                  />
-                  <span className={styles.columnName}>{status.name}</span>
-                  <span className={styles.groupCount}>{columnRows.length}</span>
-                </header>
-                <ul className={styles.columnList} role="presentation">
-                  {columnRows.length === 0 ? (
-                    // Kept on the board rather than dropped: an empty column is information,
-                    // and a board whose columns come and go as work moves through it is one
-                    // nobody can build a habit around.
-                    <li role="presentation" className={styles.columnBlank}>
-                      Nothing here
-                    </li>
-                  ) : (
-                    columnRows.map((row) => (
-                      <li
-                        key={row.id}
-                        {...cursor.rowProps(row.id)}
-                        role="option"
-                        className={styles.cardItem}
-                        onContextMenu={(event) => {
-                          event.preventDefault();
-                          contextMenu.openAt(event.clientX, event.clientY, row.id);
-                        }}
-                      >
-                        <ProjectCard
-                          row={row}
-                          dragging={draggingId === row.id}
-                          onSelect={() => cursor.setCursor(row.id)}
-                          onDragStart={() => setDraggingId(row.id)}
-                          onDragEnd={() => {
-                            setDraggingId(null);
-                            setOverId(null);
-                          }}
-                        />
+          in it.
+
+          The layout and Peek share a flex row, the way the issue list's body does: the panel
+          is a drawer beside the rows rather than over them, so the list narrows to make room
+          and nothing the reader was looking at is covered up. */}
+      <div className={styles.body}>
+        {rows.length === 0 && !settled ? (
+          <EntityLoading className={styles.loading} label="Loading projects…" lines={6} />
+        ) : rows.length === 0 ? (
+          <EmptyState
+            title={filtered ? 'Nothing matches these filters' : 'No projects yet'}
+            description={
+              filtered
+                ? 'Every project here is excluded by the filters above.'
+                : 'A project is a unit of work with a clear outcome. Create one, then file issues into it with Shift+P.'
+            }
+            action={
+              filtered ? (
+                <Button variant="secondary" onClick={clearFilters}>
+                  Clear the filters
+                </Button>
+              ) : (
+                <Button variant="primary" onClick={create}>
+                  New project
+                </Button>
+              )
+            }
+          />
+        ) : display.layout === 'timeline' ? (
+          <ProjectTimeline
+            teamId={team?.id}
+            depFilter={filters.dependency}
+            customerFilter={hideCustomers ? 'all' : filters.customer}
+            statusFilter={filters.status}
+            display={display}
+            onClearFilters={clearFilters}
+          />
+        ) : display.layout === 'board' ? (
+          <div
+            ref={scrollerRef}
+            className={styles.board}
+            role="listbox"
+            aria-label={heading}
+            aria-activedescendant={
+              cursor.cursorId === null ? undefined : listRowDomId(CURSOR_PREFIX, cursor.cursorId)
+            }
+            tabIndex={0}
+          >
+            {statuses.map((status) => {
+              const columnRows = rows.filter((row) => row.statusId === status.id);
+              const key = `status-${status.id}`;
+              return (
+                <section
+                  key={status.id}
+                  className={
+                    overId === key ? `${styles.column} ${styles.columnOver}` : styles.column
+                  }
+                  aria-label={status.name}
+                  onDragOver={(event) => {
+                    if (draggingId === null) return;
+                    event.preventDefault();
+                    setOverId(key);
+                  }}
+                  onDragLeave={() => {
+                    if (overId === key) setOverId(null);
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    void onDropOnStatus(status.id);
+                  }}
+                >
+                  <header className={styles.columnHead}>
+                    <span
+                      className={styles.columnDot}
+                      aria-hidden="true"
+                      // The status's own colour is workspace data, and no theme overrules it.
+                      style={status.color === '' ? undefined : { color: status.color }}
+                    />
+                    <span className={styles.columnName}>{status.name}</span>
+                    <span className={styles.groupCount}>{columnRows.length}</span>
+                  </header>
+                  <ul className={styles.columnList} role="presentation">
+                    {columnRows.length === 0 ? (
+                      // Kept on the board rather than dropped: an empty column is information,
+                      // and a board whose columns come and go as work moves through it is one
+                      // nobody can build a habit around.
+                      <li role="presentation" className={styles.columnBlank}>
+                        Nothing here
                       </li>
-                    ))
-                  )}
-                </ul>
-              </section>
-            );
-          })}
-        </div>
-      ) : (
-        <div
-          ref={scrollerRef}
-          className={styles.table}
-          style={{ '--project-grid': gridTemplate } as CSSProperties}
-          role="listbox"
-          aria-label={heading}
-          aria-activedescendant={
-            cursor.cursorId === null ? undefined : listRowDomId(CURSOR_PREFIX, cursor.cursorId)
-          }
-          tabIndex={0}
-        >
-          <div className={styles.columns} aria-hidden="true">
-            <span>Name</span>
-            {columns.map((column) => (
-              <span
-                key={column}
-                className={
-                  column === 'issues'
-                    ? styles.columnEnd
-                    : column === 'targetDate'
-                      ? styles.target
-                      : undefined
-                }
-              >
-                {COLUMN_HEADINGS[column]}
-              </span>
-            ))}
-            {hasSparkline ? <span className={styles.spark} /> : null}
+                    ) : (
+                      columnRows.map((row) => (
+                        <li
+                          key={row.id}
+                          {...cursor.rowProps(row.id)}
+                          role="option"
+                          className={styles.cardItem}
+                          onContextMenu={(event) => {
+                            event.preventDefault();
+                            contextMenu.openAt(event.clientX, event.clientY, row.id);
+                          }}
+                        >
+                          <ProjectCard
+                            row={row}
+                            dragging={draggingId === row.id}
+                            onSelect={() => cursor.setCursor(row.id)}
+                            onDragStart={() => setDraggingId(row.id)}
+                            onDragEnd={() => {
+                              setDraggingId(null);
+                              setOverId(null);
+                            }}
+                          />
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                </section>
+              );
+            })}
           </div>
-          {groups.map((group) =>
-            group.key === 'all' ? (
-              <ul key={group.key} className={styles.groupList} role="presentation">
-                {group.rows.map((row) => (
-                  <li
-                    key={row.id}
-                    {...cursor.rowProps(row.id)}
-                    role="option"
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      contextMenu.openAt(event.clientX, event.clientY, row.id);
-                    }}
-                  >
-                    {rowLink(row)}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div
-                key={group.key}
-                className={
-                  overId === group.key ? `${styles.group} ${styles.groupOver}` : styles.group
-                }
-                onDragOver={(event) => {
-                  if (draggingId === null || group.dropPriority === null) return;
-                  event.preventDefault();
-                  setOverId(group.key);
-                }}
-                onDragLeave={() => {
-                  if (overId === group.key) setOverId(null);
-                }}
-                onDrop={(event) => {
-                  if (group.dropPriority === null) return;
-                  event.preventDefault();
-                  void onDropOnPriority(group.dropPriority);
-                }}
-              >
-                <ListGroup
-                  groupKey={group.key}
-                  preferenceKey={PREFERENCE_KEY}
-                  name={group.name}
-                  count={group.rows.length}
-                  detail={group.glyph}
-                  onToggle={(key, shut) =>
-                    setCollapsed((held) => {
-                      const next = new Set(held);
-                      if (shut) next.add(key);
-                      else next.delete(key);
-                      return next;
-                    })
+        ) : (
+          <div
+            ref={scrollerRef}
+            className={styles.table}
+            style={{ '--project-grid': gridTemplate } as CSSProperties}
+            role="listbox"
+            aria-label={heading}
+            aria-activedescendant={
+              cursor.cursorId === null ? undefined : listRowDomId(CURSOR_PREFIX, cursor.cursorId)
+            }
+            tabIndex={0}
+          >
+            <div className={styles.columns} aria-hidden="true">
+              <span>Name</span>
+              {columns.map((column) => (
+                <span
+                  key={column}
+                  className={
+                    column === 'issues'
+                      ? styles.columnEnd
+                      : column === 'targetDate'
+                        ? styles.target
+                        : undefined
                   }
                 >
-                  {/* A real list inside the group, so a row is a list item as well as an
+                  {COLUMN_HEADINGS[column]}
+                </span>
+              ))}
+              {hasSparkline ? <span className={styles.spark} /> : null}
+            </div>
+            {groups.map((group) =>
+              group.key === 'all' ? (
+                <ul key={group.key} className={styles.groupList} role="presentation">
+                  {group.rows.map((row) => (
+                    <li
+                      key={row.id}
+                      {...cursor.rowProps(row.id)}
+                      role="option"
+                      onContextMenu={(event) => {
+                        event.preventDefault();
+                        contextMenu.openAt(event.clientX, event.clientY, row.id);
+                      }}
+                    >
+                      {rowLink(row)}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div
+                  key={group.key}
+                  className={
+                    overId === group.key ? `${styles.group} ${styles.groupOver}` : styles.group
+                  }
+                  onDragOver={(event) => {
+                    if (draggingId === null || group.dropPriority === null) return;
+                    event.preventDefault();
+                    setOverId(group.key);
+                  }}
+                  onDragLeave={() => {
+                    if (overId === group.key) setOverId(null);
+                  }}
+                  onDrop={(event) => {
+                    if (group.dropPriority === null) return;
+                    event.preventDefault();
+                    void onDropOnPriority(group.dropPriority);
+                  }}
+                >
+                  <ListGroup
+                    groupKey={group.key}
+                    preferenceKey={PREFERENCE_KEY}
+                    name={group.name}
+                    count={group.rows.length}
+                    detail={group.glyph}
+                    onToggle={(key, shut) =>
+                      setCollapsed((held) => {
+                        const next = new Set(held);
+                        if (shut) next.add(key);
+                        else next.delete(key);
+                        return next;
+                      })
+                    }
+                  >
+                    {/* A real list inside the group, so a row is a list item as well as an
                       option: the outer scroller is the listbox and this only carries them. */}
-                  <ul className={styles.groupList} role="presentation">
-                    {group.rows.map((row) => (
-                      <li
-                        key={row.id}
-                        {...cursor.rowProps(row.id)}
-                        role="option"
-                        onContextMenu={(event) => {
-                          event.preventDefault();
-                          contextMenu.openAt(event.clientX, event.clientY, row.id);
-                        }}
-                      >
-                        {rowLink(row)}
-                      </li>
-                    ))}
-                  </ul>
-                </ListGroup>
-              </div>
-            ),
-          )}
-        </div>
-      )}
+                    <ul className={styles.groupList} role="presentation">
+                      {group.rows.map((row) => (
+                        <li
+                          key={row.id}
+                          {...cursor.rowProps(row.id)}
+                          role="option"
+                          onContextMenu={(event) => {
+                            event.preventDefault();
+                            contextMenu.openAt(event.clientX, event.clientY, row.id);
+                          }}
+                        >
+                          {rowLink(row)}
+                        </li>
+                      ))}
+                    </ul>
+                  </ListGroup>
+                </div>
+              ),
+            )}
+          </div>
+        )}
+
+        <ProjectPeek open={peekOpen} projectId={cursor.cursorId} onClose={() => setPeek(false)} />
+      </div>
 
       {contextMenu.at === null ? null : <div {...contextMenu.anchorProps} />}
       <Menu

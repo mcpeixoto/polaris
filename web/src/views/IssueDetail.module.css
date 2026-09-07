@@ -4,9 +4,11 @@
  * description, what the issue is attached to and what has happened to it, and a 300px rail
  * of properties on the right. On a narrow window the rail folds under the document.
  *
- * Sizes below that are not tokens are Linear's measured ones — the 24px title, the 68px
- * gutter, the 720px column — and are the reason this file exists; the type scale's stops
- * were chosen for a 13px list and have no seat for a document title.
+ * Sizes below that are not tokens are Linear's measured ones — the 68px gutter, the 720px
+ * column — and are the reason this file exists. The title is no longer among them: it is
+ * TitleField's now, and TitleField asks for --font-size-2xl, which the scale grew a stop
+ * for precisely so that a document title would not have to be a literal on every screen
+ * that draws one.
  */
 
 .screen {

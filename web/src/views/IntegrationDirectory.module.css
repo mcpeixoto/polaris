@@ -65,7 +65,7 @@
 
 /* One column at narrow widths rather than a 9rem name column squeezing the summary to
    nothing — a cell that shrinks below its content is the wrap the composition doc bans. */
-@media (max-width: 40rem) {
+@media (max-width: 720px) {
   .row {
     grid-template-columns: 1fr;
     row-gap: var(--space-1);

@@ -235,3 +235,37 @@ describe('Projects loading gate', () => {
     expect(screen.getByRole('status').textContent).toContain('Loading projects');
   });
 });
+
+describe('Projects peek', () => {
+  /*
+    Space is the glance the issue list already had and this one did not: the answer to "what
+    is this project?" cost a navigation and the filters that came with it. Escape puts the
+    panel away and hands the keyboard back to the list, which is the half that decides
+    whether the next `j` moves anything.
+  */
+  it('opens the project under the cursor on Space, and Escape closes it', async () => {
+    const { user } = mount({ url: '/projects?group=none&order=name' });
+
+    await user.keyboard(' ');
+    const panel = await screen.findByRole('complementary', { name: 'Peek Launch' });
+    expect(panel.textContent).toContain('In progress');
+
+    await user.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(screen.queryByRole('complementary', { name: 'Peek Launch' })).toBeNull(),
+    );
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('listbox', { name: 'Projects' })),
+    );
+  });
+
+  it('follows the cursor rather than the row it was opened on', async () => {
+    const { user } = mount({ url: '/projects?group=none&order=name' });
+
+    await user.keyboard(' ');
+    expect(await screen.findByRole('complementary', { name: 'Peek Launch' })).toBeTruthy();
+
+    await user.keyboard('j');
+    expect(await screen.findByRole('complementary', { name: 'Peek Migrate' })).toBeTruthy();
+  });
+});

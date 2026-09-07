@@ -498,3 +498,20 @@
 .cardSpacer {
   flex: 1;
 }
+
+/*
+ * The layout and its Peek panel, side by side.
+ *
+ * Peek is a drawer attached to the right edge rather than a sheet over the rows, so the list
+ * has to be able to give up the width — which is what this row does and what a block layout
+ * could not. The same shape the issue list's `.body` has, for the same reason.
+ */
+.body {
+  /* Positioned, because below sm Peek.module.css takes the panel out of this row and lays
+     it over the list — this is the box it covers. The issue list's own `.body` is relative
+     for exactly that reason. */
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}

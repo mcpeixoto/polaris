@@ -11,7 +11,7 @@
  * flipped a boolean would pass for a version that forgot everything on refresh.
  */
 
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -646,4 +646,55 @@ describe('favourites for a project, an initiative, a cycle and a document', () =
       expect(screen.queryByRole('link', { name: label })).toBeNull();
     },
   );
+});
+
+describe('a right-click on a favourite', () => {
+  /*
+    A favourite could be dragged between folders and removed only by finding the thing it
+    points at and un-starring it there. The row now answers the secondary button with both,
+    and the folders it can be filed into are the ones this person actually has.
+  */
+  const withFolder = () =>
+    seeded([
+      favorite('f-folder', 'folder', 'f-folder', { name: 'Reading', position: 'V' }),
+      view('v-1', 'All bugs'),
+      favorite('f-1', 'view', 'v-1', { position: 'W' }),
+    ]);
+
+  it('removes the favourite by what it points at', async () => {
+    const user = userEvent.setup();
+    const engine = renderShell(withFolder());
+
+    await user.pointer({
+      target: screen.getByRole('link', { name: 'All bugs' }),
+      keys: '[MouseRight]',
+    });
+    const menu = await screen.findByRole('menu', { name: 'All bugs actions' });
+    await user.click(within(menu).getByRole('menuitem', { name: 'Remove from favourites' }));
+
+    await waitFor(() => expect(engine.mutate).toHaveBeenCalled());
+    const [call] = engine.mutate.mock.calls as unknown as [
+      [{ variables: { kind: string; targetId: string } }],
+    ];
+    expect(call[0].variables).toMatchObject({ kind: 'VIEW', targetId: 'v-1' });
+  });
+
+  it('files it into a folder from the same menu', async () => {
+    const user = userEvent.setup();
+    const engine = renderShell(withFolder());
+
+    await user.pointer({
+      target: screen.getByRole('link', { name: 'All bugs' }),
+      keys: '[MouseRight]',
+    });
+    const menu = await screen.findByRole('menu', { name: 'All bugs actions' });
+    await user.click(within(menu).getByRole('menuitem', { name: 'Move to folder' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Reading' }));
+
+    await waitFor(() => expect(engine.mutate).toHaveBeenCalled());
+    const [call] = engine.mutate.mock.calls as unknown as [
+      [{ variables: { input: { id: string; folderId: string } } }],
+    ];
+    expect(call[0].variables.input).toMatchObject({ id: 'f-1', folderId: 'f-folder' });
+  });
 });

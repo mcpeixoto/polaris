@@ -4,6 +4,11 @@
  * Commands still come from the keymap registry. Prefixes (`>`, `#`, `@`) are how the
  * same box also jumps to issues and people already in the replica — inventory 7.1's
  * scoped prefixes, without a second search surface.
+ *
+ * An unprefixed query also reaches the rest of the workspace: projects, initiatives, cycles,
+ * documents and saved views, each under its own heading. They are here because this is how
+ * people get anywhere in this product, and a palette that could not name a project made the
+ * project list the only route to one.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -12,12 +17,14 @@ import { useNavigate } from 'react-router';
 import { useEngine, useQuery } from '~/app/context';
 import { Avatar, Kbd, StateIcon } from '~/components';
 import { useFocusTrap } from '~/hooks/useFocusTrap';
+import { useViewerId } from '~/hooks/useViewer';
 import { usePresence } from '~/hooks/usePresence';
 import { type Action, type Platform } from '~/keys';
 import { os } from '~/platform/runtime';
 
 import {
   buildIssueIndex,
+  matchNamedEntities,
   matchUsers,
   parseCommandQuery,
   rankActions,
@@ -43,6 +50,7 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
   const { registry, context } = useKeymap();
   const engine = useEngine();
   const navigate = useNavigate();
+  const viewerId = useViewerId();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -108,6 +116,12 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
     const showIssues =
       parsed.scope === 'issue' || (parsed.scope === 'mixed' && parsed.needle !== '');
     const showUsers = parsed.scope === 'user';
+    /*
+      Named entities answer an unprefixed search only. `#` is the issue prefix and `@` the
+      people one, and a scoped query means the person has already said what they are looking
+      for — putting five projects under `#eng` would be answering a different question.
+    */
+    const showEntities = parsed.scope === 'mixed' && parsed.needle !== '';
 
     if (showCommands) {
       const ranked = rankActions(candidates, parsed.needle, recents);
@@ -132,13 +146,23 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
         out.push({ kind: 'entity', id: `issue:${hit.id}`, group: 'Issues', hit });
       }
     }
+    if (showEntities) {
+      // Same gate as the issues: named entities join the list once there is something to
+      // match them against. On an empty query the palette is the list of what this screen
+      // can do, and pouring the whole workspace into it would bury that.
+      for (const section of matchNamedEntities(engine.store, parsed.needle, viewerId)) {
+        for (const hit of section.hits) {
+          out.push({ kind: 'entity', id: `${section.kind}:${hit.id}`, group: section.group, hit });
+        }
+      }
+    }
     if (showUsers) {
       for (const hit of matchUsers(engine.store, parsed.needle)) {
         out.push({ kind: 'entity', id: `user:${hit.id}`, group: 'People', hit });
       }
     }
     return out;
-  }, [present, candidates, parsed, recents, issueIndex, engine.store]);
+  }, [present, candidates, parsed, recents, issueIndex, engine.store, viewerId]);
 
   /*
     Tab stays inside, and focus goes back where it came from.
@@ -443,6 +467,9 @@ function rowGlyph(row: Row) {
   if (row.id.startsWith('user:')) {
     return <Avatar name={row.hit.title} src={row.hit.avatar} size="xs" decorative />;
   }
+  // A named entity has no glyph of its own, and its heading is exactly what kind of thing it
+  // is — so the group's icon is the right one, drawn by the same function the commands use.
+  if (!row.id.startsWith('issue:')) return commandGlyph(row.group);
   const state = row.hit.state;
   if (state === undefined) return commandGlyph('Issues');
   return <StateIcon category={state.category} color={state.color} decorative />;

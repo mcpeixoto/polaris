@@ -30,7 +30,7 @@
 }
 
 /* Under one pane's worth of width the list takes the window and the preview waits for it. */
-@media (max-width: 900px) {
+@media (max-width: 960px) {
   .listPane {
     width: 100%;
     border-right: 0;

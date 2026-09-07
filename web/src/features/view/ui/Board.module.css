@@ -444,3 +444,48 @@
     transition: none;
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * Narrow windows
+ * ------------------------------------------------------------------ */
+
+/*
+ * A board is a horizontal scroller already — `.board` has `overflow-x: auto` because five
+ * status columns have never fitted a laptop — so the narrow layout is not a new mechanism.
+ * What it adds is somewhere for the scroll to stop.
+ *
+ * Without snapping, a flick on a board of 300px columns lands wherever momentum ran out,
+ * which is almost always with two half-columns on screen and no whole one. `proximity`
+ * rather than `mandatory`: a drag that is carrying a card across three columns must be
+ * able to stop between two of them, and mandatory would fight the pointer for the whole
+ * gesture.
+ *
+ * Below sm a column takes the width it is scrolled to, less enough of the next one to say
+ * there is a next one. `calc(100vw - …)` is the window and not the pane on purpose — the
+ * shell drops the pane's gutters at this width (see AppShell.module.css), so the two are
+ * the same number and the window is the one that does not depend on a parent.
+ */
+@media (max-width: 960px) {
+  .board {
+    scroll-snap-type: x proximity;
+    /* The gap is part of the column as far as a snap is concerned; without this the
+       column lands with its predecessor's gutter over its leading edge. */
+    scroll-padding-inline: var(--space-2);
+  }
+
+  .column {
+    scroll-snap-align: start;
+  }
+}
+
+@media (max-width: 720px) {
+  .column {
+    flex: 0 0 calc(100vw - var(--space-12));
+  }
+
+  /* A folded column keeps its own width at every size: it is header and drop target only,
+     and one taking most of the window would be a column pretending to be a board. */
+  .folded {
+    flex: 0 0 200px;
+  }
+}

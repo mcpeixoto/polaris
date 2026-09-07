@@ -316,7 +316,7 @@
   line-height: var(--line-height-normal);
 }
 
-@media (max-width: 860px) {
+@media (max-width: 960px) {
   .properties {
     grid-template-columns: minmax(0, 1fr);
   }

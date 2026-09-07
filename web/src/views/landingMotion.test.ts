@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { useSectionSpy } from './landingMotion';
+import { useDisclosure, useSectionSpy } from './landingMotion';
 
 /**
  * The scroll spy decides which nav link is lit, and every one of its interesting cases is
@@ -100,5 +100,40 @@ describe('useSectionSpy', () => {
     expect(result.current).toBe('keyboard');
     // One pass over four sections, plus the mount measurement's own pass.
     expect(reads).toBeLessThanOrEqual(IDS.length * 2);
+  });
+});
+
+/**
+ * The compact menu's breakpoint, and the fact that it is not a number of its own.
+ *
+ * The marketing header hides its section links below the md breakpoint and offers the
+ * disclosure panel instead; useDisclosure closes that panel when the viewport crosses back
+ * over the same edge. Two numbers, in two languages, that have to be the same one — and
+ * when they were not, dragging a window wide left an open panel sitting over a header that
+ * already showed its links.
+ *
+ * scripts/lint-breakpoints.sh holds the stylesheet's half of that. This holds the script's:
+ * the query is asserted verbatim, at one pixel above md, because a hook that watched 901px
+ * while the stylesheet switched at 960 would pass every test that only checked it watched
+ * *something*.
+ */
+describe('useDisclosure', () => {
+  it('watches one pixel above the md breakpoint', () => {
+    const queries: string[] = [];
+    const listeners = { addEventListener: () => {}, removeEventListener: () => {} };
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => {
+        queries.push(query);
+        return { matches: false, ...listeners } as unknown as MediaQueryList;
+      },
+    });
+
+    const { result } = renderHook(() => useDisclosure());
+    // The listener is only attached while the panel is open, which is the point: a closed
+    // panel has nothing to close.
+    act(() => result.current.setOpen(true));
+
+    expect(queries).toEqual(['(min-width: 961px)']);
   });
 });

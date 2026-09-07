@@ -17,6 +17,7 @@ import {
   type CSSProperties,
   type DragEvent,
   type FormEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
@@ -29,6 +30,7 @@ import { useDesktopNotifications, useUnreadBadge } from '~/features/inbox/deskto
 import { unreadCount, useWakingQuery } from '~/features/inbox/inbox';
 import { offerError } from '~/features/toast/ToastHost';
 import { offerUndo } from '~/features/undo/UndoToast';
+import { useContextMenu } from '~/hooks/useContextMenu';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { usePresence } from '~/hooks/usePresence';
@@ -49,10 +51,14 @@ import {
   moveFavorite,
   removeFavorite,
   renameFavoriteFolder,
+  toggleFavorite,
 } from '~/features/view/mutations';
+import { copyText } from '~/features/github/copy';
+import { report } from '~/features/issue/mutations';
 import { MOVE_FAVORITE } from '~/features/view/operations';
+import { viewPath } from '~/features/view/paths';
 import { byOrderKey, byOrderKeyThen, orderKeyBetween } from '~/store';
-import type { Document, Favorite, Store, Team, UUID, View } from '~/store';
+import type { Document, Favorite, FavoriteKind, Store, Team, UUID, View } from '~/store';
 import type { EngineStatus, SyncEngine } from '~/sync/engine';
 
 import { useWorkspaceSession } from './Boot';
@@ -278,6 +284,8 @@ export function AppShell({
   const viewerId = useViewerId();
   const viewerRole = useViewerRole();
   const engine = useEngine();
+  /** The sidebar's one right-click menu; every row that names something opens it. */
+  const rowMenu = useNavRowMenu(viewerId);
   const syncStatus = useSyncStatus();
   useDesktopNotifications(engine, viewerId);
   useUnreadBadge();
@@ -607,6 +615,29 @@ export function AppShell({
             },
           ]
         : []),
+      /*
+        Back and forward, which the product had only inside two error screens.
+
+        `mod+[` and `mod+]` rather than the bare brackets, which the cycle screen already
+        binds in `detail` to step between cycles — a different chord in a different context,
+        so the registry accepts both and a reader can still tell them apart. The browser's
+        own back gesture keeps working; this is the same move for somebody whose hands are
+        on the keyboard and for the desktop shell, which has no back button at all.
+      */
+      {
+        id: 'nav.back',
+        title: 'Go back',
+        keys: ['mod+['],
+        group: 'Navigation',
+        run: () => navigate(-1),
+      },
+      {
+        id: 'nav.forward',
+        title: 'Go forward',
+        keys: ['mod+]'],
+        group: 'Navigation',
+        run: () => navigate(1),
+      },
       {
         id: 'nav.myIssues',
         title: 'Go to my issues',
@@ -1450,7 +1481,9 @@ export function AppShell({
               </NavLink>
             </NavSection>
 
-            {viewerId !== null && <FavoritesSection userId={viewerId} sidebar={sidebar} />}
+            {viewerId !== null && (
+              <FavoritesSection userId={viewerId} sidebar={sidebar} rowMenu={rowMenu} />
+            )}
 
             <NavSection
               id="teams"
@@ -1475,6 +1508,7 @@ export function AppShell({
                     depth={0}
                     childrenByParent={teamTree.childrenByParent}
                     sidebar={sidebar}
+                    rowMenu={rowMenu}
                   />
                 ))
               )}
@@ -1488,7 +1522,17 @@ export function AppShell({
                 onToggle={() => sidebar.toggleSection('views', true)}
               >
                 {views.map((view) => (
-                  <NavLink key={view.id} to={viewPath(view)} className={navClass}>
+                  <NavLink
+                    key={view.id}
+                    to={viewPath(view)}
+                    className={navClass}
+                    {...rowMenu.on({
+                      kind: 'view',
+                      id: view.id,
+                      name: view.name,
+                      to: viewPath(view),
+                    })}
+                  >
                     <NavGlyph name="view" />
                     <span className={navStyles.navLabel}>{view.name}</span>
                   </NavLink>
@@ -1609,6 +1653,8 @@ export function AppShell({
 
         {/* Renders nothing until the desktop shell says a build has finished downloading. */}
         <UpdateBanner />
+        {/* The sidebar's right-click menu, mounted once for every row in the column. */}
+        {rowMenu.node}
         <CommandMenu open={commandOpen} onClose={() => setCommandOpen(false)} />
         <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
         {/* Mounted whether or not it is open, and told which, so it can animate out. */}
@@ -1722,11 +1768,13 @@ function TeamNavItems({
   depth,
   childrenByParent,
   sidebar,
+  rowMenu,
 }: {
   team: Team;
   depth: number;
   childrenByParent: ReadonlyMap<UUID, Team[]>;
   sidebar: SidebarChrome;
+  rowMenu: NavRowMenu;
 }) {
   const children = childrenByParent.get(team.id) ?? [];
   const sectionId = `team:${team.id}`;
@@ -1754,6 +1802,12 @@ function TeamNavItems({
         <NavLink
           to={`/team/${team.key}/home`}
           className={({ isActive }) => `${navClass({ isActive })} ${styles.teamLink ?? ''}`}
+          {...rowMenu.on({
+            kind: 'team',
+            id: team.id,
+            name: team.name,
+            to: `/team/${team.key}/home`,
+          })}
         >
           {/* The team's own emoji where one was set, its key otherwise — the same rule the
               composer's team chip follows, so a team looks like itself in both places. */}
@@ -1802,6 +1856,7 @@ function TeamNavItems({
           depth={depth + 1}
           childrenByParent={childrenByParent}
           sidebar={sidebar}
+          rowMenu={rowMenu}
         />
       ))}
     </>
@@ -1960,6 +2015,200 @@ function CollapseGlyph() {
   );
 }
 
+/**
+ * What a right-click on a sidebar row offers.
+ *
+ * The rows in this column are the product's shortest path to everything in it, and until now
+ * the only thing that could be done to one was to follow it: favouriting a team meant opening
+ * the team, copying a link to a view meant opening the view and reading the address bar. So
+ * every row that names an entity answers the secondary button.
+ *
+ * One menu for the whole sidebar rather than one per row. `useContextMenu` already renders a
+ * single anchor at the pointer and hands focus back on close, and a `Menu` per row would be
+ * hundreds of mounted components to serve the one that is open.
+ */
+type NavMenuTarget =
+  | { kind: 'team'; id: UUID; name: string; to: string }
+  | { kind: 'view'; id: UUID; name: string; to: string }
+  | { kind: 'favorite'; favorite: FavoriteLink }
+  | { kind: 'folder'; id: UUID; name: string; onRename: () => void; onDelete: () => void };
+
+interface NavRowMenu {
+  /** Spread the result onto a row: `{...rowMenu.on(target)}`. */
+  on(target: NavMenuTarget): { onContextMenu: (event: ReactMouseEvent) => void };
+  node: ReactNode;
+}
+
+function useNavRowMenu(userId: UUID | null): NavRowMenu {
+  const engine = useEngine();
+  const menu = useContextMenu<NavMenuTarget>();
+
+  /*
+    Whether each thing is already favourited, as one set rather than a `isFavorite` call per
+    row. The menu's first item is "Add" or "Remove" depending on it, so it has to be live:
+    a label read from the store at mount would go stale the first time the star is used.
+  */
+  const favourited = useLiveQuery(
+    (store) => {
+      const marks = new Set<string>();
+      if (userId === null) return marks;
+      for (const favorite of store.favorites.values()) {
+        if (favorite.userId === userId) marks.add(`${favorite.kind}:${favorite.targetId}`);
+      }
+      return marks;
+    },
+    ['favorite'],
+    [userId ?? ''],
+  );
+
+  const folders = useLiveQuery(
+    (store) => (userId === null ? [] : favoriteNav(store, userId).folders),
+    ['favorite', 'view', 'team', 'issue', 'label', 'project', 'initiative', 'cycle', 'document'],
+    [userId ?? ''],
+  );
+
+  const target = menu.id;
+
+  const openInNewTab = (to: string) => {
+    // `noopener` because the opened tab is same-origin only by convention — the row's `to`
+    // is a route, but nothing here should hand out a live `window.opener` either way.
+    window.open(to, '_blank', 'noopener');
+  };
+  const copyLink = (to: string) => void copyText(`${window.location.origin}${to}`);
+
+  // The wording the project list's row menu uses, because these are the same two words
+  // about the same star and a reader should not have to learn them twice.
+  const star = (kind: FavoriteKind, id: UUID): MenuNode[] =>
+    userId === null
+      ? []
+      : [
+          {
+            id: 'favourite',
+            label: favourited.has(`${kind}:${id}`) ? 'Remove from favourites' : 'Add to favourites',
+            onSelect: () => {
+              menu.close();
+              toggleFavorite(engine, userId, kind, id).catch(report);
+            },
+          },
+        ];
+
+  const items = (): MenuNode[] => {
+    if (target === null) return [];
+    if (target.kind === 'folder') {
+      return [
+        {
+          id: 'rename',
+          label: 'Rename',
+          onSelect: () => {
+            menu.close();
+            target.onRename();
+          },
+        },
+        {
+          id: 'delete',
+          label: 'Delete folder',
+          danger: true,
+          onSelect: () => {
+            menu.close();
+            target.onDelete();
+          },
+        },
+      ];
+    }
+
+    const to = target.kind === 'favorite' ? target.favorite.to : target.to;
+    const common: MenuNode[] = [
+      {
+        id: 'open-new-tab',
+        label: 'Open in new tab',
+        onSelect: () => {
+          menu.close();
+          openInNewTab(to);
+        },
+      },
+      {
+        id: 'copy-link',
+        label: 'Copy link',
+        onSelect: () => {
+          menu.close();
+          copyLink(to);
+        },
+      },
+    ];
+
+    if (target.kind !== 'favorite') {
+      return [...star(target.kind, target.id), ...common];
+    }
+
+    const favorite = target.favorite;
+    return [
+      ...common,
+      {
+        kind: 'submenu',
+        id: 'move',
+        label: 'Move to folder',
+        disabled: folders.length === 0 && favorite.folderId === null,
+        items: [
+          {
+            id: 'unfiled',
+            label: 'No folder',
+            selected: favorite.folderId === null,
+            onSelect: () => {
+              menu.close();
+              moveFavorite(engine, favorite.id, null).catch(report);
+            },
+          },
+          ...folders.map((folder) => ({
+            id: folder.id,
+            label: folder.name,
+            selected: favorite.folderId === folder.id,
+            onSelect: () => {
+              menu.close();
+              moveFavorite(engine, favorite.id, folder.id).catch(report);
+            },
+          })),
+        ],
+      },
+      { kind: 'separator' },
+      {
+        id: 'remove',
+        label: 'Remove from favourites',
+        onSelect: () => {
+          menu.close();
+          if (userId === null) return;
+          removeFavorite(engine, userId, favorite.kind, favorite.targetId).catch(report);
+        },
+      },
+    ];
+  };
+
+  return {
+    on: (row) => ({
+      onContextMenu: (event: ReactMouseEvent) => {
+        event.preventDefault();
+        menu.openAt(event.clientX, event.clientY, row);
+      },
+    }),
+    node: (
+      <>
+        {menu.at === null ? null : <div {...menu.anchorProps} />}
+        <Menu
+          open={menu.at !== null && target !== null}
+          onClose={menu.close}
+          trigger={menu.anchorRef}
+          label={target === null ? 'Row actions' : `${labelOf(target)} actions`}
+          placement="bottom-start"
+          items={items()}
+        />
+      </>
+    ),
+  };
+}
+
+function labelOf(target: NavMenuTarget): string {
+  return target.kind === 'favorite' ? target.favorite.label : target.name;
+}
+
 const FAVORITE_DRAG = 'text/polaris-favorite';
 
 /**
@@ -1970,7 +2219,15 @@ const FAVORITE_DRAG = 'text/polaris-favorite';
  * become true from an empty state and the folder feature was unreachable until a favourite
  * arrived by some other route. The header stays now, with a line saying what would be here.
  */
-function FavoritesSection({ userId, sidebar }: { userId: UUID; sidebar: SidebarChrome }) {
+function FavoritesSection({
+  userId,
+  sidebar,
+  rowMenu,
+}: {
+  userId: UUID;
+  sidebar: SidebarChrome;
+  rowMenu: NavRowMenu;
+}) {
   const engine = useEngine();
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState('');
@@ -2129,6 +2386,7 @@ function FavoritesSection({ userId, sidebar }: { userId: UUID; sidebar: SidebarC
         <div key={folder.id} className={styles.folder} {...dropProps(folder.id)}>
           <FolderHeader
             folder={folder}
+            rowMenu={rowMenu}
             onRename={(name) => void renameFavoriteFolder(engine, folder.id, name)}
             onDelete={() => {
               void removeFavorite(engine, userId, 'folder', folder.id);
@@ -2143,7 +2401,7 @@ function FavoritesSection({ userId, sidebar }: { userId: UUID; sidebar: SidebarC
             }}
           />
           {folder.items.map((item) => (
-            <FavoriteItem key={item.id} item={item} focused={focused} />
+            <FavoriteItem key={item.id} item={item} focused={focused} rowMenu={rowMenu} />
           ))}
         </div>
       ))}
@@ -2163,7 +2421,7 @@ function FavoritesSection({ userId, sidebar }: { userId: UUID; sidebar: SidebarC
         {...dropProps(null)}
       >
         {nav.unfiled.map((item) => (
-          <FavoriteItem key={item.id} item={item} focused={focused} />
+          <FavoriteItem key={item.id} item={item} focused={focused} rowMenu={rowMenu} />
         ))}
       </div>
     </NavSection>
@@ -2181,10 +2439,12 @@ function FavoritesSection({ userId, sidebar }: { userId: UUID; sidebar: SidebarC
  */
 function FolderHeader({
   folder,
+  rowMenu,
   onRename,
   onDelete,
 }: {
   folder: FavoriteFolderNav;
+  rowMenu: NavRowMenu;
   onRename: (name: string) => void;
   onDelete: () => void;
 }) {
@@ -2204,7 +2464,16 @@ function FolderHeader({
   };
 
   return (
-    <div className={styles.folderHeader}>
+    <div
+      className={styles.folderHeader}
+      {...rowMenu.on({
+        kind: 'folder',
+        id: folder.id,
+        name: folder.name,
+        onRename: () => setRenaming(true),
+        onDelete: () => setConfirming(true),
+      })}
+    >
       {renaming ? (
         <form
           className={styles.folderName}
@@ -2267,15 +2536,18 @@ function FolderHeader({
 function FavoriteItem({
   item,
   focused,
+  rowMenu,
 }: {
   item: FavoriteLink;
   focused: { current: UUID | null };
+  rowMenu: NavRowMenu;
 }) {
   return (
     <NavLink
       to={item.to}
       className={navClass}
       draggable
+      {...rowMenu.on({ kind: 'favorite', favorite: item })}
       onFocus={() => {
         focused.current = item.id;
       }}
@@ -2450,25 +2722,23 @@ function pathToArchives(store: Store): string {
   return `/team/${first.key}/archives`;
 }
 
-/**
- * Where a saved view lives.
- *
- * Its own route rather than a team's list with a query string, because a view is a thing
- * somebody named and can be shared as itself — and because a workspace-scoped view spans
- * every team and so has no team list to hang off. `SavedView` seeds the URL from the saved
- * filter on arrival, which is what keeps "the URL is the state" true for these too.
- */
-function viewPath(view: View): string {
-  if (view.projectId !== undefined) return `/project/${view.projectId}/view/${view.id}`;
-  return `/view/${view.id}`;
-}
-
 interface FavoriteLink {
   readonly id: UUID;
   readonly to: string;
   readonly label: string;
   /** The team key, for an issue or a team. Null for anything without one. */
   readonly prefix: string | null;
+  /**
+   * What the favourite points at, which is how a favourite is removed.
+   *
+   * `removeFavorite` takes `(kind, targetId)` rather than the favourite's own id — see the
+   * note at the top of `features/view/mutations.ts` — so a row that offers "Remove from
+   * favourites" has to carry both. The link already knew them and threw them away.
+   */
+  readonly kind: FavoriteKind;
+  readonly targetId: UUID;
+  /** The folder it is filed in, so a menu can tick the one it is already in. */
+  readonly folderId: UUID | null;
 }
 
 interface FavoriteFolderNav {
@@ -2505,9 +2775,16 @@ function favoriteNav(store: Store, userId: UUID): FavoriteNav {
 
   for (const favorite of ordered) {
     if (favorite.kind === 'folder') continue;
-    const link = favoriteLink(store, favorite);
-    if (link === null) continue;
-    if (favorite.folderId !== undefined && folderIds.has(favorite.folderId)) {
+    const found = favoriteLink(store, favorite);
+    if (found === null) continue;
+    const filed = favorite.folderId !== undefined && folderIds.has(favorite.folderId);
+    const link: FavoriteLink = {
+      ...found,
+      kind: favorite.kind,
+      targetId: favorite.targetId,
+      folderId: filed ? (favorite.folderId ?? null) : null,
+    };
+    if (filed && favorite.folderId !== undefined) {
       const bucket = itemsByFolder.get(favorite.folderId) ?? [];
       bucket.push(link);
       itemsByFolder.set(favorite.folderId, bucket);
@@ -2529,7 +2806,10 @@ function favoriteNav(store: Store, userId: UUID): FavoriteNav {
   return { folders, unfiled };
 }
 
-function favoriteLink(store: Store, favorite: Favorite): FavoriteLink | null {
+/** The display half of a favourite. `favoriteNav` adds what a mutation needs to it. */
+type FavoriteTarget = Omit<FavoriteLink, 'kind' | 'targetId' | 'folderId'>;
+
+function favoriteLink(store: Store, favorite: Favorite): FavoriteTarget | null {
   switch (favorite.kind) {
     case 'view': {
       const view = store.get('view', favorite.targetId);

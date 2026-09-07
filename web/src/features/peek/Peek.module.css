@@ -213,3 +213,33 @@
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
 }
+
+/* ------------------------------------------------------------------ *
+ * Narrow windows
+ * ------------------------------------------------------------------ */
+
+/*
+ * Below sm the drawer stops sitting beside the list and covers it.
+ *
+ * 360 pixels of panel and a list of issues do not share a phone: the list keeps a strip too
+ * narrow to read a title in, so both surfaces are useless at once. Since the panel is the
+ * thing the user just asked for, it takes the space and the list waits behind it.
+ *
+ * `position: absolute` against the list screen's own `.body`, which is `position: relative`
+ * for the same reason — it is the box the list and the panel share, and the panel is
+ * already its last child. No portal and no new element: the panel keeps its place in the
+ * DOM order, so Tab still walks out of the list and into it, and Escape still closes it
+ * through the action the list registers. Nothing about the open/close contract moves.
+ *
+ * The slide is untouched. `transform` composites over an absolutely positioned box exactly
+ * as it does over a flex item, and the reason given at the top of this file for a transform
+ * rather than a width animation — that nothing measures this element — holds either way.
+ */
+@media (max-width: 720px) {
+  .panel {
+    position: absolute;
+    inset: 0;
+    width: auto;
+    border-left: 0;
+  }
+}

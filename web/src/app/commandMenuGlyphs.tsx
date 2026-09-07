@@ -69,6 +69,25 @@ const GLYPHS: Readonly<Record<string, ReactElement>> = {
       <path d="M8 2 13.5 5v6L8 14l-5.5-3V5z" />
     </svg>
   ),
+  Initiatives: (
+    <svg viewBox="0 0 16 16" {...STROKE} aria-hidden="true">
+      <circle cx="8" cy="8" r="5.75" />
+      <circle cx="8" cy="8" r="2.5" />
+      <path d="M8 2.25v-1M8 14.75v-1M2.25 8h-1M14.75 8h-1" />
+    </svg>
+  ),
+  Cycles: (
+    <svg viewBox="0 0 16 16" {...STROKE} aria-hidden="true">
+      <path d="M13.5 8a5.5 5.5 0 1 1-1.9-4.16" />
+      <path d="M13.5 2v3h-3" />
+    </svg>
+  ),
+  Documents: (
+    <svg viewBox="0 0 16 16" {...STROKE} aria-hidden="true">
+      <path d="M9 1.75H4.75A1.25 1.25 0 0 0 3.5 3v10a1.25 1.25 0 0 0 1.25 1.25h6.5A1.25 1.25 0 0 0 12.5 13V5.25z" />
+      <path d="M9 1.75v3.5h3.5M5.75 8.5h4.5M5.75 11h3" />
+    </svg>
+  ),
   Search: (
     <svg viewBox="0 0 16 16" {...STROKE} aria-hidden="true">
       <circle cx="7" cy="7" r="4.5" />

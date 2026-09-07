@@ -3,7 +3,13 @@ import { describe, expect, it } from 'vitest';
 import type { Action } from '~/keys';
 import { Store, type Change, type Entity } from '~/store';
 
-import { matchIssues, matchUsers, parseCommandQuery, rankActions } from './commandMenuQuery';
+import {
+  matchIssues,
+  matchNamedEntities,
+  matchUsers,
+  parseCommandQuery,
+  rankActions,
+} from './commandMenuQuery';
 
 const AT = '2026-08-20T12:00:00.000Z';
 
@@ -133,5 +139,119 @@ describe('matchUsers', () => {
     ]);
     expect(matchUsers(store, 'ada').map((hit) => hit.id)).toEqual(['u1']);
     expect(matchUsers(store, 'agent').map((hit) => hit.id)).toEqual([]);
+  });
+});
+
+/**
+ * The kinds the palette learned after issues and people. The claim is not the ranking — that
+ * is `subsequenceScore`, already covered — but that each kind is looked in, routed to the
+ * page it actually has, and that a view somebody else made private is not offered.
+ */
+describe('matchNamedEntities', () => {
+  function seeded(): Store {
+    const store = new Store('w1');
+    store.applyChanges([
+      upsert(1, 'projectStatus', {
+        id: 'ps1',
+        workspaceId: 'w1',
+        name: 'In progress',
+        color: '#5e6ad2',
+        category: 'started',
+        position: 'a',
+        isDefault: true,
+        createdAt: AT,
+        updatedAt: AT,
+      } as unknown as Entity),
+      upsert(2, 'project', {
+        id: 'p1',
+        workspaceId: 'w1',
+        name: 'Orbital launch',
+        description: '',
+        color: '#5e6ad2',
+        statusId: 'ps1',
+        priority: 0,
+        sortOrder: 'a',
+        updateSchedule: 'never',
+        createdAt: AT,
+        updatedAt: AT,
+      } as unknown as Entity),
+      upsert(3, 'project', {
+        id: 'p2',
+        workspaceId: 'w1',
+        name: 'Orbital archive',
+        description: '',
+        color: '#5e6ad2',
+        statusId: 'ps1',
+        priority: 0,
+        sortOrder: 'b',
+        updateSchedule: 'never',
+        archivedAt: AT,
+        createdAt: AT,
+        updatedAt: AT,
+      } as unknown as Entity),
+      upsert(4, 'initiative', {
+        id: 'i1',
+        workspaceId: 'w1',
+        name: 'Orbital programme',
+        description: '',
+        status: 'active',
+        priority: 0,
+        sortOrder: 'a',
+        createdAt: AT,
+        updatedAt: AT,
+      } as unknown as Entity),
+      upsert(5, 'document', {
+        id: 'd1',
+        workspaceId: 'w1',
+        title: 'Orbital notes',
+        content: '',
+        createdAt: AT,
+        updatedAt: AT,
+      } as unknown as Entity),
+      upsert(6, 'view', {
+        id: 'v1',
+        workspaceId: 'w1',
+        name: 'Orbital work',
+        filter: { kind: 'group', op: 'and', children: [] },
+        display: {},
+        createdAt: AT,
+        updatedAt: AT,
+      } as unknown as Entity),
+      upsert(7, 'view', {
+        id: 'v2',
+        workspaceId: 'w1',
+        name: 'Orbital private',
+        ownerId: 'someone-else',
+        filter: { kind: 'group', op: 'and', children: [] },
+        display: {},
+        createdAt: AT,
+        updatedAt: AT,
+      } as unknown as Entity),
+    ]);
+    return store;
+  }
+
+  it('finds one of each kind, under its own heading, at the route it has', () => {
+    const sections = matchNamedEntities(seeded(), 'orbital', 'u1');
+    expect(sections.map((section) => section.group)).toEqual([
+      'Projects',
+      'Initiatives',
+      'Documents',
+      'Views',
+    ]);
+    const hrefs = sections.flatMap((section) => section.hits.map((hit) => hit.href));
+    expect(hrefs).toEqual(['/project/p1', '/initiative/i1', '/document/d1', '/view/v1']);
+  });
+
+  it('leaves out what is archived, and a view that belongs to somebody else', () => {
+    const titles = matchNamedEntities(seeded(), 'orbital', 'u1').flatMap((section) =>
+      section.hits.map((hit) => hit.title),
+    );
+    expect(titles).not.toContain('Orbital archive');
+    expect(titles).not.toContain('Orbital private');
+  });
+
+  it('answers nothing where nothing matches', () => {
+    expect(matchNamedEntities(seeded(), 'zzz', 'u1')).toEqual([]);
   });
 });
