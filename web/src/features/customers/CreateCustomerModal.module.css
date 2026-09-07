@@ -9,3 +9,11 @@
   color: var(--text-danger);
   font-size: var(--font-size-sm);
 }
+
+/* The property row: pills wrap rather than compress, the way the composer's does. */
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}

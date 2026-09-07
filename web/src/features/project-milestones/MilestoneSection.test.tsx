@@ -3,11 +3,12 @@
  * client — the timeline drew ticks for checkpoints nothing could add.
  */
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { EngineProvider } from '~/app/context';
+import { KeymapProvider } from '~/app/keymap';
 import { Store, type Change, type Entity, type ProjectMilestone } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
 
@@ -48,9 +49,11 @@ function renderSection(seed: readonly Change[] = []) {
     .mockResolvedValue({ createProjectMilestone: { milestone: { id: 'server-id' } } });
   const engine = { store, mutate } as unknown as SyncEngine;
   render(
-    <EngineProvider engine={engine} status={{ phase: 'ready', connection: 'ready', pending: 0 }}>
-      <MilestoneSection projectId={PROJECT} />
-    </EngineProvider>,
+    <KeymapProvider>
+      <EngineProvider engine={engine} status={{ phase: 'ready', connection: 'ready', pending: 0 }}>
+        <MilestoneSection projectId={PROJECT} />
+      </EngineProvider>
+    </KeymapProvider>,
   );
   return { mutate };
 }
@@ -70,10 +73,14 @@ describe('MilestoneSection', () => {
     expect(screen.getByText('No issues yet')).not.toBeNull();
   });
 
-  it('creates one from the form under the list', async () => {
+  it('creates one from the form the section\'s "+" opens', async () => {
     const user = userEvent.setup();
     const { mutate } = renderSection();
 
+    // The form is behind the "+", not standing open at the foot of a list most projects
+    // finish with four rows in.
+    expect(screen.queryByLabelText('Milestone')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'New milestone' }));
     await user.type(screen.getByLabelText('Milestone'), 'Launch');
     await user.click(screen.getByRole('button', { name: 'Add milestone' }));
 
@@ -88,9 +95,30 @@ describe('MilestoneSection', () => {
     const user = userEvent.setup();
     const { mutate } = renderSection();
 
+    await user.click(screen.getByRole('button', { name: 'New milestone' }));
     await user.click(screen.getByRole('button', { name: 'Add milestone' }));
 
     expect(mutate).not.toHaveBeenCalled();
     expect(screen.getByRole('alert').textContent).toContain('A milestone needs a name');
+  });
+
+  /**
+   * Remove used to delete on one click, with no confirmation and no undo — the only
+   * destructive act in the product that did. A milestone carries the issues pinned to it.
+   */
+  it('asks before removing one, and only writes once you say so', async () => {
+    const user = userEvent.setup();
+    const { mutate } = renderSection([upsert(1, 'projectMilestone', beta)]);
+
+    await user.click(screen.getByRole('button', { name: 'Actions for Beta' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Remove milestone' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Remove Beta?' });
+    expect(mutate).not.toHaveBeenCalled();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Remove milestone' }));
+
+    await waitFor(() => expect(mutate).toHaveBeenCalled());
+    expect(mutate.mock.calls[0]![0].variables).toEqual({ id: MILESTONE });
   });
 });

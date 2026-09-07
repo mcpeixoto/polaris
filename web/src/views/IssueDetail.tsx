@@ -45,8 +45,10 @@ import {
   Skeleton,
   StateIcon,
   Textarea,
+  TitleField as EditableTitle,
   Tooltip,
   type MenuNode,
+  type TitleHandle,
 } from '~/components';
 // Directly rather than through the barrel, as ApiKeys and MemberSettings do: the index
 // exports the primitives a screen composes with, and this is an assembled dialogue.
@@ -1342,43 +1344,15 @@ interface DetailCommands {
   toggleFavourite(): void;
 }
 
-/**
- * What the screen can ask of the title field.
- *
- * A handle rather than props, for the reason `DetailCommands` is one: both callers are
- * registered keyboard actions whose `run` was captured when the screen mounted. Escape is
- * registered by the screen rather than by this component because `useActions` needs the
- * provider above it, and the field is rendered on its own in tests.
- */
-export interface TitleHandle {
-  focus(): void;
-  /** Whether an uncommitted draft exists. What makes Escape live, and nothing else. */
-  editing(): boolean;
-  /** Drops the draft and leaves the field, saving nothing. */
-  revert(): void;
-}
+// The handle belongs to the shared field now. Re-exported under this screen's name because
+// the actions that reach it — `E` to focus, Escape to abandon — are registered here.
+export type { TitleHandle };
 
 /**
- * The title, edited in place.
+ * The issue's title field: the shared control with the issue's nouns filled in.
  *
- * The draft only exists while the field has focus. That is what lets a title changed by
- * somebody else appear here immediately when you are not editing, and lets your own typing
- * survive their change while you are — a controlled input holding a permanent draft would do
- * the first badly and a permanently uncontrolled one would do the second.
- *
- * `key` belongs at the *call site*, and this is the whole of the reset. A `key` on the form
- * inside remounts the DOM element and leaves this component's state exactly where it was, so
- * for as long as it was written that way a half-typed title followed the route onto the next
- * issue and the next commit renamed that one.
- *
- * A textarea and not an input. An issue title is a sentence, the reading column is 72
- * characters wide, and a long one scrolled sideways out of sight in a single-line box while
- * the stylesheet's own comment called this "an editable textarea". Enter still commits, so
- * the wrapping is the only thing that changed.
- *
- * The draft is mirrored into a ref because `commit` runs from a blur that can be dispatched
- * between a `setDraft` and the render that follows it — which is exactly what `revert` does.
- * Reading the state there would let Escape save the edit it was pressed to abandon.
+ * Exported because the triage pane mounts the same field beside the issue it is triaging,
+ * and because the screen's own Escape action reaches it through the handle.
  */
 export function TitleField({
   issueId,
@@ -1391,118 +1365,14 @@ export function TitleField({
   handle?: RefObject<TitleHandle | null> | undefined;
   onSave: (title: string) => void;
 }) {
-  const [draft, setDraft] = useState<string | null>(null);
-  const draftRef = useRef<string | null>(null);
-  const fieldRef = useRef<HTMLTextAreaElement | null>(null);
-
-  const write = (next: string | null) => {
-    draftRef.current = next;
-    setDraft(next);
-  };
-
-  /**
-   * The edit in flight, for the exits that are not a blur.
-   *
-   * Committing on blur is the model and it holds for every way of leaving the field that
-   * moves focus first — tabbing out, clicking anywhere else on the page, opening the command
-   * menu. It does not hold for the ways that take the whole screen away without focusing
-   * anything: the back button, a reload, a closed tab. React drops the input, no blur is
-   * ever dispatched, and a renamed issue silently still has its old name. This is the same
-   * hole the description had, and the same shape of fix.
-   *
-   * The save callback is captured at the keystroke rather than read at flush time, so a
-   * flush that happens to run during a route change writes this issue's title and not the
-   * next one's.
-   */
-  const flight = useRef<{ text: string; base: string; save: (next: string) => void } | null>(null);
-
-  useEffect(() => {
-    const flush = () => {
-      const edit = flight.current;
-      flight.current = null;
-      if (edit === null) return;
-      const next = edit.text.trim();
-      if (next === '' || next === edit.base) return;
-      edit.save(next);
-    };
-    // `hidden` fires on tab switch and, in every browser that matters, on the way out of the
-    // page — while the document is still alive enough to enqueue the write.
-    const onHidden = () => {
-      if (globalThis.document.visibilityState === 'hidden') flush();
-    };
-    globalThis.document.addEventListener('visibilitychange', onHidden);
-    return () => {
-      globalThis.document.removeEventListener('visibilitychange', onHidden);
-      flush();
-    };
-    // Keyed on the issue, so moving between two issues flushes the first one's edit at the
-    // moment it stops being on screen rather than carrying it along to whenever the screen
-    // is finally left.
-  }, [issueId]);
-
-  const commit = () => {
-    const next = draftRef.current?.trim();
-    write(null);
-    flight.current = null;
-    // An empty title is a mistake rather than an intention, so the field reverts to what the
-    // issue actually says instead of saving a row with no name.
-    if (next === undefined || next === '' || next === title) return;
-    onSave(next);
-  };
-
-  useEffect(() => {
-    if (handle === undefined) return;
-    handle.current = {
-      focus: () => fieldRef.current?.focus(),
-      editing: () => draftRef.current !== null,
-      revert: () => {
-        // Cleared before the blur, because the blur is what calls `commit` and `commit`
-        // reads the ref. Doing it the other way round saves the edit Escape abandoned.
-        write(null);
-        flight.current = null;
-        fieldRef.current?.blur();
-      },
-    };
-    return () => {
-      handle.current = null;
-    };
-  }, [handle]);
-
   return (
-    <form
-      className={styles.titleForm}
-      onSubmit={(event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        // Blurring is what commits, so Enter and clicking away cannot disagree about what
-        // was saved.
-        fieldRef.current?.blur();
-      }}
-    >
-      <Textarea
-        ref={fieldRef}
-        className={styles.title}
-        label="Issue title"
-        hideLabel
-        minRows={1}
-        value={draft ?? title}
-        onFocus={() => write(title)}
-        onChange={(event) => {
-          write(event.target.value);
-          flight.current = { text: event.target.value, base: title, save: onSave };
-        }}
-        onBlur={commit}
-        onKeyDown={
-          /* keymap-lint-allow: supplies the submit a single-line input gave for free — a
-             textarea takes Enter as a newline, and an issue title is one line. */ (event) => {
-            if (event.key !== 'Enter' || event.shiftKey) return;
-            event.preventDefault();
-            event.currentTarget.blur();
-          }
-        }
-        autoComplete="off"
-        spellCheck
-      />
-    </form>
+    <EditableTitle
+      subjectId={issueId}
+      value={title}
+      label="Issue title"
+      handle={handle}
+      onSave={onSave}
+    />
   );
 }
 

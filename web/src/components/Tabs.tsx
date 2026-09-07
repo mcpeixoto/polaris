@@ -17,7 +17,7 @@
  * overlay, and every tab is reachable by Tab because every tab is a real control.
  */
 
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { NavLink } from 'react-router';
 
 import styles from './Tabs.module.css';
@@ -32,6 +32,16 @@ export interface TabItem {
   end?: boolean | undefined;
   /** A count or a dot after the label — decorative, the label is the name. */
   detail?: ReactNode | undefined;
+  /**
+   * Draws this position in the row itself, instead of a tab.
+   *
+   * For the row that holds tabs a `TabItem` cannot describe: the project's attached views
+   * are links that also drag to reorder and open a context menu, and they belong in the same
+   * `<nav>` as Overview and Issues rather than in a second row beside it — one row of
+   * sections is one landmark, whatever a given section can do. Everything drawn this way
+   * still supplies its own class and its own accessible name.
+   */
+  render?: (() => ReactNode) | undefined;
 }
 
 export interface TabsProps {
@@ -45,7 +55,8 @@ export interface TabsProps {
 }
 
 export function Tabs({ items, 'aria-label': label, value, onSelect, className }: TabsProps) {
-  const linked = items.length > 0 && items.every((item) => item.to !== undefined);
+  const drawn = items.filter((item) => item.render === undefined);
+  const linked = drawn.length > 0 && drawn.every((item) => item.to !== undefined);
   const rowClass = [styles.tabs, className].filter(Boolean).join(' ');
 
   const body = (item: TabItem) => (
@@ -58,18 +69,22 @@ export function Tabs({ items, 'aria-label': label, value, onSelect, className }:
   if (linked) {
     return (
       <nav className={rowClass} aria-label={label}>
-        {items.map((item) => (
-          <NavLink
-            key={item.id}
-            to={item.to as string}
-            end={item.end}
-            className={({ isActive }) =>
-              [styles.tab, isActive ? styles.active : null].filter(Boolean).join(' ')
-            }
-          >
-            {body(item)}
-          </NavLink>
-        ))}
+        {items.map((item) =>
+          item.render === undefined ? (
+            <NavLink
+              key={item.id}
+              to={item.to as string}
+              end={item.end}
+              className={({ isActive }) =>
+                [styles.tab, isActive ? styles.active : null].filter(Boolean).join(' ')
+              }
+            >
+              {body(item)}
+            </NavLink>
+          ) : (
+            <Fragment key={item.id}>{item.render()}</Fragment>
+          ),
+        )}
       </nav>
     );
   }
@@ -77,6 +92,7 @@ export function Tabs({ items, 'aria-label': label, value, onSelect, className }:
   return (
     <div className={rowClass} role="tablist" aria-label={label}>
       {items.map((item) => {
+        if (item.render !== undefined) return <Fragment key={item.id}>{item.render()}</Fragment>;
         const selected = item.id === value;
         return (
           <button

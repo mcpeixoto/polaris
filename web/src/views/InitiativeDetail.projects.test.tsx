@@ -4,6 +4,7 @@
  */
 
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -136,7 +137,8 @@ function renderOverview() {
     upsert(11, 'issue', issue('i3', 'p2', false)),
     upsert(12, 'issue', issue('i4', 'p2', false)),
   ]);
-  const engine = { store, mutate: async () => ({}) } as unknown as SyncEngine;
+  const mutate = vi.fn().mockResolvedValue({});
+  const engine = { store, mutate } as unknown as SyncEngine;
   render(
     <MemoryRouter initialEntries={['/initiative/parent']}>
       <KeymapProvider>
@@ -148,6 +150,7 @@ function renderOverview() {
       </KeymapProvider>
     </MemoryRouter>,
   );
+  return { mutate, user: userEvent.setup() };
 }
 
 describe('Initiative overview rollup', () => {
@@ -161,6 +164,21 @@ describe('Initiative overview rollup', () => {
     expect(
       screen.getByRole('img', { name: /Initiative graph: 1 of 4 issues completed/ }),
     ).toBeTruthy();
+  });
+
+  it('asks before a project is removed, and writes only once confirmed', async () => {
+    const { mutate, user } = renderOverview();
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    expect(screen.getByRole('heading', { name: 'Remove Alpha?' })).toBeTruthy();
+    expect(mutate).not.toHaveBeenCalled();
+    const confirms = screen.getAllByRole('button', { name: 'Remove' });
+    await user.click(confirms[confirms.length - 1]!);
+    expect(mutate).toHaveBeenCalled();
+    const call = mutate.mock.calls[0]![0] as {
+      variables: { initiativeId?: string; projectId?: string };
+    };
+    expect(call.variables.initiativeId).toBe('parent');
+    expect(call.variables.projectId).toBe('p1');
   });
 
   it('lists a sub-initiative’s project and does not offer to remove it here', () => {

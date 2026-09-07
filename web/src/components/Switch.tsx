@@ -11,6 +11,16 @@ export interface SwitchProps {
    * should be readable in one breath — "Create more", "Auto-assign", "Private".
    */
   label: string;
+  /**
+   * Standing help under the label, wired up as the control's description.
+   *
+   * A switch whose consequence needs a sentence — "a private team is invisible to anyone
+   * who is not a member" — used to get one as a `<p>` sitting loose beside it, which is a
+   * sentence a screen reader reads as unrelated prose and a sighted reader has to guess the
+   * ownership of. `aria-describedby` is the difference between advice about this control
+   * and advice about the form.
+   */
+  hint?: string | undefined;
   disabled?: boolean | undefined;
   id?: string | undefined;
   className?: string | undefined;
@@ -39,6 +49,7 @@ export function Switch({
   checked,
   onChange,
   label,
+  hint,
   disabled = false,
   id,
   className,
@@ -46,6 +57,7 @@ export function Switch({
 }: SwitchProps) {
   const generated = useId();
   const controlId = id ?? generated;
+  const hintId = `${controlId}-hint`;
 
   return (
     <span className={[styles.root, className].filter(Boolean).join(' ')}>
@@ -55,6 +67,7 @@ export function Switch({
         type="button"
         role="switch"
         aria-checked={checked}
+        aria-describedby={hint === undefined ? undefined : hintId}
         aria-disabled={disabled ? true : undefined}
         className={styles.control}
         onClick={() => {
@@ -69,6 +82,11 @@ export function Switch({
       <label htmlFor={controlId} className={styles.label}>
         {label}
       </label>
+      {hint === undefined ? null : (
+        <p id={hintId} className={styles.hint}>
+          {hint}
+        </p>
+      )}
     </span>
   );
 }

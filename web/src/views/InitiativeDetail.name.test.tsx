@@ -1,5 +1,14 @@
 /**
- * Clearing the name says so, rather than leaving the field and the header disagreeing.
+ * Renaming an initiative in place: an empty name is never written, and an unchanged one is
+ * not written back either.
+ *
+ * The rename moved from a "Name" field in the overview's property form to the shared
+ * `TitleField` in `InitiativeShell`, which is what the issue and project screens rename
+ * with — so these render the shell and open the box with `e`. The rule this file has always
+ * checked survives the move: clearing the name and leaving the field must not leave the
+ * screen showing a name that was never saved. `TitleField` answers it by reverting to the
+ * stored name rather than by raising "An initiative needs a name" beneath a form field
+ * there no longer is; the assertion below checks the revert as well as the silence.
  */
 
 import { render, screen } from '@testing-library/react';
@@ -12,7 +21,7 @@ import { KeymapProvider } from '~/app/keymap';
 import { Store, type Change, type Entity } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
 
-import { InitiativeDetail } from './InitiativeDetail';
+import { InitiativeShell } from './InitiativeShell';
 
 const W = 'w1';
 const VIEWER = 'u1';
@@ -35,7 +44,7 @@ function upsert(v: number, type: Change['type'], entity: Entity): Change {
   };
 }
 
-function renderDetail() {
+function renderShell() {
   const store = new Store(W);
   store.applyChanges([
     upsert(1, 'initiative', {
@@ -57,7 +66,7 @@ function renderDetail() {
       <KeymapProvider>
         <EngineProvider engine={engine} status={{ phase: 'idle' }}>
           <Routes>
-            <Route path="/initiative/:initiativeId" element={<InitiativeDetail />} />
+            <Route path="/initiative/:initiativeId" element={<InitiativeShell />} />
           </Routes>
         </EngineProvider>
       </KeymapProvider>
@@ -66,33 +75,44 @@ function renderDetail() {
   return { mutate, user: userEvent.setup() };
 }
 
-describe('Initiative name field', () => {
-  it('refuses an empty name and says why instead of discarding it silently', async () => {
-    const { mutate, user } = renderDetail();
+describe('Initiative rename', () => {
+  it('opens the name for editing with e, focused', async () => {
+    const { user } = renderShell();
+    await user.keyboard('e');
     const field = screen.getByLabelText('Name');
-    await user.clear(field);
-    await user.tab();
-    expect(screen.getByText('An initiative needs a name')).toBeTruthy();
-    expect(mutate).not.toHaveBeenCalled();
+    expect(field).toBe(document.activeElement);
+    expect((field as HTMLTextAreaElement).value).toBe('Platform reliability');
   });
 
-  it('clears the error and saves once a name is typed back in', async () => {
-    const { mutate, user } = renderDetail();
+  it('refuses an empty name and puts the stored one back rather than saving nothing', async () => {
+    const { mutate, user } = renderShell();
+    await user.keyboard('e');
+    await user.clear(screen.getByLabelText('Name'));
+    await user.tab();
+    expect(mutate).not.toHaveBeenCalled();
+    expect((screen.getByLabelText('Name') as HTMLTextAreaElement).value).toBe(
+      'Platform reliability',
+    );
+    expect(screen.getByRole('heading', { name: 'Platform reliability' })).toBeTruthy();
+  });
+
+  it('saves a name typed in its place', async () => {
+    const { mutate, user } = renderShell();
+    await user.keyboard('e');
     const field = screen.getByLabelText('Name');
     await user.clear(field);
-    await user.tab();
     await user.type(field, 'Reliability');
     await user.tab();
-    expect(screen.queryByText('An initiative needs a name')).toBeNull();
     expect(mutate).toHaveBeenCalled();
     const call = mutate.mock.calls[0]![0] as { variables: { input: { name?: string } } };
     expect(call.variables.input.name).toBe('Reliability');
   });
 
   it('does not write when the name is unchanged', async () => {
-    const { mutate, user } = renderDetail();
-    await user.click(screen.getByLabelText('Name'));
+    const { mutate, user } = renderShell();
+    await user.keyboard('e');
     await user.tab();
     expect(mutate).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: 'Platform reliability' })).toBeTruthy();
   });
 });

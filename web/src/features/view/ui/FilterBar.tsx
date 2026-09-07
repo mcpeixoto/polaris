@@ -400,6 +400,115 @@ export function FilterBar({
   );
 }
 
+export interface FilterSummaryProps {
+  filter: FilterNode;
+  /** The zone the dates in it read in. The owning team's, never the reader's. */
+  timezone?: string | undefined;
+  /** The accessible name of the run of chips: "Filter being saved". */
+  label?: string | undefined;
+  /** What to say when the filter is empty — the caller's noun for "everything". */
+  emptyLabel?: string | undefined;
+  className?: string | undefined;
+}
+
+/**
+ * The same chips, with nothing to press.
+ *
+ * `SaveViewModal` is the reason it exists: it took a `FilterNode` and a name and rendered
+ * only the name, so somebody saving a view had to remember what they had narrowed the list
+ * to and trust that it was still that. A filter is a sentence, and the sentence is the
+ * whole interface — showing it is the same argument the bar itself makes, one screen later.
+ *
+ * Read-only in the strict sense: spans rather than buttons, no remove control, no editor.
+ * A control that opens nothing is worse than no control, and a dialog whose job is to name
+ * a filter is not the place to start rewriting it.
+ */
+export function FilterSummary({
+  filter,
+  timezone,
+  label = 'Filter',
+  emptyLabel = 'No filters — every issue',
+  className,
+}: FilterSummaryProps) {
+  const zone = timezone ?? browserTimezone();
+  const root = useMemo(() => asGroup(filter), [filter]);
+  const names = useEntityMarks(root);
+  const nodes = root.nodes ?? [];
+
+  if (nodes.length === 0) {
+    return <p className={styles.summaryEmpty}>{emptyLabel}</p>;
+  }
+
+  return (
+    <div
+      className={[styles.summary, className].filter(Boolean).join(' ')}
+      role="group"
+      aria-label={label}
+    >
+      <SummaryRun group={root} names={names} timezone={zone} />
+    </div>
+  );
+}
+
+/** One group of the tree, written out with its conjunction between the parts. */
+function SummaryRun({
+  group,
+  names,
+  timezone,
+}: {
+  group: FilterGroup;
+  names: EntityMarks;
+  timezone: string;
+}) {
+  const nodes = group.nodes ?? [];
+  const conj = group.conj ?? 'and';
+
+  return (
+    <>
+      {nodes.map((node, index) => (
+        <Fragment key={index}>
+          {index === 0 ? null : <span className={styles.summaryConj}>{conj}</span>}
+          {isFilterClause(node) ? (
+            <SummaryChip wording={wordClause(node, names, timezone)} />
+          ) : (
+            <span
+              className={styles.nested}
+              role="group"
+              aria-label={(node.conj ?? 'and') === 'or' ? 'Any of these' : 'All of these'}
+            >
+              <span className={styles.bracket} aria-hidden="true">
+                (
+              </span>
+              <SummaryRun group={node} names={names} timezone={timezone} />
+              <span className={styles.bracket} aria-hidden="true">
+                )
+              </span>
+            </span>
+          )}
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
+/** One clause as a sentence. The whole chip is the accessible text, as in the bar. */
+function SummaryChip({ wording }: { wording: Wording }) {
+  return (
+    <span className={styles.summaryChip}>
+      <span className={styles.chipField}>{wording.field}</span>{' '}
+      <span className={styles.chipOp}>{wording.op}</span>
+      {wording.value === null ? null : (
+        <>
+          {' '}
+          {/* Decorative, and it must be: the sentence beside it already names the value. */}
+          {wording.glyph === undefined ? null : <OptionGlyphMark glyph={wording.glyph} />}
+          <span className={styles.chipValue}>{wording.value}</span>
+        </>
+      )}
+    </span>
+  );
+}
+
 interface NodeRunProps {
   group: FilterGroup;
   path: Path;

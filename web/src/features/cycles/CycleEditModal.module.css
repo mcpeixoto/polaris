@@ -11,3 +11,12 @@
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }
+
+/* The two date pills sit on one line: they are the ends of a single window, and stacking
+   them reads as two unrelated fields. */
+.dates {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}

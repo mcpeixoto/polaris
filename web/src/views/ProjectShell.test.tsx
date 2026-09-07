@@ -1,4 +1,6 @@
 /**
+ * The project header: what it says, and what it lets you do from there.
+ *
  * "No such project" is a claim, and the shell used to make it before it could know.
  *
  * `useLiveQuery` answers `null` both for a project that is not there and for one still on
@@ -8,13 +10,21 @@
  * work.
  */
 
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 
 import { EngineProvider } from '~/app/context';
 import { KeymapProvider } from '~/app/keymap';
-import { Store, type Change, type Entity, type Project, type ProjectStatus } from '~/store';
+import {
+  Store,
+  type Change,
+  type Entity,
+  type Favorite,
+  type Project,
+  type ProjectStatus,
+} from '~/store';
 import type { EngineStatus, SyncEngine } from '~/sync/engine';
 
 import { ProjectShell } from './ProjectShell';
@@ -71,7 +81,8 @@ const project: Project = {
 };
 
 function renderShell(store: Store, status: EngineStatus) {
-  const engine = { store, mutate: vi.fn().mockResolvedValue({}) } as unknown as SyncEngine;
+  const mutate = vi.fn().mockResolvedValue({});
+  const engine = { store, mutate } as unknown as SyncEngine;
   render(
     <MemoryRouter initialEntries={[`/project/${PROJECT}`]}>
       <KeymapProvider>
@@ -83,6 +94,13 @@ function renderShell(store: Store, status: EngineStatus) {
       </KeymapProvider>
     </MemoryRouter>,
   );
+  return { mutate };
+}
+
+function seeded(): Store {
+  const store = new Store(WORKSPACE);
+  store.applyChanges([upsert(1, 'projectStatus', status), upsert(2, 'project', project)]);
+  return store;
 }
 
 describe('ProjectShell', () => {
@@ -100,15 +118,91 @@ describe('ProjectShell', () => {
   });
 
   it('states the project it opened: name, status and the target date at its granularity', () => {
-    const store = new Store(WORKSPACE);
-    store.applyChanges([upsert(1, 'projectStatus', status), upsert(2, 'project', project)]);
+    renderShell(seeded(), READY);
+
+    // The name is the field you rename it in, and it is the last crumb of the trail.
+    expect((screen.getByLabelText('Project name') as HTMLTextAreaElement).value).toBe('Launch');
+    // Twice on purpose: the header pill states it, the rail lets you change it.
+    expect(screen.getAllByText('In progress').length).toBeGreaterThan(0);
+    // A quarter target is a real day in the database and a three-month window on screen.
+    expect(screen.getAllByText(/Q2 2026/).length).toBeGreaterThan(0);
+  });
+
+  it('says where you are: Projects, then this project', () => {
+    renderShell(seeded(), READY);
+
+    const trail = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(trail.textContent).toContain('Projects');
+    expect(trail.querySelector('a')?.getAttribute('href')).toBe('/projects');
+  });
+
+  it('favourites the project, and the star says which way it is', async () => {
+    const user = userEvent.setup();
+    const { mutate } = renderShell(seeded(), READY);
+
+    const star = screen.getByRole('button', { name: 'Add to favourites' });
+    expect(star.getAttribute('aria-pressed')).toBe('false');
+
+    await user.click(star);
+
+    // A favourite is a row of its own, so the write carries one rather than patching the
+    // project — which is what makes it the viewer's and not the workspace's.
+    const patch = mutate.mock.calls[0]![0].optimistic[0];
+    expect(patch.type).toBe('favorite');
+    expect(patch.after.kind).toBe('project');
+    expect(patch.after.targetId).toBe(PROJECT);
+  });
+
+  it('draws the star as on when the viewer already has one', () => {
+    const store = seeded();
+    const favorite: Favorite = {
+      id: '01900000-0000-7000-8000-00000000000f',
+      workspaceId: WORKSPACE,
+      userId: VIEWER,
+      kind: 'project',
+      targetId: PROJECT,
+      position: 'a',
+      createdAt: AT,
+      updatedAt: AT,
+    };
+    store.applyChanges([upsert(3, 'favorite', favorite)]);
 
     renderShell(store, READY);
 
-    expect(screen.getByRole('heading', { name: 'Launch' })).not.toBeNull();
-    // Twice on purpose: the header states it, the rail lets you change it.
-    expect(screen.getAllByText('In progress').length).toBeGreaterThan(0);
-    // A quarter target is a real day in the database and a three-month window on screen.
-    expect(screen.getByText(/Q2 2026/)).not.toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Remove from favourites' }).getAttribute('aria-pressed'),
+    ).toBe('true');
+  });
+
+  it('renames on blur, and keeps what you are typing when the name changes underneath', async () => {
+    const user = userEvent.setup();
+    const store = seeded();
+    const { mutate } = renderShell(store, READY);
+
+    const field = screen.getByLabelText('Project name');
+    await user.click(field);
+    await user.type(field, ' day one');
+
+    // Somebody else renames it while the caret is still in the field. The draft is the
+    // reader's and survives; a keyed field would have thrown the sentence away.
+    await act(async () => {
+      store.applyChanges([upsert(4, 'project', { ...project, name: 'Renamed elsewhere' })]);
+    });
+    expect((field as HTMLTextAreaElement).value).toBe('Launch day one');
+
+    await user.tab();
+
+    const call = mutate.mock.calls.find((entry) => entry[0].optimistic?.[0]?.type === 'project');
+    expect(call?.[0].variables.input.name).toBe('Launch day one');
+  });
+
+  it('opens the status picker on S', async () => {
+    const user = userEvent.setup();
+    renderShell(seeded(), READY);
+
+    await user.click(screen.getByRole('navigation', { name: 'Breadcrumb' }));
+    await user.keyboard('s');
+
+    expect(screen.getByRole('menu', { name: 'Project status' })).not.toBeNull();
   });
 });

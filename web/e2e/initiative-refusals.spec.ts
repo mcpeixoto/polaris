@@ -63,7 +63,7 @@ test('a sixth level of nesting is refused in words, not in the console', async (
   await page.goto(`/initiative/${parent}`);
   await page.getByRole('heading', { name: 'Depth 5', level: 1 }).waitFor();
 
-  await page.getByPlaceholder('Name a nested initiative…').fill('Depth 6');
+  await page.getByLabel('New sub-initiative').fill('Depth 6');
   await page.getByRole('button', { name: 'Create nested' }).click();
 
   await expect(page.getByRole('alert')).toContainText('five levels');
@@ -84,8 +84,8 @@ test('a nest that would close a cycle is refused in words', async ({ page, works
   await page.getByRole('heading', { name: 'Beta objective', level: 1 }).waitFor();
 
   // Nesting the parent under its own child closes the loop.
-  await page.getByLabel('Initiative to nest').selectOption({ label: 'Alpha objective' });
-  await page.getByRole('button', { name: 'Nest', exact: true }).click();
+  await page.getByRole('button', { name: 'Nest an existing initiative' }).click();
+  await page.getByRole('menuitem', { name: /Alpha objective/ }).click();
 
   await expect(page.getByRole('alert')).toContainText('cycle');
   expect(rejections, rejections.join('\n')).toEqual([]);
@@ -100,13 +100,13 @@ test('a refusal clears once something works', async ({ page, workspace }) => {
   await page.goto(`/initiative/${below}`);
   await page.getByRole('heading', { name: 'Beta objective', level: 1 }).waitFor();
 
-  await page.getByLabel('Initiative to nest').selectOption({ label: 'Alpha objective' });
-  await page.getByRole('button', { name: 'Nest', exact: true }).click();
+  await page.getByRole('button', { name: 'Nest an existing initiative' }).click();
+  await page.getByRole('menuitem', { name: /Alpha objective/ }).click();
   await expect(page.getByRole('alert')).toBeVisible();
 
   // A nest that is allowed both works and takes the complaint with it.
-  await page.getByLabel('Initiative to nest').selectOption({ label: 'Spare objective' });
-  await page.getByRole('button', { name: 'Nest', exact: true }).click();
+  await page.getByRole('button', { name: 'Nest an existing initiative' }).click();
+  await page.getByRole('menuitem', { name: /Spare objective/ }).click();
   await expect(page.getByRole('link', { name: 'Spare objective' })).toBeVisible();
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
@@ -116,8 +116,13 @@ test('a refusal clears once something works', async ({ page, workspace }) => {
  * the round trip, so a second choice made while the first add was still in flight was wiped
  * and the button next to it greyed out again. Nothing errors, nothing is logged — the
  * selection simply is not there any more.
+ *
+ * The `<select>` and its Nest button are one searchable picker now, so the second choice is
+ * made by opening the picker again rather than by leaving a selection sitting in a box. The
+ * rule under test has not moved: an add made before the previous one has come back has to
+ * land, and both have to survive a reload.
  */
-test('a choice made while the previous add is in flight survives', async ({ page, workspace }) => {
+test('a nest made while the previous one is in flight still lands', async ({ page, workspace }) => {
   const initiative = await createInitiative(workspace, 'Curated objective');
   await createInitiative(workspace, 'First spare');
   await createInitiative(workspace, 'Second spare');
@@ -126,18 +131,17 @@ test('a choice made while the previous add is in flight survives', async ({ page
   await page.goto(`/initiative/${initiative}`);
   await page.getByRole('heading', { name: 'Curated objective', level: 1 }).waitFor();
 
-  const picker = page.getByLabel('Initiative to nest');
-  await picker.selectOption({ label: 'First spare' });
-  await page.getByRole('button', { name: 'Nest', exact: true }).click();
+  const open = () => page.getByRole('button', { name: 'Nest an existing initiative' }).click();
+
+  await open();
+  await page.getByRole('menuitem', { name: /First spare/ }).click();
   // Straight on to the next one, without waiting for the first to come back.
-  await picker.selectOption({ label: 'Second spare' });
+  await open();
+  await page.getByRole('menuitem', { name: /Second spare/ }).click();
 
   await expect(page.getByRole('link', { name: 'First spare' })).toBeVisible();
-  await expect(picker).not.toHaveValue('');
-  await expect(page.getByRole('button', { name: 'Nest', exact: true })).toBeEnabled();
-
-  await page.getByRole('button', { name: 'Nest', exact: true }).click();
   await expect(page.getByRole('link', { name: 'Second spare' })).toBeVisible();
+
   await page.reload();
   await expect(page.getByRole('link', { name: 'First spare' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Second spare' })).toBeVisible();

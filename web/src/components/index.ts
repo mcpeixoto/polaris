@@ -168,6 +168,13 @@ export type {
 export { Tabs } from './Tabs';
 export type { TabItem, TabsProps } from './Tabs';
 
+// The title a detail screen renames itself from. The issue screen had the only one, and the
+// project screen had a static heading — the same three properties (a draft that lives only
+// while the field has focus, a commit on blur, a flush for the exits that are not one) are
+// not worth writing twice.
+export { TitleField } from './TitleField';
+export type { TitleFieldProps, TitleHandle } from './TitleField';
+
 // Drawn here rather than imported from `features/issue/glyphs`, because a primitive may not
 // reach into the product. Only what the components above draw for themselves.
 export { ChevronGlyph } from './glyphs';

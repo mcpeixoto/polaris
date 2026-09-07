@@ -1,31 +1,53 @@
 /**
  * Project properties — everything the project *is*, editable, in the shell's rail.
  *
- * One row per property: its name at the left in the rail's grey, its value at the right
- * as a ghost trigger wearing the value's own glyph — a state icon, a priority glyph, an
- * avatar. An unset value says what setting it would do ("Add lead") rather than "None".
- * The summary and the description are not here: they are the project's content, and they
- * read and edit as prose on the overview.
+ * One row per property: its name at the left in the rail's grey, its value at the right as a
+ * ghost `Button` wearing the value's own glyph — a state icon, a priority glyph, an avatar.
+ * An unset value says what setting it would do ("Add lead") rather than "None". The summary
+ * and the description are not here: they are the project's content, and they read and edit as
+ * prose on the overview.
+ *
+ * The names on the triggers are verbs — "Set status", "Add lead" — rather than the issue
+ * rail's arrangement, where the button is named by its value and described by its property.
+ * Two reasons: this rail keeps its property names visible, so a second copy of them on the
+ * accessibility tree would be read twice; and half of these rows are empty on a young
+ * project, where a value has no name to be called by.
+ *
+ * Every picker here writes through `updateProject` and none of them own the value they show —
+ * the same bargain the issue rail makes, which is what lets a change arriving over sync land
+ * on the rail without a picker having to be told.
  */
 
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Avatar, Input, LabelChip, PriorityIcon, priorityLabel, StateIcon } from '~/components';
+import {
+  Avatar,
+  Button,
+  DatePicker,
+  LabelChip,
+  Menu,
+  PriorityIcon,
+  priorityLabel,
+  Progress,
+  Select,
+  StateIcon,
+  Tooltip,
+  type MenuNode,
+} from '~/components';
 import { AssigneePicker, PriorityPicker } from '~/features/issue/pickers';
+import { UserPicker } from '~/features/members/UserPicker';
 import { useEngine } from '~/app/context';
+import { browserTimezone } from '~/features/locale';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import type { ProjectLabel, TimeframeGranularity, UUID } from '~/store';
+import type { ProjectLabel, ProjectUpdateSchedule, TimeframeGranularity, UUID } from '~/store';
 
 import { report } from '~/features/issue/mutations';
 import { applyProjectLabel, removeProjectLabel } from '~/features/project-labels/mutations';
 import { ProjectLabelPicker } from '~/features/project-labels/ProjectLabelPicker';
 import { listProjectMilestones } from '~/features/project-milestones/helpers';
-import { Select } from '~/components';
-import type { ProjectUpdateSchedule } from '~/store';
-import { updateProject } from './mutations';
+import { addProjectMember, removeProjectMember, updateProject } from './mutations';
 import { ProjectDependencies } from './dependencies';
 import { CalendarGlyph, LabelGlyph, MembersGlyph, MilestoneGlyph, NoPersonGlyph } from './glyphs';
-import { ProgressRing } from './ProgressRing';
 import { ProjectStatusPicker } from './ProjectStatusPicker';
 import { PROJECT_STATUS_ICON } from './statusCategories';
 import styles from './properties.module.css';
@@ -34,12 +56,26 @@ interface ProjectPropertiesProps {
   readonly projectId: UUID;
 }
 
+/** The reminder cadences the API offers, as one list rather than a second control. */
+const SCHEDULES: readonly { readonly id: string; readonly label: string }[] = [
+  { id: 'default', label: 'Workspace default' },
+  { id: 'never', label: 'Never' },
+  { id: 'custom:7', label: 'Every 7 days' },
+  { id: 'custom:14', label: 'Every 14 days' },
+  { id: 'custom:21', label: 'Every 21 days' },
+  { id: 'custom:28', label: 'Every 28 days' },
+];
+
 export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
   const engine = useEngine();
   const status = useMenuTrigger();
   const priority = useMenuTrigger();
   const labels = useMenuTrigger();
   const lead = useMenuTrigger();
+  const members = useMenuTrigger();
+  const schedule = useMenuTrigger();
+  const startDate = useMenuTrigger<HTMLButtonElement>('dialog');
+  const targetDate = useMenuTrigger<HTMLButtonElement>('dialog');
 
   useKeyContext('detail');
 
@@ -80,7 +116,7 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
     [projectId],
   );
 
-  const members = useLiveQuery(
+  const memberRows = useLiveQuery(
     (store) =>
       [...store.projectMemberIdsFor(projectId)]
         .map((id) => store.projectMembers.get(id))
@@ -94,6 +130,32 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
     ['projectMember', 'user'],
     [projectId],
   );
+  const memberIds = new Set(memberRows.map((user) => user.id));
+
+  const teams = useLiveQuery(
+    (store) =>
+      [...store.projectTeamIdsFor(projectId)]
+        .map((id) => store.projectTeams.get(id))
+        .map((link) => (link === undefined ? undefined : store.teams.get(link.teamId)))
+        .filter((team): team is NonNullable<typeof team> => team !== undefined)
+        .map((team) => ({ id: team.id, name: team.name, key: team.key })),
+    ['projectTeam', 'team'],
+    [projectId],
+  );
+
+  // No index from a project back to its initiatives — the link is indexed by initiative — so
+  // this is a scan. A workspace has tens of initiatives, not thousands, and the alternative
+  // is a second index maintained for one rail row.
+  const initiatives = useLiveQuery(
+    (store) =>
+      [...store.initiativeProjects.values()]
+        .filter((link) => link.projectId === projectId)
+        .map((link) => store.initiatives.get(link.initiativeId))
+        .filter((found): found is NonNullable<typeof found> => found !== undefined)
+        .map((found) => ({ id: found.id, name: found.name })),
+    ['initiativeProject', 'initiative'],
+    [projectId],
+  );
 
   const milestones = useLiveQuery(
     (store) => listProjectMilestones(store, projectId),
@@ -103,14 +165,9 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
 
   useActions(
     [
-      {
-        id: 'projectDetail.status',
-        title: 'Set status',
-        keys: ['s'],
-        when: 'detail',
-        group: 'Projects',
-        run: () => status.show(),
-      },
+      // Status is registered by the shell, whose header pill opens the same picker: the
+      // registry refuses two actions on one key in one context, and `S` should reach the
+      // control the reader can see from every tab rather than only from the rail.
       {
         id: 'projectDetail.priority',
         title: 'Set priority',
@@ -135,55 +192,109 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
         group: 'Projects',
         run: () => lead.show(),
       },
+      {
+        id: 'projectDetail.members',
+        title: 'Set members',
+        keys: ['shift+a'],
+        when: 'detail',
+        group: 'Projects',
+        run: () => members.show(),
+      },
+      {
+        id: 'projectDetail.targetDate',
+        title: 'Set target date',
+        keys: ['shift+d'],
+        when: 'detail',
+        group: 'Projects',
+        run: () => targetDate.show(),
+      },
     ],
     [projectId],
   );
 
   if (project === null) return null;
 
+  const scheduleLabel =
+    project.updateSchedule === 'custom'
+      ? `Every ${project.updateReminderIntervalDays ?? 7} days`
+      : project.updateSchedule === 'never'
+        ? 'Never'
+        : 'Workspace default';
+
+  const scheduleItems: MenuNode[] = SCHEDULES.map((option) => {
+    const [kind, days] = option.id.split(':');
+    const selected =
+      kind === 'custom'
+        ? project.updateSchedule === 'custom' &&
+          (project.updateReminderIntervalDays ?? 7) === Number(days)
+        : project.updateSchedule === kind;
+    return {
+      id: option.id,
+      label: option.label,
+      selected,
+      onSelect: () =>
+        updateProject(
+          engine,
+          project.id,
+          kind === 'custom'
+            ? { updateSchedule: 'custom', updateReminderIntervalDays: Number(days) }
+            : { updateSchedule: kind as ProjectUpdateSchedule },
+        ).catch(report),
+    };
+  });
+
   return (
     <div className={styles.panel}>
       <div className={styles.row}>
         <span className={styles.label}>Status</span>
-        <button type="button" className={styles.trigger} {...status.props} aria-label="Set status">
-          {currentStatus === null ? (
-            <span className={styles.unset}>Set status</span>
-          ) : (
-            <>
+        <Button
+          {...status.props}
+          variant="ghost"
+          fullWidth
+          className={styles.trigger}
+          aria-label="Set status"
+          icon={
+            currentStatus === null ? undefined : (
               <StateIcon
                 category={PROJECT_STATUS_ICON[currentStatus.category]}
                 color={currentStatus.color}
                 decorative
               />
-              {currentStatus.name}
-            </>
+            )
+          }
+        >
+          {currentStatus === null ? (
+            <span className={styles.unset}>Set status</span>
+          ) : (
+            currentStatus.name
           )}
-        </button>
+        </Button>
       </div>
       <div className={styles.row}>
         <span className={styles.label}>Priority</span>
-        <button
-          type="button"
-          className={styles.trigger}
+        <Button
           {...priority.props}
+          variant="ghost"
+          fullWidth
+          className={styles.trigger}
           aria-label="Set priority"
+          icon={<PriorityIcon priority={project.priority} decorative />}
         >
-          <PriorityIcon priority={project.priority} decorative />
           {priorityLabel(project.priority)}
-        </button>
+        </Button>
       </div>
       <div className={styles.row}>
         <span className={styles.label}>Lead</span>
-        <button type="button" className={styles.trigger} {...lead.props} aria-label="Set lead">
-          {currentLead === null ? (
-            <>
-              <span className={styles.glyph}>
-                <NoPersonGlyph />
-              </span>
-              <span className={styles.unset}>Add lead</span>
-            </>
-          ) : (
-            <>
+        <Button
+          {...lead.props}
+          variant="ghost"
+          fullWidth
+          className={styles.trigger}
+          aria-label="Set lead"
+          icon={
+            currentLead === null ? (
+              <NoPersonGlyph />
+            ) : (
               <Avatar
                 name={currentLead.displayName}
                 src={currentLead.avatarUrl ?? null}
@@ -191,69 +302,87 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
                 colorKey={currentLead.id}
                 decorative
               />
-              {currentLead.displayName}
-            </>
+            )
+          }
+        >
+          {currentLead === null ? (
+            <span className={styles.unset}>Add lead</span>
+          ) : (
+            currentLead.displayName
           )}
-        </button>
+        </Button>
       </div>
-      {/* Read-only: membership is written by the server as people are assigned work in
-          the project, and there is no editor for it in the client yet. */}
+      {/* Editable, at last. Membership is also written by the server as people are given work
+          in the project, so this list adds to that rather than replacing it. */}
       <div className={styles.row}>
         <span className={styles.label}>Members</span>
-        <span className={styles.value}>
-          {members.length === 0 ? (
-            <>
-              <span className={styles.glyph}>
-                <MembersGlyph />
-              </span>
-              <span className={styles.unset}>No members</span>
-            </>
+        <Button
+          {...members.props}
+          variant="ghost"
+          fullWidth
+          className={styles.trigger}
+          aria-label="Set members"
+          icon={memberRows.length === 0 ? <MembersGlyph /> : undefined}
+        >
+          {memberRows.length === 0 ? (
+            <span className={styles.unset}>Add members</span>
           ) : (
-            <span className={styles.avatars} title={members.map((user) => user.name).join(', ')}>
-              {members.slice(0, 5).map((user) => (
-                <Avatar
-                  key={user.id}
-                  name={user.name}
-                  src={user.avatarUrl}
-                  size="xs"
-                  colorKey={user.id}
-                />
-              ))}
-              {members.length > 5 && <span className={styles.more}>+{members.length - 5}</span>}
-            </span>
+            <Tooltip label={memberRows.map((user) => user.name).join(', ')}>
+              <span className={styles.avatars}>
+                {memberRows.slice(0, 5).map((user) => (
+                  <Avatar
+                    key={user.id}
+                    name={user.name}
+                    src={user.avatarUrl}
+                    size="xs"
+                    colorKey={user.id}
+                    decorative
+                  />
+                ))}
+                {memberRows.length > 5 && (
+                  <span className={styles.more}>+{memberRows.length - 5}</span>
+                )}
+              </span>
+            </Tooltip>
           )}
-        </span>
+        </Button>
       </div>
       {/* Both ends of the timeframe, each with the granularity that says how much of the
           day to believe. The API refuses a granularity without a day, and "Q3" is a day
-          nobody is meant to read too closely — so the two controls are one row and the
-          write always carries both. */}
-      <TimeframeField
+          nobody is meant to read too closely — so the write always carries both, and the
+          granularity is chosen in the panel that sets the day. */}
+      <TimeframeRow
         title="Start date"
-        date={project.startDate ?? ''}
+        trigger={startDate}
+        date={project.startDate ?? null}
         granularity={project.startDateGranularity ?? 'day'}
+        actionId="projectDetail.closeStartPicker"
         onChange={(startDate, startDateGranularity) =>
           updateProject(engine, project.id, { startDate, startDateGranularity }).catch(report)
         }
       />
-      <TimeframeField
+      <TimeframeRow
         title="Target date"
-        date={project.targetDate ?? ''}
+        trigger={targetDate}
+        date={project.targetDate ?? null}
         granularity={project.targetDateGranularity ?? 'day'}
+        actionId="projectDetail.closeTargetPicker"
         onChange={(targetDate, targetDateGranularity) =>
           updateProject(engine, project.id, { targetDate, targetDateGranularity }).catch(report)
         }
       />
       <div className={styles.row}>
         <span className={styles.label}>Labels</span>
-        <button type="button" className={styles.trigger} {...labels.props} aria-label="Set labels">
+        <Button
+          {...labels.props}
+          variant="ghost"
+          fullWidth
+          className={styles.trigger}
+          aria-label="Set labels"
+          icon={appliedLabels.length === 0 ? <LabelGlyph /> : undefined}
+        >
           {appliedLabels.length === 0 ? (
-            <>
-              <span className={styles.glyph}>
-                <LabelGlyph />
-              </span>
-              <span className={styles.unset}>Add labels</span>
-            </>
+            <span className={styles.unset}>Add labels</span>
           ) : (
             <span className={styles.labelRun}>
               {appliedLabels.map((label) => (
@@ -261,42 +390,43 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
               ))}
             </span>
           )}
-        </button>
+        </Button>
+      </div>
+      {/* Which teams carry the work, and which initiatives the project rolls up into. Read
+          here and written where the relationship is owned — the team from the project's own
+          settings, the initiative from the initiative it belongs to — so the rail states them
+          rather than offering a second, half-informed place to change them. */}
+      <div className={styles.row}>
+        <span className={styles.label}>Teams</span>
+        <span className={styles.value}>
+          {teams.length === 0 ? (
+            <span className={styles.unset}>No teams</span>
+          ) : (
+            teams.map((team) => team.key).join(', ')
+          )}
+        </span>
+      </div>
+      <div className={styles.row}>
+        <span className={styles.label}>Initiatives</span>
+        <span className={styles.value}>
+          {initiatives.length === 0 ? (
+            <span className={styles.unset}>No initiatives</span>
+          ) : (
+            initiatives.map((found) => found.name).join(', ')
+          )}
+        </span>
       </div>
       <div className={styles.row}>
         <span className={styles.label}>Updates</span>
-        <span className={styles.value}>
-          <Select
-            value={project.updateSchedule}
-            onChange={(event) =>
-              updateProject(engine, project.id, {
-                updateSchedule: event.target.value as ProjectUpdateSchedule,
-              }).catch(report)
-            }
-            aria-label="Update schedule"
-          >
-            <option value="default">Workspace default</option>
-            <option value="custom">Custom</option>
-            <option value="never">Never</option>
-          </Select>
-          {project.updateSchedule === 'custom' && (
-            <Select
-              value={String(project.updateReminderIntervalDays ?? 7)}
-              onChange={(event) =>
-                updateProject(engine, project.id, {
-                  updateReminderIntervalDays: Number.parseInt(event.target.value, 10),
-                }).catch(report)
-              }
-              aria-label="Custom reminder interval"
-            >
-              {[7, 14, 21, 28].map((days) => (
-                <option key={days} value={days}>
-                  Every {days} days
-                </option>
-              ))}
-            </Select>
-          )}
-        </span>
+        <Button
+          {...schedule.props}
+          variant="ghost"
+          fullWidth
+          className={styles.trigger}
+          aria-label="Update schedule"
+        >
+          {scheduleLabel}
+        </Button>
       </div>
 
       {/* The checkpoints, each with how far along it is. Editing them is the overview's
@@ -305,28 +435,31 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
         <section className={styles.group} aria-label="Milestones">
           <h3 className={styles.groupTitle}>Milestones</h3>
           <ul className={styles.milestones}>
-            {milestones.map((row) => (
+            {milestones.map((milestone) => (
               <li
-                key={row.milestone.id}
+                key={milestone.milestone.id}
                 className={
-                  row.current ? `${styles.milestone} ${styles.milestoneCurrent}` : styles.milestone
+                  milestone.current
+                    ? `${styles.milestone} ${styles.milestoneCurrent}`
+                    : styles.milestone
                 }
               >
                 <span className={styles.glyph}>
                   <MilestoneGlyph />
                 </span>
-                <span className={styles.milestoneName}>{row.milestone.name}</span>
-                <ProgressRing
-                  percent={row.percent}
-                  label={row.milestone.name}
+                <span className={styles.milestoneName}>{milestone.milestone.name}</span>
+                <Progress
+                  percent={milestone.percent}
+                  label={milestone.milestone.name}
                   detail={
-                    row.total === 0
+                    milestone.total === 0
                       ? 'no issues yet'
-                      : `${row.done} of ${row.total} issues completed`
+                      : `${milestone.done} of ${milestone.total} issues completed`
                   }
+                  size="sm"
                 />
                 <span className={styles.milestonePercent} aria-hidden="true">
-                  {row.percent}%
+                  {milestone.percent}%
                 </span>
               </li>
             ))}
@@ -356,6 +489,28 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
         value={project.leadId ?? null}
         onSelect={(leadId) => updateProject(engine, project.id, { leadId }).catch(report)}
       />
+      <UserPicker
+        open={members.open}
+        onClose={members.hide}
+        trigger={members.ref}
+        multiple
+        label="Project members"
+        filterPlaceholder="Add to the project…"
+        value={memberIds}
+        onToggle={(userId) => {
+          const write = memberIds.has(userId)
+            ? removeProjectMember(engine, project.id, userId)
+            : addProjectMember(engine, project.id, userId);
+          write.catch(report);
+        }}
+      />
+      <Menu
+        open={schedule.open}
+        onClose={schedule.hide}
+        trigger={schedule.ref}
+        label="Update schedule"
+        items={scheduleItems}
+      />
       <ProjectLabelPicker
         open={labels.open}
         onClose={labels.hide}
@@ -370,13 +525,6 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
   );
 }
 
-interface TimeframeFieldProps {
-  readonly title: string;
-  readonly date: string;
-  readonly granularity: TimeframeGranularity;
-  readonly onChange: (date: string | null, granularity: TimeframeGranularity) => void;
-}
-
 const GRANULARITIES: readonly { readonly value: TimeframeGranularity; readonly label: string }[] = [
   { value: 'day', label: 'Exact day' },
   { value: 'month', label: 'Month' },
@@ -385,40 +533,77 @@ const GRANULARITIES: readonly { readonly value: TimeframeGranularity; readonly l
   { value: 'year', label: 'Year' },
 ];
 
-/** One end of the timeframe: the day, and how precisely it is meant. */
-function TimeframeField({ title, date, granularity, onChange }: TimeframeFieldProps) {
+interface TimeframeRowProps {
+  readonly title: string;
+  readonly trigger: ReturnType<typeof useMenuTrigger<HTMLButtonElement>>;
+  readonly date: string | null;
+  readonly granularity: TimeframeGranularity;
+  /** This panel's own Escape. Two of them are mounted here, and ids may not collide. */
+  readonly actionId: string;
+  readonly onChange: (date: string | null, granularity: TimeframeGranularity) => void;
+}
+
+/**
+ * One end of the timeframe: the day, and how precisely it is meant.
+ *
+ * The granularity rides in the picker's footer rather than beside the row, because it is a
+ * qualifier on the day being chosen and not a property of its own — a rail that showed
+ * "Quarter" next to an empty date was offering a precision for a date nobody had set.
+ */
+function TimeframeRow({
+  title,
+  trigger,
+  date,
+  granularity,
+  actionId,
+  onChange,
+}: TimeframeRowProps) {
   return (
     <div className={styles.row}>
       <span className={styles.label}>{title}</span>
-      <span className={`${styles.value ?? ''} ${styles.dateRow ?? ''}`}>
-        <span className={styles.glyph}>
-          <CalendarGlyph />
-        </span>
-        <Input
-          type="date"
-          aria-label={title}
-          className={styles.dateInput}
-          value={date}
-          // An emptied field is a request to take the date off, which the API spells as its
-          // own flag; `null` is how `ProjectFields` says so.
-          onChange={(event) =>
-            onChange(event.target.value === '' ? null : event.target.value, granularity)
-          }
-        />
-        {date === '' ? null : (
-          <Select
-            aria-label={`${title} granularity`}
-            value={granularity}
-            onChange={(event) => onChange(date, event.target.value as TimeframeGranularity)}
-          >
-            {GRANULARITIES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
+      <Button
+        {...trigger.props}
+        variant="ghost"
+        fullWidth
+        className={styles.trigger}
+        aria-label={`Set ${title.toLowerCase()}`}
+        icon={<CalendarGlyph />}
+      >
+        {date === null || date === '' ? (
+          <span className={styles.unset}>Set {title.toLowerCase()}</span>
+        ) : (
+          formatTimeframe(date, granularity)
         )}
-      </span>
+      </Button>
+      <DatePicker
+        open={trigger.open}
+        onClose={trigger.hide}
+        trigger={trigger.ref}
+        value={date === '' ? null : date}
+        // The reader's zone: a project belongs to as many teams as it likes, so there is no
+        // one team whose Friday this date is.
+        timezone={browserTimezone()}
+        actionId={actionId}
+        actionGroup="Projects"
+        label={title}
+        clearLabel={`No ${title.toLowerCase()}`}
+        onSelect={(day) => onChange(day, granularity)}
+        footer={
+          date === null || date === '' ? null : (
+            <Select
+              aria-label={`${title} granularity`}
+              value={granularity}
+              onChange={(event) => onChange(date, event.target.value as TimeframeGranularity)}
+            >
+              {GRANULARITIES.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          )
+        }
+      />
     </div>
   );
 }

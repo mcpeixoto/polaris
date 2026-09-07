@@ -1,14 +1,27 @@
 /**
  * Attach feedback to an issue or project, optionally naming a customer.
+ *
+ * This was the densest run of native `<select>`s in the product: three of them stacked, one
+ * of which offered two hundred issues by identifier with no way to type. A `<select>` is a
+ * fine control for four options and a poor one for two hundred — it cannot be filtered, it
+ * cannot draw anything beside the words, and it looks like a different control on every
+ * platform. All three are `Menu` pickers on a property row now, the shape the rest of the
+ * product uses to say "these are the things this record is about".
+ *
+ * Project reuses `ProjectPicker`, which already knows the ranking that puts the project you
+ * are on near the top. Customer and issue are plain filterable menus over the replica,
+ * because neither has an ordering rule worth more than alphabetical.
  */
 
-import { useId, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useId, useRef, useState, type FormEvent } from 'react';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Button, Checkbox, Modal, Select, Textarea } from '~/components';
+import { Button, Menu, Modal, PropertyPill, Switch, Textarea, type MenuNode } from '~/components';
+import { ProjectPicker } from '~/features/projects/ProjectPicker';
+import { useDialogSubmit } from '~/hooks/useDialogSubmit';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import { ApiError } from '~/sync/api';
+import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import type { UUID } from '~/store';
 
 import { createCustomerRequest } from './mutations';
@@ -44,19 +57,25 @@ export function CreateCustomerRequestModal({
   const engine = useEngine();
   const formId = useId();
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const customerMenu = useMenuTrigger();
+  const issueMenu = useMenuTrigger();
+  const projectMenu = useMenuTrigger();
+
   const [body, setBody] = useState('');
   const [important, setImportant] = useState(false);
-  const [customerId, setCustomerId] = useState(seededCustomerId ?? '');
-  const [chosenIssue, setChosenIssue] = useState(issueId ?? '');
-  const [chosenProject, setChosenProject] = useState(projectId ?? '');
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [customerId, setCustomerId] = useState<UUID | null>(seededCustomerId ?? null);
+  const [chosenIssue, setChosenIssue] = useState<UUID | null>(issueId ?? null);
+  const [chosenProject, setChosenProject] = useState<UUID | null>(projectId ?? null);
+  const { saving, error, setError, submit, submitRef } = useDialogSubmit(
+    'Could not create the customer request',
+  );
 
   const customers = useLiveQuery(
     (store) =>
       [...store.customers.values()]
         .filter((row) => row.archivedAt === undefined && row.deletedAt === undefined)
-        .sort((a, b) => a.name.localeCompare(b.name)),
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((row) => ({ id: row.id, name: row.name })),
     ['customer'],
   );
   const issues = useLiveQuery(
@@ -67,24 +86,76 @@ export function CreateCustomerRequestModal({
             .filter((row) => row.archivedAt === undefined)
             .sort((a, b) => store.identifierOf(a).localeCompare(store.identifierOf(b)))
             .slice(0, 200)
-            .map((row) => ({ id: row.id, label: `${store.identifierOf(row)} ${row.title}` })),
+            .map((row) => ({
+              id: row.id,
+              identifier: store.identifierOf(row),
+              title: row.title,
+            })),
     ['issue', 'team'],
     [issueId ?? ''],
   );
-  const projects = useLiveQuery(
-    (store) =>
-      projectId !== undefined
-        ? []
-        : [...store.projects.values()]
-            .filter((row) => row.archivedAt === undefined && row.deletedAt === undefined)
-            .sort((a, b) => a.name.localeCompare(b.name))
-            .map((row) => ({ id: row.id, name: row.name })),
-    ['project'],
-    [projectId ?? ''],
-  );
 
   const needsTarget = issueId === undefined && projectId === undefined;
-  const title = useMemo(() => 'New customer request', []);
+  const customer = customers.find((row) => row.id === customerId) ?? null;
+  const issue = issues.find((row) => row.id === chosenIssue) ?? null;
+
+  const customerItems: MenuNode[] = [
+    {
+      id: 'none',
+      label: 'No customer',
+      selected: customerId === null,
+      onSelect: () => setCustomerId(null),
+    },
+    ...customers.map((row): MenuNode => ({
+      id: row.id,
+      label: row.name,
+      selected: row.id === customerId,
+      onSelect: () => setCustomerId(row.id),
+    })),
+  ];
+
+  const issueItems: MenuNode[] = [
+    {
+      id: 'none',
+      label: 'No issue',
+      selected: chosenIssue === null,
+      onSelect: () => setChosenIssue(null),
+    },
+    ...issues.map((row): MenuNode => ({
+      id: row.id,
+      label: row.title,
+      hint: row.identifier,
+      // The identifier is how people refer to an issue out loud, so it has to be part of
+      // what the filter box matches rather than only part of what is drawn.
+      text: `${row.identifier} ${row.title}`.toLowerCase(),
+      selected: row.id === chosenIssue,
+      onSelect: () => setChosenIssue(row.id),
+    })),
+  ];
+
+  const save = async () => {
+    const targetIssue = issueId ?? chosenIssue ?? undefined;
+    const targetProject = projectId ?? chosenProject ?? undefined;
+    if (targetIssue === undefined && targetProject === undefined) {
+      setError('Attach this request to an issue or a project');
+      return;
+    }
+    await submit(async () => {
+      await createCustomerRequest(engine, {
+        body: body.trim(),
+        important,
+        customerId: customerId ?? undefined,
+        issueId: targetIssue,
+        projectId: targetProject,
+      });
+      onClose();
+    });
+  };
+
+  // Reassigned every render, read at dispatch: the registry keeps the action object it was
+  // handed at mount, so a `run` closing over this render's `save` would go on submitting
+  // the dialog as it stood when it opened.
+  submitRef.current = () => void save();
 
   useKeyContext('modal', open);
   // Registered only while the dialog is up: a shut dialog that still bound ⌘⏎ would
@@ -99,51 +170,25 @@ export function CreateCustomerRequestModal({
             when: 'modal',
             group: 'Customers',
             hidden: true,
-            run: () => {
-              void save();
-            },
+            run: () => submitRef.current(),
           },
         ]
       : [],
     [open],
   );
 
-  const save = async () => {
-    const targetIssue = issueId ?? (chosenIssue === '' ? undefined : chosenIssue);
-    const targetProject = projectId ?? (chosenProject === '' ? undefined : chosenProject);
-    if (targetIssue === undefined && targetProject === undefined) {
-      setSaveError('Attach this request to an issue or a project');
-      return;
-    }
-    setSaving(true);
-    setSaveError(null);
-    try {
-      await createCustomerRequest(engine, {
-        body: body.trim(),
-        important,
-        customerId: customerId === '' ? undefined : customerId,
-        issueId: targetIssue,
-        projectId: targetProject,
-      });
-      onClose();
-    } catch (error) {
-      setSaving(false);
-      setSaveError(
-        error instanceof ApiError ? error.message : 'Could not create the customer request',
-      );
-    }
-  };
-
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title={title}
+      title="New customer request"
       size="md"
       initialFocus={bodyRef}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
           <Button form={formId} type="submit" variant="primary" loading={saving}>
             Add request
           </Button>
@@ -166,59 +211,89 @@ export function CreateCustomerRequestModal({
           placeholder="What did they ask for?"
           minRows={4}
         />
-        {seededCustomerId === undefined && (
-          <Select
-            label="Customer"
-            value={customerId}
-            onChange={(event) => setCustomerId(event.target.value)}
-          >
-            <option value="">None</option>
-            {customers.map((row) => (
-              <option key={row.id} value={row.id}>
-                {row.name}
-              </option>
-            ))}
-          </Select>
-        )}
-        {needsTarget && (
-          <>
-            <Select
-              label="Issue"
-              value={chosenIssue}
-              onChange={(event) => setChosenIssue(event.target.value)}
-            >
-              <option value="">None</option>
-              {issues.map((row) => (
-                <option key={row.id} value={row.id}>
-                  {row.label}
-                </option>
-              ))}
-            </Select>
-            <Select
-              label="Project"
-              value={chosenProject}
-              onChange={(event) => setChosenProject(event.target.value)}
-            >
-              <option value="">None</option>
-              {projects.map((row) => (
-                <option key={row.id} value={row.id}>
-                  {row.name}
-                </option>
-              ))}
-            </Select>
-          </>
-        )}
-        <Checkbox
-          label="Mark as important"
-          checked={important}
-          onChange={(event) => setImportant(event.target.checked)}
-        />
-        {saveError !== null && (
+
+        <div className={styles.pills}>
+          {seededCustomerId === undefined && (
+            <>
+              <PropertyPill
+                {...customerMenu.props}
+                name="Customer"
+                describe={`${formId}-customer`}
+                empty={customer === null ? 'No customer' : undefined}
+              >
+                {customer?.name ?? 'Customer'}
+              </PropertyPill>
+              <Menu
+                open={customerMenu.open}
+                onClose={customerMenu.hide}
+                trigger={customerMenu.ref}
+                items={customerItems}
+                label="Customer"
+                filterable
+                filterPlaceholder="Asked for by…"
+                emptyLabel="No customer by that name"
+              />
+            </>
+          )}
+
+          {needsTarget && (
+            <>
+              <PropertyPill
+                {...issueMenu.props}
+                name="Issue"
+                describe={`${formId}-issue`}
+                empty={issue === null ? 'No issue' : undefined}
+              >
+                {issue === null ? 'Issue' : issue.identifier}
+              </PropertyPill>
+              <Menu
+                open={issueMenu.open}
+                onClose={issueMenu.hide}
+                trigger={issueMenu.ref}
+                items={issueItems}
+                label="Issue"
+                filterable
+                filterPlaceholder="Attach to an issue…"
+                emptyLabel="No issue under that name"
+              />
+
+              <PropertyPill
+                {...projectMenu.props}
+                name="Project"
+                describe={`${formId}-project`}
+                empty={chosenProject === null ? 'No project' : undefined}
+              >
+                <ProjectPillLabel projectId={chosenProject} />
+              </PropertyPill>
+              <ProjectPicker
+                open={projectMenu.open}
+                onClose={projectMenu.hide}
+                trigger={projectMenu.ref}
+                value={chosenProject}
+                onSelect={setChosenProject}
+              />
+            </>
+          )}
+        </div>
+
+        <Switch label="Mark as important" checked={important} onChange={setImportant} />
+
+        {error !== null && (
           <p className={styles.error} role="alert">
-            {saveError}
+            {error}
           </p>
         )}
       </form>
     </Modal>
   );
+}
+
+/** The chosen project's name, or the property's own word while there is none. */
+function ProjectPillLabel({ projectId }: { projectId: UUID | null }) {
+  const project = useLiveQuery(
+    (store) => (projectId === null ? null : (store.projects.get(projectId) ?? null)),
+    ['project'],
+    [projectId ?? ''],
+  );
+  return <>{project?.name ?? 'Project'}</>;
 }

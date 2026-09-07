@@ -52,11 +52,26 @@
 }
 
 .list {
-  list-style: none;
-  margin: 0;
   padding: var(--space-3) 0 var(--space-8);
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+.groupList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.list:focus-visible {
+  outline: none;
+}
+
+/* Where the keyboard is. Drawn on the row rather than on the link inside it, because the
+   cursor is a property of the row and the link is only what Enter opens. */
+.cursorItem .row {
+  background: var(--bg-hover);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 /*

@@ -1,5 +1,10 @@
 /**
- * Create a dashboard — name, optional personal flag.
+ * Create a dashboard — name, and whether it is yours alone.
+ *
+ * The personal toggle is a `Switch` rather than a `Checkbox` because it does not describe a
+ * value the form will collect and send along with the others: it changes what the thing
+ * being made *is*, and which sidebar it will appear in. A tick box says "also this"; a
+ * switch says "this one is private", which is the sentence the reader is actually composing.
  */
 
 import { useId, useRef, useState, type FormEvent } from 'react';
@@ -7,9 +12,9 @@ import { useNavigate } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Button, Checkbox, Input, Modal } from '~/components';
+import { Button, Input, Modal, Switch } from '~/components';
+import { useDialogSubmit } from '~/hooks/useDialogSubmit';
 import { useViewerId } from '~/hooks/useViewer';
-import { ApiError } from '~/sync/api';
 
 import { createDashboard } from './mutations';
 import styles from './CreateDashboardModal.module.css';
@@ -41,8 +46,30 @@ export function CreateDashboardModal({ open = true, onClose }: CreateDashboardMo
   const [name, setName] = useState('');
   const [personal, setPersonal] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const { saving, error, submit, submitRef } = useDialogSubmit('Could not create the dashboard');
+
+  const save = async () => {
+    const trimmed = name.trim();
+    if (trimmed === '') {
+      setNameError('A dashboard needs a name');
+      nameRef.current?.focus();
+      return;
+    }
+    await submit(async () => {
+      const id = await createDashboard(engine, {
+        name: trimmed,
+        private: personal,
+        ownerId: viewerId ?? undefined,
+      });
+      onClose();
+      if (id !== '') void navigate(`/dashboard/${id}`);
+    });
+  };
+
+  // Reassigned every render, read at dispatch: the registry keeps the action object it was
+  // handed at mount, so a `run` closing over this render's `save` would go on submitting
+  // the dialog as it stood when it opened.
+  submitRef.current = () => void save();
 
   useKeyContext('modal', open);
   // Registered only while the dialog is up: a shut dialog that still bound ⌘⏎ would
@@ -57,37 +84,12 @@ export function CreateDashboardModal({ open = true, onClose }: CreateDashboardMo
             when: 'modal',
             group: 'Dashboards',
             hidden: true,
-            run: () => {
-              void save();
-            },
+            run: () => submitRef.current(),
           },
         ]
       : [],
     [open],
   );
-
-  const save = async () => {
-    const trimmed = name.trim();
-    if (trimmed === '') {
-      setNameError('A dashboard needs a name');
-      nameRef.current?.focus();
-      return;
-    }
-    setSaving(true);
-    setSaveError(null);
-    try {
-      const id = await createDashboard(engine, {
-        name: trimmed,
-        private: personal,
-        ownerId: viewerId ?? undefined,
-      });
-      onClose();
-      if (id !== '') void navigate(`/dashboard/${id}`);
-    } catch (error) {
-      setSaving(false);
-      setSaveError(error instanceof ApiError ? error.message : 'Could not create the dashboard');
-    }
-  };
 
   return (
     <Modal
@@ -126,14 +128,10 @@ export function CreateDashboardModal({ open = true, onClose }: CreateDashboardMo
           error={nameError ?? undefined}
           placeholder="Delivery"
         />
-        <Checkbox
-          label="Personal — only visible to you"
-          checked={personal}
-          onChange={(event) => setPersonal(event.target.checked)}
-        />
-        {saveError !== null && (
+        <Switch label="Personal — only visible to you" checked={personal} onChange={setPersonal} />
+        {error !== null && (
           <p className={styles.error} role="alert">
-            {saveError}
+            {error}
           </p>
         )}
       </form>

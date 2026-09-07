@@ -1,8 +1,15 @@
 /**
- * Initiative overview: properties, archive, and posting a status update.
+ * Initiative overview: the property rail, the description, the `…` menu and posting an
+ * update.
+ *
+ * Rewritten for the rail. The screen used to write its properties through native selects in
+ * the reading column and to carry a permanent Archive button in the header, so the old
+ * assertions drove `selectOptions` and a bare button. What is being checked is unchanged:
+ * a chosen property reaches `updateInitiative`, archiving asks and then leaves the list, an
+ * update posts, `l` opens the label picker, and an existing initiative can be nested.
  */
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
@@ -12,7 +19,7 @@ import { KeymapProvider } from '~/app/keymap';
 import { Store, type Change, type Entity } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
 
-import { InitiativeActivity } from './InitiativeActivity';
+import { InitiativeActivity } from './ProjectActivity';
 import { InitiativeDetail } from './InitiativeDetail';
 import { InitiativeShell } from './InitiativeShell';
 
@@ -192,17 +199,90 @@ describe('Initiative overview leftovers', () => {
     expect(screen.getByRole('heading', { name: 'Platform reliability' })).toBeTruthy();
   });
 
-  it('writes status through updateInitiative', async () => {
+  it('writes status from the rail through updateInitiative', async () => {
     const { mutate, user } = renderDetail();
-    await user.selectOptions(screen.getByLabelText('Status'), 'active');
+    const rail = screen.getByRole('complementary', { name: 'Initiative properties' });
+    await user.click(within(rail).getByRole('button', { name: 'Planned' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Active' }));
     expect(mutate).toHaveBeenCalled();
     const input = mutate.mock.calls[0]![0] as { variables: { input: { status?: string } } };
     expect(input.variables.input.status).toBe('ACTIVE');
   });
 
-  it('archives and leaves the list', async () => {
+  it('writes priority from the rail through updateInitiative', async () => {
     const { mutate, user } = renderDetail();
-    await user.click(screen.getByRole('button', { name: 'Archive' }));
+    const rail = screen.getByRole('complementary', { name: 'Initiative properties' });
+    await user.click(within(rail).getByRole('button', { name: 'No priority' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Urgent' }));
+    const input = mutate.mock.calls[0]![0] as { variables: { input: { priority?: number } } };
+    expect(input.variables.input.priority).toBe(1);
+  });
+
+  it('writes the owner from the rail, opened with a', async () => {
+    const { mutate, user } = renderDetail();
+    await user.keyboard('a');
+    await user.click(screen.getByRole('menuitem', { name: 'No owner' }));
+    const input = mutate.mock.calls[0]![0] as {
+      variables: { input: { clearOwner?: boolean } };
+    };
+    expect(input.variables.input.clearOwner).toBe(true);
+  });
+
+  it('saves the description when the field is left', async () => {
+    const { mutate, user } = renderDetail();
+    await user.type(screen.getByRole('textbox', { name: 'Description' }), 'Fewer pages, faster.');
+    await user.tab();
+    expect(mutate).toHaveBeenCalled();
+    const input = mutate.mock.calls[0]![0] as { variables: { input: { description?: string } } };
+    expect(input.variables.input.description).toBe('Fewer pages, faster.');
+  });
+
+  it('writes the target date from the rail, opened with shift+T', async () => {
+    const { mutate, user } = renderDetail();
+    await user.keyboard('{Shift>}T{/Shift}');
+    const panel = screen.getByRole('dialog', { name: 'Target date' });
+    await user.type(within(panel).getByLabelText('Or a date'), '2026-09-30');
+    await user.click(within(panel).getByRole('button', { name: 'Set' }));
+    expect(mutate).toHaveBeenCalled();
+    const input = mutate.mock.calls[0]![0] as {
+      variables: { input: { targetDate?: string; targetDateGranularity?: string } };
+    };
+    expect(input.variables.input.targetDate).toBe('2026-09-30');
+    expect(input.variables.input.targetDateGranularity).toBe('DAY');
+  });
+
+  it('writes the lead team from the rail', async () => {
+    const { mutate, user } = renderDetail();
+    const rail = screen.getByRole('complementary', { name: 'Initiative properties' });
+    await user.click(within(rail).getByRole('button', { name: 'No lead team' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Engineering' }));
+    const input = mutate.mock.calls[0]![0] as { variables: { input: { leadTeamId?: string } } };
+    expect(input.variables.input.leadTeamId).toBe(TEAM);
+  });
+
+  it('opens the status menu with s', async () => {
+    const { user } = renderDetail();
+    await user.keyboard('s');
+    const menu = screen.getByRole('menu', { name: 'Status' });
+    expect(within(menu).getByRole('menuitem', { name: 'Completed' })).toBeTruthy();
+  });
+
+  it('favourites the initiative from the … menu', async () => {
+    const { mutate, user } = renderDetail();
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Add to favourites' }));
+    expect(mutate).toHaveBeenCalled();
+    const call = mutate.mock.calls[0]![0] as {
+      variables: { kind?: string; targetId?: string };
+    };
+    expect(call.variables.kind).toBe('INITIATIVE');
+    expect(call.variables.targetId).toBe(INITIATIVE);
+  });
+
+  it('archives from the … menu and leaves the list', async () => {
+    const { mutate, user } = renderDetail();
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Archive initiative' }));
     expect(screen.getByRole('heading', { name: 'Archive Platform reliability?' })).toBeTruthy();
     const confirms = screen.getAllByRole('button', { name: 'Archive' });
     await user.click(confirms[confirms.length - 1]!);
@@ -232,10 +312,10 @@ describe('Initiative overview leftovers', () => {
     expect(screen.getByRole('menuitem', { name: 'Platform' })).toBeTruthy();
   });
 
-  it('nests an existing initiative from Overview', async () => {
+  it('nests an existing initiative through the picker', async () => {
     const { mutate, user } = renderDetail();
-    await user.selectOptions(screen.getByLabelText('Initiative to nest'), 'i2');
-    await user.click(screen.getByRole('button', { name: 'Nest' }));
+    await user.click(screen.getByRole('button', { name: 'Nest an existing initiative' }));
+    await user.click(screen.getByRole('menuitem', { name: /Mobile launch/ }));
     expect(mutate).toHaveBeenCalled();
     const call = mutate.mock.calls[0]![0] as {
       variables: { parentInitiativeId?: string; childInitiativeId?: string };

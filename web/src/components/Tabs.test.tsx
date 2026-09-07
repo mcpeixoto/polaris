@@ -82,4 +82,32 @@ describe('Tabs', () => {
       expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Board' }));
     });
   });
+
+  /**
+   * The project's attached views are links that also drag and open a context menu, and they
+   * belong in the same row as Overview and Issues: one row of sections is one landmark.
+   */
+  it('lets a caller draw a position in the row itself, in place', () => {
+    render(
+      <MemoryRouter initialEntries={['/project/1']}>
+        <Tabs
+          items={[
+            ...sections,
+            { id: 'views', label: 'Views', render: () => <a href="/project/1/view/9">Alpha</a> },
+            { id: 'activity', label: 'Activity', to: '/project/1/activity' },
+          ]}
+          aria-label="Project sections"
+        />
+      </MemoryRouter>,
+    );
+
+    const row = screen.getByRole('navigation', { name: 'Project sections' });
+    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual([
+      'Overview',
+      'Issues',
+      'Alpha',
+      'Activity',
+    ]);
+    expect(row.querySelectorAll('a').length).toBe(4);
+  });
 });

@@ -41,6 +41,7 @@ import { personName } from '~/features/prefs/prefs';
 import { PLANS } from '~/features/pricing/plans';
 import { triageQueueCount } from '~/features/triage/queue';
 import { UpdateBanner } from '~/platform/UpdateBanner';
+import { CreateTeamDialog } from '~/features/team/CreateTeamDialog';
 import { CreateIssueProvider } from '~/features/issue/create-context';
 import { type IssueComposerSeed } from '~/features/issue/create-url';
 import {
@@ -209,6 +210,7 @@ export function AppShell({
   const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
   const [createCustomerRequestOpen, setCreateCustomerRequestOpen] = useState(false);
   const [createDashboardOpen, setCreateDashboardOpen] = useState(false);
+  const [createTeamOpen, setCreateTeamOpen] = useState(false);
   const session = useWorkspaceSession();
   const workspaceMenu = useMenuTrigger();
   const labelMenu = useMenuTrigger();
@@ -421,6 +423,7 @@ export function AppShell({
     setCreateCustomerOpen(false);
     setCreateCustomerRequestOpen(false);
     setCreateDashboardOpen(false);
+    setCreateTeamOpen(false);
     // `closeAgent` is stable, so this list still never changes.
   }, [closeAgent]);
 
@@ -559,6 +562,19 @@ export function AppShell({
               title: 'Create customer request',
               group: 'Customers',
               run: () => setCreateCustomerRequestOpen(true),
+            },
+          ]
+        : []),
+      ...(isAdmin
+        ? [
+            {
+              // A team was reachable from one settings page and nowhere else — not from ⌘K,
+              // which is where every other create in this product lives. Admin-gated
+              // because the server refuses the mutation for anybody else.
+              id: 'team.create',
+              title: 'Create team',
+              group: 'Teams',
+              run: () => setCreateTeamOpen(true),
             },
           ]
         : []),
@@ -884,6 +900,7 @@ export function AppShell({
       showDashboards,
       mayCreate,
       mayCreateCustomers,
+      isAdmin,
       showPulse,
       showInitiatives,
       showMemberSettings,
@@ -1618,6 +1635,15 @@ export function AppShell({
           open: createDashboardOpen,
           onClose: () => setCreateDashboardOpen(false),
         })}
+        {/* Mounted only while it is open, the way the settings page mounts it: this dialog
+            awaits a real round trip rather than a stand-in row (see `features/team/create.ts`),
+            so there is no optimistic close to animate out of. */}
+        {createTeamOpen ? (
+          <CreateTeamDialog
+            onClose={() => setCreateTeamOpen(false)}
+            onCreated={(team) => void navigate(`/team/${team.key}/settings`)}
+          />
+        ) : null}
       </div>
     </CreateIssueProvider>
   );

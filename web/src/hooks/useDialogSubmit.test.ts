@@ -127,4 +127,42 @@ describe('useDialogSubmit', () => {
     rerender();
     expect(result.current.submitRef).toBe(ref);
   });
+
+  /**
+   * "Create more" files and keeps the dialog up, so nothing else ever drops `saving` — its
+   * primary button would spin for the rest of the sitting. `reset` is that branch's ending,
+   * and it is a separate call precisely because the ordinary ending is the opposite: a
+   * button that returns to its resting label a frame before the dialog closes reads as a
+   * failure.
+   */
+  it('drops saving on demand, for a dialog that stays open after a create', async () => {
+    const { result } = renderHook(() => useDialogSubmit('Could not create the thing'));
+
+    await act(async () => {
+      await result.current.submit(async () => {});
+    });
+    expect(result.current.saving).toBe(true);
+
+    act(() => result.current.reset());
+    expect(result.current.saving).toBe(false);
+  });
+  /**
+   * A "create more" run stays open, so the button has to come back. `submit` leaves
+   * `saving` set on success — the ordinary ending is a dialog that closes — and a dialog
+   * that files and stays would otherwise be left with a primary button spinning over work
+   * that finished, refusing the next create.
+   */
+  it('drops the spinner on reset, for a dialog that files and stays', async () => {
+    const { result } = renderHook(() => useDialogSubmit('Could not create the thing'));
+
+    await act(async () => {
+      await result.current.submit(async () => {});
+    });
+    expect(result.current.saving).toBe(true);
+
+    act(() => result.current.reset());
+
+    expect(result.current.saving).toBe(false);
+    expect(result.current.error).toBeNull();
+  });
 });

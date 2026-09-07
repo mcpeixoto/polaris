@@ -111,7 +111,7 @@ const GitLabSettings = lazy(async () => ({
   default: (await import('~/views/GitLabSettings')).GitLabSettings,
 }));
 const InitiativeActivity = lazy(async () => ({
-  default: (await import('~/views/InitiativeActivity')).InitiativeActivity,
+  default: (await import('~/views/ProjectActivity')).InitiativeActivity,
 }));
 const InitiativeDetail = lazy(async () => ({
   default: (await import('~/views/InitiativeDetail')).InitiativeDetail,
@@ -474,8 +474,11 @@ function SignedInShell() {
               <Route path="issues" element={<ProjectIssues />} />
               <Route path="view/:viewId" element={<ProjectAttachedView />} />
               <Route path="activity" element={<ProjectActivity />} />
+              {/* Inside the shell, not beside it: routed as a sibling, opening a project's
+                  documents dropped the header, the tabs and the properties rail, so the
+                  reader left the project by clicking one of its own tabs. */}
+              <Route path="documents" element={<Documents />} />
             </Route>
-            <Route path="/project/:projectId/documents" element={<Documents />} />
             <Route path="/document/:documentId" element={<DocumentDetail />} />
             <Route path="/cycle/:cycleId" element={<CycleDetail />} />
             {/*

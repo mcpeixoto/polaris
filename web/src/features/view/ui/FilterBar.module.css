@@ -445,3 +445,40 @@ button.conj:focus-visible {
     }
   }
 }
+
+/* ---------------------------------------------------------------------------------------
+ * The read-only summary: the same sentence, drawn as something to look at rather than press.
+ */
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.summaryChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-height-pill);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+  white-space: nowrap;
+}
+
+.summaryConj {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.summaryEmpty {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}

@@ -42,6 +42,16 @@ export interface DialogSubmit {
    * `submitRef.current` on each render; the action reads it at dispatch.
    */
   readonly submitRef: { current: () => void };
+  /**
+   * Drops the spinner without closing anything.
+   *
+   * `submit` deliberately leaves `saving` set on success, because the ordinary ending is
+   * that the dialog closes and a button that returns to its resting label for one frame
+   * first reads as a failure. A "create more" run has no such ending: it files, stays open
+   * and takes the next one, so the button has to come back — otherwise the second create is
+   * refused by a control that is still spinning over work that finished.
+   */
+  readonly reset: () => void;
 }
 
 /**
@@ -78,5 +88,7 @@ export function useDialogSubmit(fallback: string): DialogSubmit {
     [fallback],
   );
 
-  return { saving, error, setError, submit, submitRef };
+  const reset = useCallback(() => setSaving(false), []);
+
+  return { saving, error, setError, submit, reset, submitRef };
 }

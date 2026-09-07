@@ -117,8 +117,8 @@ test('a project linked once is listed once, even when the socket beats the respo
     await route.fulfill({ response, body: payload });
   });
 
-  await page.getByLabel('Project to add').selectOption({ label: 'Aurora' });
-  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await page.getByRole('button', { name: 'Add a project' }).click();
+  await page.getByRole('menuitem', { name: /Aurora/ }).click();
 
   const listed = page.getByRole('link', { name: 'Aurora' });
 

@@ -1,6 +1,10 @@
 /**
- * The cycle header: which window this is, how far through it is, and the way to the one
- * either side of it — by pointer and by key.
+ * The cycle header and its rail: which window this is, how far through it is, the way to
+ * the one either side of it — by pointer and by key — and the properties it carries.
+ *
+ * The switcher's chords are pinned against the tooltips that teach them. They disagreed
+ * once: the buttons advertised `[` and `]` while the actions were bound to `alt+Arrow`, so
+ * the product taught a chord that did nothing to anybody who read it.
  */
 
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
@@ -9,9 +13,9 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { EngineProvider } from '~/app/context';
-import { KeymapProvider } from '~/app/keymap';
+import { KeymapProvider, useKeymap } from '~/app/keymap';
 import { Store, type Change, type Entity } from '~/store';
-import type { Cycle, Team, WorkflowState } from '~/store/types';
+import type { Cycle, Issue, Team, WorkflowState } from '~/store/types';
 import type { SyncEngine } from '~/sync/engine';
 
 import { CycleDetail } from './CycleDetail';
@@ -91,6 +95,40 @@ function state(id: string, category: WorkflowState['category']): WorkflowState {
   };
 }
 
+function issue(id: string, cycleId: string, stateId: string, createdAt: number): Issue {
+  return {
+    id,
+    workspaceId: WORKSPACE,
+    teamId: TEAM,
+    number: 1,
+    identifier: `ENG-${id}`,
+    title: id,
+    description: '',
+    stateId,
+    priority: 3,
+    sortOrder: id,
+    dueDateSource: 'manual',
+    cycleId,
+    createdAt: new Date(createdAt).toISOString(),
+    updatedAt: AT,
+  };
+}
+
+/**
+ * Reads the registry out of the provider the screen is mounted in, which is the only way to
+ * ask what a component registered and in which context.
+ */
+function probe(): { registry: ReturnType<typeof useKeymap>['registry'] | null } {
+  const seen: { registry: ReturnType<typeof useKeymap>['registry'] | null } = { registry: null };
+  Probe = () => {
+    seen.registry = useKeymap().registry;
+    return null;
+  };
+  return seen;
+}
+
+let Probe: (() => null) | null = null;
+
 function seeded(): Store {
   const now = Date.now();
   const store = new Store(WORKSPACE);
@@ -100,6 +138,8 @@ function seeded(): Store {
     upsert(3, 'cycle', cycle('cy1', 'Cycle 1', now - 20 * DAY, now - 7 * DAY)),
     upsert(4, 'cycle', cycle('cy2', 'Cycle 2', now - 5 * DAY, now + 5 * DAY)),
     upsert(5, 'cycle', cycle('cy3', 'Cycle 3', now + 8 * DAY, now + 21 * DAY)),
+    // Filed two days into the running window, so the window grew after it opened.
+    upsert(6, 'issue', issue('i1', 'cy2', 's-todo', now - 3 * DAY)),
   ]);
   return store;
 }
@@ -114,14 +154,18 @@ function mount(store: Store, cycleId = 'cy2', phase: 'idle' | 'hydrating' = 'idl
           <Routes>
             <Route path="/cycle/:cycleId" element={<CycleDetail />} />
           </Routes>
+          {Probe === null ? null : <Probe />}
         </EngineProvider>
       </KeymapProvider>
     </MemoryRouter>,
   );
-  return { user: userEvent.setup() };
+  return { user: userEvent.setup(), mutate };
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  Probe = null;
+  cleanup();
+});
 
 describe('CycleDetail header', () => {
   it('says which window this is, what phase it is in and how long is left', () => {
@@ -151,13 +195,98 @@ describe('CycleDetail header', () => {
     ).toBe('true');
   });
 
-  it('steps from the keyboard, through the registry rather than a local listener', async () => {
+  it('steps forward on the chord its tooltip advertises', async () => {
     const { user } = mount(seeded());
 
-    await user.keyboard('{Alt>}{ArrowRight}{/Alt}');
+    await user.hover(screen.getByRole('button', { name: 'Next cycle' }));
+    const tip = await screen.findByRole('tooltip');
+    expect(tip.textContent).toContain(']');
+
+    await user.keyboard('[BracketRight]');
     await waitFor(() =>
       expect(screen.getByRole('banner', { name: 'Cycle' }).textContent).toContain('Cycle 3'),
     );
+  });
+
+  it('steps back on the chord its tooltip advertises', async () => {
+    const { user } = mount(seeded());
+
+    await user.hover(screen.getByRole('button', { name: 'Previous cycle' }));
+    const tip = await screen.findByRole('tooltip');
+    expect(tip.textContent).toContain('[');
+
+    await user.keyboard('[BracketLeft]');
+    await waitFor(() =>
+      expect(screen.getByRole('banner', { name: 'Cycle' }).textContent).toContain('Cycle 1'),
+    );
+  });
+
+  it('keeps its chords in the detail context rather than everywhere in the workspace', () => {
+    const seen = probe();
+    mount(seeded());
+
+    const detail = seen.registry!.listForContext('detail').map((action) => action.id);
+    const global = seen.registry!.listForContext('global').map((action) => action.id);
+    expect(detail).toContain('cycle.next');
+    expect(detail).toContain('cycle.previous');
+    expect(detail).toContain('cycle.toggleMembers');
+    expect(global).not.toContain('cycle.next');
+    expect(global).not.toContain('cycle.previous');
+    expect(global).not.toContain('cycle.toggleMembers');
+  });
+
+  it('carries a trail back to the team’s cycles', () => {
+    mount(seeded());
+
+    // Scoped to the cycle's own header: the issue list below draws a trail of its own.
+    const header = screen.getByRole('banner', { name: 'Cycle' });
+    const trail = within(header).getByRole('navigation', { name: 'Breadcrumb' });
+    expect(within(trail).getByRole('link', { name: 'Engineering' }).getAttribute('href')).toBe(
+      '/team/ENG',
+    );
+    expect(within(trail).getByRole('link', { name: 'Cycles' }).getAttribute('href')).toBe(
+      '/team/ENG/cycles',
+    );
+  });
+});
+
+describe('CycleDetail rail', () => {
+  it('shows the window’s dates without opening the edit dialog', () => {
+    mount(seeded());
+
+    const rail = screen.getByRole('complementary', { name: 'Properties' });
+    expect(within(rail).getByRole('button', { name: /Start date/ })).toBeTruthy();
+    expect(within(rail).getByRole('button', { name: /End date/ })).toBeTruthy();
+  });
+
+  it('saves the description when the field is left', async () => {
+    const { user, mutate } = mount(seeded());
+
+    const rail = screen.getByRole('complementary', { name: 'Properties' });
+    const field = within(rail).getByLabelText('Description');
+    await user.click(field);
+    await user.keyboard('Ship the importer');
+    await user.tab();
+
+    await waitFor(() => expect(mutate).toHaveBeenCalled());
+    expect(mutate.mock.calls[0]?.[0]).toMatchObject({
+      variables: { input: { id: 'cy2', description: 'Ship the importer' } },
+    });
+  });
+
+  it('reports the scope the window picked up after it opened', () => {
+    mount(seeded());
+
+    const rail = screen.getByRole('complementary', { name: 'Properties' });
+    expect(within(rail).getByText(/scope|change/i)).toBeTruthy();
+  });
+
+  it('gives the members panel a control rather than only a chord', async () => {
+    const { user } = mount(seeded());
+
+    expect(screen.getByRole('complementary', { name: 'Cycle members' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Hide cycle members' }));
+    expect(screen.queryByRole('complementary', { name: 'Cycle members' })).toBeNull();
   });
 });
 

@@ -1,0 +1,61 @@
+.form {
+  display: flex;
+}
+
+/*
+ * The title is a field that does not look like one until it is being used. A title is edited
+ * about once in its life and read hundreds of times, so at rest it is a heading; the border
+ * and the surface arrive on focus, when the field has become a control.
+ *
+ * `.title` is the wrapper `Textarea` hands a caller's className to, and the typography has to
+ * reach the control through a descendant selector rather than through it — the control takes
+ * `font-size` from its own box, so a rule on the frame never arrives. It is not the
+ * bare-element `:global()` the house rule forbids: it cannot match anything this component
+ * has not put inside this one field.
+ */
+.title {
+  flex: 1;
+  min-width: 0;
+  margin-left: calc(var(--space-2) * -1);
+}
+
+.title textarea {
+  padding: var(--space-1) var(--space-2);
+  border-color: transparent;
+  background-color: transparent;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  /* The comment above says the border and the surface "arrive on focus". Without a ramp they
+     did not arrive, they appeared — which made a heading look like it had been replaced by a
+     text box rather than revealed as one. */
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+.title textarea:hover {
+  border-color: var(--border-subtle);
+}
+
+/*
+ * `:focus` rather than `:focus-visible`, which is the rule for a text field and not the
+ * exception: Field's own `.control:focus-within` already says so — "unlike a button this
+ * fires for pointer users too, which is correct — a text field the pointer clicked into
+ * really is focused, and it is about to receive typing".
+ */
+.title textarea:focus {
+  border-color: var(--border-focus);
+  background-color: var(--bg-primary);
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* The same field at the size of the row it sits in. Written against both classes so it wins
+   over the block above without depending on which rule the bundler emits first. */
+.title.md textarea {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: normal;
+}

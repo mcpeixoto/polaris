@@ -62,3 +62,9 @@ export function daysLeftLabel(endsAt: string, timeZone: string, now: number = Da
   if (days === 0) return 'Ends today';
   return days === 1 ? '1 day left' : `${days} days left`;
 }
+
+/** "Jan 5", or "Jan 5, 2024" once the year stops being this one. One end of a window. */
+export function cycleDay(iso: string, timeZone: string, now: number = Date.now()): string {
+  const withYear = yearOf(iso, timeZone) !== dayIn(now, timeZone).slice(0, 4);
+  return dayFormat(withYear, timeZone).format(new Date(iso));
+}

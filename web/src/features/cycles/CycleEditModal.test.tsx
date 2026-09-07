@@ -1,12 +1,22 @@
 /**
- * The edit dialog, from the outside: what a date input shows, what a save sends, and what
+ * The edit dialog, from the outside: what a date picker shows, what a save sends, and what
  * happens when the window is impossible or the server says no.
+ *
+ * The dates moved from two raw `<input type="date">` to two `DatePicker`s, so the cases that
+ * used to type into a field open a panel and set a day in it. The assertions did not move:
+ * the day shown is still the team's rather than UTC's, and the instant sent still keeps the
+ * time of day the window ends at.
+ *
+ * The last two are what the dialog had none of — it was the only create-or-edit dialog in
+ * the product with no keymap registration at all, so ⌘⏎ did nothing and `j` fell through to
+ * the list behind it.
  */
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { KeymapProvider, useActions, useKeyContext } from '~/app/keymap';
 import type { Cycle } from '~/store';
 import { ApiError } from '~/sync/api';
 
@@ -29,16 +39,35 @@ const TOKYO_CYCLE: Cycle = {
 
 function mount(onSave: (edit: unknown) => void | Promise<void>) {
   render(
-    <CycleEditModal
-      open
-      cycle={TOKYO_CYCLE}
-      phase="Upcoming"
-      timezone="Asia/Tokyo"
-      onClose={() => {}}
-      onSave={onSave as never}
-    />,
+    <KeymapProvider>
+      <CycleEditModal
+        open
+        cycle={TOKYO_CYCLE}
+        phase="Upcoming"
+        timezone="Asia/Tokyo"
+        onClose={() => {}}
+        onSave={onSave as never}
+      />
+    </KeymapProvider>,
   );
   return userEvent.setup();
+}
+
+/** The pill for one end of the window, found by the property it is described by. */
+function datePill(property: 'Starts' | 'Ends'): HTMLElement {
+  return screen.getByRole('button', { description: property });
+}
+
+/** Opens one end's panel and sets a day in it, the way somebody with a keyboard would. */
+async function setDay(
+  user: ReturnType<typeof userEvent.setup>,
+  property: 'Starts' | 'Ends',
+  day: string,
+) {
+  await user.click(datePill(property));
+  const panel = await screen.findByRole('dialog', { name: property });
+  fireEvent.change(within(panel).getByLabelText('Or a date'), { target: { value: day } });
+  await user.click(within(panel).getByRole('button', { name: 'Set' }));
 }
 
 function save(user: ReturnType<typeof userEvent.setup>) {
@@ -48,10 +77,19 @@ function save(user: ReturnType<typeof userEvent.setup>) {
 afterEach(cleanup);
 
 describe('CycleEditModal dates', () => {
-  it('shows the day the team is on, not the UTC one', () => {
-    mount(vi.fn());
-    expect((screen.getByLabelText('Starts') as HTMLInputElement).value).toBe('2026-01-05');
-    expect((screen.getByLabelText('Ends') as HTMLInputElement).value).toBe('2026-01-18');
+  it('shows the day the team is on, not the UTC one', async () => {
+    const user = mount(vi.fn());
+
+    await user.click(datePill('Starts'));
+    const starts = await screen.findByRole('dialog', { name: 'Starts' });
+    expect((within(starts).getByLabelText('Or a date') as HTMLInputElement).value).toBe(
+      '2026-01-05',
+    );
+    await user.keyboard('{Escape}');
+
+    await user.click(datePill('Ends'));
+    const ends = await screen.findByRole('dialog', { name: 'Ends' });
+    expect((within(ends).getByLabelText('Or a date') as HTMLInputElement).value).toBe('2026-01-18');
   });
 
   it('sends no dates when nothing was changed', async () => {
@@ -70,7 +108,7 @@ describe('CycleEditModal dates', () => {
     const onSave = vi.fn();
     const user = mount(onSave);
 
-    fireEvent.change(screen.getByLabelText('Ends'), { target: { value: '2026-01-20' } });
+    await setDay(user, 'Ends', '2026-01-20');
     await save(user);
 
     await waitFor(() => expect(onSave).toHaveBeenCalled());
@@ -83,7 +121,7 @@ describe('CycleEditModal dates', () => {
     const onSave = vi.fn();
     const user = mount(onSave);
 
-    fireEvent.change(screen.getByLabelText('Ends'), { target: { value: '2026-01-02' } });
+    await setDay(user, 'Ends', '2026-01-02');
     await save(user);
 
     expect(await screen.findByText('The end has to come after the start.')).toBeTruthy();
@@ -97,14 +135,16 @@ describe('CycleEditModal when the write is refused', () => {
     const onClose = vi.fn();
     const onSave = vi.fn().mockRejectedValue(new ApiError('VALIDATION', 'Past dates are fixed.'));
     render(
-      <CycleEditModal
-        open
-        cycle={TOKYO_CYCLE}
-        phase="Upcoming"
-        timezone="Asia/Tokyo"
-        onClose={onClose}
-        onSave={onSave}
-      />,
+      <KeymapProvider>
+        <CycleEditModal
+          open
+          cycle={TOKYO_CYCLE}
+          phase="Upcoming"
+          timezone="Asia/Tokyo"
+          onClose={onClose}
+          onSave={onSave}
+        />
+      </KeymapProvider>,
     );
     const user = userEvent.setup();
 
@@ -113,5 +153,67 @@ describe('CycleEditModal when the write is refused', () => {
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toBe('Past dates are fixed.');
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+/** A stand-in for the list under the dialog: it claims `j` in the `list` context. */
+function ListBehind({ onDown }: { onDown: () => void }) {
+  useKeyContext('list');
+  useActions(
+    [
+      {
+        id: 'test.moveDown',
+        title: 'Move down',
+        keys: ['j'],
+        when: 'list',
+        group: 'Test',
+        run: onDown,
+      },
+    ],
+    [onDown],
+  );
+  return null;
+}
+
+describe('CycleEditModal and the keyboard', () => {
+  it('saves on the submit chord, which it used to ignore entirely', async () => {
+    const onSave = vi.fn();
+    mount(onSave);
+
+    fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true });
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+  });
+
+  it('saves once when the chord is pressed twice in one tick', async () => {
+    const onSave = vi.fn(() => new Promise<void>(() => {}));
+    mount(onSave);
+
+    fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true });
+    fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true });
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not leak j to the list behind it', () => {
+    const onDown = vi.fn();
+    render(
+      <KeymapProvider>
+        <ListBehind onDown={onDown} />
+        <CycleEditModal
+          open
+          cycle={TOKYO_CYCLE}
+          phase="Upcoming"
+          timezone="Asia/Tokyo"
+          onClose={() => {}}
+          onSave={vi.fn()}
+        />
+      </KeymapProvider>,
+    );
+
+    fireEvent.keyDown(window, { key: 'j' });
+
+    expect(onDown).not.toHaveBeenCalled();
   });
 });

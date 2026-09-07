@@ -1,9 +1,14 @@
 /**
- * The overview as a document: the title with its emoji, and every update as a card rather
- * than only the latest one.
+ * The overview as a document: the prose, the standing health, and what the autosave says.
+ *
+ * The name and its emoji are the shell's now — they are in the breadcrumb, which is also
+ * where the project is renamed — so this screen opens on the summary. And the feed belongs
+ * to the activity tab: this one keeps the composer and the latest update, which is the
+ * standing answer to "how is it going".
  */
 
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -35,7 +40,7 @@ function upsert(v: number, type: Change['type'], entity: Entity): Change {
   };
 }
 
-function renderOverview() {
+function renderOverview(mutate = vi.fn().mockResolvedValue({})) {
   const store = new Store(WORKSPACE);
   store.applyChanges([
     upsert(1, 'project', {
@@ -74,7 +79,7 @@ function renderOverview() {
       updatedAt: AT,
     } as Entity),
   ]);
-  const engine = { store, mutate: vi.fn().mockResolvedValue({}) } as unknown as SyncEngine;
+  const engine = { store, mutate } as unknown as SyncEngine;
   render(
     <MemoryRouter initialEntries={[`/project/${PROJECT}`]}>
       <KeymapProvider>
@@ -89,35 +94,103 @@ function renderOverview() {
       </KeymapProvider>
     </MemoryRouter>,
   );
+  return { store, mutate };
 }
 
 describe('ProjectOverview as a document', () => {
-  it('leads with the emoji and the name, then the summary as editable prose', () => {
+  it("opens on the summary and the description, the name being the shell's", () => {
     renderOverview();
-    expect(screen.getByText('Launch')).toBeTruthy();
-    expect(screen.getByText('🚀')).toBeTruthy();
+
     expect((screen.getByLabelText('Summary') as HTMLInputElement).value).toBe('Ship it');
     expect(screen.getByLabelText('Description')).toBeTruthy();
+    // The heading and the emoji live in the breadcrumb; two copies of a name is one more
+    // than a screen reader wants.
+    expect(screen.queryByText('🚀')).toBeNull();
   });
 
-  it('lists every update as a card, newest first, each with its health', () => {
+  it('shows the latest update, and leaves the history to the activity tab', () => {
     renderOverview();
-    const updates = screen.getByRole('heading', { name: 'Updates' });
-    expect(updates).toBeTruthy();
-    const bodies = screen
-      .getAllByText(/Started well|Then it slipped/)
-      .map((node) => node.textContent);
-    expect(bodies).toEqual(['Then it slipped', 'Started well']);
-    // The composer's health <select> lists the same words, so look for them on a card.
-    const onCard = (text: string) =>
-      screen.getAllByText(text).some((node) => node.closest('li') !== null);
-    expect(onCard('Off track')).toBe(true);
-    expect(onCard('On track')).toBe(true);
+
+    expect(screen.getByRole('heading', { name: 'Latest update' })).toBeTruthy();
+    expect(screen.getByText('Then it slipped')).toBeTruthy();
+    expect(screen.queryByText('Started well')).toBeNull();
+    // The health it claimed, on the card rather than only in the composer's control.
+    expect(screen.getAllByText('Off track').some((node) => node.closest('li') !== null)).toBe(true);
   });
 
-  it('keeps the composer beneath the cards', () => {
+  it('keeps the composer beneath the card, health chosen from a menu', async () => {
+    const user = userEvent.setup();
     renderOverview();
+
     expect(screen.getByLabelText('Update')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Post update' })).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Health' }));
+    const menu = screen.getByRole('menu', { name: 'Health' });
+    await user.click(within(menu).getByRole('menuitem', { name: 'At risk' }));
+
+    expect(screen.getByRole('button', { name: 'Health' }).textContent).toContain('At risk');
+  });
+
+  /**
+   * The description used to be a `Textarea` keyed on the stored value, so a change arriving
+   * over sync remounted the field and threw away whatever was half-written in it. Somebody
+   * else's edit is not a reason to lose your paragraph.
+   */
+  it('keeps a half-typed description when the stored one changes underneath', async () => {
+    const user = userEvent.setup();
+    const { store } = renderOverview();
+
+    const field = screen.getByLabelText('Description');
+    await user.click(field);
+    await user.type(field, 'Half a thought');
+
+    await act(async () => {
+      store.applyChanges([
+        upsert(4, 'project', {
+          id: PROJECT,
+          workspaceId: WORKSPACE,
+          name: 'Launch',
+          icon: '🚀',
+          summary: 'Ship it',
+          description: 'Written by somebody else',
+          color: '',
+          statusId: 'ps-backlog',
+          priority: 0,
+          sortOrder: 'a',
+          updateSchedule: 'default',
+          createdAt: AT,
+          updatedAt: AT,
+        } as Entity),
+      ]);
+    });
+
+    expect((field as HTMLTextAreaElement).value).toBe('Half a thought');
+  });
+
+  /**
+   * Three detail screens autosave and none of them said so, which is how a form the user
+   * cannot tell they have submitted gets submitted again.
+   */
+  it('says a save is happening, and then that it happened', async () => {
+    const user = userEvent.setup();
+    let settle: (() => void) | null = null;
+    const mutate = vi.fn().mockImplementation(
+      () =>
+        new Promise<unknown>((resolve) => {
+          settle = () => resolve({});
+        }),
+    );
+    renderOverview(mutate);
+
+    await user.click(screen.getByLabelText('Summary'));
+    await user.type(screen.getByLabelText('Summary'), ' now');
+    await user.tab();
+
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Saving…'));
+    await act(async () => {
+      settle?.();
+    });
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Saved'));
   });
 });

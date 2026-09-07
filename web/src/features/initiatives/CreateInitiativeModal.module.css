@@ -1,11 +1,115 @@
-.form {
+/*
+ * The create dialog: a breadcrumb, a document, a row of pills.
+ *
+ * The same arrangement as the issue composer's stylesheet, and deliberately so — two
+ * creation dialogs that differ in their measurements read as two products. What is not
+ * copied is copied on purpose: there is no date-input capsule here, because the target date
+ * is a `DatePicker` behind a real pill rather than a native field dressed as one.
+ */
+
+.header {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-md);
+}
+
+.crumbGlyph {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-secondary);
+}
+
+.crumbLabel {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+}
+
+.crumb {
+  display: flex;
+  align-items: center;
+  color: var(--text-tertiary);
+}
+
+.heading {
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
+.form {
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+}
+
+/*
+ * The name's typography, and the name's alone. Scoped through the element rather than the
+ * wrapper: `Input` hands a caller's className to the field frame, and the control inside
+ * takes `font-size` from its own box rather than by inheritance.
+ */
+.title input {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: -0.016em;
+}
+
+.description textarea {
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+}
+
+.properties {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: var(--space-2);
+}
+
+/* Modal's footer is trailing-aligned; this fills it and puts the switch at the other end. */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--space-3);
+  width: 100%;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/*
+ * The expanded dialog. Doubled for the same reason the issue composer's rule is — `Modal`'s
+ * own `.composer` sets `max-width` at two classes, and this has to beat it whatever the
+ * emission order.
+ */
+.fullScreen.fullScreen.fullScreen {
+  max-width: none;
+  min-height: 100%;
 }
 
 .error {
   margin: 0;
   color: var(--text-danger);
   font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/* Secondary, not tertiary: this text sits on --bg-elevated, where tertiary fails 4.5:1 in
+ * dark. See docs/03-architecture/08-ui-composition.md. */
+.dropped {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
 }
