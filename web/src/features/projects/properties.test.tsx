@@ -114,4 +114,55 @@ describe('ProjectProperties members', () => {
     expect(mutate.mock.calls[0]![0].variables).toEqual({ projectId: PROJECT, userId: USER });
     expect(mutate.mock.calls[0]![0].optimistic[0].type).toBe('projectMember');
   });
+
+  /**
+   * The icon was settable in the create dialog and nowhere afterwards, so the one property
+   * chosen before anybody knew what the project was could never be revised.
+   */
+  it('sets the icon from the rail, writing it and its colour through updateProject', async () => {
+    const user = userEvent.setup();
+    const store = new Store(WORKSPACE);
+    store.applyChanges([
+      upsert(1, 'project', {
+        id: PROJECT,
+        workspaceId: WORKSPACE,
+        name: 'Launch',
+        description: '',
+        color: '',
+        statusId: 'ps-backlog',
+        priority: 0,
+        sortOrder: 'a',
+        updateSchedule: 'default',
+        createdAt: AT,
+        updatedAt: AT,
+      } as Entity),
+    ]);
+    const mutate = vi.fn().mockResolvedValue({});
+    const engine = { store, mutate } as unknown as SyncEngine;
+
+    render(
+      <MemoryRouter>
+        <KeymapProvider>
+          <EngineProvider
+            engine={engine}
+            status={{ phase: 'ready', connection: 'ready', pending: 0 }}
+          >
+            <ProjectProperties projectId={PROJECT} />
+          </EngineProvider>
+        </KeymapProvider>
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Set icon' }));
+    await user.click(screen.getByRole('button', { name: '\u{1F680}' }));
+
+    await waitFor(() => expect(mutate).toHaveBeenCalled());
+    expect(mutate.mock.calls[0]![0].variables.input).toMatchObject({
+      id: PROJECT,
+      icon: '\u{1F680}',
+    });
+    // The mock engine does not apply optimistic patches, so the patch itself is the evidence
+    // the rail wrote the icon rather than only naming it on the wire.
+    expect(mutate.mock.calls[0]![0].optimistic[0].after.icon).toBe('\u{1F680}');
+  });
 });
