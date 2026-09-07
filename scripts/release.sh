@@ -113,3 +113,25 @@ echo "  iOS      — archive, validate, upload to TestFlight"
 echo "  Release  — checks all of the above actually shipped"
 echo
 echo "  gh run list --branch $VERSION"
+echo
+echo "Waiting for them, then checking each surface. Ctrl-C is safe — the tag is pushed,"
+echo "and \`make status TAG=$VERSION\` asks the same questions later."
+echo
+
+# Poll the workflows rather than the surfaces: a surface that has not been reached yet and
+# one that never will be look identical, and only the runs know which is which.
+deadline=$(( $(date +%s) + 60*60 ))
+while :; do
+  pending=$(gh run list --branch "$VERSION" --json status \
+            --jq '[.[]|select(.status!="completed")]|length' 2>/dev/null || echo 1)
+  total=$(gh run list --branch "$VERSION" --json status --jq 'length' 2>/dev/null || echo 0)
+  [ "${total:-0}" -ge 3 ] && [ "${pending:-1}" = 0 ] && break
+  if [ "$(date +%s)" -gt "$deadline" ]; then
+    echo "Still running after an hour. Check with: make status TAG=$VERSION"
+    exit 0
+  fi
+  sleep 30
+done
+
+echo
+exec bash scripts/release-status.sh "$VERSION"
