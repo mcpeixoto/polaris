@@ -180,6 +180,10 @@ lint-compose: ## Enforce that an opt-in compose service cannot break commands fo
 lint-desktop: ## Enforce that a desktop artefact shipping two architectures names which one it is
 	@bash scripts/lint-desktop.sh
 
+.PHONY: release-secrets
+release-secrets: ## Which release secrets are configured, and how to set the ones that are not
+	@bash scripts/release-secrets.sh $(ARGS)
+
 .PHONY: lint-release
 lint-release: ## Enforce that cutting a tag actually publishes something a user can install
 	@bash scripts/lint-release.sh
