@@ -59,6 +59,27 @@ if ! grep -q 'CURRENT_PROJECT_VERSION: ' "$ios"; then
   echo "      archive, with the tag already spent."
 fi
 
+# Every secret a workflow reads must be written down, with what breaks without it.
+#
+# This is the drift that costs a release day: a workflow grows a `secrets.NEW_THING`, the
+# repository it runs in does not have one, and nothing says so until the job fails months
+# later on a tag. GITHUB_TOKEN is excluded — Actions provides it and there is nothing to
+# configure.
+doc=docs/05-infrastructure/12-release-secrets.md
+if [ ! -f "$doc" ]; then
+  note "$doc is missing — the secrets the workflows read are written down nowhere"
+else
+  undocumented=$(grep -rhoE 'secrets\.[A-Z_][A-Z0-9_]*' .github/workflows/ \
+    | sed 's/secrets\.//' | sort -u | grep -vx GITHUB_TOKEN \
+    | while read -r s; do grep -q "\`$s\`" "$doc" || echo "$s"; done)
+  if [ -n "$undocumented" ]; then
+    note "secrets read by a workflow but absent from $doc:"
+    echo "$undocumented" | sed 's/^/        /'
+    echo "      Add each one with what breaks when it is missing. A secret nobody knew was"
+    echo "      needed is found on a release day, by the release failing."
+  fi
+fi
+
 if [ $fail -eq 0 ]; then
   echo "release pipeline: ok"
 fi

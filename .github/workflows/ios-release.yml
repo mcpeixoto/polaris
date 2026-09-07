@@ -72,7 +72,7 @@ jobs:
           [ -n "$KEY_ID" ] || missing+=(APPLE_API_KEY_ID)
           [ -n "$ISSUER" ] || missing+=(APPLE_API_ISSUER)
           if [ ${#missing[@]} -ne 0 ]; then
-            echo "::error::Missing App Store Connect secrets: ${missing[*]}. Nothing can be uploaded; failing rather than reporting a release that did not happen."
+            echo "::error::Missing App Store Connect secrets: ${missing[*]}. Nothing can be uploaded; failing rather than reporting a release that did not happen. Run \`make release-secrets ARGS=--set\` on a machine with the key, or see docs/05-infrastructure/12-release-secrets.md."
             exit 1
           fi
 
