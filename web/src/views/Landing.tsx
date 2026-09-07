@@ -137,6 +137,14 @@ export function Landing() {
             ))}
           </nav>
           <div className={styles.navActions}>
+            {/* The repository, from the header rather than only from the footer and the
+                self-host band. Being open source is the reason to trust a tracker that
+                holds your team's whole backlog, and a reader who has to scroll a poster
+                to find that out has already decided. Hidden below 900px like navLinks —
+                the compact menu below carries it there. */}
+            <a href={SOURCE} className={`${styles.navQuiet} ${styles.navSource}`}>
+              GitHub
+            </a>
             <Link to="/signin" className={styles.navQuiet}>
               Sign in
             </Link>
@@ -184,6 +192,17 @@ export function Landing() {
               </a>
             ))}
           </nav>
+          {/* Outside the nav landmark above, which is the five sections of this page —
+              the repository is not one of them. */}
+          <a
+            href={SOURCE}
+            className={styles.navQuiet}
+            onClick={() => {
+              menu.setOpen(false);
+            }}
+          >
+            GitHub
+          </a>
           <Link
             to="/signin"
             className={styles.navQuiet}

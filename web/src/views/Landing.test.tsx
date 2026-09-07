@@ -32,6 +32,19 @@ describe('Landing', () => {
     );
   });
 
+  it('links the repository from the header, not only the footer', () => {
+    renderLanding();
+    // Every GitHub link on the page points at the same repository, and at least one of
+    // them is in the header: "open source" is a claim a reader checks by clicking, and
+    // the footer is three screens down from where they decide.
+    const repo = 'https://github.com/mcpeixoto/polaris';
+    const links = screen.getAllByRole('link', { name: 'GitHub' });
+    expect(links.length).toBeGreaterThan(0);
+    for (const link of links) {
+      expect(link.getAttribute('href')).toBe(repo);
+    }
+  });
+
   it('names the product surfaces Polar actually ships', () => {
     renderLanding();
     for (const name of ['Issues', 'Projects', 'Cycles', 'Triage', 'Initiatives', 'Timeline']) {

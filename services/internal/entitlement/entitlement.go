@@ -553,6 +553,31 @@ func (s Set) Limit(k LimitKind) (int, bool) {
 	return n, true
 }
 
+// HistoryWindow is the oldest moment whose activity this workspace may read, given the
+// clock. ok is false when the plan keeps history forever, and a caller that gets false must
+// not filter at all rather than filtering against the zero time.
+//
+// An accessor and not a refusal, and the difference is the one Limit's comment draws: the
+// history window is spent by a READ. A read that returned an *Error would be a paywall in
+// front of an issue's own activity feed, and a read that asked writeFeatures would shorten a
+// lapsed Pro workspace's history to ninety days over a failed card — which is precisely what
+// the lapsed rule exists to prevent. So the number comes from features, unnarrowed, and the
+// method answers with a cutoff rather than with permission.
+//
+// The clock is a parameter because this package deliberately has none: see Facts.
+// PlanLapsedAt for why nothing here re-derives a date by comparing against time.Now.
+//
+// A non-positive window that is not the sentinel cannot come from the matrix, and if one
+// ever did the honest answer is no window at all. Hiding a workspace's entire history
+// because a number was wrong is a worse failure on a read than showing too much of it.
+func (s Set) HistoryWindow(now time.Time) (time.Time, bool) {
+	days := s.features.HistoryDays
+	if days <= 0 {
+		return time.Time{}, false
+	}
+	return now.AddDate(0, 0, -days), true
+}
+
 // CanAddSeat answers whether one more billable member fits.
 //
 // The boundary is the whole method. With a limit of five and five members the workspace is

@@ -346,6 +346,14 @@ func (s *Service) ListIssueHistoryForIssues(
 		return out, nil
 	}
 
+	// Same window as the single-issue read in comment.go. Both call sites or neither: a
+	// page hydrated through the loader showing history the detail pane hides is a cap that
+	// depends on which query the client happened to send.
+	cutoff, err := s.historyCutoff(ctx, s.db.Queries(), p.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+
 	rows, err := s.db.Queries().ListIssueHistoryForIssues(ctx, store.ListIssueHistoryForIssuesParams{
 		IssueIds:    issueIDs,
 		WorkspaceID: p.WorkspaceID,
@@ -355,6 +363,9 @@ func (s *Service) ListIssueHistoryForIssues(
 		return nil, platform.Internal(err)
 	}
 	for _, r := range rows {
+		if !cutoff.IsZero() && r.CreatedAt.Before(cutoff) {
+			continue
+		}
 		e := model.IssueHistoryEntry{
 			ID:        r.ID,
 			IssueID:   r.IssueID,
