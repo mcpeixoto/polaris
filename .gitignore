@@ -3,6 +3,9 @@ dist/
 build/
 out/
 node_modules/
+# pnpm's local content-addressable store, created by `pnpm install --store-dir`.
+# Untracked build output that `make release` reads as uncommitted work, and stops on.
+.pnpm-store/
 *.tsbuildinfo
 services/bin/
 # Compiled Go binaries land beside their package when `go build` is run without -o. They are
