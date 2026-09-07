@@ -341,6 +341,9 @@ jobs:
       # An image that pins ENTRYPOINT to one of its four binaries, so `command:` selects
       # nothing and every service runs the API. `docker compose up` deadlocked on it.
       - run: bash scripts/lint-images.sh
+      # A release tag that builds packages nobody can download. Six tags left their
+      # GitHub release as a draft, which also made electron-updater see no update at all.
+      - run: bash scripts/lint-release.sh
 
   secrets:
     name: Secret scan

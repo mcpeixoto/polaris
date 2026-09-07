@@ -156,7 +156,7 @@ fmt-check: ## Fail if anything is unformatted
 	@npx prettier --check "web/src/**/*.{ts,tsx,css}" "web/e2e/**/*.ts" "web/*.{ts,json}" "ee/web/**/*.{ts,tsx,css}" "desktop/src/**/*.{ts,cts}"
 
 .PHONY: lint
-lint: lint-go lint-breakpoints lint-compose lint-desktop lint-editions lint-images lint-imports lint-ios-graphql lint-keymap lint-routes lint-tokens lint-web ## All linters
+lint: lint-go lint-breakpoints lint-compose lint-desktop lint-editions lint-images lint-imports lint-ios-graphql lint-keymap lint-release lint-routes lint-tokens lint-web ## All linters
 
 .PHONY: lint-go
 lint-go:
@@ -179,6 +179,10 @@ lint-compose: ## Enforce that an opt-in compose service cannot break commands fo
 .PHONY: lint-desktop
 lint-desktop: ## Enforce that a desktop artefact shipping two architectures names which one it is
 	@bash scripts/lint-desktop.sh
+
+.PHONY: lint-release
+lint-release: ## Enforce that cutting a tag actually publishes something a user can install
+	@bash scripts/lint-release.sh
 
 .PHONY: lint-images
 lint-images: ## Enforce that every binary a compose service asks for exists and is reachable
