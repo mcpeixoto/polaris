@@ -63,7 +63,11 @@ jobs:
           want="CI Desktop iOS release"
           deadline=$(( $(date +%s) + 75*60 ))
           while :; do
-            runs=$(gh run list --commit "$SHA" --limit 50 \
+            # By tag ref, not by commit. Now that a tag deploys, a merge and the tag cut
+            # from it share a sha, so `--commit` returns two CI runs — the merge's and the
+            # tag's — and the newest is not reliably the one this job is verifying.
+            # `--branch` on a tag push matches the tag name exactly.
+            runs=$(gh run list --branch "$TAG" --limit 50 \
                    --json workflowName,status,conclusion,databaseId)
             pending=""
             for w in CI Desktop "iOS release"; do
