@@ -105,7 +105,7 @@ final class OnboardingQATests: XCTestCase {
 
     /// Both routes in must be reachable by VoiceOver.
     ///
-    /// Deliberately does NOT assert on `app.images["sparkle"]`. On this runtime XCUITest still
+    /// Deliberately does NOT assert on the Polaris mark. On this runtime XCUITest still
     /// lists elements that carry `.accessibilityHidden(true)` — the error icon in
     /// `StateViews.swift` has the modifier applied directly to it and appears in the tree
     /// anyway — so tree presence is not evidence that VoiceOver reads something. The audit

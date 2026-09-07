@@ -26,6 +26,24 @@
  * the same reason nothing else in components/ has one: a theme is a list of declarations,
  * not a fork.
  *
+ * ## This file is the mark
+ *
+ * Five surfaces draw it and this is the one that decides it. The others are renderings of
+ * these coordinates at another size, and each of them says so in its own header:
+ *
+ *   web/public/icon.svg                    the browser tab, by hand, same grid
+ *   web/public/make-icons.py               favicon.ico and the installed-app PNGs
+ *   desktop/assets/icon.svg + make-icon.py the dock and taskbar icon
+ *   ios/PolarisCore/.../Design/Mark.swift  the iOS app, asserted in MarkGeometryTests
+ *   scripts/polaris_mark.py                the numbers the two Pillow generators read
+ *
+ * The product carried four different marks at once before this: this star, a matching tab
+ * icon, a desktop icon drawn from an older star with a different waist and no orbit, and an
+ * iOS "mark" that was Apple's `sparkle` SF Symbol on a tile. Nobody decided that — three
+ * files simply did not change when the fourth one did. So: change the geometry here first,
+ * then in the copies above, then re-run the two generators, in one commit. A raster that no
+ * longer matches this file is a stale file, not a variant.
+ *
  * ## The entrance, and why it is scripted rather than a fade
  *
  * The whole animation is CSS on mount, in one timeline of about 1.9 seconds:
@@ -78,17 +96,25 @@ export interface LogoProps {
   className?: string | undefined;
 }
 
-/** The star silhouette. Also the clip the specular sweeps inside, so it is declared once. */
-const STAR = 'M20 4.5Q23.2 16.8 35.5 20 23.2 23.2 20 35.5 16.8 23.2 4.5 20 16.8 16.8 20 4.5Z';
+/**
+ * The star silhouette. Also the clip the specular sweeps inside, so it is declared once.
+ *
+ * Exported, with FACET and RAYS, because these three strings are the specification the other
+ * five surfaces render — Logo.test.tsx holds them to their values so a change here is a
+ * deliberate act with the copies updated alongside it, rather than an accident nobody notices
+ * until the dock icon and the tab icon disagree.
+ */
+export const STAR =
+  'M20 4.5Q23.2 16.8 35.5 20 23.2 23.2 20 35.5 16.8 23.2 4.5 20 16.8 16.8 20 4.5Z';
 /** The two vertical points on their own, painted over the star to facet it. */
-const FACET =
+export const FACET =
   'M20 4.5Q23.2 16.8 20 20 16.8 16.8 20 4.5ZM20 35.5Q23.2 23.2 20 20 16.8 23.2 20 35.5Z';
 
 /**
  * The four diagonal rays, as [x1, y1, x2, y2] on the 40×40 grid: r=8.5 out to r=13.5 at
  * 45°, 135°, 225° and 315°, which is the empty quarter between two of the star's points.
  */
-const RAYS: readonly [number, number, number, number][] = [
+export const RAYS: readonly [number, number, number, number][] = [
   [26.01, 13.99, 29.55, 10.45],
   [13.99, 13.99, 10.45, 10.45],
   [13.99, 26.01, 10.45, 29.55],
