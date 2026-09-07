@@ -169,9 +169,10 @@ const (
 	LimitSeats       LimitKind = "seats"
 	LimitTeams       LimitKind = "teams"
 	LimitHistoryDays LimitKind = "history_days"
+	LimitIssues      LimitKind = "issues"
 )
 
-var AllLimits = []LimitKind{LimitSeats, LimitTeams, LimitHistoryDays}
+var AllLimits = []LimitKind{LimitSeats, LimitTeams, LimitHistoryDays, LimitIssues}
 
 func (l LimitKind) Label() string {
 	switch l {
@@ -181,6 +182,8 @@ func (l LimitKind) Label() string {
 		return "teams"
 	case LimitHistoryDays:
 		return "days of history"
+	case LimitIssues:
+		return "issues"
 	}
 	return string(l)
 }
@@ -200,6 +203,19 @@ type Features struct {
 	// property of the sync engine, not of what anybody paid for. A client offline longer
 	// than that re-bootstraps regardless of plan.
 	HistoryDays int
+
+	// IssueLimit is how many issues the workspace may hold, counted across every team.
+	//
+	// Workspace-wide rather than per team, because the per-team bound that already exists
+	// (domain.TeamIssueLimit) is a different thing: that one protects the sync engine from
+	// a single team's snapshot growing past what a client can hold, and it applies to every
+	// plan including self-hosted. This one bounds what a free tier costs us to store, which
+	// is a packaging decision, so it belongs in the matrix with the rest of them.
+	//
+	// Archived and trashed rows do not count, the same way the per-team cap ignores
+	// archived ones: a workspace that tidies up gets its room back, and a cap you cannot
+	// get back under by any action available to you is a wall, not a limit.
+	IssueLimit int
 
 	PrivateTeams       bool
 	SubTeams           bool
@@ -231,9 +247,14 @@ var matrix = map[Plan]Features{
 	// people doing real work is enough that leaving hurts, and small enough that a
 	// thousand such workspaces fit on one machine.
 	PlanFree: {
-		SeatLimit:          5,
-		TeamLimit:          2,
-		HistoryDays:        90,
+		SeatLimit:   5,
+		TeamLimit:   2,
+		HistoryDays: 90,
+		// Written without a digit separator on purpose: web/src/features/pricing/plans.test.ts
+		// greps this row to prove the pricing page quotes the cap the server enforces, and its
+		// number pattern stops at an underscore. A guard that cannot read the matrix is a
+		// guard that passes while the page lies.
+		IssueLimit:         10000,
 		PrivateTeams:       false,
 		SubTeams:           false,
 		MultiLevelSubTeams: false,
@@ -248,6 +269,7 @@ var matrix = map[Plan]Features{
 		SeatLimit:          Unlimited,
 		TeamLimit:          Unlimited,
 		HistoryDays:        Unlimited,
+		IssueLimit:         Unlimited,
 		PrivateTeams:       true,
 		SubTeams:           true,
 		MultiLevelSubTeams: false,
@@ -262,6 +284,7 @@ var matrix = map[Plan]Features{
 		SeatLimit:          Unlimited,
 		TeamLimit:          Unlimited,
 		HistoryDays:        Unlimited,
+		IssueLimit:         Unlimited,
 		PrivateTeams:       true,
 		SubTeams:           true,
 		MultiLevelSubTeams: true,
@@ -279,6 +302,7 @@ var matrix = map[Plan]Features{
 		SeatLimit:          Unlimited,
 		TeamLimit:          Unlimited,
 		HistoryDays:        Unlimited,
+		IssueLimit:         Unlimited,
 		PrivateTeams:       true,
 		SubTeams:           true,
 		MultiLevelSubTeams: true,
@@ -340,6 +364,8 @@ func (f Features) limit(k LimitKind) (n int, known bool) {
 		return f.TeamLimit, true
 	case LimitHistoryDays:
 		return f.HistoryDays, true
+	case LimitIssues:
+		return f.IssueLimit, true
 	}
 	return 0, false
 }
@@ -353,6 +379,7 @@ func (f Features) narrow(other Features) Features {
 		SeatLimit:          narrowLimit(f.SeatLimit, other.SeatLimit),
 		TeamLimit:          narrowLimit(f.TeamLimit, other.TeamLimit),
 		HistoryDays:        narrowLimit(f.HistoryDays, other.HistoryDays),
+		IssueLimit:         narrowLimit(f.IssueLimit, other.IssueLimit),
 		PrivateTeams:       f.PrivateTeams && other.PrivateTeams,
 		SubTeams:           f.SubTeams && other.SubTeams,
 		MultiLevelSubTeams: f.MultiLevelSubTeams && other.MultiLevelSubTeams,
@@ -603,6 +630,25 @@ func (s Set) CanAddTeam(current int) error {
 		return nil
 	}
 	return s.denyLimit(LimitTeams, s.writeFeatures.TeamLimit, current+1)
+}
+
+// CanAddIssues answers whether n more issues fit, given how many the workspace holds now.
+//
+// Takes a count rather than assuming one, because an import creates thousands in a single
+// call and a limit checked one issue at a time is a limit an importer walks straight
+// through: the caller would ask "does one more fit?", get yes, and repeat it 50,000 times.
+//
+// Uses writeFeatures, so a lapsed workspace stops growing while staying entirely readable.
+// That is the whole shape of a lapse here — the work is still yours and still visible, and
+// what stops is adding to it.
+func (s Set) CanAddIssues(current, n int) error {
+	if n <= 0 {
+		return nil
+	}
+	if admits(s.writeFeatures.IssueLimit, current+n) {
+		return nil
+	}
+	return s.denyLimit(LimitIssues, s.writeFeatures.IssueLimit, current+n)
 }
 
 // Error is a refusal on entitlement grounds.

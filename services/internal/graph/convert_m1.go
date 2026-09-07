@@ -966,6 +966,7 @@ func toEntitlements(f entitlement.Features, plan string, seatsUsed int, lapsed b
 		SeatsUsed:          seatsUsed,
 		TeamLimit:          limitOrNull(f.TeamLimit),
 		HistoryDays:        limitOrNull(f.HistoryDays),
+		IssueLimit:         limitOrNull(f.IssueLimit),
 		PrivateTeams:       f.PrivateTeams,
 		SubTeams:           f.SubTeams,
 		MultiLevelSubTeams: f.MultiLevelSubTeams,

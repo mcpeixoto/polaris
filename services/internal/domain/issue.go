@@ -200,6 +200,23 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 				TeamIssueLimit))
 		}
 
+		// The plan's ceiling, which is a different question from the team's. TeamIssueLimit
+		// above protects the sync engine on every plan; this one is what the workspace pays
+		// for. Checked twice, like the team cap: once here so the common path fails before
+		// any of the template work below, and again once the template's sub-issues are
+		// known and the real count is more than one.
+		ent, err := entitlementSetFor(ctx, q, p.WorkspaceID)
+		if err != nil {
+			return err
+		}
+		held, err := q.CountIssuesInWorkspace(ctx, p.WorkspaceID)
+		if err != nil {
+			return platform.Internal(err)
+		}
+		if err := ent.CanAddIssues(int(held), 1); err != nil {
+			return err
+		}
+
 		member, err := q.IsTeamMember(ctx, store.IsTeamMemberParams{TeamID: in.TeamID, UserID: p.UserID})
 		if err != nil {
 			return platform.Internal(err)
@@ -226,6 +243,9 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 			return platform.Conflict(fmt.Sprintf(
 				"this team has reached the %d issue limit; archive or move issues before creating more",
 				TeamIssueLimit))
+		}
+		if err := ent.CanAddIssues(int(held), 1+len(childTitles)); err != nil {
+			return err
 		}
 		labelIDs = dedupe(in.LabelIDs)
 

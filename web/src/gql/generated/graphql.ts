@@ -1051,6 +1051,8 @@ export type Entitlements = {
   customViews: Scalars['Boolean']['output'];
   /** How far back the change stream is queryable, in days. */
   historyDays?: Maybe<Scalars['Int']['output']>;
+  /** How many issues the workspace may hold, across every team. */
+  issueLimit?: Maybe<Scalars['Int']['output']>;
   /** Set while a paid plan is lapsed: reads work, gated writes do not. */
   lapsed: Scalars['Boolean']['output'];
   /** Enterprise: sub-teams nested up to five levels deep. */

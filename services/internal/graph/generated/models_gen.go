@@ -993,7 +993,9 @@ type Entitlements struct {
 	SeatsUsed int  `json:"seatsUsed"`
 	TeamLimit *int `json:"teamLimit,omitempty"`
 	// How far back the change stream is queryable, in days.
-	HistoryDays  *int `json:"historyDays,omitempty"`
+	HistoryDays *int `json:"historyDays,omitempty"`
+	// How many issues the workspace may hold, across every team.
+	IssueLimit   *int `json:"issueLimit,omitempty"`
 	PrivateTeams bool `json:"privateTeams"`
 	// Business+: one level of sub-teams under a top-level parent.
 	SubTeams bool `json:"subTeams"`
