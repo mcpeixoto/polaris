@@ -102,6 +102,24 @@ group "On this machine"
 [ -n "$devid" ]      && ok "Desktop identity        $devid"          || printf '  \033[31m✗\033[0m No "Developer ID Application" identity in the keychain\n'
 [ -n "$iosid" ]      && ok "iOS identity            $iosid"          || printf '  \033[31m✗\033[0m No "Apple Distribution" identity in the keychain\n'
 
+# Apple distribution certificates last a year, and a lapsed one fails the archive with the
+# same message as no certificate at all. Reporting the date turns a yearly surprise into a
+# yearly chore.
+if [ -n "$iosid" ]; then
+  end=$(security find-certificate -c 'Apple Distribution' -p login.keychain-db 2>/dev/null \
+        | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2 || true)
+  if [ -n "$end" ]; then
+    left=$(( ( $(date -j -f '%b %e %T %Y %Z' "$end" +%s 2>/dev/null || echo 0) - $(date +%s) ) / 86400 ))
+    if [ "$left" -lt 0 ]; then
+      printf '  \033[31m✗\033[0m Certificate expiry      EXPIRED %s — every iOS release fails until it is renewed\n' "$end"
+    elif [ "$left" -lt 45 ]; then
+      printf '  \033[33m!\033[0m Certificate expiry      %s — %s days left; renew and re-export IOS_DIST_P12\n' "$end" "$left"
+    else
+      ok "Certificate expiry      $end ($left days)"
+    fi
+  fi
+fi
+
 # The role check, which is the one that cannot be guessed from a filename. Creating an iOS
 # distribution asset needs App Manager; notarisation needs only Developer, and a
 # notarisation-scoped key fails inside xcodebuild with a message about certificates that
