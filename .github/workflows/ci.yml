@@ -344,6 +344,9 @@ jobs:
       # A release tag that builds packages nobody can download. Six tags left their
       # GitHub release as a draft, which also made electron-updater see no update at all.
       - run: bash scripts/lint-release.sh
+      # A workflow step reading an environment variable nothing gives it. Only shows up
+      # when the workflow runs, which for a release workflow means on the release.
+      - run: bash scripts/lint-workflow-vars.sh
 
   secrets:
     name: Secret scan
