@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -330,6 +331,36 @@ func entitlementSetFor(ctx context.Context, q *store.Queries, workspaceID uuid.U
 		SeatLimit:    seatLimit,
 		SeatsUsed:    int(seats),
 	}), nil
+}
+
+// historyCutoff is the oldest activity the workspace's plan lets it read, or the zero time
+// when the plan keeps everything. The zero time and not an ok flag, because every caller
+// compares a row's created_at against it and `cutoff.IsZero()` is the same branch either
+// way.
+//
+// This is the one place the advertised history window is spent. It shipped as a number in
+// the matrix that the API returned and nothing else read: the pricing page sold "90 days
+// activity", every plan kept every entry forever, and the only thing standing between a free
+// workspace and unbounded history was that nobody had checked.
+//
+// The filtering is in Go rather than in the SQL, and that is not laziness: ListIssueHistory
+// and ListIssueHistoryForIssues already read an issue's whole feed unbounded, so the window
+// costs no IO that was not already being spent, and pushing a `since` into those statements
+// would change a signature three tests call for no gain on either read.
+//
+// It applies to issue_history only — the curated, permanent activity feed of migration
+// 000008. change_log's 30-day physical retention is a property of the sync engine, applies
+// to every plan including Enterprise, and has nothing to do with what anybody paid for.
+func (s *Service) historyCutoff(ctx context.Context, q *store.Queries, workspaceID uuid.UUID) (time.Time, error) {
+	ent, err := entitlementSetFor(ctx, q, workspaceID)
+	if err != nil {
+		return time.Time{}, err
+	}
+	cutoff, windowed := ent.HistoryWindow(s.now())
+	if !windowed {
+		return time.Time{}, nil
+	}
+	return cutoff, nil
 }
 
 // syncWatermark reads the workspace's current version, for the two mutations that
