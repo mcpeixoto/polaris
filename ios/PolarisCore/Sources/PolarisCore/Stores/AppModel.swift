@@ -44,6 +44,12 @@ public final class AppModel {
     /// handing a phone back deserves to be told.
     public private(set) var signOutWarning: PolarisError?
 
+    /// What the server says it offers, once it has been asked. Nil means not yet asked, or
+    /// asked and not answered — both of which draw no social buttons beyond Apple's, which is
+    /// native and needs no server configuration at all.
+    public private(set) var authProviders: AuthProviders?
+    private var isLoadingAuthProviders = false
+
     private let environment: PolarisEnvironment
 
     /// The host this build talks to, for screens that show an address to the reader.
@@ -166,6 +172,43 @@ public final class AppModel {
         } catch {
             return .badResponse
         }
+    }
+
+    /// Signs in with a Google ID token. The mirror of `signInWithApple`, down to returning
+    /// the refusal rather than parking it in `phase`.
+    public func signInWithGoogle(
+        idToken: String,
+        nonce: String,
+        displayName: String?
+    ) async -> PolarisError? {
+        do {
+            await finishSignIn(
+                try await api.signInWithGoogle(idToken: idToken, nonce: nonce, displayName: displayName)
+            )
+            return nil
+        } catch let error as PolarisError {
+            return error
+        } catch {
+            return .badResponse
+        }
+    }
+
+    /// Asked once per launch, on first sight of a sign-in screen.
+    ///
+    /// Held here rather than in each screen's `@State` because both auth screens want the
+    /// same answer and it is a fact about the deployment, not about the screen — asking again
+    /// on every navigation between them is a round trip on the one screen whose job is to be
+    /// quiet and fast. The web client dedupes the same call for the same reason
+    /// (`web/src/features/auth/providers.ts`).
+    ///
+    /// A failure is swallowed: a server that cannot answer offers no social buttons, and an
+    /// error message about a feature nobody asked for is noise on a screen somebody is about
+    /// to type a password into.
+    public func loadAuthProviders() async {
+        guard authProviders == nil, !isLoadingAuthProviders else { return }
+        isLoadingAuthProviders = true
+        defer { isLoadingAuthProviders = false }
+        authProviders = try? await api.authProviders()
     }
 
     /// Registers, and reports the failure to the caller instead of only parking it in `phase`.

@@ -12,6 +12,33 @@ public struct Session: Codable, Sendable, Hashable {
     enum CodingKeys: String, CodingKey { case accessToken, expiresIn, accountId, workspaces }
 }
 
+/// Which sign-in providers a deployment offers, from `GET /auth/providers`.
+///
+/// A fact about the server, not about the person: Google is configured with an audience list
+/// or it is not, and on a self-hosted install without one `POST /auth/oidc/google` answers
+/// 404. Asking first is what stops the app drawing a button that completes a whole sign-in at
+/// Google and then fails against a route that does not exist.
+///
+/// The response also carries `googleClientId` and `appleClientId`. Both are ignored here:
+/// they are the *browser* clients the web SDKs need, and this app has its own — a Google iOS
+/// client (`GoogleSignIn.clientID`) and the bundle id Apple uses natively.
+public struct AuthProviders: Decodable, Sendable, Hashable {
+    public let providers: [String]
+    /// Whether a stranger may create an account. Not read yet; decoded because the server
+    /// sends it and a client that drops it has to ask again the day a screen wants it.
+    public let openSignup: Bool
+
+    public init(providers: [String], openSignup: Bool = false) {
+        self.providers = providers
+        self.openSignup = openSignup
+    }
+
+    /// Matched by name rather than by decoding into an enum: a server that grows a third
+    /// provider must not break a client that has never heard of it.
+    public var offersGoogle: Bool { providers.contains("google") }
+    public var offersApple: Bool { providers.contains("apple") }
+}
+
 /// Everything the app is allowed to ask the backend for.
 ///
 /// One protocol with two implementations — live HTTP and bundled fixtures — so that screens,
@@ -89,6 +116,18 @@ public protocol PolarisAPI: Sendable {
     /// `until` nil un-snoozes, which is what the schema's nullable `Time` means.
     func snoozeNotification(id: String, until: Date?) async throws -> PolarisNotification
     func deleteNotification(id: String) async throws
+
+    /// Which sign-in providers this deployment offers. Anonymous — the whole point is that
+    /// the caller has no session yet. Defaulted below, so the doubles the tests hold are not
+    /// obliged to answer a question about a server they are standing in for.
+    func authProviders() async throws -> AuthProviders
+    /// Trades a Google ID token for a session, exactly as `signInWithApple` does.
+    ///
+    /// The token is what the PKCE exchange in `GoogleSignIn` ends with; the server checks it
+    /// against Google's published keys, so nothing secret travels. `nonce` is the value bound
+    /// into the authorization request and echoed into the token's claim — sent raw, because
+    /// the server compares the two strings.
+    func signInWithGoogle(idToken: String, nonce: String, displayName: String?) async throws -> Session
 
     // MARK: Parity with the Linear iOS app
     //
@@ -176,6 +215,19 @@ public extension PolarisAPI {
 
     func search(query: String) async throws -> SearchResults {
         try await search(query: query, teamId: nil, first: 40)
+    }
+
+    /// A client that cannot answer offers nothing, which is what the web client concludes
+    /// from a failed `/auth/providers` too: no button is a far better outcome than a button
+    /// that 404s.
+    func authProviders() async throws -> AuthProviders {
+        AuthProviders(providers: [])
+    }
+
+    /// 404, deliberately — the same answer the server gives for a provider it was not
+    /// configured with, so a screen that somehow reached this reads it the same way.
+    func signInWithGoogle(idToken: String, nonce: String, displayName: String?) async throws -> Session {
+        throw PolarisError.notFound
     }
 
     // MARK: Defaults for the parity surface

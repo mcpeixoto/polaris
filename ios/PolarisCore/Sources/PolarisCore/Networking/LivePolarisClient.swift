@@ -59,6 +59,33 @@ public actor LivePolarisClient: PolarisAPI {
         return try await authenticate(path: "/auth/oidc/apple", body: body)
     }
 
+    public func signInWithGoogle(
+        idToken: String,
+        nonce: String,
+        displayName: String?
+    ) async throws -> Session {
+        var body: [String: JSONValue] = [
+            "idToken": .string(idToken),
+            "nonce": .string(nonce),
+        ]
+        // Google puts a name in the ID token, so unlike Apple this is not a one-time gift the
+        // client must catch. Sent anyway when the app has one: the server prefers what it can
+        // read from verified claims and this costs nothing.
+        if let displayName, !displayName.isEmpty { body["displayName"] = .string(displayName) }
+        return try await authenticate(path: "/auth/oidc/google", body: body)
+    }
+
+    /// Which providers this deployment offers.
+    ///
+    /// A plain GET with no session: it is asked from the sign-in screen, before there is one.
+    /// A deployment with no Google audiences answers with a list that omits it, and the
+    /// button is never drawn.
+    public func authProviders() async throws -> AuthProviders {
+        var request = URLRequest(url: environment.apiBaseURL.appending(path: "/auth/providers"))
+        request.httpMethod = "GET"
+        return try decode(AuthProviders.self, from: try await send(request))
+    }
+
     public func register(
         email: String,
         password: String,

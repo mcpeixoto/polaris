@@ -216,6 +216,41 @@ public enum Palette {
         }
     }
 
+    // MARK: - Third-party brand
+
+    /// Google's sign-in button, in the only two forms Google's identity branding guidelines
+    /// permit.
+    ///
+    /// These are the one set of colours in this file that are not ours to choose, and not
+    /// ours to theme: the guidelines specify the surface, the stroke and the label for each
+    /// appearance, and a button drawn in Polaris accent would be off-brand in the exact way
+    /// the rules exist to prevent. They live here anyway rather than as literals in a view,
+    /// because the rule this file enforces is that no view names a colour — and because the
+    /// contrast of the pair is then measurable by `swift test` like every other pairing.
+    public struct GoogleButton: Sendable, Hashable {
+        public let surface: Token
+        public let border: Token
+        public let label: Token
+    }
+
+    public static func googleButton(_ scheme: Scheme) -> GoogleButton {
+        switch scheme {
+        case .light:
+            GoogleButton(surface: Token(0xFFFFFF), border: Token(0x747775), label: Token(0x1F1F1F))
+        case .dark:
+            GoogleButton(surface: Token(0x131314), border: Token(0x8E918F), label: Token(0xE3E3E3))
+        }
+    }
+
+    /// The four quadrants of the G, in Google's brand colours. The same in both appearances:
+    /// the mark does not change, only the surface behind it.
+    public enum GoogleMark {
+        public static let blue = Token(0x4285F4)
+        public static let green = Token(0x34A853)
+        public static let yellow = Token(0xFBBC05)
+        public static let red = Token(0xEA4335)
+    }
+
     // MARK: - Contrast
 
     /// sRGB relative luminance, WCAG 2.1.
