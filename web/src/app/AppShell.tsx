@@ -97,12 +97,16 @@ export interface AppShellProps {
   /**
    * Same split as create-issue: the action is global (command menu from any screen) and
    * the modal lives with the rest of the project UI. `C` stays create-issue.
+   *
+   * These take `open` for the same reason create-issue does — see the note at the mount
+   * site below. Each one is mounted for the life of the shell and told whether it is on
+   * screen, rather than being switched in and out of the tree.
    */
-  renderCreateProject?: (props: { onClose: () => void }) => ReactNode;
-  renderCreateInitiative?: (props: { onClose: () => void }) => ReactNode;
-  renderCreateCustomer?: (props: { onClose: () => void }) => ReactNode;
-  renderCreateCustomerRequest?: (props: { onClose: () => void }) => ReactNode;
-  renderCreateDashboard?: (props: { onClose: () => void }) => ReactNode;
+  renderCreateProject?: (props: { open: boolean; onClose: () => void }) => ReactNode;
+  renderCreateInitiative?: (props: { open: boolean; onClose: () => void }) => ReactNode;
+  renderCreateCustomer?: (props: { open: boolean; onClose: () => void }) => ReactNode;
+  renderCreateCustomerRequest?: (props: { open: boolean; onClose: () => void }) => ReactNode;
+  renderCreateDashboard?: (props: { open: boolean; onClose: () => void }) => ReactNode;
 }
 
 /**
@@ -389,7 +393,7 @@ export function AppShell({
   );
   const gotoFavorites = useLiveQuery(
     (store: Store) => (viewerId === null ? [] : flattenFavorites(favoriteNav(store, viewerId))),
-    ['favorite', 'view', 'team', 'issue', 'label'],
+    ['favorite', 'view', 'team', 'issue', 'label', 'project', 'initiative', 'cycle', 'document'],
     [viewerId],
   );
   const gotoCustomers = useLiveQuery(
@@ -1588,15 +1592,32 @@ export function AppShell({
             },
           })}
         </Fragment>
-        {createProjectOpen && renderCreateProject?.({ onClose: () => setCreateProjectOpen(false) })}
-        {createInitiativeOpen &&
-          renderCreateInitiative?.({ onClose: () => setCreateInitiativeOpen(false) })}
-        {createCustomerOpen &&
-          renderCreateCustomer?.({ onClose: () => setCreateCustomerOpen(false) })}
-        {createCustomerRequestOpen &&
-          renderCreateCustomerRequest?.({ onClose: () => setCreateCustomerRequestOpen(false) })}
-        {createDashboardOpen &&
-          renderCreateDashboard?.({ onClose: () => setCreateDashboardOpen(false) })}
+        {/*
+          The same treatment, for the same reason: a dialog switched out of the tree cannot
+          animate its own exit, and one that only exists while it is open pushes and pops the
+          `modal` key context as a side effect of mounting. Told `open` instead, each of these
+          fades out like the composer, and each seals the keyboard only while it is on screen.
+        */}
+        {renderCreateProject?.({
+          open: createProjectOpen,
+          onClose: () => setCreateProjectOpen(false),
+        })}
+        {renderCreateInitiative?.({
+          open: createInitiativeOpen,
+          onClose: () => setCreateInitiativeOpen(false),
+        })}
+        {renderCreateCustomer?.({
+          open: createCustomerOpen,
+          onClose: () => setCreateCustomerOpen(false),
+        })}
+        {renderCreateCustomerRequest?.({
+          open: createCustomerRequestOpen,
+          onClose: () => setCreateCustomerRequestOpen(false),
+        })}
+        {renderCreateDashboard?.({
+          open: createDashboardOpen,
+          onClose: () => setCreateDashboardOpen(false),
+        })}
       </div>
     </CreateIssueProvider>
   );
@@ -1904,7 +1925,7 @@ function FavoritesSection({ userId, sidebar }: { userId: UUID; sidebar: SidebarC
   const [dropTarget, setDropTarget] = useState<UUID | null | undefined>(undefined);
   const nav = useLiveQuery(
     (store) => favoriteNav(store, userId),
-    ['favorite', 'view', 'team', 'issue', 'label'],
+    ['favorite', 'view', 'team', 'issue', 'label', 'project', 'initiative', 'cycle', 'document'],
     [userId],
   );
 
@@ -2487,6 +2508,44 @@ function favoriteLink(store: Store, favorite: Favorite): FavoriteLink | null {
         id: favorite.id,
         to: labelViewPath(label.id),
         label: label.name,
+        prefix: null,
+      };
+    }
+    case 'project': {
+      const project = store.get('project', favorite.targetId);
+      if (project === undefined || project.archivedAt !== undefined) return null;
+      return { id: favorite.id, to: `/project/${project.id}`, label: project.name, prefix: null };
+    }
+    case 'initiative': {
+      const initiative = store.get('initiative', favorite.targetId);
+      if (initiative === undefined || initiative.archivedAt !== undefined) return null;
+      return {
+        id: favorite.id,
+        to: `/initiative/${initiative.id}`,
+        label: initiative.name,
+        prefix: null,
+      };
+    }
+    case 'cycle': {
+      const cycle = store.get('cycle', favorite.targetId);
+      if (cycle === undefined || cycle.archivedAt !== undefined) return null;
+      // The team key rather than the cycle number: a sidebar full of "Cycle 12" rows says
+      // nothing about which team is on its twelfth, and the number is already in the name.
+      const team = store.get('team', cycle.teamId);
+      return {
+        id: favorite.id,
+        to: `/cycle/${cycle.id}`,
+        label: cycle.name,
+        prefix: team?.key ?? null,
+      };
+    }
+    case 'document': {
+      const document = store.get('document', favorite.targetId);
+      if (document === undefined || document.archivedAt !== undefined) return null;
+      return {
+        id: favorite.id,
+        to: `/document/${document.id}`,
+        label: document.title,
         prefix: null,
       };
     }

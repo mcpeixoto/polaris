@@ -15,6 +15,19 @@ import { createCustomerRequest } from './mutations';
 import styles from './CreateCustomerModal.module.css';
 
 export interface CreateCustomerRequestModalProps {
+  /**
+   * Whether the dialog is up.
+   *
+   * The shell mounts this component for its own lifetime and tells it, rather than
+   * rendering it into existence: a dialog cannot animate its own removal from a tree it has
+   * already left, and one that exists only while it is open pushes the `modal` key context
+   * and claims ⌘⏎ as a side effect of mounting. Both are gated on this, so a closed dialog
+   * claims nothing.
+   *
+   * Defaults to true, which is the contract this component had before the prop existed:
+   * something that mounted it meant it.
+   */
+  open?: boolean | undefined;
   onClose: () => void;
   issueId?: UUID | undefined;
   projectId?: UUID | undefined;
@@ -22,6 +35,7 @@ export interface CreateCustomerRequestModalProps {
 }
 
 export function CreateCustomerRequestModal({
+  open = true,
   onClose,
   issueId,
   projectId,
@@ -72,22 +86,26 @@ export function CreateCustomerRequestModal({
   const needsTarget = issueId === undefined && projectId === undefined;
   const title = useMemo(() => 'New customer request', []);
 
-  useKeyContext('modal');
+  useKeyContext('modal', open);
+  // Registered only while the dialog is up: a shut dialog that still bound ⌘⏎ would
+  // collide with the next one to claim it.
   useActions(
-    [
-      {
-        id: 'customerRequest.create.submit',
-        title: 'Create customer request',
-        keys: ['mod+Enter'],
-        when: 'modal',
-        group: 'Customers',
-        hidden: true,
-        run: () => {
-          void save();
-        },
-      },
-    ],
-    [],
+    open
+      ? [
+          {
+            id: 'customerRequest.create.submit',
+            title: 'Create customer request',
+            keys: ['mod+Enter'],
+            when: 'modal',
+            group: 'Customers',
+            hidden: true,
+            run: () => {
+              void save();
+            },
+          },
+        ]
+      : [],
+    [open],
   );
 
   const save = async () => {
@@ -118,7 +136,7 @@ export function CreateCustomerRequestModal({
 
   return (
     <Modal
-      open
+      open={open}
       onClose={onClose}
       title={title}
       size="md"

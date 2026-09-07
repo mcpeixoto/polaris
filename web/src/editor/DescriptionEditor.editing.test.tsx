@@ -68,7 +68,7 @@ function mount(store: Store, description = '', onSave: (next: string) => void = 
     <KeymapProvider>
       <EngineProvider engine={engine} status={{ phase: 'idle' }}>
         <Host
-          issueId={ISSUE}
+          target={{ kind: 'issue', id: ISSUE }}
           description={description}
           names={{ [ADA]: 'Ada' }}
           viewerId={ADA}

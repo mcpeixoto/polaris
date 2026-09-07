@@ -1,0 +1,45 @@
+/*
+ * The floating surface itself, and nothing that goes in it.
+ *
+ * Lifted from the due-date panel, which is where these rules were written and where two other
+ * popovers copied them from. A panel carries the popover shadow and sits on the dropdown
+ * layer; what it holds is the caller's business, so there is no padding rhythm or type scale
+ * here beyond the gutter every one of them wanted.
+ */
+
+.panel {
+  position: fixed;
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-elevated);
+  box-shadow: var(--shadow-popover);
+  animation: popoverIn var(--duration-fast) var(--ease-out);
+}
+
+/*
+ * Vertical only. The component measures this panel's rect to pull it back from the right edge
+ * of the window, and that measurement reads the horizontal sides — moving it down the screen
+ * is free, scaling it is not.
+ */
+@keyframes popoverIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+/* Vertical out as well, so the arrival and the departure are recognisably the same panel. */
+@keyframes popoverOut {
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.panel[data-exiting] {
+  animation: popoverOut var(--duration-instant) var(--ease-in) forwards;
+}

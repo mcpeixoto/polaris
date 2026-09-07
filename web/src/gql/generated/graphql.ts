@@ -1098,9 +1098,13 @@ export type Favorite = {
 };
 
 export type FavoriteKind =
+  | 'CYCLE'
+  | 'DOCUMENT'
   | 'FOLDER'
+  | 'INITIATIVE'
   | 'ISSUE'
   | 'LABEL'
+  | 'PROJECT'
   | 'TEAM'
   | 'VIEW';
 

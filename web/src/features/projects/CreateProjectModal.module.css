@@ -57,7 +57,7 @@
 
 .error {
   margin: 0;
-  color: var(--priority-urgent);
+  color: var(--text-danger);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }

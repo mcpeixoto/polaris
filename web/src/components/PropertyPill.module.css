@@ -1,0 +1,22 @@
+/*
+ * A pill holding nothing is written in the quieter ink, so the row can be read for the
+ * properties that have been set. Tripled because `Button`'s own `.button.pill` states the
+ * colour at two classes, and anything lighter here would be settled by emission order
+ * rather than by the rule.
+ */
+.unset.unset.unset {
+  color: var(--text-secondary);
+}
+
+/* Off the page, on the accessibility tree — the property name the pill is described by. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}

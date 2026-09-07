@@ -1,0 +1,58 @@
+/*
+ * A full-width row across the top of what it is about, with a bottom edge and no top one —
+ * it belongs to the content under it rather than to the header above it.
+ *
+ * Every tone is a tint of its own foreground rather than a second background token, the
+ * same bargain Badge makes: a banner has to sit convincingly on the page and inside a
+ * panel, and one solid colour can only match one of them. The foregrounds are the semantic
+ * pairs already tuned for both themes, so a workspace that has moved its reds has said what
+ * it thinks red means here too.
+ */
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--font-size-sm);
+}
+
+.copy {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  line-height: var(--line-height-normal);
+}
+
+.action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+
+/* Nothing is wrong: the secondary surface and the secondary ink, so the row is read once
+   and then stops competing with the screen it is sitting on. */
+.info {
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+}
+
+/*
+ * The tinted tones carry their hue in the ground and the edge, never in the copy: body text
+ * at 13px on a tint of its own colour is the one place this palette cannot clear its
+ * contrast floor, and a banner nobody can read is worse than a banner nobody notices.
+ */
+.warning {
+  border-bottom-color: color-mix(in srgb, var(--priority-medium) 40%, transparent);
+  background-color: color-mix(in srgb, var(--priority-medium) 14%, transparent);
+  color: var(--text-primary);
+}
+
+.danger {
+  border-bottom-color: color-mix(in srgb, var(--priority-urgent) 40%, transparent);
+  background-color: color-mix(in srgb, var(--priority-urgent) 14%, transparent);
+  color: var(--text-primary);
+}

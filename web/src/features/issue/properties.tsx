@@ -31,19 +31,19 @@
  * answer depends on an ambient `Date.now()` cannot be tested at a boundary, only by waiting.
  */
 
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type FormEvent,
-  type RefObject,
-} from 'react';
-import { createPortal } from 'react-dom';
+import type { RefObject } from 'react';
 
-import { useActions, useKeyContext } from '~/app/keymap';
-import { Button, Input, Menu, type MenuNode, type MenuPlacement } from '~/components';
+import {
+  addDays,
+  Button,
+  DatePicker,
+  defaultRelatives,
+  Menu,
+  Popover,
+  type DateRelative,
+  type MenuNode,
+  type MenuPlacement,
+} from '~/components';
 import {
   estimateLabel,
   estimateOptions,
@@ -51,9 +51,8 @@ import {
   type EstimateSettings,
 } from '~/features/estimate';
 import { isOverdue, whenDay } from '~/features/time';
-import { formatDay, localDayOf, type CivilDay } from '~/filter';
+import { formatDay, localDayOf } from '~/filter';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import { usePresence } from '~/hooks/usePresence';
 import type { DateOnly, DueDateSource, UUID } from '~/store';
 
 import type { Mixed } from './pickers';
@@ -173,19 +172,6 @@ export function EstimatePicker({
 /** How far ahead still counts as urgent: today and tomorrow. See `dueDateTone`. */
 const SOON_DAYS = 1;
 
-/** Kept off the viewport edge by this much when the panel has to be shifted to fit. */
-const VIEWPORT_MARGIN_PX = 8;
-
-/**
- * `2006-01-02`, and nothing else.
- *
- * The same shape `time.ts` parses with, restated because that module keeps its pattern
- * private and exposes only the two questions it answers. This one asks a third — is what is
- * in the box a day yet — which a half-typed `2026-0` must answer no to, or the panel would
- * write a due date the server rejects and the reader cannot explain.
- */
-const CALENDAR_DAY = /^\d{4}-\d{2}-\d{2}$/;
-
 export type DueDateTone = 'overdue' | 'soon' | 'later';
 
 /** What the tone means, for the readers who cannot see a colour. */
@@ -297,24 +283,18 @@ export interface DueDatePickerProps extends PickerProps {
 }
 
 /**
- * The due-date panel: four relatives, a date box, and the way to clear it.
+ * The due-date panel: the shared `DatePicker`, plus the two things only an issue has.
  *
- * A panel of real controls rather than a `Menu`, which is the one deviation from `pickers.tsx`
- * worth arguing for and is the same one `DisplayMenu` makes. A Menu is a list of commands its
- * own key handler walks with the arrow keys; a date box inside one would swallow every digit
- * the menu wants to type-ahead with, and a menu item containing a text field is a widget no
- * screen reader has a name for. So the popover shell is local and everything inside it is the
- * library's.
+ * Everything about choosing a day — the relatives, the date box, the popover shell, the
+ * registered Escape — is `components/DatePicker`, because a project's target date and a
+ * cycle's window ask exactly the same question. What stays here is what does not generalise:
+ * an SLA owns the date on some issues, and an issue is the only thing in the product that can
+ * be handed one.
  *
- * The relatives are what people actually mean. "End of week" is the Friday of the week the
- * reader is in — on Saturday that Friday has gone, so it is the next one — and "next week" is
- * the following Monday, both resolved in the team's zone at the moment the panel opens.
- *
- * On the keyboard: Escape is a registered action in the `menu` context, which the panel pushes
- * while it is open. That context is sealed, so `S`, `A` and `P` stop reaching the detail screen
- * underneath while somebody is typing a date. Only ONE surface on a screen may claim Escape in
- * `menu` — the registry refuses a second — which is why the relations panel beside this one
- * adds its links inline instead of in a popover of its own.
+ * On the keyboard: Escape is a registered action in the `menu` context, under the id below.
+ * Two guarded bindings may share a key, so a second picker elsewhere on the screen is fine —
+ * a second picker with the *same id* is a thrown error, which is why the id is a constant here
+ * and a required prop there.
  */
 export function DueDatePicker({
   open,
@@ -328,328 +308,111 @@ export function DueDatePicker({
   onClearSla,
   onSetSla,
 }: DueDatePickerProps) {
-  const panelRef = useRef<HTMLDivElement | null>(null);
-  const [point, setPoint] = useState<Point | null>(null);
-  const [draft, setDraft] = useState('');
-  // Positioning settles once per opening: the shift is measured from the panel's rendered
-  // rect, and re-measuring after moving it would chase its own tail.
-  const settledRef = useRef(false);
-
-  // Held on screen for the length of its fade. `open` still means what it meant: the keyboard
-  // context is handed back and focus returns to the trigger the moment Escape lands.
-  const { present, exitProps } = usePresence(open, panelRef);
-
-  /**
-   * What the registered Escape reads. The registry captures `run` once, at registration, so a
-   * closure over `onClose` would go on calling whichever callback the first render happened to
-   * pass — the same reason the issue list reaches its commands through a ref.
-   */
-  const state = useRef({ open, close: onClose });
-  state.current = { open, close: onClose };
-
-  useKeyContext('menu', open);
-
-  useActions(
-    [
-      {
-        id: 'dueDate.closePicker',
-        title: 'Close the due date picker',
-        keys: ['Escape'],
-        when: 'menu',
-        group: 'Issues',
-        // Hidden from the command menu: "close the thing that is open" is not something
-        // anybody searches for, and it still appears in the help overlay.
-        hidden: true,
-        // Disabled is treated as unbound, so with the panel shut Escape falls through to
-        // whatever else claims it rather than being swallowed by a command with nothing to do.
-        enabled: () => state.current.open,
-        run: () => state.current.close(),
-      },
-    ],
-    [],
-  );
-
-  // The box starts on the date the issue actually has, so somebody nudging a deadline by a day
-  // edits the day rather than retyping the year. Cleared once the panel has left rather than
-  // on opening, so it is never rendered for a frame holding the previous issue's date — and
-  // never emptied under the user's eyes while it is still fading out.
-  //
-  // Seeded on the false→true edge of `open` and not on every change to `value`, because the
-  // date can move underneath somebody who is typing one: another client's edit, an SLA
-  // evaluation, or this client's own delta echoing back. Depending on `value` meant any of
-  // those overwrote a half-typed day with the stored one, which is the picker deciding it
-  // knows better than the person using it.
-  const wasOpen = useRef(false);
-  useEffect(() => {
-    if (!present) setDraft('');
-    else if (open && !wasOpen.current) setDraft(value ?? '');
-    wasOpen.current = open;
-  }, [open, present, value]);
-
-  useLayoutEffect(() => {
-    if (!open) {
-      // Cleared when the panel has gone, not when it was told to go: `point` is where it is
-      // drawn, and a still-visible panel would drop to the corner of the window without it.
-      if (!present) {
-        setPoint(null);
-        settledRef.current = false;
-      }
-      return;
-    }
-    const anchor = trigger.current;
-    if (anchor === null) return;
-    const rect = anchor.getBoundingClientRect();
-    setPoint({ top: rect.bottom, left: rect.left });
-  }, [open, present, trigger]);
-
-  useLayoutEffect(() => {
-    if (!open || point === null || settledRef.current) return;
-    const panel = panelRef.current;
-    if (panel === null) return;
-    settledRef.current = true;
-    const shift = horizontalShift(panel.getBoundingClientRect());
-    if (shift !== 0) setPoint({ top: point.top, left: point.left + shift });
-  }, [open, point]);
-
-  useEffect(() => {
-    if (!open) return;
-    // Captured while open. Reading the ref inside the cleanup would read whatever it points at
-    // by then, which after an unmount is null — and the focus restore would silently stop.
-    const anchorAtOpen = trigger.current;
-    return () => {
-      // Only when closing is what lost the focus. Clicking straight into another control
-      // closes this too, and dragging focus back out of the field somebody has just clicked
-      // into is worse than not restoring it at all.
-      const active = document.activeElement;
-      if (active === null || active === document.body) anchorAtOpen?.focus();
-    };
-  }, [open, trigger]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (panelRef.current?.contains(target) === true) return;
-      if (trigger.current?.contains(target) === true) return;
-      onClose();
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [open, onClose, trigger]);
-
-  if (!present) return null;
-
-  const style: CSSProperties = point === null ? {} : { top: point.top, left: point.left };
-
-  const choose = (day: DateOnly | null) => {
-    onSelect(day);
-    // A picker is a decision, so choosing closes it — the same bargain `Menu` makes.
-    onClose();
-  };
-
-  return createPortal(
-    <div
-      ref={panelRef}
-      // A dialog rather than a menu: it holds a text field and a form, and `menu` promises a
-      // list of commands the arrow keys walk. Not `aria-modal` either — the issue behind it
-      // stays readable, which is the point of editing a property in place.
-      role="dialog"
-      aria-label="Due date"
-      className={styles.panel}
-      style={style}
-      tabIndex={-1}
-      {...exitProps}
-    >
-      {source === 'sla' ? (
-        // Said rather than enforced silently. A disabled control with no explanation is
-        // indistinguishable from a broken one, and the person looking at it is usually the
-        // person who most needs to know that a policy is holding the date.
-        <>
-          <p className={styles.note}>
-            This date is set by a service-level agreement, so it is not yours to move. Changing it
-            here would be overwritten the next time the policy is evaluated. Change the policy on
-            the team, or take the issue out of its scope.
-          </p>
-          <div className={styles.footer}>
-            {onClearSla === undefined ? null : (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  onClearSla();
-                  onClose();
-                }}
-              >
-                Remove SLA
-              </Button>
-            )}
-            <Button size="sm" variant="primary" onClick={onClose}>
-              Close
-            </Button>
-          </div>
-        </>
-      ) : (
-        <>
-          <ul className={styles.relatives}>
-            {relativesFor(timezone, now ?? Date.now()).map((relative) => {
-              const day = whenDay(relative.date, timezone, now);
-              return (
-                <li key={relative.id}>
-                  <button
-                    type="button"
-                    className={styles.relative}
-                    aria-current={relative.date === value ? true : undefined}
-                    onClick={() => choose(relative.date)}
-                  >
-                    <span>{relative.label}</span>
-                    {/* The resolved day, because "end of week" is a promise the panel has to
-                        show it is keeping — and because somebody checking a date against a
-                        calendar should not have to count. Suppressed where it would only
-                        repeat the label: "Today Today" is not a second piece of information,
-                        and a screen reader says both of them. */}
-                    {day === relative.label ? null : (
-                      <span className={styles.relativeDay}>{day}</span>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-
-          {/* A form purely so that Enter commits. The alternative is a local key handler,
-              which the keymap lint refuses for good reason; submitting a form is the
-              platform's own answer to the same problem and needs no handler at all. */}
-          <form
-            className={styles.dateForm}
-            onSubmit={(event: FormEvent) => {
-              event.preventDefault();
-              if (!CALENDAR_DAY.test(draft)) return;
-              choose(draft);
-            }}
-          >
-            <Input
-              label="Or a date"
-              type="date"
-              value={draft}
-              autoComplete="off"
-              onChange={(event) => setDraft(event.target.value)}
-            />
-            <Button type="submit" size="sm" disabled={!CALENDAR_DAY.test(draft)}>
-              Set
-            </Button>
-          </form>
-
-          <div className={styles.footer}>
+  if (source === 'sla') {
+    // Said rather than enforced silently. A disabled control with no explanation is
+    // indistinguishable from a broken one, and the person looking at it is usually the person
+    // who most needs to know that a policy is holding the date.
+    return (
+      <Popover
+        open={open}
+        onClose={onClose}
+        trigger={trigger}
+        label="Due date"
+        actionId={CLOSE_PICKER}
+        actionTitle="Close the due date picker"
+        actionGroup="Issues"
+        className={styles.slaPanel}
+      >
+        <p className={styles.note}>
+          This date is set by a service-level agreement, so it is not yours to move. Changing it
+          here would be overwritten the next time the policy is evaluated. Change the policy on the
+          team, or take the issue out of its scope.
+        </p>
+        <div className={styles.footer}>
+          {onClearSla === undefined ? null : (
             <Button
               size="sm"
               variant="ghost"
-              disabled={value === null}
-              onClick={() => choose(null)}
+              onClick={() => {
+                onClearSla();
+                onClose();
+              }}
             >
-              No due date
+              Remove SLA
             </Button>
-            {onSetSla === undefined ? null : (
-              <>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    onSetSla(1440);
-                    onClose();
-                  }}
-                >
-                  24-hour SLA
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    onSetSla(10080);
-                    onClose();
-                  }}
-                >
-                  1-week SLA
-                </Button>
-              </>
-            )}
-          </div>
-        </>
-      )}
-    </div>,
-    document.body,
+          )}
+          <Button size="sm" variant="primary" onClick={onClose}>
+            Close
+          </Button>
+        </div>
+      </Popover>
+    );
+  }
+
+  return (
+    <DatePicker
+      open={open}
+      onClose={onClose}
+      trigger={trigger}
+      value={value}
+      timezone={timezone}
+      now={now}
+      onSelect={onSelect}
+      actionId={CLOSE_PICKER}
+      actionGroup="Issues"
+      label="Due date"
+      clearLabel="No due date"
+      relatives={dueRelatives(timezone, now)}
+      footer={
+        onSetSla === undefined ? null : (
+          <>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                onSetSla(1440);
+                onClose();
+              }}
+            >
+              24-hour SLA
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                onSetSla(10080);
+                onClose();
+              }}
+            >
+              1-week SLA
+            </Button>
+          </>
+        )
+      }
+    />
   );
 }
 
-interface Point {
-  readonly top: number;
-  readonly left: number;
-}
-
-/** How far the panel must move horizontally to stay on screen. Zero when it already fits. */
-function horizontalShift(rect: DOMRect): number {
-  if (rect.right > window.innerWidth - VIEWPORT_MARGIN_PX) {
-    return Math.max(
-      window.innerWidth - VIEWPORT_MARGIN_PX - rect.right,
-      VIEWPORT_MARGIN_PX - rect.left,
-    );
-  }
-  if (rect.left < VIEWPORT_MARGIN_PX) return VIEWPORT_MARGIN_PX - rect.left;
-  return 0;
-}
-
-interface Relative {
-  readonly id: string;
-  readonly label: string;
-  readonly date: DateOnly;
-}
+/**
+ * The id this panel's Escape is registered under.
+ *
+ * One constant for both branches: the SLA note and the picker are two renderings of one
+ * panel, never on screen at once, so they claim one action rather than two that would have to
+ * be kept from colliding.
+ */
+const CLOSE_PICKER = 'dueDate.closePicker';
 
 /**
- * The four days worth offering, resolved in the team's zone.
+ * The shared relatives, each labelled with the day it resolves to.
  *
- * Deliberately not the filter grammar's `RELATIVE_KEYWORDS`. Those are tokens *stored* in a
- * saved view and resolved afresh every time it is opened, which is exactly right there and
- * exactly wrong here: a due date is a day the team has committed to, and a due date that
- * quietly moved itself to next Friday every Friday would be a deadline nobody could miss. So
- * the relatives are a shortcut for typing a date, and what gets written is the date.
- *
- * `endOfWeek` is absent from that grammar because two implementations could read it two ways;
- * here there is only one reader, so it can mean the one thing people mean by it — Friday.
+ * The day is written by `whenDay` through the UI's own locale, never the runner's — see
+ * `features/locale.ts`, which exists because an English interface was rendering Portuguese
+ * dates on a Portuguese machine. It is suppressed where it would only repeat the label:
+ * "Today Today" is not a second piece of information, and a screen reader says both of them.
  */
-function relativesFor(timezone: string, now: number): readonly Relative[] {
-  const today = localDayOf(now, timezone);
-  const weekday = isoWeekdayOf(today);
-  return [
-    { id: 'today', label: 'Today', date: formatDay(today) },
-    { id: 'tomorrow', label: 'Tomorrow', date: formatDay(addDays(today, 1)) },
-    // The Friday of the week the reader is in, which on a Saturday has already gone — so the
-    // arithmetic wraps and it is next Friday rather than a day in the past.
-    {
-      id: 'endOfWeek',
-      label: 'End of week',
-      date: formatDay(addDays(today, (5 - weekday + 7) % 7)),
-    },
-    { id: 'nextWeek', label: 'Next week', date: formatDay(addDays(today, 8 - weekday)) },
-  ];
-}
-
-/**
- * Calendar arithmetic on a civil day, with no timezone involved.
- *
- * `Date.UTC` here is not the bug `time.ts` warns about, and the difference is worth stating
- * because the two look identical. That bug is parsing a *day string* into an instant and then
- * reading it back in the reader's zone. This takes a day that `localDayOf` has already reduced
- * to three numbers in the team's zone, walks the calendar, and hands it straight to
- * `formatDay`. No instant is derived from it and no zone is applied to it, so there is nothing
- * for an offset to shift.
- */
-function addDays(day: CivilDay, count: number): CivilDay {
-  const at = new Date(Date.UTC(day.year, day.month - 1, day.day + count));
-  return { year: at.getUTCFullYear(), month: at.getUTCMonth() + 1, day: at.getUTCDate() };
-}
-
-/** Monday is 1 and Sunday is 7, matching ISO and matching `relative.ts`'s week. */
-function isoWeekdayOf(day: CivilDay): number {
-  const weekday = new Date(Date.UTC(day.year, day.month - 1, day.day)).getUTCDay();
-  return weekday === 0 ? 7 : weekday;
+function dueRelatives(timezone: string, now: number | undefined): readonly DateRelative[] {
+  return defaultRelatives(timezone, now ?? Date.now()).map((relative) => {
+    const day = whenDay(relative.date, timezone, now);
+    return day === relative.label ? relative : { ...relative, hint: day };
+  });
 }

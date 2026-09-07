@@ -181,7 +181,9 @@ function renderShell(store: Store, at = '/', status: EngineStatus = { phase: 'id
   const renderCreateIssue = vi.fn(({ open }: { open: boolean }) =>
     open ? <div role="dialog" aria-label="New issue composer" /> : null,
   );
-  const renderCreateProject = vi.fn(() => <div role="dialog" aria-label="New project composer" />);
+  const renderCreateProject = vi.fn(({ open }: { open: boolean }) =>
+    open ? <div role="dialog" aria-label="New project composer" /> : null,
+  );
   render(
     <MemoryRouter initialEntries={[at]}>
       <KeymapProvider>

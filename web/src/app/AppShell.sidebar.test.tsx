@@ -541,3 +541,109 @@ describe('the offline badge', () => {
     expect(engine.start).toHaveBeenCalled();
   });
 });
+
+/**
+ * The four surfaces that could not be favourited until `FavoriteKind` grew.
+ *
+ * The href matters as much as the label: a favourite whose row points at the wrong route is
+ * worse than no row at all, because the person clicks it once and stops trusting the section.
+ * The second half of each case archives the target the same way the replica would — the row
+ * simply leaves — which is the client's half of the server rule that an archived target reads
+ * as missing.
+ */
+describe('favourites for a project, an initiative, a cycle and a document', () => {
+  const kinds = [
+    {
+      kind: 'project',
+      type: 'project',
+      label: 'Apollo',
+      href: '/project/p-1',
+      row: {
+        id: 'p-1',
+        workspaceId: WORKSPACE,
+        name: 'Apollo',
+        description: '',
+        statusId: 'ps-1',
+        priority: 0,
+        updateSchedule: 'never',
+        sortOrder: 'V',
+        createdAt: AT,
+        updatedAt: AT,
+      },
+    },
+    {
+      kind: 'initiative',
+      type: 'initiative',
+      label: 'Growth',
+      href: '/initiative/i-1',
+      row: {
+        id: 'i-1',
+        workspaceId: WORKSPACE,
+        name: 'Growth',
+        description: '',
+        status: 'planned',
+        priority: 0,
+        sortOrder: 'V',
+        createdAt: AT,
+        updatedAt: AT,
+      },
+    },
+    {
+      kind: 'cycle',
+      type: 'cycle',
+      // The row wears its team key, as an issue favourite wears its identifier.
+      label: 'ENG Cycle 3',
+      href: '/cycle/c-1',
+      row: {
+        id: 'c-1',
+        workspaceId: WORKSPACE,
+        teamId: TEAM,
+        number: 3,
+        name: 'Cycle 3',
+        startsAt: AT,
+        endsAt: AT,
+        createdAt: AT,
+        updatedAt: AT,
+      },
+    },
+    {
+      kind: 'document',
+      type: 'document',
+      label: 'Spec',
+      href: '/document/d-1',
+      row: {
+        id: 'd-1',
+        workspaceId: WORKSPACE,
+        teamId: TEAM,
+        title: 'Spec',
+        body: '',
+        sortOrder: 'V',
+        createdAt: AT,
+        updatedAt: AT,
+      },
+    },
+  ] as const;
+
+  it.each(kinds)('renders a favourited $kind at $href', ({ type, label, href, row }) => {
+    renderShell(seeded([[type, row as unknown as Entity], favorite('f-1', type, row.id)]));
+    expect(screen.getByRole('link', { name: label }).getAttribute('href')).toBe(href);
+  });
+
+  it.each(kinds)('drops the row when the $kind is archived', ({ type, label, row }) => {
+    renderShell(
+      seeded([
+        [type, { ...row, archivedAt: AT } as unknown as Entity],
+        favorite('f-1', type, row.id),
+      ]),
+    );
+    expect(screen.queryByRole('link', { name: label })).toBeNull();
+  });
+
+  it.each(kinds)(
+    'drops the row when the $kind is not in the replica at all',
+    ({ type, label, row }) => {
+      renderShell(seeded([favorite('f-1', type, row.id)]));
+      expect(screen.queryByRole('link', { name: label })).toBeNull();
+    },
+  );
+});

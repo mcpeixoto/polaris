@@ -645,11 +645,15 @@ type Favorite struct {
 
 // Favorite kinds.
 const (
-	FavoriteView   = "view"
-	FavoriteTeam   = "team"
-	FavoriteIssue  = "issue"
-	FavoriteLabel  = "label"
-	FavoriteFolder = "folder"
+	FavoriteView       = "view"
+	FavoriteTeam       = "team"
+	FavoriteIssue      = "issue"
+	FavoriteLabel      = "label"
+	FavoriteFolder     = "folder"
+	FavoriteProject    = "project"
+	FavoriteInitiative = "initiative"
+	FavoriteCycle      = "cycle"
+	FavoriteDocument   = "document"
 )
 
 // IssueTemplate prefills an issue.

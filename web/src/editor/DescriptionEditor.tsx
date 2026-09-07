@@ -1,9 +1,19 @@
 /**
- * Issue description with inline comment marks.
+ * Prose description with inline comment marks.
  *
  * The field is still markdown in a textarea — the overlay behind it paints the spans, and
  * a click on a caret inside a span opens the thread. Select text and ⌘⌥M (or the Comment
  * button) starts a thread; resolve lives on the root, same as an issue-thread comment.
+ *
+ * It takes a `target` rather than an `issueId` because three entities have a description —
+ * issue, project, initiative — and only one of them has anywhere to put a comment. Inline
+ * threads are rows in the issue comment tree; a project has no such tree yet. Everything
+ * else here is about writing markdown and is the same wherever the words are stored, so the
+ * kind gates exactly two things — the comment query and the affordance that starts a thread
+ * — and the rest of the surface (marks, block menu, autosave, the flush on the way out of
+ * the page) is shared. The alternative was a second, thinner editor per entity, which is how
+ * project and initiative descriptions ended up as bare textareas that drop a draft the
+ * moment a remote change lands.
  */
 
 import {
@@ -42,8 +52,14 @@ import {
 import { SlashMenu } from './SlashMenu';
 import styles from './DescriptionEditor.module.css';
 
+/** What the description belongs to. Only `issue` carries inline comment threads. */
+export interface EditorTarget {
+  readonly kind: 'issue' | 'project' | 'initiative';
+  readonly id: UUID;
+}
+
 interface DescriptionEditorProps {
-  readonly issueId: UUID;
+  readonly target: EditorTarget;
   readonly description: string;
   readonly onSave: (description: string) => void;
   readonly names: Record<string, string>;
@@ -58,7 +74,7 @@ interface Draft {
 }
 
 export function DescriptionEditor({
-  issueId,
+  target,
   description,
   onSave,
   names,
@@ -66,6 +82,7 @@ export function DescriptionEditor({
   enterSubmits,
 }: DescriptionEditorProps) {
   const engine = useEngine();
+  const commentable = target.kind === 'issue';
   const areaRef = useRef<HTMLTextAreaElement | null>(null);
   const backdropRef = useRef<HTMLPreElement | null>(null);
   const slashAnchorRef = useRef<HTMLSpanElement | null>(null);
@@ -117,11 +134,13 @@ export function DescriptionEditor({
 
   const comments = useLiveQuery(
     (store) =>
-      [...store.commentIdsFor(issueId)]
-        .map((id) => store.get('comment', id))
-        .filter((comment): comment is Comment => comment !== undefined),
+      commentable
+        ? [...store.commentIdsFor(target.id)]
+            .map((id) => store.get('comment', id))
+            .filter((comment): comment is Comment => comment !== undefined)
+        : [],
     ['comment'],
-    [issueId],
+    [commentable, target.id],
   );
 
   const roots = useMemo(() => comments.filter(isInlineRoot), [comments]);
@@ -305,6 +324,7 @@ export function DescriptionEditor({
   };
 
   const startComment = (span: Draft | null) => {
+    if (!commentable) return;
     if (span === null || span.quote.trim() === '') return;
     setPending(span);
     setOpenId(null);
@@ -361,10 +381,11 @@ export function DescriptionEditor({
     const body = maybeExpandEmoticons(typed.trim());
     if (body === '') return;
     setRefusal(null);
+    if (!commentable) return;
     if (pending !== null) {
       const span = pending;
       postComment(engine, {
-        issueId,
+        issueId: target.id,
         body,
         authorId: viewerId ?? undefined,
         anchorStart: span.start,
@@ -381,7 +402,7 @@ export function DescriptionEditor({
     if (open !== null) {
       const root = open;
       postComment(engine, {
-        issueId,
+        issueId: target.id,
         body,
         parentId: root.id,
         authorId: viewerId ?? undefined,
@@ -425,7 +446,7 @@ export function DescriptionEditor({
         run: () => closeThread(),
       },
     ],
-    [enterSubmits, pending, open, composer, issueId, viewerId],
+    [enterSubmits, pending, open, composer, commentable, target.id, viewerId],
   );
 
   /**
@@ -547,7 +568,7 @@ export function DescriptionEditor({
         onInsert={chooseBlock}
       />
 
-      {selection !== null && pending === null ? (
+      {commentable && selection !== null && pending === null ? (
         <div className={styles.toolbar}>
           <Button size="sm" onClick={() => startComment(selection)}>
             Comment

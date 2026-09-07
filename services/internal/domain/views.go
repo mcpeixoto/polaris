@@ -1119,7 +1119,8 @@ func favoritePosition(
 
 func validFavoriteKind(kind string) bool {
 	switch kind {
-	case model.FavoriteView, model.FavoriteTeam, model.FavoriteIssue, model.FavoriteLabel, model.FavoriteFolder:
+	case model.FavoriteView, model.FavoriteTeam, model.FavoriteIssue, model.FavoriteLabel, model.FavoriteFolder,
+		model.FavoriteProject, model.FavoriteInitiative, model.FavoriteCycle, model.FavoriteDocument:
 		return true
 	}
 	return false
@@ -1188,6 +1189,81 @@ func favoriteTargetScope(
 			return authz.WorkspaceScope(), true, nil
 		}
 		team, err := q.GetTeam(ctx, *l.TeamID)
+		if err != nil {
+			return missingFavoriteTarget(err)
+		}
+		return authz.TeamScope(team.ID, team.Private), true, nil
+
+	case model.FavoriteProject:
+		// GetProject already excludes soft-deleted projects.
+		pr, err := q.GetProject(ctx, targetID)
+		if err != nil {
+			return missingFavoriteTarget(err)
+		}
+		if pr.WorkspaceID != workspaceID || pr.ArchivedAt != nil {
+			return authz.Scope{}, false, nil
+		}
+		ids, err := q.ListProjectTeamIDs(ctx, pr.ID)
+		if err != nil {
+			return authz.Scope{}, false, platform.Internal(err)
+		}
+		return authz.ProjectScope(ids), true, nil
+
+	case model.FavoriteInitiative:
+		in, err := q.GetInitiative(ctx, targetID)
+		if err != nil {
+			return missingFavoriteTarget(err)
+		}
+		if in.WorkspaceID != workspaceID || in.ArchivedAt != nil || in.DeletedAt != nil {
+			return authz.Scope{}, false, nil
+		}
+		// An initiative is workspace-wide unless its lead team is private, which is the
+		// same rule initiativeScope applies to the initiative itself.
+		if in.LeadTeamID == nil {
+			return authz.WorkspaceScope(), true, nil
+		}
+		team, err := q.GetTeam(ctx, *in.LeadTeamID)
+		if err != nil {
+			return missingFavoriteTarget(err)
+		}
+		if !team.Private {
+			return authz.WorkspaceScope(), true, nil
+		}
+		return authz.TeamScope(team.ID, true), true, nil
+
+	case model.FavoriteCycle:
+		c, err := q.GetCycle(ctx, targetID)
+		if err != nil {
+			return missingFavoriteTarget(err)
+		}
+		if c.WorkspaceID != workspaceID || c.ArchivedAt != nil {
+			return authz.Scope{}, false, nil
+		}
+		team, err := q.GetTeam(ctx, c.TeamID)
+		if err != nil {
+			return missingFavoriteTarget(err)
+		}
+		return authz.TeamScope(team.ID, team.Private), true, nil
+
+	case model.FavoriteDocument:
+		d, err := q.GetDocument(ctx, targetID)
+		if err != nil {
+			return missingFavoriteTarget(err)
+		}
+		if d.WorkspaceID != workspaceID || d.ArchivedAt != nil || d.DeletedAt != nil {
+			return authz.Scope{}, false, nil
+		}
+		// A document attached to a project takes the project's scope, because that is
+		// where it is read from; a loose one belongs to its team. Same split as
+		// documentScope.
+		if d.ProjectID != nil {
+			ids, err := q.ListProjectTeamIDs(ctx, *d.ProjectID)
+			if err != nil {
+				return authz.Scope{}, false, platform.Internal(err)
+			}
+			return authz.ProjectScope(ids), true, nil
+		}
+		team, err := q.GetTeam(ctx, d.TeamID)
 		if err != nil {
 			return missingFavoriteTarget(err)
 		}

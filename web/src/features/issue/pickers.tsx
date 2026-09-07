@@ -17,7 +17,6 @@
 import type { RefObject } from 'react';
 
 import {
-  Avatar,
   Menu,
   PriorityIcon,
   priorityLabel,
@@ -27,6 +26,7 @@ import {
   type MenuNode,
   type MenuPlacement,
 } from '~/components';
+import { UserPicker } from '~/features/members/UserPicker';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { CATEGORY_ORDER, type StateCategory, type UUID, type WorkflowState } from '~/store';
 
@@ -131,20 +131,13 @@ export interface AssigneePickerProps extends PickerProps {
   onSelect: (assigneeId: UUID | null) => void;
 }
 
-/** The id of the "no assignee" row. A word rather than an id, because there is no id for nobody. */
-const UNASSIGNED = 'unassigned';
-
 /**
  * Everybody in the workspace, filterable, with unassigned at the top.
  *
- * Unassigned leads rather than trails: it is the most-used entry in the list — dropping
- * something back into the pool is a normal move — and a filter box that a user has to
- * scroll past to reach the common case is a filter box working against them.
- *
- * A suspended member is offered only when they are already the assignee. Hiding them
- * outright would leave a row whose assignee cannot be seen in the picker that is supposed to
- * be showing it, and the alternative — listing everyone who has ever left — makes the
- * common list longer for everybody.
+ * A thin wrapper over `UserPicker`, which is the same list under every other name the product
+ * gives a person — a project's lead, an initiative's owner. What is issue-specific is only the
+ * wording: an issue's is called an assignee, and nobody having it is "No assignee" rather than
+ * "No lead". Keeping the name here means the three pickers this file is about stay one import.
  */
 export function AssigneePicker({
   open,
@@ -154,56 +147,17 @@ export function AssigneePicker({
   value,
   onSelect,
 }: AssigneePickerProps) {
-  const users = useLiveQuery(
-    (store) =>
-      [...store.users.values()]
-        .filter(
-          (user) =>
-            user.archivedAt === undefined && (user.status === 'active' || user.id === value),
-        )
-        .map((user) => ({
-          id: user.id,
-          name: user.displayName,
-          avatarUrl: user.avatarUrl ?? null,
-          suspended: user.status !== 'active',
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    ['user'],
-    [value],
-  );
-
-  const items: MenuNode[] = [
-    {
-      id: UNASSIGNED,
-      label: 'No assignee',
-      text: 'no assignee unassigned',
-      selected: value === null,
-      onSelect: () => onSelect(null),
-    },
-    { kind: 'separator' },
-    ...users.map((user) => ({
-      id: user.id,
-      label: user.name,
-      icon: (
-        <Avatar name={user.name} src={user.avatarUrl} size="xs" colorKey={user.id} decorative />
-      ),
-      hint: user.suspended ? 'Suspended' : undefined,
-      selected: user.id === value,
-      onSelect: () => onSelect(user.id),
-    })),
-  ];
-
   return (
-    <Menu
+    <UserPicker
       open={open}
       onClose={onClose}
       trigger={trigger}
-      items={items}
-      label="Assignee"
       placement={placement}
-      filterable
+      value={value}
+      onSelect={onSelect}
+      label="Assignee"
+      noneLabel="No assignee"
       filterPlaceholder="Assign to…"
-      emptyLabel="Nobody by that name"
     />
   );
 }

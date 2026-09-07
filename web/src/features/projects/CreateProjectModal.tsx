@@ -30,10 +30,23 @@ import styles from './CreateProjectModal.module.css';
 const NO_TEMPLATE = '';
 
 export interface CreateProjectModalProps {
+  /**
+   * Whether the dialog is up.
+   *
+   * The shell mounts this component for its own lifetime and tells it, rather than
+   * rendering it into existence: a dialog cannot animate its own removal from a tree it has
+   * already left, and one that exists only while it is open pushes the `modal` key context
+   * and claims ⌘⏎ as a side effect of mounting. Both are gated on this, so a closed dialog
+   * claims nothing.
+   *
+   * Defaults to true, which is the contract this component had before the prop existed:
+   * something that mounted it meant it.
+   */
+  open?: boolean | undefined;
   onClose: () => void;
 }
 
-export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
+export function CreateProjectModal({ open = true, onClose }: CreateProjectModalProps) {
   const engine = useEngine();
   const navigate = useNavigate();
   const viewerId = useViewerId();
@@ -114,25 +127,29 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
   const submitRef = useRef<() => void>(() => {});
   submitRef.current = () => void save();
 
-  useKeyContext('modal');
+  useKeyContext('modal', open);
+  // Registered only while the dialog is up: a shut dialog that still bound ⌘⏎ would
+  // collide with the next one to claim it.
   useActions(
-    [
-      {
-        id: 'project.create.submit',
-        title: 'Create project',
-        keys: ['mod+Enter'],
-        when: 'modal',
-        group: 'Projects',
-        hidden: true,
-        run: () => submitRef.current(),
-      },
-    ],
-    [],
+    open
+      ? [
+          {
+            id: 'project.create.submit',
+            title: 'Create project',
+            keys: ['mod+Enter'],
+            when: 'modal',
+            group: 'Projects',
+            hidden: true,
+            run: () => submitRef.current(),
+          },
+        ]
+      : [],
+    [open],
   );
 
   return (
     <Modal
-      open
+      open={open}
       onClose={onClose}
       title="New project"
       size="md"

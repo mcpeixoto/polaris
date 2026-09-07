@@ -39,56 +39,20 @@
   color: inherit;
 }
 
-/* --- The panel ------------------------------------------------------------------------- */
+/* --- The SLA panel --------------------------------------------------------------------- */
 
 /*
- * A floating surface, so it carries the popover shadow and sits on the dropdown layer. It is
- * portalled into the body rather than rendered in place — the rail clips its overflow and this
- * is taller than the button that opens it — and positioned from the trigger's rect by the
- * component, the same arrangement Menu and DisplayMenu use.
+ * The surface itself is `components/Popover`, and the day-choosing half of this panel is
+ * `components/DatePicker`. What is left here is the branch neither of them has any business
+ * knowing about: the sentence an SLA-owned date is refused with. It takes the picker's width
+ * so that flipping between the two does not resize the popover.
  */
-.panel {
-  position: fixed;
-  z-index: var(--z-dropdown);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+.slaPanel {
   width: 240px;
-  padding: var(--space-2);
-  border-radius: var(--radius-lg);
-  background-color: var(--bg-elevated);
-  box-shadow: var(--shadow-popover);
-  animation: panelIn var(--duration-fast) var(--ease-out);
 }
 
-/*
- * Vertical only, for the reason DisplayMenu gives at length: the component measures this
- * panel's rect to pull it back from the right edge of the window, and that measurement reads
- * the horizontal sides. Moving it down the screen is free; scaling it is not.
- */
-@keyframes panelIn {
-  from {
-    opacity: 0;
-    transform: translateY(-6px);
-  }
-}
-
-/* Vertical out as well, mirroring the entrance. Nothing measures the panel by the time it is
- * leaving — every layout effect in properties.tsx is gated on `open` — so the restriction is
- * now only about keeping the arrival and the departure recognisably the same panel. */
-@keyframes panelOut {
-  to {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-}
-
-.panel[data-exiting] {
-  animation: panelOut var(--duration-instant) var(--ease-in) forwards;
-}
-
-/* Secondary and not tertiary: this sits on `.panel`, which is `--bg-elevated`, where
-   tertiary measures 4.08:1 in dark and fails body text. See 08-ui-composition.md. */
+/* Secondary and not tertiary: this sits on `--bg-elevated`, where tertiary measures 4.08:1 in
+   dark and fails body text. See 08-ui-composition.md. */
 .note {
   margin: 0;
   color: var(--text-secondary);
@@ -99,75 +63,7 @@
 .footer {
   display: flex;
   justify-content: flex-end;
-}
-
-/* --- The relatives --------------------------------------------------------------------- */
-
-.relatives {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-0-5);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-/*
- * A plain button rather than the library's, because these are rows in a list: they run the
- * full width, they carry a value at the trailing edge, and a Button's centred label would
- * leave four ragged pills where a reader wants a column of days to compare.
- */
-.relative {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  width: 100%;
-  height: var(--control-height-md);
-  padding: 0 var(--space-2);
-  border: 0;
-  border-radius: var(--radius-md);
-  background: none;
-  color: var(--text-primary);
-  font: inherit;
-  font-size: var(--font-size-md);
-  line-height: var(--line-height-none);
-  text-align: left;
-  cursor: pointer;
-  transition: background-color var(--duration-instant) var(--ease-out);
-}
-
-.relative:hover {
-  background-color: var(--bg-hover);
-}
-
-.relative:focus-visible {
-  outline: var(--focus-ring-width) solid var(--border-focus);
-  outline-offset: calc(var(--focus-ring-offset) * -1);
-}
-
-.relative[aria-current='true'] {
-  background-color: var(--bg-selected);
-}
-
-.relativeDay {
-  flex: none;
-  /* Raised surface again — see `.note`. */
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-}
-
-/* --- The date box ---------------------------------------------------------------------- */
-
-.dateForm {
-  display: flex;
-  align-items: flex-end;
   gap: var(--space-2);
-}
-
-.dateForm > *:first-child {
-  flex: 1;
-  min-width: 0;
 }
 
 /* --- Utilities -------------------------------------------------------------------------- */

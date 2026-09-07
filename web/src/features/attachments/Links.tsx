@@ -9,12 +9,11 @@ import { useRef, useState, type FormEvent } from 'react';
 
 import { useEngine } from '~/app/context';
 import { useActions } from '~/app/keymap';
-import { Button, IconButton, Input } from '~/components';
+import { Button, IconButton, Input, Section } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { formatSubtitle } from '~/features/attachments/tokens';
 import { CrossGlyph, PlusGlyph } from '~/features/issue/glyphs';
 import { report } from '~/features/issue/mutations';
-import { Section } from '~/features/issue/Section';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Attachment, UUID } from '~/store';
 import { ApiError } from '~/sync/api';

@@ -1,8 +1,9 @@
 /**
- * A collapsible section on the issue screen: sub-issues, relations, links, customers.
+ * A collapsible section of a detail screen: sub-issues, relations, links, customers, and
+ * the milestone and update panels the project and initiative pages hang off the same shape.
  *
- * One component for the four so that the four headers are the same drawing — a chevron, the
- * name, a count, and a "+" at the trailing edge — rather than four that drift. The header is
+ * One component for them all so that the headers are the same drawing — a chevron, the
+ * name, a count, and a "+" at the trailing edge — rather than a set that drifts. The header is
  * the toggle: the whole title row folds the body, and the "+" beside it is whatever the
  * section adds. Folding is local state and is not remembered, because a section a person
  * folded on one issue is not a decision about the next one.

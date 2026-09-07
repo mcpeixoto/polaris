@@ -876,7 +876,7 @@ export function IssueDetail() {
 
           <div className={styles.description}>
             <DescriptionEditor
-              issueId={issue.id}
+              target={{ kind: 'issue', id: issue.id }}
               description={issue.description}
               names={names}
               viewerId={viewerId}

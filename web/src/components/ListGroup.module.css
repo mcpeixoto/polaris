@@ -1,0 +1,94 @@
+/*
+ * The group header every list screen shares — the same bar the issue list draws over a
+ * status band: a tertiary strip the height of a control, the name at medium weight, the
+ * count beside it in secondary. The chevron turns rather than swapping for a second glyph,
+ * so the two states read as one control in two positions, and it answers reduced motion by
+ * not animating at all.
+ */
+
+.group {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: calc(var(--control-height-md) + var(--space-2));
+  padding-inline: var(--space-1);
+  border-radius: var(--radius-lg);
+  background: var(--bg-tertiary);
+}
+
+/* The fold takes the whole bar bar the action, so the heading is one big target. */
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding-inline: var(--space-1);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-md);
+  text-align: start;
+  cursor: pointer;
+}
+
+.toggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+.chevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-tertiary);
+  transition: transform var(--duration-instant) var(--ease-out);
+}
+
+.chevronShut {
+  transform: rotate(-90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
+}
+
+.name {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.count {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.detail {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.action {
+  display: flex;
+  flex: none;
+  align-items: center;
+}

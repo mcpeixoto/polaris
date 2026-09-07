@@ -966,3 +966,108 @@ func jsonBlobsEqual(t *testing.T, a, b json.RawMessage) bool {
 	}
 	return string(ax) == string(by)
 }
+
+// Favouriting the four surfaces that could not be favourited at all until the kind check
+// grew: a project, an initiative, a cycle and a document. Each is exercised the same way —
+// add it, see it in the sidebar, archive the target, see the row read as missing — because
+// the interesting property is not that the kind is accepted but that it resolves to a scope
+// and that an archived target is indistinguishable from one that was never there.
+func TestAddFavorite_ProjectInitiativeCycleAndDocument(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	admin := f.Principal()
+
+	project, _, err := svc.CreateProject(ctx, admin, domain.CreateProjectInput{
+		Name: "Apollo", TeamIDs: []uuid.UUID{f.TeamID},
+	})
+	if err != nil {
+		t.Fatalf("create the project: %v", err)
+	}
+	initiative, _, err := svc.CreateInitiative(ctx, admin, domain.CreateInitiativeInput{Name: "Growth"})
+	if err != nil {
+		t.Fatalf("create the initiative: %v", err)
+	}
+	on := true
+	if _, _, err := svc.UpdateTeamCycles(ctx, admin, domain.UpdateTeamCyclesInput{
+		TeamID: f.TeamID, Enabled: &on,
+	}); err != nil {
+		t.Fatalf("enable cycles: %v", err)
+	}
+	cycles, err := svc.ListCycles(ctx, admin, f.TeamID)
+	if err != nil || len(cycles) == 0 {
+		t.Fatalf("cycles: %v, %d of them", err, len(cycles))
+	}
+	document, _, err := svc.CreateDocument(ctx, admin, domain.CreateDocumentInput{
+		TeamID: f.TeamID, Title: "Spec", Body: "",
+	})
+	if err != nil {
+		t.Fatalf("create the document: %v", err)
+	}
+
+	cases := []struct {
+		kind    string
+		target  uuid.UUID
+		archive func() error
+	}{
+		{model.FavoriteProject, project.ID, func() error {
+			_, err := svc.ArchiveProject(ctx, admin, project.ID, true)
+			return err
+		}},
+		{model.FavoriteInitiative, initiative.ID, func() error {
+			_, err := svc.ArchiveInitiative(ctx, admin, initiative.ID, true)
+			return err
+		}},
+		{model.FavoriteCycle, cycles[0].ID, func() error {
+			_, err := svc.ArchiveCycle(ctx, admin, cycles[0].ID, true)
+			return err
+		}},
+		{model.FavoriteDocument, document.ID, func() error {
+			_, err := svc.ArchiveDocument(ctx, admin, document.ID, true)
+			return err
+		}},
+	}
+
+	for _, c := range cases {
+		t.Run(c.kind, func(t *testing.T) {
+			fav, _, err := svc.AddFavorite(ctx, admin, c.kind, c.target, nil)
+			if err != nil {
+				t.Fatalf("favourite the %s: %v", c.kind, err)
+			}
+			favs, err := svc.ListFavorites(ctx, admin)
+			if err != nil {
+				t.Fatalf("list favourites: %v", err)
+			}
+			if !containsFavorite(favs, fav.ID) {
+				t.Fatalf("the %s favourite is not in the sidebar: %+v", c.kind, favs)
+			}
+
+			// A target that does not exist is refused, and refused the same way as one the
+			// caller cannot see — the oracle argument the issue case above makes.
+			if _, _, err := svc.AddFavorite(ctx, admin, c.kind, uuid.Must(uuid.NewV7()), nil); platform.CodeOf(err) != platform.CodeValidation {
+				t.Fatalf("favouriting a %s that does not exist gave %v, want a refusal", c.kind, err)
+			}
+
+			if err := c.archive(); err != nil {
+				t.Fatalf("archive the %s: %v", c.kind, err)
+			}
+			favs, err = svc.ListFavorites(ctx, admin)
+			if err != nil {
+				t.Fatalf("list favourites: %v", err)
+			}
+			if containsFavorite(favs, fav.ID) {
+				t.Fatalf("an archived %s still shows in the sidebar", c.kind)
+			}
+		})
+	}
+}
+
+func containsFavorite(favs []model.Favorite, id uuid.UUID) bool {
+	for _, fav := range favs {
+		if fav.ID == id {
+			return true
+		}
+	}
+	return false
+}

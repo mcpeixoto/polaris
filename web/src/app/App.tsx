@@ -378,13 +378,21 @@ function SignedInShell() {
       renderCreateIssue={({ open, onClose, seed, onFiling }) => (
         <CreateIssueModal open={open} onClose={onClose} seed={seed} onFiling={onFiling} />
       )}
-      renderCreateProject={({ onClose }) => <CreateProjectModal onClose={onClose} />}
-      renderCreateInitiative={({ onClose }) => <CreateInitiativeModal onClose={onClose} />}
-      renderCreateCustomer={({ onClose }) => <CreateCustomerModal onClose={onClose} />}
-      renderCreateCustomerRequest={({ onClose }) => (
-        <CreateCustomerRequestModal onClose={onClose} />
+      renderCreateProject={({ open, onClose }) => (
+        <CreateProjectModal open={open} onClose={onClose} />
       )}
-      renderCreateDashboard={({ onClose }) => <CreateDashboardModal onClose={onClose} />}
+      renderCreateInitiative={({ open, onClose }) => (
+        <CreateInitiativeModal open={open} onClose={onClose} />
+      )}
+      renderCreateCustomer={({ open, onClose }) => (
+        <CreateCustomerModal open={open} onClose={onClose} />
+      )}
+      renderCreateCustomerRequest={({ open, onClose }) => (
+        <CreateCustomerRequestModal open={open} onClose={onClose} />
+      )}
+      renderCreateDashboard={({ open, onClose }) => (
+        <CreateDashboardModal open={open} onClose={onClose} />
+      )}
     >
       {/*
         The inner boundary, keyed on the path.

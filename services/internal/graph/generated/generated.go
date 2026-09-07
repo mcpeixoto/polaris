@@ -12780,6 +12780,10 @@ enum FavoriteKind {
   ISSUE
   LABEL
   FOLDER
+  PROJECT
+  INITIATIVE
+  CYCLE
+  DOCUMENT
 }
 
 # ---------------------------------------------------------------- types
