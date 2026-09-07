@@ -9,6 +9,7 @@ import {
   COMPARISON,
   formatEur,
   FREE_HISTORY_DAYS,
+  FREE_ISSUES,
   FREE_SEATS,
   FREE_TEAMS,
   PLAN_ORDER,
@@ -148,6 +149,18 @@ describe('agreement with the enforced matrix', () => {
 
   it('quotes the history window the server enforces', () => {
     expect(FREE_HISTORY_DAYS).toBe(field('HistoryDays'));
+  });
+
+  it('quotes the issue ceiling the server enforces', () => {
+    expect(FREE_ISSUES).toBe(field('IssueLimit'));
+  });
+
+  it('states the issue ceiling in the comparison table', () => {
+    const row = COMPARISON.find((candidate) => candidate.label === 'Issues');
+    const free = row?.cells.free;
+    const quoted = free !== undefined && free.kind === 'text' ? free.text : '';
+    // Rendered with a thousands separator, so compare on digits rather than on format.
+    expect(quoted.replace(/\D/gu, '')).toBe(String(FREE_ISSUES));
   });
 
   it('states those caps in the comparison table too', () => {

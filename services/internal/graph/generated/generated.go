@@ -443,6 +443,7 @@ type ComplexityRoot struct {
 		AuditLog           func(childComplexity int) int
 		CustomViews        func(childComplexity int) int
 		HistoryDays        func(childComplexity int) int
+		IssueLimit         func(childComplexity int) int
 		Lapsed             func(childComplexity int) int
 		MultiLevelSubTeams func(childComplexity int) int
 		Plan               func(childComplexity int) int
@@ -4009,6 +4010,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Entitlements.HistoryDays(childComplexity), true
+	case "Entitlements.issueLimit":
+		if e.ComplexityRoot.Entitlements.IssueLimit == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Entitlements.IssueLimit(childComplexity), true
 	case "Entitlements.lapsed":
 		if e.ComplexityRoot.Entitlements.Lapsed == nil {
 			break
@@ -12854,6 +12861,8 @@ type Entitlements {
   teamLimit: Int
   """How far back the change stream is queryable, in days."""
   historyDays: Int
+  """How many issues the workspace may hold, across every team."""
+  issueLimit: Int
   privateTeams: Boolean!
   """Business+: one level of sub-teams under a top-level parent."""
   subTeams: Boolean!
@@ -17461,6 +17470,8 @@ func (ec *executionContext) childFields_Entitlements(ctx context.Context, field 
 		return ec.fieldContext_Entitlements_teamLimit(ctx, field)
 	case "historyDays":
 		return ec.fieldContext_Entitlements_historyDays(ctx, field)
+	case "issueLimit":
+		return ec.fieldContext_Entitlements_issueLimit(ctx, field)
 	case "privateTeams":
 		return ec.fieldContext_Entitlements_privateTeams(ctx, field)
 	case "subTeams":
@@ -32813,6 +32824,29 @@ func (ec *executionContext) _Entitlements_historyDays(ctx context.Context, field
 	)
 }
 func (ec *executionContext) fieldContext_Entitlements_historyDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Entitlements", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Entitlements_issueLimit(ctx context.Context, field graphql.CollectedField, obj *Entitlements) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Entitlements_issueLimit(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IssueLimit, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Entitlements_issueLimit(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Entitlements", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
@@ -79361,6 +79395,11 @@ func (ec *executionContext) _Entitlements(ctx context.Context, sel ast.Selection
 			}
 		case "historyDays":
 			out.Values[i] = ec._Entitlements_historyDays(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "issueLimit":
+			out.Values[i] = ec._Entitlements_issueLimit(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}

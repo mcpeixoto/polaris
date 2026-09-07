@@ -286,6 +286,13 @@
   color: var(--text-primary);
 }
 
+/* Carries no style of its own — it exists so the media query below can drop it on a
+   phone, where the header has room for the two actions that end in a signed-in session
+   and nothing else. The compact menu keeps the link reachable there. */
+.navSource {
+  display: inline-flex;
+}
+
 /* ------------------------------------------------------------------ *
  * The narrow-viewport menu
  *
@@ -1618,7 +1625,8 @@
 }
 
 @media (max-width: 960px) {
-  .navLinks {
+  .navLinks,
+  .navSource {
     display: none;
   }
 

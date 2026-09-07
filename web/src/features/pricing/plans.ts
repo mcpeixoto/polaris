@@ -140,6 +140,7 @@ export interface ComparisonRow {
 export const FREE_SEATS = 5;
 export const FREE_TEAMS = 2;
 export const FREE_HISTORY_DAYS = 90;
+export const FREE_ISSUES = 10000;
 
 const UNLIMITED = 'Unlimited';
 
@@ -222,6 +223,16 @@ export const COMPARISON: readonly ComparisonRow[] = [
     cells: {
       self_hosted: text(UNLIMITED),
       free: text(`${FREE_HISTORY_DAYS} days`),
+      pro: text(UNLIMITED),
+      enterprise: text(UNLIMITED),
+    },
+  },
+  {
+    label: 'Issues',
+    note: 'Archived and trashed issues do not count.',
+    cells: {
+      self_hosted: text(UNLIMITED),
+      free: text(FREE_ISSUES.toLocaleString('en-GB')),
       pro: text(UNLIMITED),
       enterprise: text(UNLIMITED),
     },

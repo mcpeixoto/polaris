@@ -40,6 +40,7 @@ func TestFeatures_MatchesTheGraphQLContract(t *testing.T) {
 		"seatLimit":          "SeatLimit",
 		"teamLimit":          "TeamLimit",
 		"historyDays":        "HistoryDays",
+		"issueLimit":         "IssueLimit",
 		"privateTeams":       "PrivateTeams",
 		"subTeams":           "SubTeams",
 		"multiLevelSubTeams": "MultiLevelSubTeams",
@@ -151,7 +152,7 @@ func TestFor_EveryPlan(t *testing.T) {
 			name: "free is capped but not crippled",
 			plan: PlanFree,
 			want: Features{
-				SeatLimit: 5, TeamLimit: 2, HistoryDays: 90,
+				SeatLimit: 5, TeamLimit: 2, HistoryDays: 90, IssueLimit: 10000,
 				PrivateTeams: false, SubTeams: false, MultiLevelSubTeams: false,
 				CustomViews: true, APIKeys: true,
 				SSO: false, AuditLog: false, SLAs: false, Slack: true,
@@ -162,6 +163,7 @@ func TestFor_EveryPlan(t *testing.T) {
 			plan: PlanPro,
 			want: Features{
 				SeatLimit: Unlimited, TeamLimit: Unlimited, HistoryDays: Unlimited,
+				IssueLimit:   Unlimited,
 				PrivateTeams: true, SubTeams: true, MultiLevelSubTeams: false,
 				CustomViews: true, APIKeys: true,
 				SSO: false, AuditLog: false, SLAs: true, Slack: true,
@@ -172,6 +174,7 @@ func TestFor_EveryPlan(t *testing.T) {
 			plan: PlanEnterprise,
 			want: Features{
 				SeatLimit: Unlimited, TeamLimit: Unlimited, HistoryDays: Unlimited,
+				IssueLimit:   Unlimited,
 				PrivateTeams: true, SubTeams: true, MultiLevelSubTeams: true,
 				CustomViews: true, APIKeys: true,
 				SSO: true, AuditLog: true, SLAs: true, Slack: true,
@@ -184,6 +187,7 @@ func TestFor_EveryPlan(t *testing.T) {
 			plan: PlanSelfHosted,
 			want: Features{
 				SeatLimit: Unlimited, TeamLimit: Unlimited, HistoryDays: Unlimited,
+				IssueLimit:   Unlimited,
 				PrivateTeams: true, SubTeams: true, MultiLevelSubTeams: true,
 				CustomViews: true, APIKeys: true,
 				SSO: false, AuditLog: false, SLAs: true, Slack: true,

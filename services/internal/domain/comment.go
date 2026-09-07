@@ -359,12 +359,23 @@ func (s *Service) ListIssueHistory(ctx context.Context, p *authz.Principal, issu
 		return nil, platform.NotFound("issue")
 	}
 
+	// The plan's history window. Older entries are hidden, never deleted, so upgrading
+	// brings them all back — which is what makes this a packaging decision rather than a
+	// retention policy.
+	cutoff, err := s.historyCutoff(ctx, q, p.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+
 	rows, err := q.ListIssueHistory(ctx, issueID)
 	if err != nil {
 		return nil, platform.Internal(err)
 	}
 	out := make([]model.IssueHistoryEntry, 0, len(rows))
 	for _, r := range rows {
+		if !cutoff.IsZero() && r.CreatedAt.Before(cutoff) {
+			continue
+		}
 		e := model.IssueHistoryEntry{
 			ID:        r.ID,
 			IssueID:   r.IssueID,

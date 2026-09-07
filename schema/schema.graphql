@@ -217,6 +217,8 @@ type Entitlements {
   teamLimit: Int
   """How far back the change stream is queryable, in days."""
   historyDays: Int
+  """How many issues the workspace may hold, across every team."""
+  issueLimit: Int
   privateTeams: Boolean!
   """Business+: one level of sub-teams under a top-level parent."""
   subTeams: Boolean!
