@@ -88,6 +88,15 @@ else
     || note "$rel does not check that the release was published"
 fi
 
+# The iOS job must require a signing identity, not only an App Store Connect key.
+# Removing this check is how the "the API key is enough" assumption comes back — it is
+# wrong in a way that only shows up ten minutes into an archive on a release.
+if ! grep -q 'IOS_DIST_P12' "$ios"; then
+  note "$ios does not require a distribution identity (IOS_DIST_P12)"
+  echo "      -allowProvisioningUpdates downloads a certificate, not a private key."
+  echo "      Without the identity imported, the archive cannot be signed."
+fi
+
 # Every secret a workflow reads must be written down, with what breaks without it.
 #
 # This is the drift that costs a release day: a workflow grows a `secrets.NEW_THING`, the

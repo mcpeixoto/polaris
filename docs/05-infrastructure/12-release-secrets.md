@@ -35,6 +35,22 @@ reporting success having uploaded nothing is worse than a red X.
 | `APPLE_API_KEY_PATH` | The contents of the App Store Connect `.p8` private key — the key itself, not a path, despite the name | No TestFlight build, ever |
 | `APPLE_API_KEY_ID` | Its key id, the `ABCD123456` part of an `AuthKey_ABCD123456.p8` filename | As above |
 | `APPLE_API_ISSUER` | The issuer id, a UUID. Also used by `ios/scripts/asc-setup.py`, which is where to read it from | As above |
+| `IOS_DIST_P12` | The **Apple Distribution identity** — certificate *and* private key — exported as base64 `.p12` | The archive cannot be signed |
+| `IOS_DIST_P12_PASSWORD` | The export passphrase | As above |
+
+**The API key is not enough on its own, and this is the trap.** `-allowProvisioningUpdates`
+downloads the *certificate* from App Store Connect. A certificate signs nothing without its
+private key, and that key exists only in the keychain whose CSR created it — App Store
+Connect has never had a copy and no role grants one. So a correctly-scoped App Manager key
+still fails, ten minutes into the archive, with:
+
+```
+No signing certificate "iOS Distribution" found: No "iOS Distribution" signing
+certificate matching team ID "..." with a private key was found.
+```
+
+which reads as a missing certificate and is a missing key. `make release-secrets` prints the
+`security export` line for it.
 
 The same three are what `desktop.yml` notarises macOS builds with, so setting them fixes
 two things at once.

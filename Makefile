@@ -184,6 +184,10 @@ lint-desktop: ## Enforce that a desktop artefact shipping two architectures name
 lint-workflow-vars: ## Enforce that a workflow step cannot read an env var nothing gives it
 	@bash scripts/lint-workflow-vars.sh
 
+.PHONY: release
+release: ## Cut a release: make release VERSION=v0.9.0
+	@VERSION=$(VERSION) bash scripts/release.sh
+
 .PHONY: release-secrets
 release-secrets: ## Which release secrets are configured, and how to set the ones that are not
 	@bash scripts/release-secrets.sh $(ARGS)
