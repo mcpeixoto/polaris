@@ -205,6 +205,7 @@ jobs:
       # explicit input still wins, for the case where TestFlight has already seen a run
       # number because an upload half-succeeded.
       - name: Stamp the version from the tag
+        id: version
         env:
           OVERRIDE: ${{ inputs.build_number }}
           RUN_NUMBER: ${{ github.run_number }}
@@ -229,6 +230,7 @@ jobs:
           sed -i '' -E "s/^( *CURRENT_PROJECT_VERSION: ).*/\1\"$build\"/" project.yml
 
           grep -E 'MARKETING_VERSION|CURRENT_PROJECT_VERSION' project.yml
+          echo "marketing=$(sed -nE 's/^ *MARKETING_VERSION: *"?([^"]*)"?/\1/p' project.yml | head -1)" >> "$GITHUB_OUTPUT"
 
       - name: Generate the Xcode project
         working-directory: ios
@@ -302,6 +304,23 @@ jobs:
             -t ios \
             --apiKey "$KEY_ID" \
             --apiIssuer "$ISSUER"
+
+      # Upload is not distribution.
+      #
+      # altool returns once App Store Connect holds the binary, and a build with no beta
+      # group is VALID, READY_FOR_BETA_TESTING and invisible in the TestFlight app to
+      # everybody. Every build this project uploaded sat in exactly that state — five of
+      # them over six weeks — with every job green, because "uploaded" was the only thing
+      # checked. The release was only ever half done.
+      - name: Distribute to the internal testers
+        env:
+          ASC_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          ASC_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          BUILD_VERSION: ${{ steps.version.outputs.marketing }}
+        run: |
+          python3 -m pip install --quiet --disable-pip-version-check pyjwt cryptography \
+            || python3 -m pip install --quiet --disable-pip-version-check --break-system-packages pyjwt cryptography
+          python3 ios/scripts/distribute-build.py
 
       # The archive carries the dSYMs. Keeping it is what makes a crash report from a tester
       # symbolicable weeks later, once the runner is long gone.

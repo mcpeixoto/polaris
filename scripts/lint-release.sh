@@ -97,6 +97,16 @@ if ! grep -q 'IOS_DIST_P12' "$ios"; then
   echo "      Without the identity imported, the archive cannot be signed."
 fi
 
+# Uploading is not distributing, and the job must do both.
+#
+# A build with no beta group is VALID, READY_FOR_BETA_TESTING and invisible in the
+# TestFlight app to every tester. Five builds sat that way over six weeks with every job
+# green. If this step goes, releases silently stop reaching anybody again.
+if ! grep -q 'distribute-build.py' "$ios"; then
+  note "$ios uploads to TestFlight but never assigns the build to a group"
+  echo "      An unassigned build is invisible to testers, and the upload job stays green."
+fi
+
 # Every secret a workflow reads must be written down, with what breaks without it.
 #
 # This is the drift that costs a release day: a workflow grows a `secrets.NEW_THING`, the
