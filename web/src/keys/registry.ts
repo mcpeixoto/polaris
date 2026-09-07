@@ -463,7 +463,18 @@ export class KeymapRegistry<Ctx extends ActionContext = ActionContext> {
       if (kept.length === 0) this.groups.delete(action.group);
       else this.groups.set(action.group, kept);
     }
-    this.matcher.reset();
+    // The half-typed sequence deliberately survives.
+    //
+    // A context change is a gesture boundary and resets it; an unregistration is not one.
+    // Screens re-register their actions whenever a `useActions` dependency moves — a row
+    // arriving over sync, a session answering — and every one of those re-registrations
+    // unregisters first. Resetting here meant that a delta landing between the `g` and the
+    // `m` of `g m` silently threw the chord away, which is a shortcut that works except
+    // when the replica is busy.
+    //
+    // Nothing goes stale by keeping it: `feed` is given the bindings that are registered
+    // *now*, on every keystroke, so a prefix whose action has gone simply fails to match
+    // and the dead-prefix retry lets the following key fire on its own.
   }
 
   private dispatchContext(actionCtx: Ctx, context: Context, event: KeyboardEventLike): Ctx {

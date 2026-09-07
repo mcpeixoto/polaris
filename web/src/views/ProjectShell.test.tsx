@@ -128,6 +128,15 @@ describe('ProjectShell', () => {
     expect(screen.getAllByText(/Q2 2026/).length).toBeGreaterThan(0);
   });
 
+  it('names the project in a heading, for somebody navigating by them', () => {
+    renderShell(seeded(), READY);
+
+    // The visible name is a textarea in the last crumb, which is no heading at all — so
+    // the screen carries a hidden `<h1>` beside it rather than leaving a reader arriving
+    // by heading with nothing saying which project this is.
+    expect(screen.getByRole('heading', { level: 1, name: 'Launch' })).not.toBeNull();
+  });
+
   it('says where you are: Projects, then this project', () => {
     renderShell(seeded(), READY);
 

@@ -21,7 +21,11 @@ async function newProject(page: Page, name: string): Promise<void> {
 }
 
 async function postUpdate(page: Page, health: string, body: string): Promise<void> {
-  await page.getByLabel('Health').selectOption({ label: health });
+  // The composer's health is a menu button now, not a select: the overview keeps the
+  // composer and the latest post, and the picker matches the pills the rest of the shell
+  // uses. The edit form below still has a real `<select>`.
+  await page.getByRole('button', { name: 'Health' }).click();
+  await page.getByRole('menu', { name: 'Health' }).getByRole('menuitem', { name: health }).click();
   await page.getByLabel('Update', { exact: true }).fill(body);
   await page.getByRole('button', { name: 'Post update' }).click();
   // The compose box clears once the mutation has resolved.

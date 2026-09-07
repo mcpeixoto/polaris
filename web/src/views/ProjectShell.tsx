@@ -240,6 +240,12 @@ export function ProjectShell() {
         return (
           <div className={styles.screen}>
             <header className={styles.header}>
+              {/* The name is the rename field in the last crumb, so the screen would
+                  otherwise have no heading at all. Hidden the way `IssueDetail`'s
+                  `.screenTitle` is: a `<textarea>` inside an `<h1>` gives the heading no
+                  name, and the heading list is how somebody with a screen reader finds out
+                  which project they opened. */}
+              <h1 className={styles.screenTitle}>{project.name}</h1>
               <Breadcrumb
                 className={styles.crumbs}
                 items={[

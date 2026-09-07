@@ -195,6 +195,14 @@ export function ProjectDisplayMenu({
     if (panelRect.right > window.innerWidth - VIEWPORT_MARGIN_PX) {
       left = Math.max(VIEWPORT_MARGIN_PX, window.innerWidth - VIEWPORT_MARGIN_PX - panelRect.width);
     }
+    // The answer goes back onto the element the same way the probe went on, and not only
+    // into state: when a reopened panel works out the same position it had last time, the
+    // style prop React holds has not changed, nothing is written to the DOM, and the
+    // measuring position stays on screen — which is how the panel came to hang off the
+    // right edge of the window on every open but the first, with its lower controls
+    // unreachable.
+    panel.style.top = `${rect.bottom}px`;
+    panel.style.left = `${left}px`;
     setPosition({ top: rect.bottom, left });
     panel.style.visibility = '';
   }, [open, trigger]);

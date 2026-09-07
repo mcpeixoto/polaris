@@ -109,7 +109,9 @@ test.describe('native undo', () => {
     // The indicator is what says the write landed, which the button's disabled state used
     // to stand in for.
     await page.keyboard.press('ControlOrMeta+s');
-    await expect(page.getByRole('status')).toHaveText('Saved');
+    // Scoped to the document's own header: the page also carries the route-status live
+    // region and the toast host, and `role=status` alone now means all three.
+    await expect(page.locator('header').getByRole('status')).toHaveText('Saved');
 
     await page.reload();
     const reloaded = page.getByLabel('Body');
@@ -143,8 +145,11 @@ test.describe('native undo', () => {
     await area.waitFor();
     const height = async () => (await area.boundingBox())?.height ?? 0;
 
+    // Polled rather than measured once: `waitFor` is satisfied by the element the loading
+    // screen puts there, and the real field replaces it a frame later. A single measurement
+    // taken on the way through reads zero and says nothing about autosizing.
+    await expect.poll(height).toBeGreaterThan(0);
     const atRest = await height();
-    expect(atRest).toBeGreaterThan(0);
 
     // Past the sixteen lines the document body rests at, so growth is the only thing that
     // could account for the difference.
@@ -155,8 +160,11 @@ test.describe('native undo', () => {
 
     // And after a reload, where the text arrives from the replica in one go rather than a
     // keystroke at a time — the path that goes through the ref rather than through `onInput`.
-    await page.getByRole('button', { name: 'Save' }).click();
-    await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled();
+    // ⌘S is the explicit save now that the button is gone, and the indicator saying "Saved"
+    // is what the button's disabled state used to stand in for: it is only safe to reload
+    // once the write has actually landed.
+    await page.keyboard.press('ControlOrMeta+s');
+    await expect(page.locator('header').getByRole('status')).toHaveText('Saved');
     await page.reload();
 
     const reloaded = page.getByLabel('Body');

@@ -36,6 +36,20 @@
   flex: 0 1 auto;
 }
 
+/* The heading, out of the page and still in the accessibility tree: `display: none` would
+   take it out of both, which is the one thing a heading must never be. */
+.screenTitle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
 /* The last crumb is the rename field, so it holds the row's height rather than growing it. */
 .titleField {
   max-width: 20rem;
