@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { Landing } from './Landing';
 
@@ -142,6 +142,136 @@ describe('Landing', () => {
       await user.click([...panel.querySelectorAll('a')][1]!);
 
       expect(screen.queryByRole('navigation', { name: 'Page, compact' })).toBeNull();
+    });
+  });
+  /**
+   * The desktop builds have been published on GitHub for months and nothing on this page
+   * pointed at them, so installing Polaris meant already knowing where a project keeps its
+   * release artifacts. These four are what a stylesheet cannot guarantee: every platform is
+   * reachable, the visitor's own leads, the links survive a release (they go to
+   * `…/releases/latest`, never to a versioned file name), and the unsigned builds say so
+   * before the operating system does.
+   */
+  describe('the desktop downloads', () => {
+    const LATEST = 'https://github.com/mcpeixoto/polaris/releases/latest';
+
+    /** Renders with a stubbed user agent, because jsdom's own is whatever CI runs on. */
+    function renderOn(hint: { userAgent: string; platform: string }) {
+      vi.stubGlobal('navigator', hint);
+      try {
+        return renderLanding();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    }
+
+    const MAC = {
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+      platform: 'MacIntel',
+    };
+    const WINDOWS = { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', platform: 'Win32' };
+    const LINUX = { userAgent: 'Mozilla/5.0 (X11; Linux x86_64)', platform: 'Linux x86_64' };
+
+    it('offers every platform, and both Mac architectures', () => {
+      renderOn(WINDOWS);
+      for (const name of [
+        'Download Polaris for macOS, Apple Silicon',
+        'Download Polaris for macOS, Intel',
+        'Download Polaris for Windows, Installer',
+        'Download Polaris for Linux, AppImage',
+        'Download Polaris for Linux, Debian / Ubuntu',
+      ]) {
+        expect(screen.getByRole('link', { name }).getAttribute('href'), name).toBe(LATEST);
+      }
+    });
+
+    it('leads with the machine the visitor is on, without dropping the others', () => {
+      for (const [hint, first] of [
+        [MAC, 'macOS'],
+        [WINDOWS, 'Windows'],
+        [LINUX, 'Linux'],
+      ] as const) {
+        const { container, unmount } = renderOn(hint);
+        const cards = [...container.querySelectorAll('#download li')];
+        expect(cards.length, first).toBe(3);
+        expect(cards[0]?.textContent, first).toContain(first);
+        expect(cards[0]?.textContent, first).toContain('Your machine');
+        // Nothing is hidden because it was not guessed: all three are still on the page.
+        for (const name of ['macOS', 'Windows', 'Linux']) {
+          expect(
+            cards.some((card) => card.textContent?.includes(name)),
+            name,
+          ).toBe(true);
+        }
+        unmount();
+      }
+    });
+
+    it('falls back to a plain Download when the machine is not recognisable', () => {
+      renderOn({ userAgent: 'Polaris/1.0 (unknown)', platform: '' });
+      // Header, compact menu, hero and footer all say plain "Download" here: with nothing
+      // guessed there is no platform to name in the button.
+      const plain = screen.getAllByRole('link', { name: 'Download' });
+      expect(plain.length).toBeGreaterThan(0);
+      for (const link of plain) expect(link.getAttribute('href')).toBe('#download');
+      expect(screen.queryByText('Your machine')).toBeNull();
+      // Still three platforms — an unrecognised visitor gets the full list, not an empty band.
+      expect(screen.getAllByRole('link', { name: /^Download Polaris for/ }).length).toBe(5);
+    });
+
+    it('warns about the unsigned builds before the operating system does', () => {
+      const { container } = renderOn(MAC);
+      const text = container.textContent ?? '';
+      expect(text).toContain('not signed yet');
+      expect(text).toContain('right-click Polaris, choose Open');
+      expect(text).toContain('SmartScreen');
+      expect(text).toContain('Run anyway');
+    });
+
+    it('is reachable from the header and the footer, not only from the band', () => {
+      const { container } = renderOn(MAC);
+      const header = container.querySelector('header');
+      const footer = container.querySelector('footer');
+      expect(
+        [...(header?.querySelectorAll('a') ?? [])].some(
+          (a) => a.getAttribute('href') === '#download',
+        ),
+      ).toBe(true);
+      expect(
+        [...(footer?.querySelectorAll('a') ?? [])].some(
+          (a) => a.getAttribute('href') === '#download',
+        ),
+      ).toBe(true);
+      // The hero says which one it thinks you want.
+      expect(screen.getByRole('link', { name: 'Download for macOS' }).getAttribute('href')).toBe(
+        '#download',
+      );
+    });
+
+    /**
+     * The compact menu's link list is asserted exactly, above. The download link lives
+     * beside that landmark rather than inside it, the way the GitHub link already does.
+     */
+    it('reaches the compact menu without joining the five section links', async () => {
+      const user = userEvent.setup();
+      renderOn(MAC);
+
+      await user.click(screen.getByRole('button', { name: 'Open menu' }));
+
+      const panel = screen.getByRole('navigation', { name: 'Page, compact' });
+      expect([...panel.querySelectorAll('a')].map((link) => link.textContent)).toEqual([
+        'Product',
+        'Keyboard',
+        'Sync',
+        'Pricing',
+        'Self-host',
+      ]);
+      const menu = document.getElementById('nav-menu');
+      expect(
+        [...(menu?.querySelectorAll('a') ?? [])].some(
+          (a) => a.getAttribute('href') === '#download',
+        ),
+      ).toBe(true);
     });
   });
 });
