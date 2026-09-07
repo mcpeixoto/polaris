@@ -1,0 +1,20 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* The two properties on one row, the way the composer's pill row reads: they are settings
+   on the thing being made rather than further questions down the form. */
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.error {
+  margin: 0;
+  color: var(--text-danger);
+  font-size: var(--font-size-sm);
+}

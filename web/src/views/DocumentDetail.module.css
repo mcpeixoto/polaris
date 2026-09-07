@@ -26,20 +26,22 @@
 .header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-3);
 }
 
-.back {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  color: var(--text-secondary);
-  text-decoration: none;
-  transition: color var(--duration-fast) var(--ease-out);
+/* The trail takes the slack so the indicator and the controls sit at the far end, where
+   they are on every other detail screen. */
+.crumbs {
+  flex: 1;
+  min-width: 0;
 }
 
-.back:hover {
-  color: var(--accent-text);
+/* Beside the controls rather than under the title: it reports the field the reader is in,
+   and a line of text that appears under a heading pushes the document down as it does. */
+.indicator {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
 }
 
 .actions {

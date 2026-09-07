@@ -35,62 +35,36 @@
   min-width: 0;
 }
 
-.title {
-  margin: 0;
+.screenTitle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+/* The editable name, at the weight the static heading used to carry. */
+.titleField {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
   letter-spacing: -0.018em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.status {
-  flex: none;
-  padding: var(--space-0-5) var(--space-2);
-  border-radius: var(--radius-sm);
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
-  text-transform: capitalize;
-}
-
-.tabs {
+.crumbRow {
   display: flex;
+  align-items: center;
   gap: var(--space-1);
+  min-width: 0;
 }
 
-.tab {
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  text-decoration: none;
-  transition:
-    background-color var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
-}
-
-.tab:hover {
-  color: var(--text-primary);
-  background: var(--bg-hover);
-}
-
-.tabActive {
-  color: var(--text-primary);
-  background: var(--bg-secondary);
-}
-
-/* NavLink sets aria-current on the active tab, so selection is announced; this is the
-   keyboard's own mark. :focus-visible rather than :focus, so clicking a tab does not draw
-   a ring around the thing the pointer just landed on. */
-.tab:focus-visible {
-  outline: var(--focus-ring-width) solid var(--border-focus);
-  outline-offset: var(--focus-ring-offset);
+.spacer {
+  flex: 1;
 }
 
 .body {

@@ -1,0 +1,93 @@
+/*
+ * The trail sits on a 44px view header beside the controls at its trailing edge, so it is
+ * measured to the same line as they are and hands the header its overflow: the trail
+ * shrinks, the buttons do not.
+ */
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: var(--font-size-md);
+}
+
+/* The chevron travels with the crumb after it rather than being a child of the row, so a
+   trail that wraps never leaves a separator stranded at the end of a line. */
+.step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/*
+ * A step, shaped to sit on the header's line without pretending to be one of the controls
+ * beside it: the same height, no fill until it is hovered, and the negative margin so the
+ * first crumb's text lines up with the page's content rather than with its own padding.
+ */
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+  min-width: 0;
+  height: var(--control-height-md);
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.step:first-child .crumb,
+.step:first-child .current {
+  margin-left: calc(var(--space-2) * -1);
+}
+
+a.crumb:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+a.crumb:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* The page you are on: primary ink, because it is the answer to "what am I looking at",
+   and the only crumb allowed to take the row's spare width. */
+.current {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  height: var(--control-height-md);
+  padding-inline: var(--space-2);
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  line-height: var(--line-height-none);
+}
+
+.chevron {
+  flex: none;
+  width: var(--space-3);
+  height: var(--space-3);
+  color: var(--text-tertiary);
+}

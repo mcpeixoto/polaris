@@ -1,6 +1,6 @@
 /**
- * The cycles list: what each row says about its own window, and what it asks before it
- * closes one.
+ * The cycles list: what each row says about its own window, which group it is read in,
+ * what the keyboard does to it, and what it asks before it closes one.
  */
 
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
@@ -146,6 +146,7 @@ function mount(store: Store, phase: 'idle' | 'hydrating' = 'idle') {
         <EngineProvider engine={engine} status={{ phase }}>
           <Routes>
             <Route path="/team/:teamKey/cycles" element={<Cycles />} />
+            <Route path="/cycle/:cycleId" element={<p>opened</p>} />
           </Routes>
         </EngineProvider>
       </KeymapProvider>
@@ -207,5 +208,73 @@ describe('Cycles “start cycle today”', () => {
 
     await user.click(within(dialog).getByRole('button', { name: 'Start cycle today' }));
     await waitFor(() => expect(mutate).toHaveBeenCalled());
+  });
+});
+
+describe('Cycles groups', () => {
+  it('splits the list into the three tenses a sprint list is read in', () => {
+    mount(seeded());
+
+    for (const name of ['Current', 'Upcoming', 'Past']) {
+      expect(screen.getByRole('button', { name: new RegExp(`^${name}`) })).toBeTruthy();
+    }
+    // Each heading counts its own rows rather than the whole list.
+    const past = screen.getByRole('button', { name: /^Past/ });
+    expect(past.textContent).toContain('1');
+  });
+
+  it('charts a finished cycle, which is the window whose outcome is actually asked about', () => {
+    mount(seeded());
+
+    const previous = screen.getByRole('link', { name: /Cycle 1/ }).closest('[role="option"]');
+    expect(
+      within(previous as HTMLElement).getByRole('region', { name: 'Cycle graph' }),
+    ).toBeTruthy();
+  });
+});
+
+describe('Cycles empty states', () => {
+  it('offers settings when the team has cycles switched off', () => {
+    const store = new Store(WORKSPACE);
+    store.applyChanges([upsert(1, 'team', { ...team(), cyclesEnabled: false })]);
+    mount(store);
+
+    expect(screen.getByText('Cycles are off')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Team settings' })).toBeTruthy();
+  });
+
+  it('says to wait when cycles are on and the cadence has not minted one', () => {
+    const store = new Store(WORKSPACE);
+    store.applyChanges([upsert(1, 'team', team())]);
+    mount(store);
+
+    expect(screen.getByText('No cycles yet')).toBeTruthy();
+    // A wait is not a misconfiguration, so it is not given a settings button.
+    expect(screen.queryByRole('button', { name: 'Team settings' })).toBeNull();
+  });
+});
+
+describe('Cycles keyboard', () => {
+  it('moves a cursor with j and k and opens the row under it', async () => {
+    const { user } = mount(seeded());
+
+    await user.keyboard('j');
+    const rows = screen.getAllByRole('option');
+    expect(rows[1]?.getAttribute('data-cursor')).toBe('');
+
+    await user.keyboard('k');
+    expect(screen.getAllByRole('option')[0]?.getAttribute('data-cursor')).toBe('');
+
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(screen.getByText('opened')).toBeTruthy());
+  });
+
+  it('opens the row menu on a right-click, not only from the ⋯ button', async () => {
+    const { user } = mount(seeded());
+
+    const row = screen.getByRole('link', { name: /Cycle 2/ }).closest('[role="option"]');
+    await user.pointer({ target: row as HTMLElement, keys: '[MouseRight]' });
+
+    expect(await screen.findByRole('menu', { name: 'Options for Cycle 2' })).toBeTruthy();
   });
 });

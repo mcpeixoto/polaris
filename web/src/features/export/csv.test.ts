@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { csvEscape, csvGuard, downloadCsv, exportCap, exportCapNote, toCsv } from './csv';
+import { Store, type Change, type Entity } from '~/store';
+
+import {
+  csvEscape,
+  csvGuard,
+  downloadCsv,
+  exportCap,
+  exportCapNote,
+  initiativesToCsv,
+  toCsv,
+} from './csv';
 
 describe('csvEscape', () => {
   it('quotes commas, quotes and newlines, and doubles inner quotes', () => {
@@ -102,6 +112,56 @@ describe('exportCap', () => {
     expect(exportCap('member', 'issues')).toBe(250);
     expect(exportCap('admin', 'issues')).toBe(2000);
     expect(exportCap('owner', 'projects')).toBe(200);
+    // Initiatives share the project cap, and a guest still exports nothing.
+    expect(exportCap('member', 'initiatives')).toBe(200);
+    expect(exportCap('guest', 'initiatives')).toBe(0);
+  });
+});
+
+describe('initiativesToCsv', () => {
+  it('writes the initiative with its status word, owner and links', () => {
+    const at = '2026-01-01T00:00:00.000Z';
+    const store = new Store('w1');
+    const upsert = (v: number, type: Change['type'], entity: Entity): Change => ({
+      v,
+      type,
+      id: entity.id,
+      op: 'upsert',
+      actor: { type: 'user', id: 'u1' },
+      payload: entity,
+    });
+    store.applyChanges([
+      upsert(1, 'user', {
+        id: 'u1',
+        workspaceId: 'w1',
+        email: 'ada@example.com',
+        displayName: 'Ada',
+        name: 'Ada',
+        role: 'member',
+        createdAt: at,
+        updatedAt: at,
+      } as Entity),
+      upsert(2, 'initiative', {
+        id: 'i1',
+        workspaceId: 'w1',
+        name: 'Company goals',
+        description: 'The year',
+        status: 'active',
+        priority: 0,
+        sortOrder: 'a',
+        ownerId: 'u1',
+        targetDate: '2026-06-01',
+        createdAt: at,
+        updatedAt: at,
+      } as Entity),
+    ]);
+
+    const csv = initiativesToCsv(store, ['i1', 'missing']);
+    const lines = csv.trim().split('\n');
+    // The row that is not in the replica is dropped rather than written empty.
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain('Name,Description,Status,Owner');
+    expect(lines[1]).toBe('Company goals,The year,Active,Ada,,,2026-06-01,' + at + ',' + at);
   });
 });
 

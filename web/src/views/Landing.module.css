@@ -1616,7 +1616,7 @@
  * Responsive
  * ------------------------------------------------------------------ */
 
-@media (min-width: 901px) {
+@media (min-width: 961px) {
   /* Belt and braces with useDisclosure's own resize close: a viewport dragged past the
      breakpoint must not leave a panel open over a header that already shows its links. */
   .navMenu {
@@ -1624,7 +1624,7 @@
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 960px) {
   .navLinks,
   .navSource {
     display: none;
@@ -1672,7 +1672,7 @@
   }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 720px) {
   /* The header runs out of room before the panel does. Sign in is the one action with a
      home in the panel, so it is the one that leaves — Get started is what the page is
      for, and the toggle is how everything else is reached. */

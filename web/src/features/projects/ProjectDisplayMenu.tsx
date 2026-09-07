@@ -1,5 +1,20 @@
 /**
- * Display menu for the projects list — list vs timeline and timeline zoom.
+ * Display menu for the projects list: every decision this screen makes about how it draws
+ * itself, in one popover.
+ *
+ * The rows are the issue display menu's, deliberately — layout as a segmented pair at the
+ * top, then grouping, ordering and direction as label-left/control-right rows, then the
+ * columns as a grid of checkboxes, and each value that is not the default naming the default
+ * it replaced. The two menus are the same control over different data, and a product with
+ * two shapes for the same decision teaches neither.
+ *
+ * Everything writes immediately. There is no Apply button and there must not be one: the
+ * list underneath is the preview, and `setDisplay` writes the URL with `replace`, so ticking
+ * four columns is one history entry rather than four.
+ *
+ * The panel shell — the portal, the positioning, the Escape action, the focus hand-back — is
+ * this file's own rather than the issue menu's, because that one is not a component yet.
+ * When it becomes one, both should take it.
  */
 
 import {
@@ -7,6 +22,7 @@ import {
   useEffect,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -15,13 +31,20 @@ import {
 import { createPortal } from 'react-dom';
 
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Button, Checkbox, Select } from '~/components';
+import { Button, Checkbox, SegmentedControl, Select } from '~/components';
 import { usePresence } from '~/hooks/usePresence';
 import {
   changedProjectDisplayCount,
   DEFAULT_PROJECT_DISPLAY,
+  PROJECT_COLUMN_ORDER,
+  projectOrderingNote,
+  sameProjectColumns,
+  type ProjectColumn,
+  type ProjectDirection,
   type ProjectDisplayOptions,
+  type ProjectGrouping,
   type ProjectLayout,
+  type ProjectOrdering,
   type ProjectTimelineZoom,
 } from './display';
 import styles from './ProjectDisplayMenu.module.css';
@@ -36,9 +59,45 @@ export interface ProjectDisplayMenuProps {
   readonly trigger: RefObject<HTMLElement | null>;
 }
 
+/*
+ * The product's word for each value, as a total map rather than a list of pairs: adding a
+ * grouping and forgetting to name it here is a type error at the moment it is added, rather
+ * than a menu row reading "targetDate" that somebody notices in a screenshot a month later.
+ */
 const LAYOUT_LABELS: Readonly<Record<ProjectLayout, string>> = {
   list: 'List',
+  board: 'Board',
   timeline: 'Timeline',
+};
+
+const GROUPING_LABELS: Readonly<Record<ProjectGrouping, string>> = {
+  none: 'No grouping',
+  status: 'Status',
+  lead: 'Lead',
+  team: 'Team',
+  priority: 'Priority',
+};
+
+const ORDERING_LABELS: Readonly<Record<ProjectOrdering, string>> = {
+  manual: 'Manual',
+  name: 'Name',
+  targetDate: 'Target date',
+  priority: 'Priority',
+  updated: 'Updated',
+};
+
+const DIRECTION_LABELS: Readonly<Record<ProjectDirection, string>> = {
+  asc: 'Ascending',
+  desc: 'Descending',
+};
+
+export const PROJECT_COLUMN_LABELS: Readonly<Record<ProjectColumn, string>> = {
+  health: 'Health',
+  priority: 'Priority',
+  lead: 'Lead',
+  targetDate: 'Target date',
+  issues: 'Issues',
+  status: 'Status',
 };
 
 const ZOOM_LABELS: Readonly<Record<ProjectTimelineZoom, string>> = {
@@ -48,7 +107,16 @@ const ZOOM_LABELS: Readonly<Record<ProjectTimelineZoom, string>> = {
   year: 'Year',
 };
 
-const LAYOUT_ORDER: readonly ProjectLayout[] = ['list', 'timeline'];
+const LAYOUT_ORDER: readonly ProjectLayout[] = ['list', 'board', 'timeline'];
+const GROUPING_ORDER: readonly ProjectGrouping[] = ['none', 'status', 'lead', 'team', 'priority'];
+const ORDERING_ORDER: readonly ProjectOrdering[] = [
+  'manual',
+  'name',
+  'targetDate',
+  'priority',
+  'updated',
+];
+const DIRECTION_ORDER: readonly ProjectDirection[] = ['asc', 'desc'];
 const ZOOM_ORDER: readonly ProjectTimelineZoom[] = ['week', 'month', 'quarter', 'year'];
 const VIEWPORT_MARGIN_PX = 8;
 
@@ -65,6 +133,7 @@ export function ProjectDisplayMenu({
   trigger,
 }: ProjectDisplayMenuProps) {
   const panelId = useId();
+  const baseId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<Point | null>(null);
 
@@ -126,6 +195,14 @@ export function ProjectDisplayMenu({
     if (panelRect.right > window.innerWidth - VIEWPORT_MARGIN_PX) {
       left = Math.max(VIEWPORT_MARGIN_PX, window.innerWidth - VIEWPORT_MARGIN_PX - panelRect.width);
     }
+    // The answer goes back onto the element the same way the probe went on, and not only
+    // into state: when a reopened panel works out the same position it had last time, the
+    // style prop React holds has not changed, nothing is written to the DOM, and the
+    // measuring position stays on screen — which is how the panel came to hang off the
+    // right edge of the window on every open but the first, with its lower controls
+    // unreachable.
+    panel.style.top = `${rect.bottom}px`;
+    panel.style.left = `${left}px`;
     setPosition({ top: rect.bottom, left });
     panel.style.visibility = '';
   }, [open, trigger]);
@@ -154,6 +231,32 @@ export function ProjectDisplayMenu({
   }, [open, onClose, trigger]);
 
   const reset = useCallback(() => onChange(DEFAULT_PROJECT_DISPLAY), [onChange]);
+
+  const columns = useMemo(() => new Set(display.columns), [display.columns]);
+
+  /**
+   * Ticks or unticks one column, always emitting the canonical order.
+   *
+   * The order is not cosmetic: `toProjectDisplayParams` compares the joined list against the
+   * default's, so the same five columns in a different order would pin a `cols=` parameter
+   * into every link somebody shares — a view claiming a choice nobody made.
+   */
+  const onColumn = useCallback(
+    (column: ProjectColumn, on: boolean) => {
+      onChange({
+        columns: PROJECT_COLUMN_ORDER.filter((candidate) =>
+          candidate === column ? on : columns.has(candidate),
+        ),
+      });
+    },
+    [onChange, columns],
+  );
+
+  const note = projectOrderingNote(display.ordering, display.grouping);
+  const groupingId = `${baseId}-grouping`;
+  const orderingId = `${baseId}-ordering`;
+  const directionLabelId = `${baseId}-direction`;
+  const columnsLabelId = `${baseId}-columns`;
 
   const panelStyle: CSSProperties | undefined = position
     ? { top: position.top, left: position.left }
@@ -188,20 +291,134 @@ export function ProjectDisplayMenu({
 
       <section className={styles.section}>
         <span className={styles.label}>Layout</span>
-        <div className={styles.segment}>
-          {LAYOUT_ORDER.map((value) => (
-            <Button
-              key={value}
-              variant={display.layout === value ? 'primary' : 'ghost'}
-              size="sm"
-              onClick={() => onChange({ layout: value })}
-              aria-pressed={display.layout === value}
-            >
-              {LAYOUT_LABELS[value]}
-            </Button>
-          ))}
-        </div>
+        <SegmentedControl
+          aria-label="Layout"
+          value={display.layout}
+          onChange={(value) => onChange({ layout: value })}
+          options={LAYOUT_ORDER.map((value) => ({ value, label: LAYOUT_LABELS[value] }))}
+        />
+        {display.layout === DEFAULT_PROJECT_DISPLAY.layout ? null : (
+          <p className={styles.changed}>Default: {LAYOUT_LABELS[DEFAULT_PROJECT_DISPLAY.layout]}</p>
+        )}
       </section>
+
+      {/* Grouping, ordering and direction describe the list and the board alike. The
+          timeline draws its own bands from dates, so they are left out of it below rather
+          than drawn here and quietly ignored. */}
+      {display.layout === 'timeline' ? null : (
+        <section className={styles.section}>
+          <div className={styles.row}>
+            <label className={styles.rowLabel} htmlFor={groupingId}>
+              Grouping
+            </label>
+            <Select
+              id={groupingId}
+              className={styles.control}
+              value={display.grouping}
+              onChange={(event) => {
+                // Matched against the list this select was built from rather than cast: a
+                // cast would be a promise about a string the DOM produced.
+                const next = GROUPING_ORDER.find((candidate) => candidate === event.target.value);
+                if (next !== undefined) onChange({ grouping: next });
+              }}
+            >
+              {GROUPING_ORDER.map((value) => (
+                <option key={value} value={value}>
+                  {GROUPING_LABELS[value]}
+                </option>
+              ))}
+            </Select>
+          </div>
+          {display.grouping === DEFAULT_PROJECT_DISPLAY.grouping ? null : (
+            <p className={styles.changed}>
+              Default: {GROUPING_LABELS[DEFAULT_PROJECT_DISPLAY.grouping]}
+            </p>
+          )}
+
+          <div className={styles.row}>
+            <label className={styles.rowLabel} htmlFor={orderingId}>
+              Ordering
+            </label>
+            <Select
+              id={orderingId}
+              className={styles.control}
+              value={display.ordering}
+              onChange={(event) => {
+                const next = ORDERING_ORDER.find((candidate) => candidate === event.target.value);
+                if (next !== undefined) onChange({ ordering: next });
+              }}
+            >
+              {ORDERING_ORDER.map((value) => (
+                <option key={value} value={value}>
+                  {ORDERING_LABELS[value]}
+                </option>
+              ))}
+            </Select>
+          </div>
+          {display.ordering === DEFAULT_PROJECT_DISPLAY.ordering ? null : (
+            <p className={styles.changed}>
+              Default: {ORDERING_LABELS[DEFAULT_PROJECT_DISPLAY.ordering]}
+            </p>
+          )}
+
+          {note === null ? null : (
+            <p className={styles.note} role="note">
+              {note}
+            </p>
+          )}
+
+          <div className={styles.row}>
+            <span className={styles.rowLabel} id={directionLabelId}>
+              Direction
+            </span>
+            <SegmentedControl
+              className={[styles.control, styles.segmentedControl].filter(Boolean).join(' ')}
+              aria-label="Direction"
+              value={display.direction}
+              onChange={(value) => onChange({ direction: value })}
+              options={DIRECTION_ORDER.map((value) => ({
+                value,
+                label: DIRECTION_LABELS[value],
+              }))}
+            />
+          </div>
+          {display.direction === DEFAULT_PROJECT_DISPLAY.direction ? null : (
+            <p className={styles.changed}>
+              Default: {DIRECTION_LABELS[DEFAULT_PROJECT_DISPLAY.direction]}
+            </p>
+          )}
+        </section>
+      )}
+
+      {/* The columns of the table. Absent on the board and the timeline, which draw a card
+          and a bar rather than a row of cells — a checkbox that changed nothing on the
+          screen in front of somebody is worse than one that is not offered. */}
+      {display.layout === 'list' ? (
+        <section className={styles.section} role="group" aria-labelledby={columnsLabelId}>
+          <span className={styles.label} id={columnsLabelId}>
+            Columns
+          </span>
+          <div className={styles.columns}>
+            {PROJECT_COLUMN_ORDER.map((value) => (
+              <Checkbox
+                key={value}
+                className={styles.column}
+                label={PROJECT_COLUMN_LABELS[value]}
+                checked={columns.has(value)}
+                onChange={(event) => onColumn(value, event.target.checked)}
+              />
+            ))}
+          </div>
+          {sameProjectColumns(display.columns, DEFAULT_PROJECT_DISPLAY.columns) ? null : (
+            <p className={styles.changed}>
+              Default:{' '}
+              {DEFAULT_PROJECT_DISPLAY.columns
+                .map((value) => PROJECT_COLUMN_LABELS[value])
+                .join(', ')}
+            </p>
+          )}
+        </section>
+      ) : null}
 
       {display.layout === 'timeline' ? (
         <>

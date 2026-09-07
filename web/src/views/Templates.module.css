@@ -316,7 +316,7 @@
   line-height: var(--line-height-normal);
 }
 
-@media (max-width: 860px) {
+@media (max-width: 960px) {
   .properties {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -344,4 +344,37 @@
   margin: var(--space-4) 0 var(--space-2);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
+}
+
+/*
+ * The search over templates, and the quiet row.
+ *
+ * The ⋯ appears on hover, on keyboard focus inside the row, and on the row the cursor is on
+ * — the issue list's model. Four buttons shouting on every row was the loudest list in the
+ * product on one of its least-visited screens.
+ */
+.searchRow {
+  display: flex;
+  padding-bottom: var(--space-3);
+}
+
+.search {
+  flex: 1;
+  min-width: 0;
+  max-width: 40ch;
+}
+
+.rowMenuButton {
+  opacity: 0;
+}
+
+.templateRow:hover .rowMenuButton,
+.templateRow:focus-within .rowMenuButton,
+.templateCursorRow .rowMenuButton {
+  opacity: 1;
+}
+
+.templateCursorRow {
+  background: var(--bg-hover);
+  box-shadow: inset 2px 0 0 var(--accent);
 }

@@ -39,7 +39,16 @@ import { Link } from 'react-router';
 import { useEngine } from '~/app/context';
 import { ApiError } from '~/sync/api';
 import { useActions } from '~/app/keymap';
-import { Badge, Button, IconButton, Input, Progress, Select, StateIcon } from '~/components';
+import {
+  Badge,
+  Button,
+  IconButton,
+  Input,
+  Progress,
+  Section,
+  Select,
+  StateIcon,
+} from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
@@ -53,7 +62,6 @@ import {
 
 import { CrossGlyph, PlusGlyph } from './glyphs';
 import { createRelation, createSubIssue, deleteRelation, report, updateIssue } from './mutations';
-import { Section } from './Section';
 import styles from './relations.module.css';
 
 /**

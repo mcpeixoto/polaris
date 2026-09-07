@@ -738,11 +738,60 @@
  * than a narrower one. Collapsing the sidebar away entirely needs a control to bring it back
  * and a shortcut bound to that control, which is a feature and not a stylesheet.
  */
-@media (max-width: 720px) {
+/*
+ * Below md the sidebar stops being a column and becomes a drawer.
+ *
+ * A 232px navigation and a list of issues do not both fit in 960 pixels — the list keeps
+ * about seven hundred, which is where its title column starts losing words to an ellipsis
+ * on every row. Giving the pane the whole width and floating the navigation over it when
+ * it is open is the only arrangement that leaves the primary surface readable.
+ *
+ * Nothing here is a new state. The sidebar is already open or collapsed, `⌘.` already
+ * toggles it, and the collapsed sidebar is already *unmounted* rather than hidden (see
+ * `.shellCollapsed`) — so a closed drawer has no tab stops and no links a screen reader
+ * walks, which is the contract a drawer owes and the reason this needs no script. Open is
+ * open; it simply overlaps rather than pushes.
+ *
+ * `.shell > nav` rather than a class of our own: the sidebar is the shell's only `nav`
+ * child in both of its forms — the workspace navigation and SettingsNav — and both get
+ * their width from `nav.module.css`, which knows nothing about the shell it sits in.
+ */
+@media (max-width: 960px) {
   .shell {
-    grid-template-columns: calc(var(--sidebar-width) - var(--space-12)) 1fr;
+    /* The pane takes the whole width in both states, so the transition above has nothing
+       left to interpolate and the drawer neither pushes the list nor animates it. */
+    grid-template-columns: 0 1fr;
   }
 
+  .shell > nav {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    inset-inline-start: 0;
+    width: var(--sidebar-width);
+    /* Over the pane and over a screen's own sticky header, under a menu the drawer itself
+       opens — the same rung the collapsed sidebar's way back already claims. */
+    z-index: var(--z-sticky);
+    box-shadow: var(--shadow-popover);
+  }
+
+  /* The pane starts at the window edge whether or not the drawer is over it: a layout that
+     shifted sideways as the sidebar opened would be the push this breakpoint exists to
+     avoid. */
+  .main,
+  .shellCollapsed .main {
+    margin-inline-start: var(--space-2);
+  }
+
+  /* Dragging the edge sizes a column, and below md there is no column to size. It also
+     sits exactly where the drawer's own contents are, so leaving it live would make the
+     navigation's right-hand strip a col-resize cursor over nothing. */
+  .resizeHandle {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
   /* The panel's gutter and corners are desktop framing. In a narrow window the eight pixels
      on each side are list width, and a card that fills the screen is a screen. */
   .main,

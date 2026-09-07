@@ -1,17 +1,9 @@
+/* The rule above the panel. Everything else about the section's shape — the header, the
+   fold, the "+" — belongs to the `Section` primitive. */
 .section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
   margin-top: var(--space-4);
   padding-top: var(--space-6);
   border-top: 1px solid var(--border-subtle);
-}
-
-.sectionTitle {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
 }
 
 .empty {
@@ -78,28 +70,6 @@
   margin-inline-start: auto;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
-}
-
-.track {
-  height: var(--space-1);
-  border-radius: var(--radius-full);
-  background: var(--bg-tertiary);
-  overflow: hidden;
-}
-
-/* The width is the only property that moves, so the browser has one number to interpolate
-   and the bar sweeps rather than stutters. The duration token collapses to 1ms under
-   prefers-reduced-motion, which is what handles that case here. */
-.fill {
-  display: block;
-  height: 100%;
-  border-radius: var(--radius-full);
-  background: var(--text-tertiary);
-  transition: width var(--duration-normal) var(--ease-out);
-}
-
-.fillCurrent {
-  background: var(--accent);
 }
 
 .progressText {

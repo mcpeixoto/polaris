@@ -10,14 +10,21 @@
  * The suggestion stops the moment the field is touched. A key that keeps rewriting itself
  * under the cursor as the name is typed is a field fighting its user, and the name is
  * usually finished after the key has been corrected.
+ *
+ * The icon is here because it is a real field — the sidebar and the issue composer both draw
+ * it — that had no control anywhere in the product, so every team was an initial on the
+ * identity ramp whether or not anybody wanted one. It is a pill rather than a fourth row:
+ * it is the one thing here nobody has to answer.
  */
 
 import { useId, useRef, useState, type FormEvent } from 'react';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Button, Checkbox, Input, Modal } from '~/components';
+import { Button, Input, Modal, PropertyPill, SWATCHES, Switch } from '~/components';
+import { IconPicker } from '~/features/icon/IconPicker';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import type { Team } from '~/store';
 import { ApiError } from '~/sync/api';
 
@@ -35,6 +42,7 @@ export function CreateTeamDialog({ onClose, onCreated }: CreateTeamDialogProps) 
   const formId = useId();
   const nameRef = useRef<HTMLInputElement>(null);
   const keyRef = useRef<HTMLInputElement>(null);
+  const iconTrigger = useMenuTrigger<HTMLButtonElement>('dialog');
 
   const takenKeys = useLiveQuery(
     (store) => [...store.teams.values()].map((team) => team.key),
@@ -46,6 +54,9 @@ export function CreateTeamDialog({ onClose, onCreated }: CreateTeamDialogProps) 
   // Whether the key field has been typed into. Until it has, it tracks the name.
   const [keyTouched, setKeyTouched] = useState(false);
   const [isPrivate, setPrivate] = useState(false);
+  // The first swatch is the neutral one, which is the right answer for a team that has not
+  // chosen: a colour is only drawn once there is an emoji to tint.
+  const [icon, setIcon] = useState({ icon: '', color: SWATCHES[0] ?? '#64748b' });
   const [nameError, setNameError] = useState<string | null>(null);
   const [keyError, setKeyError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -75,6 +86,8 @@ export function CreateTeamDialog({ onClose, onCreated }: CreateTeamDialogProps) 
         name: trimmedName,
         key: key.trim().toUpperCase(),
         private: isPrivate,
+        icon: icon.icon,
+        color: icon.color,
       });
       onCreated?.(team);
       onClose();
@@ -136,6 +149,11 @@ export function CreateTeamDialog({ onClose, onCreated }: CreateTeamDialogProps) 
         className={styles.form}
         onSubmit={(event: FormEvent<HTMLFormElement>) => {
           event.preventDefault();
+          // The picker panel is portalled out of this form's DOM but stay inside its React
+          // tree, so the little form it uses to commit a typed value bubbles its
+          // submit through here. Only this form's own submit is a save; without the check,
+          // choosing an emoji filed the edit as a side effect of choosing it.
+          if (event.target !== event.currentTarget) return;
           void save();
         }}
       >
@@ -178,14 +196,39 @@ export function CreateTeamDialog({ onClose, onCreated }: CreateTeamDialogProps) 
           }}
         />
 
-        <Checkbox
+        <div className={styles.pills}>
+          <PropertyPill
+            {...iconTrigger.props}
+            name="Icon"
+            describe={`${formId}-icon`}
+            empty={icon.icon === '' ? 'No icon' : undefined}
+            icon={
+              icon.icon === '' ? null : (
+                <span aria-hidden="true" style={{ color: icon.color }}>
+                  {icon.icon}
+                </span>
+              )
+            }
+          >
+            {icon.icon === '' ? 'Icon' : icon.icon}
+          </PropertyPill>
+          <IconPicker
+            open={iconTrigger.open}
+            onClose={iconTrigger.hide}
+            trigger={iconTrigger.ref}
+            value={icon}
+            onChange={setIcon}
+            actionId="team.create.closeIconPicker"
+            label="Team icon"
+          />
+        </div>
+
+        <Switch
           label="Private team"
+          hint="A private team and everything in it is invisible to anyone who is not a member."
           checked={isPrivate}
-          onChange={(event) => setPrivate(event.target.checked)}
+          onChange={setPrivate}
         />
-        <p className={styles.hint}>
-          A private team and everything in it is invisible to anyone who is not a member.
-        </p>
 
         {saveError === null ? null : (
           <p className={styles.error} role="alert">

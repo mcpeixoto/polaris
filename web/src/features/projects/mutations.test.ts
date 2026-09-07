@@ -11,6 +11,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { Store, type Change, type Entity, type Project, type ProjectStatus } from '~/store';
+import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
 import { createProject, updateProject } from './mutations';
@@ -21,6 +22,8 @@ const STATUS = '01900000-0000-7000-8000-000000000003';
 const TEAM = '01900000-0000-7000-8000-000000000004';
 const VIEWER = '01900000-0000-7000-8000-000000000005';
 const LEAD = '01900000-0000-7000-8000-000000000006';
+const LABEL = '01900000-0000-7000-8000-000000000007';
+const INITIATIVE = '01900000-0000-7000-8000-000000000008';
 const AT = '2026-01-01T00:00:00.000Z';
 
 function upsert(v: number, type: Change['type'], entity: Entity): Change {
@@ -141,5 +144,73 @@ describe('createProject', () => {
     await createProject(engine, { name: 'Next', teamIds: [TEAM] });
 
     expect(mutate.mock.calls[0]![0].optimistic[0].after.color).toBe('');
+  });
+  /**
+   * Everything the composer's pill row can set, on the create input rather than as a
+   * follow-up edit. `CreateProjectInput` accepts all of these, and the web `NewProject` type
+   * simply did not name them — so a project filed with an icon, a colour, a priority and
+   * three members arrived bare and had to be edited into shape on the project page.
+   */
+  it('sends the properties the composer set, and draws them on the optimistic row', async () => {
+    const { engine, mutate } = seeded();
+
+    await createProject(engine, {
+      name: 'Next',
+      teamIds: [TEAM],
+      icon: '🚀',
+      color: '#26b5ce',
+      priority: 2,
+      memberIds: [LEAD, VIEWER],
+    });
+
+    const input = mutate.mock.calls[0]![0].variables.input as Record<string, unknown>;
+    expect(input['icon']).toBe('🚀');
+    expect(input['color']).toBe('#26b5ce');
+    expect(input['priority']).toBe(2);
+    expect(input['memberIds']).toEqual([LEAD, VIEWER]);
+
+    const patch = mutate.mock.calls[0]![0].optimistic[0];
+    expect(patch.after.icon).toBe('🚀');
+    expect(patch.after.color).toBe('#26b5ce');
+    expect(patch.after.priority).toBe(2);
+  });
+
+  /**
+   * Labels and initiatives are the two properties `CreateProjectInput` does not carry, so
+   * they are link rows written once the id is real. They go out after the create and not
+   * inside it, which is the only order the ids allow.
+   */
+  it('links labels and initiatives after the project has an id', async () => {
+    const { engine, mutate } = seeded();
+
+    await createProject(engine, {
+      name: 'Next',
+      teamIds: [TEAM],
+      labelIds: [LABEL],
+      initiativeIds: [INITIATIVE],
+    });
+
+    const mutations = mutate.mock.calls.map((call) => call[0].variables as Record<string, unknown>);
+    expect(mutations[0]!['input']).toBeDefined();
+    expect(mutations[1]).toEqual({ projectId: PROJECT, labelId: LABEL });
+    expect(mutations[2]).toEqual({ initiativeId: INITIATIVE, projectId: PROJECT });
+  });
+
+  /**
+   * A refused label link must not lose the project. The create has already committed and the
+   * dialog holds the only copy of what was typed, so throwing here would report a failure for
+   * work that succeeded and invite the user to file it a second time.
+   */
+  it('keeps the project when a follow-up link is refused', async () => {
+    const { store, engine, mutate } = seeded();
+    mutate.mockImplementation((op: { variables: Record<string, unknown> }) => {
+      if ('labelId' in op.variables) return Promise.reject(new ApiError('INTERNAL', 'No'));
+      return Promise.resolve({ createProject: { project: { id: PROJECT } } });
+    });
+
+    const id = await createProject(engine, { name: 'Next', teamIds: [TEAM], labelIds: [LABEL] });
+
+    expect(id).toBe(PROJECT);
+    expect(store.get('project', PROJECT)).toBeDefined();
   });
 });

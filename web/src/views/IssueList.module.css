@@ -816,3 +816,59 @@
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }
+
+/* ------------------------------------------------------------------ *
+ * Narrow windows
+ * ------------------------------------------------------------------ */
+
+/*
+ * What a row gives up, and why it gives up rather than shrinks.
+ *
+ * The row is a flex line with one flexible item in it — the title — so a window narrowed
+ * past the point where everything fits does not drop anything, it takes the width out of
+ * the title. Which is precisely backwards: the title is the only part of the row that
+ * cannot be inferred from anywhere else, and a column of "Fix the reconnect handler when
+ * the socket clo…" is a list you cannot scan.
+ *
+ * So below md the row sheds the properties that are restatements of something the screen
+ * already says, longest-to-shortest as the window closes:
+ *
+ *   the timestamps  — a created/updated date is a sort key far more often than it is a
+ *                     thing anybody reads off a row, and the ordering is stated in the
+ *                     toolbar;
+ *   the parent crumb — the indent still says the issue is under something;
+ *   the property pills — project and cycle are usually the scope the view is already
+ *                     filtered to, which is to say the same word on every row.
+ *
+ * What never goes: the identifier, the status ring, the title and the assignee. Those four
+ * are the row. IssueList.tsx makes the same argument for the identifier and the status not
+ * being optional properties, and this is the narrow-window half of it.
+ *
+ * `display: none` and not `visibility: hidden`, deliberately: these are removed from the
+ * accessibility tree as well. A date that is invisible on screen but still read out on
+ * every row would make the narrow layout worse for a screen reader than the wide one.
+ * Nothing here is the only carrier of anything — the pills are properties of the issue and
+ * the issue page states all of them.
+ */
+@media (max-width: 960px) {
+  .row .date,
+  .row .parentCrumb {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  /* Every pill except the overdue one. The row comment above spends a paragraph on why
+     "Yesterday" in a danger tone is not allowed to be the only statement that a deadline
+     was missed; hiding the pill that carries it would be the same mistake made twice as
+     hard, so it is the one property that survives the narrowest layout. */
+  .row .pill:not(.overdue) {
+    display: none;
+  }
+
+  /* The gutters were sized for a pane inset from the window; at this width the pane is the
+     window and the row's own inset is all the margin there is. */
+  .row {
+    padding-inline: var(--space-2);
+  }
+}

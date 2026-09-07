@@ -86,16 +86,6 @@
   padding-top: var(--space-2);
 }
 
-/*
- * A pill holding nothing is written in the quieter ink, so the row can be read for the
- * properties that have been set. Doubled because `Button`'s own pill rule leaves colour to
- * inherit, and a single class here would still be settled by emission order against any
- * variant that does not.
- */
-.properties .unset.unset {
-  color: var(--text-secondary);
-}
-
 /* A pill that is its glyph and nothing else: the cycle before one is chosen, the overflow.
  * Three classes, because `.button.pill` sets the asymmetric padding at two. */
 .properties .glyphOnly.glyphOnly {

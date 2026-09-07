@@ -6,6 +6,21 @@
 
 .error {
   margin: 0;
-  color: var(--priority-urgent);
+  color: var(--text-danger);
   font-size: var(--font-size-sm);
+}
+
+/* The read-out of the filter, set apart from the fields: it is the one block here that is
+   answered rather than filled in. */
+.saving {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.savingHeading {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
 }

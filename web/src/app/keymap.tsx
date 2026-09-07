@@ -246,6 +246,11 @@ function isGlobalChord(event: KeyboardEvent): boolean {
   const mod = event.metaKey || event.ctrlKey;
   if (!mod) return false;
   if (event.key === 'k' || event.key === 'K' || event.key === 'Enter') return true;
+  // ⌘S, for the same reason ⌘⏎ is here: the one place somebody wants to send what they have
+  // written is the middle of writing it, and a save that only works once the caret has left
+  // the field is a save nobody reaches. The browser's own Save Page is preventDefaulted by
+  // the dispatcher above when an action claims the chord, and passes through when none does.
+  if (event.key === 's' || event.key === 'S') return true;
   // The shortcut sheet, which is most wanted from exactly where it could not be reached:
   // somebody stuck halfway through a comment, wondering what submits it. `⌘/` and not the
   // bare `?` the same action also binds — a question mark typed into a comment is a question

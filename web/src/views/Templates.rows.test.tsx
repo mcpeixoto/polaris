@@ -15,7 +15,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { EngineProvider } from '~/app/context';
 import { KeymapProvider } from '~/app/keymap';
 import { Store, type Change, type Entity } from '~/store';
-import type { SyncEngine } from '~/sync/engine';
+import type { EngineStatus, SyncEngine } from '~/sync/engine';
 
 import { Templates } from './Templates';
 
@@ -68,7 +68,7 @@ function template(id: string, name: string, teamId?: string): Entity {
   } as unknown as Entity;
 }
 
-function renderScreen(rows: readonly [string, Entity][]) {
+function renderScreen(rows: readonly [string, Entity][], status: EngineStatus = { phase: 'idle' }) {
   const store = new Store(WORKSPACE);
   store.applyChanges(
     rows.map(([type, payload], index) => ({
@@ -85,7 +85,7 @@ function renderScreen(rows: readonly [string, Entity][]) {
   render(
     <MemoryRouter initialEntries={['/settings/templates']}>
       <KeymapProvider>
-        <EngineProvider engine={engine} status={{ phase: 'idle' }}>
+        <EngineProvider engine={engine} status={status}>
           <Templates />
         </EngineProvider>
       </KeymapProvider>
@@ -119,7 +119,25 @@ describe('Templates on the settings frame', () => {
     expect(
       within(workspace).getByRole('button', { name: 'New template for Workspace' }),
     ).toBeTruthy();
-    expect(within(workspace).getByRole('button', { name: 'Edit Anything' })).toBeTruthy();
+    // The row's four always-visible controls are one ⋯ menu now; Edit is inside it.
+    expect(within(workspace).getByRole('button', { name: 'Options for Anything' })).toBeTruthy();
+  });
+
+  it('offers a row its actions through its own menu', async () => {
+    const user = renderScreen([
+      ['team', team()],
+      ['issueTemplate', template('t-any', 'Anything')],
+    ]);
+
+    await user.click(screen.getByRole('button', { name: 'Options for Anything' }));
+    const menu = await screen.findByRole('menu', { name: 'Options for Anything' });
+
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent),
+      // A workspace template names no team, so it cannot be put on a cadence.
+    ).toEqual(['Edit', 'Copy create URL', 'Archive']);
   });
 
   it('opens the editor inside the scope it was asked for, and takes that scope’s button away', async () => {
@@ -141,6 +159,44 @@ describe('Templates on the settings frame', () => {
     expect(
       within(engineering).getByRole('button', { name: 'New template for Engineering' }),
     ).toBeTruthy();
+  });
+
+  it('waits for the replica rather than claiming a scope has no templates', () => {
+    renderScreen([['team', team()]], { phase: 'hydrating' });
+
+    // "No templates yet" is an answer, and a hydrating replica has not given one.
+    expect(screen.queryByText('No templates yet')).toBeNull();
+    expect(screen.getAllByRole('status')[0]?.textContent).toContain('Loading templates');
+  });
+
+  it('narrows the rows to what the search box matches', async () => {
+    const user = renderScreen([
+      ['team', team()],
+      ['issueTemplate', template('t-any', 'Anything')],
+      ['issueTemplate', template('t-bug', 'Bug report')],
+    ]);
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search templates' }), 'bug');
+
+    expect(screen.queryByRole('button', { name: 'Options for Anything' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Options for Bug report' })).toBeTruthy();
+    // Not "no templates yet": there are templates, and this is what the search left.
+    expect(screen.getAllByText('Nothing matches').length).toBeGreaterThan(0);
+  });
+
+  it('moves a cursor with j and k and opens the row under it', async () => {
+    const user = renderScreen([
+      ['team', team()],
+      ['issueTemplate', template('t-any', 'Anything')],
+      ['issueTemplate', template('t-bug', 'Bug report')],
+    ]);
+
+    await user.keyboard('j');
+    await user.keyboard('k');
+    await user.keyboard('{Enter}');
+
+    // Enter on a template opens its editor: there is no page for one to open.
+    expect(await screen.findByRole('form', { name: /^Editing / })).toBeTruthy();
   });
 
   it('says a scope has nothing yet inside its own card', () => {

@@ -30,6 +30,7 @@ import { CreateInitiativeModal } from '~/features/initiatives/CreateInitiativeMo
 import { CreateCustomerModal } from '~/features/customers/CreateCustomerModal';
 import { CreateCustomerRequestModal } from '~/features/customers/CreateCustomerRequestModal';
 import { CreateDashboardModal } from '~/features/dashboards/CreateDashboardModal';
+import { CreateDocumentModal } from '~/features/documents/CreateDocumentModal';
 import { getPrefs } from '~/features/prefs/prefs';
 import { ToastHost } from '~/features/toast/ToastHost';
 import { useQuery } from './context';
@@ -111,7 +112,7 @@ const GitLabSettings = lazy(async () => ({
   default: (await import('~/views/GitLabSettings')).GitLabSettings,
 }));
 const InitiativeActivity = lazy(async () => ({
-  default: (await import('~/views/InitiativeActivity')).InitiativeActivity,
+  default: (await import('~/views/ProjectActivity')).InitiativeActivity,
 }));
 const InitiativeDetail = lazy(async () => ({
   default: (await import('~/views/InitiativeDetail')).InitiativeDetail,
@@ -378,13 +379,24 @@ function SignedInShell() {
       renderCreateIssue={({ open, onClose, seed, onFiling }) => (
         <CreateIssueModal open={open} onClose={onClose} seed={seed} onFiling={onFiling} />
       )}
-      renderCreateProject={({ onClose }) => <CreateProjectModal onClose={onClose} />}
-      renderCreateInitiative={({ onClose }) => <CreateInitiativeModal onClose={onClose} />}
-      renderCreateCustomer={({ onClose }) => <CreateCustomerModal onClose={onClose} />}
-      renderCreateCustomerRequest={({ onClose }) => (
-        <CreateCustomerRequestModal onClose={onClose} />
+      renderCreateProject={({ open, onClose }) => (
+        <CreateProjectModal open={open} onClose={onClose} />
       )}
-      renderCreateDashboard={({ onClose }) => <CreateDashboardModal onClose={onClose} />}
+      renderCreateInitiative={({ open, onClose }) => (
+        <CreateInitiativeModal open={open} onClose={onClose} />
+      )}
+      renderCreateCustomer={({ open, onClose }) => (
+        <CreateCustomerModal open={open} onClose={onClose} />
+      )}
+      renderCreateCustomerRequest={({ open, onClose }) => (
+        <CreateCustomerRequestModal open={open} onClose={onClose} />
+      )}
+      renderCreateDashboard={({ open, onClose }) => (
+        <CreateDashboardModal open={open} onClose={onClose} />
+      )}
+      renderCreateDocument={({ open, onClose }) => (
+        <CreateDocumentModal open={open} onClose={onClose} />
+      )}
     >
       {/*
         The inner boundary, keyed on the path.
@@ -410,6 +422,9 @@ function SignedInShell() {
             <Route path="/drafts" element={<Drafts />} />
             <Route path="/new" element={<CreateIssueFromUrl />} />
             <Route path="/projects" element={<Projects />} />
+            {/* The workspace-wide list. The team and project routes below keep their
+                narrower scope; this one is what the sidebar row points at. */}
+            <Route path="/documents" element={<Documents />} />
             <Route
               path="/initiatives"
               element={
@@ -466,8 +481,11 @@ function SignedInShell() {
               <Route path="issues" element={<ProjectIssues />} />
               <Route path="view/:viewId" element={<ProjectAttachedView />} />
               <Route path="activity" element={<ProjectActivity />} />
+              {/* Inside the shell, not beside it: routed as a sibling, opening a project's
+                  documents dropped the header, the tabs and the properties rail, so the
+                  reader left the project by clicking one of its own tabs. */}
+              <Route path="documents" element={<Documents />} />
             </Route>
-            <Route path="/project/:projectId/documents" element={<Documents />} />
             <Route path="/document/:documentId" element={<DocumentDetail />} />
             <Route path="/cycle/:cycleId" element={<CycleDetail />} />
             {/*

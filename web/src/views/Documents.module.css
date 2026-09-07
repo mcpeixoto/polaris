@@ -18,7 +18,6 @@
 
 .title {
   margin: 0;
-  flex: 1;
   min-width: 0;
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
@@ -26,36 +25,58 @@
   letter-spacing: -0.014em;
 }
 
-.create {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 16rem;
+/* The search takes the slack, so the sort and the create button stay where the eye left
+   them however wide the window is. */
+.search {
+  flex: 1;
+  min-width: 8rem;
 }
 
 .list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+  padding: var(--space-3) 0 var(--space-8);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
 
-.row {
+.list:focus-visible {
+  outline: none;
+}
+
+.groupList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--space-2);
+  padding-right: var(--space-4);
+}
+
+/* Where the keyboard is, drawn on the row rather than on the link inside it: the cursor is
+   a property of the row and the link is only what Enter opens. */
+.cursorItem {
+  background: var(--bg-hover);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 14rem) 7rem;
+  align-items: center;
   gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
   height: var(--row-height);
-  padding-inline: var(--space-4);
+  padding-left: var(--space-4);
   color: inherit;
   text-decoration: none;
   font-size: var(--font-size-sm);
-  border-bottom: 1px solid var(--border-subtle);
-  transition: background-color var(--duration-instant) var(--ease-out);
 }
 
-.row:hover {
+.item:hover {
   background: var(--bg-hover);
 }
 
@@ -67,22 +88,29 @@
   white-space: nowrap;
 }
 
+.scope {
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .meta {
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
   white-space: nowrap;
+  text-align: right;
 }
 
-/* The one place this screen can refuse: a create the server would not take. Same treatment
- * as the document screen it leads to, so a failure looks the same on both. */
-.error {
-  margin: var(--space-3) var(--space-4) 0;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-md);
-  background-color: color-mix(in srgb, var(--text-danger) 12%, transparent);
-  color: var(--text-danger);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-normal);
+/* Shown on hover and whenever it has the keyboard, so the row is not a wall of dots and the
+   menu is still reachable without a pointer. */
+.menuButton {
+  opacity: 0;
+}
+
+.item:hover .menuButton,
+.menuButton:focus-visible {
+  opacity: 1;
 }
 
 /* Reduced motion is answered at the token: --duration-normal collapses to 1ms, which is
@@ -96,4 +124,16 @@
     opacity: 1;
     transform: none;
   }
+}
+
+/* The one place this screen can refuse: an archive or a delete the server would not take.
+ * Same treatment as the document screen it leads to, so a failure looks the same on both. */
+.error {
+  margin: var(--space-3) var(--space-4) 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: color-mix(in srgb, var(--text-danger) 12%, transparent);
+  color: var(--text-danger);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
 }

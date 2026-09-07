@@ -39,6 +39,7 @@ export type NavGlyphName =
   | 'labels'
   | 'bell'
   | 'template'
+  | 'document'
   | 'key'
   | 'apps'
   | 'webhook'
@@ -194,6 +195,19 @@ function glyphPath(name: NavGlyphName) {
         <>
           <rect x="3" y="2.5" width="10" height="11" rx="1.5" {...stroke} />
           <path d="M6 6h4M6 8.5h4M6 11h2" {...stroke} />
+        </>
+      );
+    case 'document':
+      // A page with a folded corner: the one mark that is not a list, a board or a chart,
+      // because a document is the only thing in this sidebar that is read rather than
+      // scanned.
+      return (
+        <>
+          <path
+            d="M9 2.5H4.5A1.5 1.5 0 0 0 3 4v8a1.5 1.5 0 0 0 1.5 1.5h7A1.5 1.5 0 0 0 13 12V6.5L9 2.5Z"
+            {...stroke}
+          />
+          <path d="M9 2.5v3a1 1 0 0 0 1 1h3M5.5 9h5M5.5 11h3" {...stroke} />
         </>
       );
     case 'key':

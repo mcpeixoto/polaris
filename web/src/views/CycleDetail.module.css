@@ -87,3 +87,147 @@
   flex: 1;
   padding: var(--space-4);
 }
+
+/* The trail is the visible title, so the heading is for the accessibility tree alone. */
+.screenTitle,
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.crumbs {
+  min-width: 0;
+}
+
+/*
+ * The properties rail: the cycle's own facts, beside the list of what is on it. The same
+ * shape as the issue rail — a column of labelled rows against a hairline — because a reader
+ * who has learnt where a property lives on one detail screen should not have to learn it
+ * again on the next.
+ */
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  flex: none;
+  width: 260px;
+  min-width: 0;
+  padding: var(--space-6) var(--space-4);
+  overflow-y: auto;
+  border-left: 1px solid var(--border-subtle);
+}
+
+.railTitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+}
+
+.railRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.railHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.railLabel {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.railNote,
+.railError {
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.railNote {
+  color: var(--text-tertiary);
+}
+
+.railError {
+  color: var(--text-danger);
+}
+
+.dates {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.dateButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  height: var(--control-height-sm);
+  padding-inline: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.dateButton:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.dateButton:disabled {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+
+.dateButton:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: calc(-1 * var(--focus-ring-width));
+}
+
+.dateGlyph {
+  width: 14px;
+  height: 14px;
+  color: var(--text-tertiary);
+}
+
+.dateDash {
+  color: var(--text-tertiary);
+}
+
+.scopeChange {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Below the flagship width the rail stops being a column beside the list and becomes a
+   band under it, the same answer the issue detail gives. */
+@media (max-width: 960px) {
+  .screen {
+    flex-direction: column;
+  }
+
+  .rail {
+    width: auto;
+    border-left: 0;
+    border-top: 1px solid var(--border-subtle);
+  }
+}

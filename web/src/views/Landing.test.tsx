@@ -90,7 +90,7 @@ describe('Landing', () => {
   });
 
   /**
-   * Below 900px the five section links are `display: none`, and for a while nothing
+   * Below the md breakpoint the five section links are `display: none`, and for a while nothing
    * replaced them: on a phone the page offered a logo, a sign-in and no route to Keyboard,
    * Sync or Self-host at all. The panel is the replacement, and these are the three things
    * about it that a stylesheet cannot guarantee.

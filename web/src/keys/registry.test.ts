@@ -208,6 +208,25 @@ describe('registration', () => {
     ]);
   });
 
+  it('keeps a half-typed sequence alive when an unrelated action is unregistered', () => {
+    // A screen re-registers whenever a `useActions` dependency moves, and that unregisters
+    // before it registers. Landing between the `g` and the `m` of `g m` used to drop the
+    // chord on the floor, so a navigation shortcut worked except when a delta arrived
+    // mid-gesture.
+    const { register, registry, log } = harness();
+    register({ id: 'nav.myIssues', keys: ['g m'] });
+    const off = registry.register(testAction({ id: 'list.row', keys: ['x'], when: 'list' }));
+
+    registry.handle(press('g'), 'global', { source: 'key', context: 'global', log });
+    off();
+    registry.handle(press('m'), 'global', { source: 'key', context: 'global', log });
+
+    expect(
+      log,
+      'the sequence was abandoned by a re-registration it had nothing to do with',
+    ).toEqual(['nav.myIssues']);
+  });
+
   it('ignores a stale unregister after the same id was registered again', () => {
     const { registry } = harness();
     const off = registry.register(testAction({ id: 'issue.create' }));

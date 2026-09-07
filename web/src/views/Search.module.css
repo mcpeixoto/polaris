@@ -373,3 +373,48 @@
   outline: var(--focus-ring-width) solid var(--border-focus);
   outline-offset: var(--focus-ring-offset);
 }
+
+/* ------------------------------------------------------------------ *
+ * Narrow windows
+ * ------------------------------------------------------------------ */
+
+/*
+ * The result row is the issue list's row and it gives up the same things, in the same
+ * order, for the same reason — see the block at the foot of IssueList.module.css. A reader
+ * who has learned what a narrow issue row looks like should not have to learn a second
+ * shape here.
+ *
+ * The labels go first because they are the widest optional run and the only one whose width
+ * is unbounded: a label group with four long names is most of a phone. The comment result's
+ * own meta line — the issue it is on, the author, the date — stays, because on that row it
+ * is the only thing saying which issue was matched.
+ */
+@media (max-width: 960px) {
+  .row .labels {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  /* The gutters were sized for a pane inset from the window; at this width the pane is the
+     window, and every one of these is a run that starts at the same left edge. */
+  .header,
+  .summary,
+  .filters,
+  .row,
+  .sectionHead,
+  .recentList {
+    padding-inline: var(--space-2);
+  }
+
+  /* The saved queries stop being chips in a run and become a stack: at 24rem apiece, two of
+     them already wrap, and a wrapped run of pills reads as a paragraph of buttons. */
+  .recentList {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .recentChip {
+    max-width: 100%;
+  }
+}

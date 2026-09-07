@@ -32,77 +32,32 @@
 }
 
 .crumbs {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
   min-width: 0;
   flex: 0 1 auto;
 }
 
-.crumb {
-  flex: none;
-  color: var(--text-secondary);
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-medium);
-  text-decoration: none;
-  border-radius: var(--radius-sm);
-  transition: color var(--duration-fast) var(--ease-out);
-}
-
-.crumb:hover {
-  color: var(--text-primary);
-}
-
-.crumb:focus-visible {
-  outline: var(--focus-ring-width) solid var(--border-focus);
-  outline-offset: var(--focus-ring-offset);
-}
-
-.crumbSeparator {
-  color: var(--text-tertiary);
-}
-
-/* The project's emoji, or the product's project glyph when it has none. */
-.mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--space-4);
-  height: var(--space-4);
-  flex: none;
-  color: var(--text-secondary);
-  font-size: var(--font-size-md);
-  line-height: var(--line-height-none);
-}
-
-.title {
-  margin: 0;
-  min-width: 0;
+/* The heading, out of the page and still in the accessibility tree: `display: none` would
+   take it out of both, which is the one thing a heading must never be. */
+.screenTitle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
   overflow: hidden;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-medium);
-  color: var(--text-primary);
-  text-overflow: ellipsis;
   white-space: nowrap;
+  clip-path: inset(50%);
 }
 
-/* One standing fact about the project — its status, its target date. */
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  flex: none;
-  max-width: 16rem;
-  height: var(--control-height-pill);
-  padding-inline: var(--space-2);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-full);
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* The last crumb is the rename field, so it holds the row's height rather than growing it. */
+.titleField {
+  max-width: 20rem;
+}
+
+/* A favourited project's star is filled and in the accent, the way the issue screen's is. */
+.starOn {
+  color: var(--accent-text);
 }
 
 .headerEnd {
@@ -114,43 +69,7 @@
 }
 
 .tabs {
-  display: flex;
-  align-items: center;
-  gap: var(--space-0-5);
   flex: none;
-}
-
-.tab {
-  display: inline-flex;
-  align-items: center;
-  height: var(--control-height-md);
-  padding-inline: var(--space-2);
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-medium);
-  text-decoration: none;
-  transition:
-    background-color var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
-}
-
-.tab:hover {
-  color: var(--text-primary);
-  background: var(--bg-hover);
-}
-
-.tabActive {
-  color: var(--text-primary);
-  background: var(--bg-tertiary);
-}
-
-/* NavLink sets aria-current on the active tab, so selection is announced; this is the
-   keyboard's own mark. :focus-visible rather than :focus, so clicking a tab does not draw
-   a ring around the thing the pointer just landed on. */
-.tab:focus-visible {
-  outline: var(--focus-ring-width) solid var(--border-focus);
-  outline-offset: var(--focus-ring-offset);
 }
 
 .body {

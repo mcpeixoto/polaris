@@ -132,7 +132,7 @@
 }
 
 /* One column below the point where the sentence and the button stop fitting side by side. */
-@media (max-width: 560px) {
+@media (max-width: 720px) {
   .row {
     flex-direction: column;
     align-items: stretch;

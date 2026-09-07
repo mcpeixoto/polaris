@@ -29,11 +29,22 @@
  * it, and there is no un-archive mutation and no query on this side that can show one again.
  * So there is no archive to browse — see `ArchivedTemplates` at the bottom, which is where
  * this screen says so instead of implying a bin that could be opened.
+ *
+ * Two things here are about the list rather than about templates. Every row used to carry
+ * four permanently visible controls — copy URL, Edit, Repeat, Archive — which is four times
+ * the noise of an issue row for a screen read far less often; they are one `…` menu now, on
+ * the button and on right-click, and the row is quiet until it is pointed at. And the rows
+ * are searchable, because a workspace with a template per team per incident kind has more of
+ * them than fit on a screen and the only way to find one was to scroll.
+ *
+ * The gate is the third: templates are replicated rows, so an unsettled replica made
+ * "No templates yet" a claim this screen could not support. It waits instead.
  */
 
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 
 import { useEngine } from '~/app/context';
+import { useKeyContext } from '~/app/keymap';
 import {
   Badge,
   Button,
@@ -44,6 +55,8 @@ import {
   LabelChip,
   PriorityIcon,
   priorityLabel,
+  Menu,
+  type MenuNode,
   Select,
   SettingsPage,
   SettingsSection,
@@ -51,6 +64,8 @@ import {
   Textarea,
 } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
+import { EntityLoading, useStoreSettled } from '~/features/entity-gate/EntityGate';
+import { CopyGlyph, DotsGlyph, PencilGlyph, RepeatGlyph } from '~/features/issue/glyphs';
 import { SettingsRow, type SettingsSectionProps } from '~/components/SettingsSection';
 import { RecurringDialog } from '~/features/recurring/RecurringDialog';
 import { createRecurringIssue } from '~/features/recurring/mutations';
@@ -60,6 +75,8 @@ import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/p
 import { archiveTemplate, createTemplate, updateTemplate } from '~/features/templates/mutations';
 import { togglePlaceholder } from '~/features/templates/placeholder';
 import { updateIssueTemplateEmailIntake } from '~/features/email/mutations';
+import { useContextMenu } from '~/hooks/useContextMenu';
+import { listRowDomId, useListCursor } from '~/hooks/useListCursor';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewerId } from '~/hooks/useViewer';
@@ -150,8 +167,46 @@ export function Templates() {
     ['issueTemplate', 'team', 'workflowState', 'user', 'label'],
   );
 
-  const grouped = useMemo(() => groupByScope(rows, scopes), [rows, scopes]);
+  const [query, setQuery] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuRow, setMenuRow] = useState<TemplateRow | null>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const settled = useStoreSettled();
+
+  const grouped = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const all = groupByScope(rows, scopes);
+    if (needle === '') return all;
+    // The description is searched with the name: a template called "Sev-2" is found by the
+    // word "incident" only if the sentence saying what it is for counts as its text.
+    return all.map((scope) => ({
+      ...scope,
+      templates: scope.templates.filter(
+        (row) =>
+          row.name.toLowerCase().includes(needle) || row.description.toLowerCase().includes(needle),
+      ),
+    }));
+  }, [rows, scopes, query]);
+
   const archivedRows = useMemo(() => rows.filter((row) => row.archived).sort(byPosition), [rows]);
+
+  const visibleIds = useMemo(
+    () =>
+      kind === 'standard' ? grouped.flatMap((scope) => scope.templates.map((row) => row.id)) : [],
+    [grouped, kind],
+  );
+
+  useKeyContext('list');
+  const cursor = useListCursor({
+    ids: visibleIds,
+    prefix: 'templateList',
+    noun: 'template',
+    // Opening a template is opening its editor: there is no page for one, and editing is
+    // what everybody who finds a row came here to do.
+    onOpen: (id) => setEditing({ kind: 'edit', templateId: id }),
+  });
+
+  const contextMenu = useContextMenu<UUID>({ onOpen: (id) => cursor.setCursor(id) });
 
   /**
    * Writes, and rejects so the editor can keep the draft on screen beside the reason.
@@ -198,6 +253,61 @@ export function Templates() {
         );
       });
   };
+
+  const openEditor = (row: TemplateRow) => {
+    setMenuOpen(false);
+    contextMenu.close();
+    setEditing({ kind: 'edit', templateId: row.id });
+  };
+
+  /** One menu, whichever way it was opened: the ⋯ button and the right-click agree. */
+  const itemsFor = (row: TemplateRow): MenuNode[] => [
+    { id: 'edit', label: 'Edit', icon: <PencilGlyph />, onSelect: () => openEditor(row) },
+    {
+      id: 'copy-url',
+      label: 'Copy create URL',
+      icon: <CopyGlyph />,
+      onSelect: () => {
+        setMenuOpen(false);
+        contextMenu.close();
+        void navigator.clipboard?.writeText(
+          buildCreateURL({ teamKey: row.teamKey, template: row.name }),
+        );
+      },
+    },
+    // Only a team's template can be put on a cadence: a recurring issue is filed into a
+    // team, and a workspace template names none.
+    ...(row.teamId === undefined
+      ? []
+      : [
+          {
+            id: 'recurring',
+            label: 'Make recurring',
+            icon: <RepeatGlyph />,
+            onSelect: () => {
+              setMenuOpen(false);
+              contextMenu.close();
+              setConvertError(null);
+              setConverting(row);
+            },
+          },
+        ]),
+    {
+      id: 'archive',
+      label: 'Archive',
+      icon: <ArchiveIcon />,
+      danger: true,
+      onSelect: () => {
+        setMenuOpen(false);
+        contextMenu.close();
+        setArchiveError(null);
+        setArchiving(row);
+      },
+    },
+  ];
+
+  const contextRow =
+    contextMenu.id === null ? null : (rows.find((row) => row.id === contextMenu.id) ?? null);
 
   const tabs = (
     <div className={styles.tabs} role="tablist" aria-label="Template kind">
@@ -249,6 +359,18 @@ export function Templates() {
         <ProjectTemplatesPanel />
       ) : (
         <>
+          <div className={styles.searchRow}>
+            <Input
+              className={styles.search}
+              label="Search templates"
+              hideLabel
+              type="search"
+              placeholder="Search templates"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+
           {grouped.map((scope) => {
             const creating = editing?.kind === 'create' && editing.scopeId === scope.id;
             return (
@@ -286,7 +408,18 @@ export function Templates() {
                   </SettingsRow>
                 ) : null}
 
-                {scope.templates.length === 0 ? (
+                {scope.templates.length === 0 && !settled ? (
+                  <SettingsRow>
+                    <EntityLoading label="Loading templates…" lines={2} />
+                  </SettingsRow>
+                ) : scope.templates.length === 0 && query.trim() !== '' ? (
+                  <SettingsRow>
+                    <EmptyState
+                      title="Nothing matches"
+                      description="No template in this scope matches that search."
+                    />
+                  </SettingsRow>
+                ) : scope.templates.length === 0 ? (
                   <SettingsRow>
                     <EmptyState
                       title="No templates yet"
@@ -307,22 +440,25 @@ export function Templates() {
                           />
                         </li>
                       ) : (
-                        <li key={row.id}>
+                        <li
+                          key={row.id}
+                          id={listRowDomId('templateList', row.id)}
+                          className={
+                            row.id === cursor.cursorId ? styles.templateCursorRow : undefined
+                          }
+                          onContextMenu={(event) => {
+                            event.preventDefault();
+                            contextMenu.openAt(event.clientX, event.clientY, row.id);
+                          }}
+                        >
                           <TemplateListRow
                             row={row}
-                            onEdit={() => setEditing({ kind: 'edit', templateId: row.id })}
-                            onArchive={() => {
-                              setArchiveError(null);
-                              setArchiving(row);
+                            onOptions={(trigger) => {
+                              menuTriggerRef.current = trigger;
+                              cursor.setCursor(row.id);
+                              setMenuRow(row);
+                              setMenuOpen(true);
                             }}
-                            onConvert={
-                              row.teamId === undefined
-                                ? undefined
-                                : () => {
-                                    setConvertError(null);
-                                    setConverting(row);
-                                  }
-                            }
                           />
                         </li>
                       ),
@@ -334,6 +470,26 @@ export function Templates() {
           })}
 
           <ArchivedTemplates rows={archivedRows} />
+
+          <Menu
+            open={menuOpen}
+            onClose={() => {
+              setMenuOpen(false);
+              setMenuRow(null);
+            }}
+            trigger={menuTriggerRef}
+            label={menuRow === null ? 'Template options' : `Options for ${menuRow.name}`}
+            items={menuRow === null ? [] : itemsFor(menuRow)}
+          />
+
+          {contextMenu.at === null ? null : <div {...contextMenu.anchorProps} />}
+          <Menu
+            open={contextMenu.at !== null && contextRow !== null}
+            onClose={contextMenu.close}
+            trigger={contextMenu.anchorRef}
+            label={contextRow === null ? 'Template options' : `Options for ${contextRow.name}`}
+            items={contextRow === null ? [] : itemsFor(contextRow)}
+          />
 
           <ConfirmDialog
             open={archiving !== null}
@@ -420,17 +576,11 @@ function ScopeSection({ title, children, ...rest }: SettingsSectionProps & { tit
 
 interface TemplateListRowProps {
   row: TemplateRow;
-  onEdit: () => void;
-  onArchive: () => void;
-  onConvert?: (() => void) | undefined;
+  /** Opens the row's menu, anchored on the button that was pressed. */
+  onOptions: (trigger: HTMLButtonElement) => void;
 }
 
-function TemplateListRow({ row, onEdit, onArchive, onConvert }: TemplateListRowProps) {
-  const copyUrl = () => {
-    void navigator.clipboard?.writeText(
-      buildCreateURL({ teamKey: row.teamKey, template: row.name }),
-    );
-  };
+function TemplateListRow({ row, onOptions }: TemplateListRowProps) {
   return (
     <div className={styles.templateRow}>
       <div className={styles.rowText}>
@@ -449,22 +599,13 @@ function TemplateListRow({ row, onEdit, onArchive, onConvert }: TemplateListRowP
       </div>
 
       <span className={styles.rowActions}>
-        <Button
+        <IconButton
+          aria-label={`Options for ${row.name}`}
           size="sm"
-          onClick={copyUrl}
-          aria-label={`Copy URL to create an issue from ${row.name}`}
-        >
-          Copy create URL
-        </Button>
-        <Button size="sm" onClick={onEdit} aria-label={`Edit ${row.name}`}>
-          Edit
-        </Button>
-        {onConvert === undefined ? null : (
-          <Button size="sm" onClick={onConvert} aria-label={`Make ${row.name} recurring`}>
-            Repeat
-          </Button>
-        )}
-        <IconButton aria-label={`Archive ${row.name}`} icon={<ArchiveIcon />} onClick={onArchive} />
+          className={styles.rowMenuButton}
+          icon={<DotsGlyph />}
+          onClick={(event) => onOptions(event.currentTarget)}
+        />
       </span>
     </div>
   );

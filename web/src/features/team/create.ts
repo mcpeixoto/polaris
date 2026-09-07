@@ -27,6 +27,10 @@ export interface NewTeam {
   readonly name: string;
   /** A private team is invisible to everyone who is not in it. */
   readonly private?: boolean | undefined;
+  /** The emoji the sidebar and the composer draw the team as. */
+  readonly icon?: string | undefined;
+  /** The tint that emoji is drawn on. Meaningless without one, so they travel together. */
+  readonly color?: string | undefined;
   /** When set, the new team is a sub-team of this one. */
   readonly parentTeamId?: UUID | undefined;
 }
@@ -48,6 +52,10 @@ export async function createTeam(engine: SyncEngine, input: NewTeam): Promise<Te
         key: input.key.trim().toUpperCase(),
         name: input.name.trim(),
         ...(input.private === true ? { private: true } : null),
+        ...(input.icon === undefined || input.icon === '' ? null : { icon: input.icon }),
+        ...(input.color === undefined || input.icon === undefined || input.icon === ''
+          ? null
+          : { color: input.color }),
         ...(input.parentTeamId === undefined ? null : { parentTeamId: input.parentTeamId }),
       },
     },

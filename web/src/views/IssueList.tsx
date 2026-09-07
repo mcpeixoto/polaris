@@ -76,6 +76,7 @@ import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { liveIssueCountForTeam } from '~/features/team/issueLimit';
 import { TeamIssueLimitBanner } from '~/features/team/TeamIssueLimitBanner';
 import { issueIdsForLabelView, labelViewTitle, userViewPath } from '~/features/labels/labelView';
+import { readCollapsed, writeCollapsed } from '~/features/view/collapse';
 import {
   isFavorite,
   setViewSubscription,
@@ -3351,40 +3352,6 @@ function reorderPlan(
     id,
     target: { afterId: without[to - 1] ?? null, beforeId: without[to] ?? null },
   };
-}
-
-/** Where a screen's collapsed groups are remembered, per person, in this browser. */
-function collapseStorageKey(preferenceKey: string | undefined): string | null {
-  return preferenceKey === undefined ? null : `polaris.collapsedGroups:${preferenceKey}`;
-}
-
-function readCollapsed(preferenceKey: string | undefined): ReadonlySet<string> {
-  const key = collapseStorageKey(preferenceKey);
-  if (key === null) return new Set();
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (raw === null) return new Set();
-    const parsed: unknown = JSON.parse(raw);
-    return new Set(
-      Array.isArray(parsed) ? parsed.filter((k): k is string => typeof k === 'string') : [],
-    );
-  } catch {
-    // A private window, a full quota, a row somebody hand-edited. None of them is worth
-    // taking the list down for: an unreadable preference is the same as not having one.
-    return new Set();
-  }
-}
-
-function writeCollapsed(preferenceKey: string | undefined, groups: ReadonlySet<string>): void {
-  const key = collapseStorageKey(preferenceKey);
-  if (key === null) return;
-  try {
-    if (groups.size === 0) window.localStorage.removeItem(key);
-    else window.localStorage.setItem(key, JSON.stringify([...groups]));
-  } catch {
-    // See `readCollapsed`. A group that does not stay folded is a smaller problem than a
-    // screen that will not render.
-  }
 }
 
 /**

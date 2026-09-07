@@ -8,7 +8,7 @@
  * pencil opens the composer the `C` key opens and the "?" opens the sheet the `?` key opens.
  */
 
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -176,19 +176,26 @@ function seeded(
   return store;
 }
 
-function renderShell(store: Store, at = '/', status: EngineStatus = { phase: 'idle' }) {
+function renderShell(
+  store: Store,
+  at: string | string[] = '/',
+  status: EngineStatus = { phase: 'idle' },
+) {
   const engine = { store, mutate: vi.fn(), start: vi.fn().mockResolvedValue(undefined) };
   const renderCreateIssue = vi.fn(({ open }: { open: boolean }) =>
     open ? <div role="dialog" aria-label="New issue composer" /> : null,
   );
-  const renderCreateProject = vi.fn(() => <div role="dialog" aria-label="New project composer" />);
+  const renderCreateProject = vi.fn(({ open }: { open: boolean }) =>
+    open ? <div role="dialog" aria-label="New project composer" /> : null,
+  );
   render(
-    <MemoryRouter initialEntries={[at]}>
+    <MemoryRouter initialEntries={typeof at === 'string' ? [at] : at}>
       <KeymapProvider>
         <EngineProvider engine={engine as unknown as SyncEngine} status={status}>
           <AppShell renderCreateIssue={renderCreateIssue} renderCreateProject={renderCreateProject}>
             <Routes>
               <Route path="/search" element={<div>Search screen</div>} />
+              <Route path="/drafts" element={<div>Drafts screen</div>} />
               <Route path="*" element={<div />} />
             </Routes>
           </AppShell>
@@ -260,6 +267,33 @@ describe('the sections', () => {
       .map((link) => link.textContent);
     expect(links.indexOf('Inbox')).toBeLessThan(links.indexOf('My issues'));
     expect(links.indexOf('My issues')).toBeLessThan(links.indexOf('Projects'));
+  });
+
+  it('points a Documents row at the workspace list', () => {
+    renderShell(seeded());
+    const nav = screen.getByRole('navigation', { name: 'Workspace' });
+    // Documents were reachable only by typing a URL: the surface existed on two team- and
+    // project-scoped routes and nothing in the chrome linked to either.
+    expect(within(nav).getByRole('link', { name: 'Documents' }).getAttribute('href')).toBe(
+      '/documents',
+    );
+  });
+
+  it('offers Create document in the command menu', async () => {
+    const user = userEvent.setup();
+    renderShell(seeded());
+    await user.keyboard('{Control>}k{/Control}');
+    await user.keyboard('Create document');
+    expect(screen.getByRole('option', { name: /Create document/ })).toBeTruthy();
+  });
+
+  it('withholds Create document from a guest', async () => {
+    role = 'guest';
+    const user = userEvent.setup();
+    renderShell(seeded());
+    await user.keyboard('{Control>}k{/Control}');
+    await user.keyboard('Create document');
+    expect(screen.queryByRole('option', { name: /Create document/ })).toBeNull();
   });
 
   it('has no Search row, because the button and / are how search is reached', () => {
@@ -431,5 +465,68 @@ describe('the foot of the sidebar', () => {
     await user.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
     expect(screen.queryByRole('navigation', { name: 'Workspace' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Show sidebar' })).toBeTruthy();
+  });
+});
+
+describe('a right-click on a sidebar row', () => {
+  /*
+    The column is the shortest path to everything in the product, and until now the only
+    thing that could be done to a row was to follow it. Favouriting a team meant opening the
+    team; the star is now two clicks from where the eye already is.
+  */
+  it('offers to favourite the team, and writes the favourite when it is chosen', async () => {
+    const user = userEvent.setup();
+    const { engine } = renderShell(seeded());
+
+    await user.pointer({
+      target: screen.getByRole('link', { name: /Engineering/ }),
+      keys: '[MouseRight]',
+    });
+
+    const menu = await screen.findByRole('menu', { name: 'Engineering actions' });
+    await user.click(within(menu).getByRole('menuitem', { name: 'Add to favourites' }));
+
+    await waitFor(() => expect(engine.mutate).toHaveBeenCalled());
+    const written = engine.mutate.mock.calls[0]?.[0] as {
+      optimistic: readonly { type: string; after: { kind: string; targetId: string } }[];
+    };
+    expect(written.optimistic[0]?.type).toBe('favorite');
+    expect(written.optimistic[0]?.after.kind).toBe('team');
+    expect(written.optimistic[0]?.after.targetId).toBe(TEAM);
+  });
+
+  it('offers the link and a new tab as well, and nothing that needs a favourite', async () => {
+    const user = userEvent.setup();
+    renderShell(seeded());
+
+    await user.pointer({
+      target: screen.getByRole('link', { name: /Engineering/ }),
+      keys: '[MouseRight]',
+    });
+
+    const menu = await screen.findByRole('menu', { name: 'Engineering actions' });
+    expect(within(menu).getByRole('menuitem', { name: 'Open in new tab' })).toBeTruthy();
+    expect(within(menu).getByRole('menuitem', { name: 'Copy link' })).toBeTruthy();
+    expect(within(menu).queryByRole('menuitem', { name: 'Remove from favourites' })).toBeNull();
+  });
+});
+
+describe('back and forward', () => {
+  /*
+    History navigation existed in two error screens and nowhere else. `mod+[` and `mod+]` are
+    the chords for it — the bare brackets are the cycle screen's, in the `detail` context, so
+    both can be registered and neither shadows the other.
+  */
+  // `fireEvent` rather than `userEvent`: a bracket is a descriptor in user-event's keyboard
+  // grammar, and the chord under test is exactly a bracket.
+  it('goes back a page on mod+[ and forward again on mod+]', async () => {
+    renderShell(seeded(), ['/drafts', '/search']);
+    expect(screen.getByText('Search screen')).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: '[', code: 'BracketLeft', ctrlKey: true });
+    await waitFor(() => expect(screen.getByText('Drafts screen')).toBeTruthy());
+
+    fireEvent.keyDown(window, { key: ']', code: 'BracketRight', ctrlKey: true });
+    await waitFor(() => expect(screen.getByText('Search screen')).toBeTruthy());
   });
 });

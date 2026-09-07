@@ -1,0 +1,82 @@
+/*
+ * What goes inside the popover; the surface itself is Popover.module.css.
+ *
+ * The width is here rather than there because it is a property of this content — four
+ * relatives and a date box — and not of every panel that will ever float.
+ */
+
+.panel {
+  width: 240px;
+}
+
+.relatives {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * A plain button rather than the library's, because these are rows in a list: they run the
+ * full width, they carry a value at the trailing edge, and a Button's centred label would
+ * leave four ragged pills where a reader wants a column of days to compare.
+ */
+.relative {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  height: var(--control-height-md);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-none);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--duration-instant) var(--ease-out);
+}
+
+.relative:hover {
+  background-color: var(--bg-hover);
+}
+
+.relative:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+.relative[aria-current='true'] {
+  background-color: var(--bg-selected);
+}
+
+.relativeDay {
+  flex: none;
+  /* Secondary and not tertiary: this sits on `--bg-elevated`, where tertiary measures 4.08:1
+     in dark and fails body text. See 08-ui-composition.md. */
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.dateForm {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.dateForm > *:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

@@ -25,7 +25,9 @@ import type { EntityPatch, Notification, NotificationPrefs, Store, User, UUID } 
 import { gql } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
-export { report } from '~/features/issue/mutations';
+import { report } from '~/features/issue/mutations';
+
+export { report };
 
 /**
  * Fills the replica's inbox from the server, once.
@@ -184,6 +186,89 @@ export async function dismissNotification(engine: SyncEngine, id: UUID): Promise
     variables: { id },
     optimistic: [{ type: 'notification', id, before, after: null }],
   });
+}
+
+/**
+ * How long a dismissal is held on this client before it is sent.
+ *
+ * The inbox is the one screen in the product whose destructive action has no inverse on the
+ * server: `deleteNotification` is a soft delete that exists so a replayed fan-out cannot
+ * deliver the row twice, and there is no mutation that brings one back. So an undo cannot be
+ * a second write — it has to be the first one not having happened yet.
+ *
+ * This is the Undo Send bargain, and it is the honest one for this case: the row leaves the
+ * screen on the keystroke, the request is queued, and the few seconds in which somebody
+ * realises they hit Backspace on the wrong row are the few seconds before it goes. The cost
+ * is real and is bounded here rather than hidden: a dismissal is lost if the tab dies inside
+ * the window, which is why `flushDismissals` exists and why the inbox calls it on the way
+ * out. Anything longer than the undo offer itself would widen that hole for no gain — the
+ * offer is gone, so nobody is still deciding.
+ */
+export const DISMISS_GRACE_MS = 8250;
+
+/**
+ * The dismissals waiting to be sent, by notification id.
+ *
+ * Module level rather than component state because the two things that end the wait —
+ * pressing Undo and leaving the screen — happen in different components, and because a
+ * dismissal must outlive a re-render of the list it was made from.
+ */
+const waiting = new Map<UUID, { timer: ReturnType<typeof setTimeout>; commit: () => void }>();
+
+/**
+ * Takes a row off the screen now and off the server when the undo window closes.
+ *
+ * Returns the way back, which the caller hands to `offerUndo`. Calling it after the write
+ * has gone does nothing at all rather than half-restoring a row that no longer exists
+ * anywhere — `waiting` is the record of whether there is still anything to cancel, and it is
+ * consulted at the moment of the undo rather than captured when the offer was made.
+ */
+export function dismissNotificationSoon(engine: SyncEngine, id: UUID): () => void {
+  const before = engine.store.get('notification', id);
+  if (before === undefined) return () => {};
+
+  // A row dismissed twice — the keyboard racing the menu — is one dismissal. Clearing the
+  // first timer rather than adding a second is what keeps `waiting` a set of pending
+  // requests instead of a queue of duplicates.
+  const previous = waiting.get(id);
+  if (previous !== undefined) clearTimeout(previous.timer);
+
+  const patch: EntityPatch[] = [{ type: 'notification', id, before, after: null }];
+  engine.store.applyOptimistic(patch);
+
+  const commit = () => {
+    const entry = waiting.get(id);
+    if (entry === undefined) return;
+    clearTimeout(entry.timer);
+    waiting.delete(id);
+    // The same patch goes to the engine, even though the row has already gone from the
+    // replica: it is what the engine rolls back to if the server refuses, and without it a
+    // refused dismissal would leave the row missing from a client that still has it.
+    engine
+      .mutate({ mutation: DELETE_NOTIFICATION, variables: { id }, optimistic: patch })
+      .catch(report);
+  };
+
+  waiting.set(id, { timer: setTimeout(commit, DISMISS_GRACE_MS), commit });
+
+  return () => {
+    const entry = waiting.get(id);
+    if (entry === undefined) return;
+    clearTimeout(entry.timer);
+    waiting.delete(id);
+    engine.store.applyOptimistic([{ type: 'notification', id, before: null, after: before }]);
+  };
+}
+
+/**
+ * Sends every held dismissal immediately.
+ *
+ * Called when the inbox unmounts. A dismissal is a decision the user has already made and
+ * watched take effect; carrying it in a timer that a route change would silently drop would
+ * make Backspace a coin toss.
+ */
+export function flushDismissals(): void {
+  for (const entry of [...waiting.values()]) entry.commit();
 }
 
 /**

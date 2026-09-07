@@ -294,6 +294,14 @@ test.describe('inbox', () => {
     await watcher.page.getByRole('listbox', { name: /notifications/i }).waitFor();
     await watcher.page.keyboard.press('Backspace');
     await expect(watcher.page.getByRole('option')).toHaveCount(rows - 1, { timeout: 15_000 });
+
+    // The row goes at once and the delete goes when the undo offer lapses — the inbox is the
+    // one screen whose destructive action has no inverse on the server, so its undo is the
+    // request not having been sent yet (see `dismissNotificationSoon`). Waiting for the toast
+    // to leave is waiting for the write to be sent; reloading before it is asserts that a
+    // dismissal the user could still take back has already been committed, which is the
+    // opposite of what this screen promises.
+    await expect(watcher.page.getByText(/^Dismissed /)).toBeHidden({ timeout: 20_000 });
     await watcher.page.reload();
     await expect(watcher.page.getByRole('option')).toHaveCount(rows - 1, { timeout: 20_000 });
 

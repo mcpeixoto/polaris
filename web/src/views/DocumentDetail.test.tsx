@@ -1,10 +1,16 @@
 /**
- * A document being written while somebody else changes it.
+ * A document being written while somebody else changes it, and how the screen says so.
  *
- * The screen mirrors the store into two controlled fields, so every delta that touches this
- * document re-runs the effect that fills them — including one that changes a field nobody
+ * The screen mirrors the store into the body field, so every delta that touches this
+ * document re-runs the effect that fills it — including one that changes the title nobody
  * here is typing in. Adopting the store's answer wholesale threw away whatever was in the
  * textarea, which is the one thing on the screen that exists nowhere else yet.
+ *
+ * The Save button these tests used to click is gone: it stood beside an autosave that
+ * already fired on blur, on unmount and on the tab being hidden, and nothing on the screen
+ * said which of the two had just happened. Every assertion it carried is still here, made
+ * against what replaced it — `mod+s` for "send it now", and the save indicator for what
+ * just happened.
  */
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -95,8 +101,9 @@ function bodiesSent(mutate: ReturnType<typeof vi.fn>): unknown[] {
   );
 }
 
-function saveButton(): HTMLButtonElement {
-  return screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement;
+/** What the save indicator is currently saying: "Saving…", "Saved", or nothing. */
+function indicator(): string {
+  return screen.getByRole('status').textContent ?? '';
 }
 
 /** The rendered screen, so a test can take it away the way the back button does. */
@@ -172,12 +179,12 @@ describe('DocumentDetail', () => {
   });
 
   it('keeps what was typed while the save was in flight', async () => {
-    const { user, release } = renderDetailWithSlowSave();
+    const { user, release, mutate } = renderDetailWithSlowSave();
 
     const body = () => screen.getByLabelText('Body') as HTMLTextAreaElement;
     await user.click(body());
     await user.type(body(), 'first half');
-    await user.click(saveButton());
+    await user.keyboard('{Control>}s{/Control}');
 
     // The connection is slow and the writing continues; the request that is open carries
     // "first half" and knows nothing about the rest.
@@ -192,8 +199,10 @@ describe('DocumentDetail', () => {
     // The reply is about a body that is already out of date. Adopting it would delete a
     // sentence the person watched themselves type.
     await waitFor(() => expect(body().value).toBe('first half and second half'));
-    // And there is still something to save, so the text has a way of reaching the server.
-    expect(saveButton().disabled).toBe(false);
+    // And there is still something to save, so the text has a way of reaching the server:
+    // the field is still dirty, so a second ⌘S sends the newer body rather than nothing.
+    await user.keyboard('{Control>}s{/Control}');
+    await waitFor(() => expect(bodiesSent(mutate)).toContain('first half and second half'));
   });
 
   it('settles once the save covers what is on the screen', async () => {
@@ -202,31 +211,59 @@ describe('DocumentDetail', () => {
     const body = screen.getByLabelText('Body') as HTMLTextAreaElement;
     await user.click(body);
     await user.type(body, 'all of it');
-    await user.click(saveButton());
+    await user.keyboard('{Control>}s{/Control}');
+
+    // While the request is open the screen says so, rather than looking like nothing
+    // happened — which is what a fire-and-forget autosave looked like.
+    await waitFor(() => expect(indicator()).toBe('Saving…'));
+
     await act(async () => {
       release();
     });
 
-    await waitFor(() => expect(saveButton().disabled).toBe(true));
+    await waitFor(() => expect(indicator()).toBe('Saved'));
     expect((screen.getByLabelText('Body') as HTMLTextAreaElement).value).toBe('all of it');
   });
 
   it('says so when the server refuses the edit', async () => {
-    const { user } = renderDetailWithRefusal('that title is too long');
+    const { mutate, user } = renderDetailWithRefusal('that body is too long');
 
-    const title = screen.getByLabelText('Title') as HTMLInputElement;
-    await user.clear(title);
-    await user.type(title, 'Something the server will not have');
-    await user.click(saveButton());
+    const body = screen.getByLabelText('Body') as HTMLTextAreaElement;
+    await user.click(body);
+    await user.type(body, 'Something the server will not have');
+    await user.keyboard('{Control>}s{/Control}');
 
     // The server's own words, rather than an uncaught rejection in the console and a screen
-    // that looks as though the click did nothing.
-    expect((await screen.findByRole('alert')).textContent).toBe('that title is too long');
-    // The edit is still on the screen and still sendable.
-    expect((screen.getByLabelText('Title') as HTMLInputElement).value).toBe(
+    // that looks as though the keystroke did nothing.
+    expect((await screen.findByRole('alert')).textContent).toBe('that body is too long');
+    // The edit is still on the screen and still sendable: the field stayed dirty, so
+    // pressing again sends it again rather than deciding it is already safe.
+    expect((screen.getByLabelText('Body') as HTMLTextAreaElement).value).toBe(
       'Something the server will not have',
     );
-    expect(saveButton().disabled).toBe(false);
+    const sent = mutate.mock.calls.length;
+    await user.keyboard('{Control>}s{/Control}');
+    await waitFor(() => expect(mutate.mock.calls.length).toBe(sent + 1));
+  });
+
+  it('renames the document when the title field is left', async () => {
+    const { mutate, user } = renderDetail();
+
+    const title = screen.getByLabelText('Title');
+    await user.click(title);
+    await user.clear(title);
+    await user.type(title, 'The runbook');
+    await user.tab();
+
+    await waitFor(() =>
+      expect(
+        mutate.mock.calls.some(
+          (call) =>
+            ((call[0] as MutateInput).variables.input as { title?: unknown }).title ===
+            'The runbook',
+        ),
+      ).toBe(true),
+    );
   });
 
   it('keeps an edit when the screen goes away without a blur', async () => {

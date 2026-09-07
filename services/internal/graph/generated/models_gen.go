@@ -3662,11 +3662,15 @@ func (e EstimateScale) MarshalJSON() ([]byte, error) {
 type FavoriteKind string
 
 const (
-	FavoriteKindView   FavoriteKind = "VIEW"
-	FavoriteKindTeam   FavoriteKind = "TEAM"
-	FavoriteKindIssue  FavoriteKind = "ISSUE"
-	FavoriteKindLabel  FavoriteKind = "LABEL"
-	FavoriteKindFolder FavoriteKind = "FOLDER"
+	FavoriteKindView       FavoriteKind = "VIEW"
+	FavoriteKindTeam       FavoriteKind = "TEAM"
+	FavoriteKindIssue      FavoriteKind = "ISSUE"
+	FavoriteKindLabel      FavoriteKind = "LABEL"
+	FavoriteKindFolder     FavoriteKind = "FOLDER"
+	FavoriteKindProject    FavoriteKind = "PROJECT"
+	FavoriteKindInitiative FavoriteKind = "INITIATIVE"
+	FavoriteKindCycle      FavoriteKind = "CYCLE"
+	FavoriteKindDocument   FavoriteKind = "DOCUMENT"
 )
 
 var AllFavoriteKind = []FavoriteKind{
@@ -3675,11 +3679,15 @@ var AllFavoriteKind = []FavoriteKind{
 	FavoriteKindIssue,
 	FavoriteKindLabel,
 	FavoriteKindFolder,
+	FavoriteKindProject,
+	FavoriteKindInitiative,
+	FavoriteKindCycle,
+	FavoriteKindDocument,
 }
 
 func (e FavoriteKind) IsValid() bool {
 	switch e {
-	case FavoriteKindView, FavoriteKindTeam, FavoriteKindIssue, FavoriteKindLabel, FavoriteKindFolder:
+	case FavoriteKindView, FavoriteKindTeam, FavoriteKindIssue, FavoriteKindLabel, FavoriteKindFolder, FavoriteKindProject, FavoriteKindInitiative, FavoriteKindCycle, FavoriteKindDocument:
 		return true
 	}
 	return false

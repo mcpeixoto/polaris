@@ -9,6 +9,7 @@
 
 import { parseIssueIdentifier } from '~/features/issue/adhocList';
 import { personName } from '~/features/prefs/prefs';
+import { viewPath } from '~/features/view/paths';
 import type { Action } from '~/keys';
 import type { StateCategory, Store, UUID } from '~/store';
 import { frecency, NO_RECENTS, type RecentUses } from './commandMenuRecents';
@@ -167,6 +168,144 @@ export function searchIssueIndex(index: readonly IssueSearchEntry[], needle: str
  */
 export function matchIssues(store: Store, needle: string): EntityHit[] {
   return searchIssueIndex(buildIssueIndex(store), needle);
+}
+
+/**
+ * The other things in the replica that have a name and a page.
+ *
+ * ⌘K is how people get anywhere in this product, and it could reach two kinds of thing:
+ * issues and people. A project, an initiative, a cycle, a document and a saved view are all
+ * named by somebody, opened all day, and were reachable only by remembering which list they
+ * are filed under. They are one shape — a name, a hint, a route — so they are one function.
+ *
+ * Each kind is capped on its own rather than sharing the issue limit. The point of the kinds
+ * is breadth: five projects and five documents answer "where is the thing called X" better
+ * than twelve of whichever kind happened to score highest.
+ */
+export type NamedEntityKind = 'project' | 'initiative' | 'cycle' | 'document' | 'view';
+
+/** The heading each kind is grouped under, and the glyph that heading draws. */
+export const NAMED_ENTITY_GROUPS: Readonly<Record<NamedEntityKind, string>> = {
+  project: 'Projects',
+  initiative: 'Initiatives',
+  cycle: 'Cycles',
+  document: 'Documents',
+  view: 'Views',
+};
+
+const NAMED_ENTITY_LIMIT = 5;
+
+export interface NamedEntitySection {
+  readonly kind: NamedEntityKind;
+  readonly group: string;
+  readonly hits: readonly EntityHit[];
+}
+
+/**
+ * `viewerId` is not a nicety: a private saved view belongs to one person, and a palette that
+ * offered somebody else's would be showing them a screen they cannot open.
+ */
+export function matchNamedEntities(
+  store: Store,
+  needle: string,
+  viewerId: UUID | null,
+): NamedEntitySection[] {
+  const sections: NamedEntitySection[] = [];
+
+  const add = (kind: NamedEntityKind, hits: EntityHit[]) => {
+    if (hits.length === 0) return;
+    hits.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
+    sections.push({
+      kind,
+      group: NAMED_ENTITY_GROUPS[kind],
+      hits: hits.slice(0, NAMED_ENTITY_LIMIT),
+    });
+  };
+
+  const projects: EntityHit[] = [];
+  for (const project of store.projects.values()) {
+    if (project.archivedAt !== undefined) continue;
+    const score = nameScore(project.name, needle);
+    if (score === null) continue;
+    projects.push({
+      id: project.id,
+      title: project.name,
+      hint: store.get('projectStatus', project.statusId)?.name ?? '',
+      href: `/project/${project.id}`,
+      score,
+    });
+  }
+  add('project', projects);
+
+  const initiatives: EntityHit[] = [];
+  for (const initiative of store.initiatives.values()) {
+    if (initiative.archivedAt !== undefined) continue;
+    const score = nameScore(initiative.name, needle);
+    if (score === null) continue;
+    initiatives.push({
+      id: initiative.id,
+      title: initiative.name,
+      hint: '',
+      href: `/initiative/${initiative.id}`,
+      score,
+    });
+  }
+  add('initiative', initiatives);
+
+  const cycles: EntityHit[] = [];
+  for (const cycle of store.cycles.values()) {
+    if (cycle.archivedAt !== undefined) continue;
+    // The team key, because a workspace of nine teams has nine cycle 12s and the number
+    // alone tells the reader nothing about which one this row opens.
+    const key = store.teams.get(cycle.teamId)?.key ?? '';
+    const score = nameScore(`${key} ${cycle.name}`, needle);
+    if (score === null) continue;
+    cycles.push({
+      id: cycle.id,
+      title: cycle.name,
+      hint: key,
+      href: `/cycle/${cycle.id}`,
+      score,
+    });
+  }
+  add('cycle', cycles);
+
+  const documents: EntityHit[] = [];
+  for (const document of store.documents.values()) {
+    if (document.archivedAt !== undefined) continue;
+    const score = nameScore(document.title, needle);
+    if (score === null) continue;
+    documents.push({
+      id: document.id,
+      title: document.title,
+      hint: '',
+      href: `/document/${document.id}`,
+      score,
+    });
+  }
+  add('document', documents);
+
+  const views: EntityHit[] = [];
+  for (const view of store.views.values()) {
+    if (view.archivedAt !== undefined) continue;
+    if (view.ownerId !== undefined && view.ownerId !== viewerId) continue;
+    const score = nameScore(view.name, needle);
+    if (score === null) continue;
+    views.push({
+      id: view.id,
+      title: view.name,
+      hint: '',
+      href: viewPath(view),
+      score,
+    });
+  }
+  add('view', views);
+
+  return sections;
+}
+
+function nameScore(name: string, needle: string): number | null {
+  return needle === '' ? 1 : subsequenceScore(name.toLowerCase(), needle.toLowerCase());
 }
 
 export function matchUsers(store: Store, needle: string): EntityHit[] {

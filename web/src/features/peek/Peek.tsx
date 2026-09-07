@@ -11,13 +11,12 @@
  * unset value, so what a person learns to read on one surface reads on the other.
  */
 
-import { useRef, type ReactNode } from 'react';
+import { useRef } from 'react';
 import { Link } from 'react-router';
 
 import {
   Avatar,
   EmptyState,
-  IconButton,
   LabelChip,
   PriorityIcon,
   priorityLabel,
@@ -26,7 +25,6 @@ import {
 import { estimatesEnabled, issueEstimateLabel } from '~/features/estimate';
 import {
   CalendarGlyph,
-  CrossGlyph,
   CycleGlyph,
   EstimateGlyph,
   ProjectGlyph,
@@ -40,7 +38,10 @@ import { exact, when } from '~/features/time';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { usePresence } from '~/hooks/usePresence';
 import type { DateOnly, DueDateSource, StateCategory, Store, UUID } from '~/store';
+import { Fact, glanceDescription, PeekHeader } from './parts';
 import styles from './Peek.module.css';
+
+export { glanceDescription };
 
 /**
  * The panel is now mounted by the list unconditionally and told whether it is open, rather
@@ -107,19 +108,7 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
       aria-label={`Peek ${issue.identifier}`}
       {...exitProps}
     >
-      <header className={styles.header}>
-        <span className={styles.identifier}>{issue.identifier}</span>
-        {onClose === undefined ? null : (
-          <IconButton
-            aria-label="Close peek"
-            keys="Escape"
-            size="sm"
-            className={styles.close}
-            onClick={onClose}
-            icon={<CrossGlyph />}
-          />
-        )}
-      </header>
+      <PeekHeader eyebrow={issue.identifier} onClose={onClose} />
 
       <h2 className={styles.title}>{issue.title}</h2>
 
@@ -217,27 +206,6 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
   );
 }
 
-/**
- * One rail row. The label is for the accessibility tree, as it is on the issue screen: on
- * screen the glyph and the value are the row.
- */
-function Fact({
-  label,
-  wrap = false,
-  children,
-}: {
-  label: string;
-  wrap?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <div className={styles.fact}>
-      <dt className={styles.srOnly}>{label}</dt>
-      <dd className={wrap ? styles.factWrap : undefined}>{children}</dd>
-    </div>
-  );
-}
-
 interface PeekIssue {
   readonly identifier: string;
   readonly title: string;
@@ -303,13 +271,4 @@ function readPeek(store: Store, id: UUID): PeekIssue | null {
     createdAt: found.createdAt,
     updatedAt: found.updatedAt,
   };
-}
-
-/** Peek is a glance: a novel in the description stays on the issue page. */
-export function glanceDescription(raw: string, limit = 480): string {
-  const collapsed = raw.trim().replace(/\n{3,}/g, '\n\n');
-  if (collapsed.length <= limit) return collapsed;
-  const cut = collapsed.slice(0, limit);
-  const at = cut.lastIndexOf(' ');
-  return `${(at > 80 ? cut.slice(0, at) : cut).trimEnd()}…`;
 }

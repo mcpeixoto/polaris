@@ -53,47 +53,18 @@
 }
 
 .pills {
-  display: flex;
-  align-items: center;
-  gap: var(--space-0-5);
+  flex: 1;
   min-width: 0;
   overflow-x: auto;
 }
 
-/* The projects list's pills, unchanged: one pressed at a time on the tertiary surface. */
-.pill {
-  display: inline-flex;
+/* The display trigger, pushed to the far end of the toolbar the way the projects list
+   puts its own. */
+.toolbarEnd {
+  display: flex;
   align-items: center;
+  gap: var(--space-2);
   flex: none;
-  height: var(--control-height-md);
-  padding-inline: var(--space-3);
-  border: 0;
-  border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    background-color var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
-}
-
-.pill:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.pill.pillActive {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-.pill:focus-visible {
-  outline: var(--focus-ring-width) solid var(--border-focus);
-  outline-offset: var(--focus-ring-offset);
 }
 
 /*
@@ -105,11 +76,43 @@
  * row's border rather than being clipped.
  */
 .table {
-  --initiative-grid: minmax(0, 1fr) 12ch 11ch 16ch 8ch 14ch 11ch 9ch;
+  --initiative-labels: 12ch;
+  --initiative-health: 16ch;
+  --initiative-target: 11ch;
+  --initiative-progress: 9ch;
+  --initiative-grid: minmax(0, 1fr) var(--initiative-labels) 11ch var(--initiative-health) 8ch 14ch
+    var(--initiative-target) var(--initiative-progress);
 
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-bottom: var(--space-8);
+}
+
+/* The scroller holds the cursor, so it is focusable and says where the cursor is; a ring
+   around the whole list would say "you are here" about the region rather than the row. */
+.table:focus {
+  outline: none;
+}
+
+/*
+ * A column turned off in the display menu leaves the template as well as the cell. The
+ * modifiers are additive — four toggles are sixteen combinations and four rules — and each
+ * removes exactly the track its cell occupied, so the header and the rows stay in step.
+ */
+.noLabels {
+  --initiative-labels: 0px;
+}
+
+.noHealth {
+  --initiative-health: 0px;
+}
+
+.noTarget {
+  --initiative-target: 0px;
+}
+
+.noProgress {
+  --initiative-progress: 0px;
 }
 
 .columns {
@@ -131,14 +134,75 @@
   padding: 0;
 }
 
+/*
+ * One line of the list: the disclosure, then the link that is the row. The chevron folds a
+ * subtree and the link opens an initiative, and a button cannot live inside a link — so the
+ * two are siblings and the indent belongs to the line rather than to either of them.
+ */
+.item {
+  /* Depth zero unless the row's own style says otherwise, so a row that is not in a tree —
+     a filtered or grouped list — needs no inline style at all. */
+  --depth: 0;
+
+  display: flex;
+  align-items: center;
+  padding-inline-start: calc(var(--depth) * var(--space-4));
+}
+
+.item[data-cursor] .row {
+  background: var(--bg-hover);
+}
+
+.disclosure,
+.disclosureSpacer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--space-5);
+  height: var(--space-5);
+  margin-inline-start: var(--space-4);
+}
+
+.disclosure {
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.disclosure:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.disclosure:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.chevron {
+  display: inline-flex;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+/* Pointing at the row it would open, rather than down at rows that are not there. */
+.chevronShut {
+  transform: rotate(-90deg);
+}
+
 .row {
+  flex: 1;
+  min-width: 0;
   display: grid;
   grid-template-columns: var(--initiative-grid);
   align-items: center;
   gap: var(--space-3);
   height: 51px;
   overflow: hidden;
-  padding-inline: var(--space-4);
+  padding-inline: var(--space-2) var(--space-4);
   color: inherit;
   text-decoration: none;
   font-size: var(--font-size-md);
@@ -184,8 +248,9 @@
   overflow: hidden;
 }
 
-/* The chips that did not fit, as a count. `title` carries their names for the pointer, and
-   the initiative's own overview carries them for everyone else. */
+/* The chips that did not fit, as a count. A Tooltip carries their names, the way every
+   other truncation in the product does, and the initiative's own overview carries them in
+   full for everyone else. */
 .labelsMore {
   flex: none;
   color: var(--text-tertiary);
@@ -268,13 +333,40 @@
  */
 @media (max-width: 1100px) {
   .table {
-    --initiative-grid: minmax(0, 1fr) 11ch 16ch 8ch 14ch 9ch;
+    --initiative-labels: 0px;
+    --initiative-target: 0px;
   }
 
   .labels,
-  .target,
-  .columns > :nth-child(2),
-  .columns > :nth-child(7) {
+  .target {
     display: none;
   }
+}
+
+/* The skeleton while the replica is still filling, inset to the table's own gutter. */
+.loading {
+  padding: var(--space-4);
+}
+
+/*
+ * What the last export left out. On the screen rather than in a toast, because it is the
+ * only record that the file in the downloads folder is a fragment.
+ */
+.exportNote {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  margin: var(--space-2) var(--space-4) 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+
+.exportNoteCopy {
+  margin: 0;
+  flex: 1;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }

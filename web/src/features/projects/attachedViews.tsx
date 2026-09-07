@@ -3,8 +3,13 @@
  *
  * Rename and delete are the product's own dialogs rather than `window.prompt` and
  * `window.confirm`: the native pair cannot be themed, cannot be reached by the keymap, and
- * on delete asks a yes/no question without naming what is lost. The "New view" modal below
- * was already the right shape, so rename reuses it and delete uses `ConfirmDialog`.
+ * on delete asks a yes/no question without naming what is lost. Rename is the modal below;
+ * delete uses `ConfirmDialog`.
+ *
+ * Creating a view is `SaveViewModal` with a `projectId`, and not a second dialog written
+ * here. The copy that used to live in this file had no keymap registration at all — ⌘⏎ did
+ * nothing in it — and disabled its primary button instead of saying what was missing, which
+ * are exactly the two things a shared dialog gets right once for everybody.
  *
  * Every write here goes through `run`, because a tab bar that silently drops a failed
  * reorder or a failed delete looks like it worked until the next reload disagrees.
@@ -16,13 +21,8 @@ import { NavLink, useNavigate } from 'react-router';
 import { useEngine } from '~/app/context';
 import { Button, ConfirmDialog, IconButton, Input, Menu, Modal } from '~/components';
 import { report } from '~/features/issue/mutations';
-import {
-  createView,
-  deleteView,
-  isFavorite,
-  toggleFavorite,
-  updateView,
-} from '~/features/view/mutations';
+import { SaveViewModal } from '~/features/view/SaveViewModal';
+import { deleteView, isFavorite, toggleFavorite, updateView } from '~/features/view/mutations';
 import { EMPTY_FILTER } from '~/filter';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
@@ -56,8 +56,6 @@ export function ProjectViewTabs({ projectId, base }: ProjectViewTabsProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuViewId, setMenuViewId] = useState<UUID | null>(null);
   const [creating, setCreating] = useState(false);
-  const [name, setName] = useState('');
-  const nameRef = useRef<HTMLInputElement>(null);
   const [renaming, setRenaming] = useState(false);
   const [renameName, setRenameName] = useState('');
   const renameRef = useRef<HTMLInputElement>(null);
@@ -99,21 +97,9 @@ export function ProjectViewTabs({ projectId, base }: ProjectViewTabsProps) {
   }, []);
 
   const openCreate = useCallback(() => {
-    setName('');
     setError(null);
     setCreating(true);
   }, []);
-
-  const submitCreate = useCallback(async () => {
-    const trimmed = name.trim();
-    if (trimmed === '') return;
-    setCreating(false);
-    let id = '';
-    const ok = await run('That view could not be created.', async () => {
-      id = await createView(engine, { name: trimmed, projectId, filter: EMPTY_FILTER });
-    });
-    if (ok && id !== '') void navigate(`${base}/view/${id}`);
-  }, [base, engine, name, navigate, projectId, run]);
 
   const onDragStart = useCallback((id: UUID) => {
     setDraggingId(id);
@@ -232,43 +218,14 @@ export function ProjectViewTabs({ projectId, base }: ProjectViewTabsProps) {
         </span>
       )}
 
-      <Modal
+      <SaveViewModal
         open={creating}
+        filter={EMPTY_FILTER}
+        display={{}}
+        projectId={projectId}
+        onCreated={(id) => void navigate(`${base}/view/${id}`)}
         onClose={() => setCreating(false)}
-        title="New view"
-        description="A saved filter of this project's issues, shown as a tab."
-        initialFocus={nameRef}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setCreating(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => void submitCreate()}
-              disabled={name.trim() === ''}
-            >
-              Create view
-            </Button>
-          </>
-        }
-      >
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (name.trim() !== '') void submitCreate();
-          }}
-        >
-          <Input
-            ref={nameRef}
-            label="View name"
-            hideLabel
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="View name"
-          />
-        </form>
-      </Modal>
+      />
 
       <Modal
         open={renaming}

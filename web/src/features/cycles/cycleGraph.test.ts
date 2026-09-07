@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { Store } from '~/store/store';
 import type { Change, Cycle, Entity, Issue, Team, User, WorkflowState } from '~/store/types';
 
-import { buildCycleGraph } from './computeCycleGraph';
+import { buildCycleGraph, cycleScopeChange } from './computeCycleGraph';
 
 const NOW = '2026-01-10T12:00:00.000Z';
 const ACTOR = { type: 'user', id: 'u1' } as const;
@@ -226,5 +226,43 @@ describe('buildCycleGraph', () => {
     const data = buildCycleGraph(store, 'cy1');
     expect(data!.assignees.map((row) => row.name).sort()).toEqual(['Ada', 'Unassigned']);
     expect(data!.assignees.find((row) => row.name === 'Ada')!.percent).toBe(100);
+  });
+});
+
+describe('cycleScopeChange', () => {
+  it('measures the window against what it opened as', () => {
+    const store = new Store('w');
+    const teamId = 't1';
+    const cycleId = 'cy1';
+    const todo = state('s1', teamId, 'unstarted', 'Todo');
+
+    store.applyChanges([
+      upsert(1, 'team', team(teamId)),
+      upsert(2, 'workflowState', todo),
+      upsert(3, 'cycle', cycle(cycleId, teamId)),
+      // Filed on the second day, so the window opened empty and grew.
+      upsert(4, 'issue', issue('i1', teamId, cycleId, todo.id)),
+      upsert(5, 'issue', issue('i2', teamId, cycleId, todo.id)),
+    ]);
+
+    const change = cycleScopeChange(buildCycleGraph(store, cycleId)!);
+    expect(change).toEqual({ opening: 0, current: 2, delta: 2 });
+  });
+
+  it('has nothing to compare on a single-day window', () => {
+    const data = {
+      points: [
+        { day: '2026-01-01', scope: 3, started: 0, completed: 0, completedDelta: 0, target: 0 },
+      ],
+      startsAt: '2026-01-01T00:00:00.000Z',
+      issueCount: 3,
+      successPercent: 0,
+      unitLabel: 'issues' as const,
+      totalScope: 3,
+      totalCompleted: 0,
+      totalStarted: 0,
+      assignees: [],
+    };
+    expect(cycleScopeChange(data)).toBeNull();
   });
 });

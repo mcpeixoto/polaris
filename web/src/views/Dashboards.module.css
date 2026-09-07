@@ -36,7 +36,7 @@
 
 .row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 12ch 8ch;
+  grid-template-columns: minmax(0, 1fr) 14ch 10ch 8ch;
   align-items: center;
   gap: var(--space-3);
   height: var(--row-height);
@@ -103,4 +103,65 @@
     opacity: 1;
     transform: none;
   }
+}
+
+/* One row: the link, and the ⋯ that only appears when the row is under the pointer or the
+   keyboard — the issue list's hover model, so a list of dashboards is as quiet as a list of
+   issues. */
+.groupList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-inline-end: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.item .row {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 0;
+}
+
+.cursorItem .row {
+  background: var(--bg-hover);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.menuButton {
+  opacity: 0;
+  flex: none;
+}
+
+.item:hover .menuButton,
+.item:focus-within .menuButton,
+.cursorItem .menuButton {
+  opacity: 1;
+}
+
+.owner,
+.updated {
+  overflow: hidden;
+  color: var(--text-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.renaming {
+  flex: 1;
+  min-width: 0;
+  padding-block: var(--space-1);
+  padding-inline-start: var(--space-4);
+}
+
+.error {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  color: var(--text-danger);
+  font-size: var(--font-size-sm);
 }

@@ -212,3 +212,32 @@ function daysInRange(startIso: string, endIso: string, timeZone: string): string
   }
   return days.length > 0 ? days : [start];
 }
+
+/** How much bigger the window got after it opened, in the same unit the series is in. */
+export interface CycleScopeChange {
+  /** Scope on the window's first day: what the cycle was planned to be. */
+  readonly opening: number;
+  /** Scope on its last plotted day: what it actually is. */
+  readonly current: number;
+  /** `current - opening`. Positive is work added mid-flight; negative is work taken out. */
+  readonly delta: number;
+}
+
+/**
+ * The scope change, which is the question a sprint review opens with.
+ *
+ * The screen used to show a completion ratio and nothing else, and a ratio cannot tell the
+ * difference between a team that finished eight of the ten things it planned and one that
+ * finished eight of ten after four more were pushed in on the Wednesday. The series already
+ * held the answer — `scope` is recomputed for every day of the window — so this is a read of
+ * the two ends of it rather than a second pass over the issues.
+ *
+ * Null when there is nothing to compare: a window with a single plotted day has an opening
+ * scope and no later one, and "+0" there would be a claim rather than a measurement.
+ */
+export function cycleScopeChange(data: CycleGraphData): CycleScopeChange | null {
+  const first = data.points[0];
+  const last = data.points[data.points.length - 1];
+  if (first === undefined || last === undefined || data.points.length < 2) return null;
+  return { opening: first.scope, current: last.scope, delta: last.scope - first.scope };
+}

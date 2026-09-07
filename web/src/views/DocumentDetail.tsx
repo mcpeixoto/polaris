@@ -1,29 +1,72 @@
 /**
- * One document: title and markdown body.
+ * One document: where it lives, what it is called, and the markdown it holds.
  *
  * The body is a textarea, deliberately — collaborative editing is a later slice and the
- * field currently holds plain markdown, same as issue descriptions.
+ * field currently holds plain markdown, same as issue descriptions. It reads as a rendered
+ * document until somebody puts the caret in it.
+ *
+ * Three things about this screen were the last of their kind in the product.
+ *
+ * It had a back link where every other detail screen has a breadcrumb, and that link was
+ * built out of a team key with an `'unknown'` fallback — so a document whose team had not
+ * arrived in the replica yet offered a link to `/team/unknown/documents`, a page that cannot
+ * exist. The trail is now built from the team when there is one and from the workspace list
+ * when there is not, and the record itself is behind `EntityGate` like every other detail
+ * route, which is what makes "not here yet" and "not here" different answers.
+ *
+ * It had a Save button standing beside an autosave that already fired on blur, on unmount
+ * and on the tab being hidden — two mechanisms for one job, with nothing on screen saying
+ * which of them had just happened. The autosave stays and is now *visible*, through
+ * `SaveIndicator`; the explicit save stays too, as `document.save` on ⌘S, because "send it
+ * now" is a real thing to want and a keystroke does not compete with the automatic one for
+ * space or for attention.
+ *
+ * And its title was a single-line `Input`, so a long one scrolled sideways out of sight.
+ * `TitleField` wraps, commits on blur, and flushes on the way out — the same field the issue
+ * and project screens rename themselves from.
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { Button, EmptyState, Input, Textarea } from '~/components';
-import { ConfirmDialog } from '~/components/ConfirmDialog';
+import { useActions, useKeyContext } from '~/app/keymap';
+import {
+  Breadcrumb,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  IconButton,
+  Menu,
+  SaveIndicator,
+  Textarea,
+  TitleField,
+  useSaveState,
+  type MenuNode,
+  type TitleHandle,
+} from '~/components';
 import { archiveDocument, deleteDocument, updateDocument } from '~/features/documents/mutations';
-import { EntityLoading, useEntityState } from '~/features/entity-gate/EntityGate';
+import { EntityGate } from '~/features/entity-gate/EntityGate';
+import { copyText } from '~/features/github/copy';
+import { DotsGlyph, StarGlyph } from '~/features/issue/glyphs';
 import { Markdown } from '~/features/markdown/Markdown';
+import { report } from '~/features/subscriptions/mutations';
+import { isFavorite, toggleFavorite } from '~/features/view/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useMenuTrigger } from '~/hooks/useMenuTrigger';
+import { useViewerId } from '~/hooks/useViewer';
 import { ApiError } from '~/sync/api';
 import styles from './DocumentDetail.module.css';
 
 export function DocumentDetail() {
   const navigate = useNavigate();
   const engine = useEngine();
+  const location = useLocation();
+  const viewerId = useViewerId();
   const { documentId = '' } = useParams<{ documentId: string }>();
-  const titleRef = useRef<HTMLInputElement>(null);
+  const titleRef = useRef<TitleHandle | null>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const more = useMenuTrigger();
 
   const document = useLiveQuery(
     (store) => store.documents.get(documentId) ?? null,
@@ -31,76 +74,72 @@ export function DocumentDetail() {
     [documentId],
   );
 
-  // Seeded from the replica rather than from empty strings. The effect below fills the
-  // fields a frame later, which is a frame in which the screen claims the document has no
-  // title and no body — and a frame in which anything typed is thrown away by the very
-  // first run of that effect, because a document nobody has loaded yet counts as switched.
-  const [title, setTitle] = useState(document?.title ?? '');
+  const team = useLiveQuery(
+    (store) => (document === null ? null : (store.get('team', document.teamId) ?? null)),
+    ['team'],
+    [document?.teamId ?? ''],
+  );
+
+  const favourite = useLiveQuery(
+    (store) => viewerId !== null && isFavorite(store, viewerId, 'document', documentId),
+    ['favorite'],
+    [documentId, viewerId],
+  );
+
+  // Seeded from the replica rather than from an empty string. Filling it a frame later is a
+  // frame in which the screen claims the document has no body — and a frame in which
+  // anything typed is thrown away by the very first run of the effect below, because a
+  // document nobody has loaded yet counts as switched.
   const [body, setBody] = useState(document?.body ?? '');
-  const [titleDirty, setTitleDirty] = useState(false);
   const [bodyDirty, setBodyDirty] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [failure, setFailure] = useState<string | null>(null);
-  // Which of the two destructive actions is waiting on an answer, and whether its request
-  // is in flight. Both used to be one ghost button away from happening by accident.
+  // Which of the two destructive actions is waiting on an answer, and whether its request is
+  // in flight. Both used to be one ghost button away from happening by accident.
   const [confirming, setConfirming] = useState<'archive' | 'delete' | null>(null);
   const [removing, setRemoving] = useState(false);
-  // The body is read as rendered markdown until somebody puts the caret in it. `editing`
-  // is what swaps the two; the textarea itself never leaves the DOM, because it is the
-  // field's accessible representation and the value every other effect on this screen
-  // reads.
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  // The body is read as rendered markdown until somebody puts the caret in it. `editing` is
+  // what swaps the two; the textarea itself never leaves the DOM, because it is the field's
+  // accessible representation and the value every other effect on this screen reads.
   const [editing, setEditing] = useState(false);
-  const dirty = titleDirty || bodyDirty;
 
-  // The fields as they stand *now*, readable from a callback that has been waiting on the
-  // network. `save` closes over the values it sent, which are not necessarily the values on
-  // the screen by the time the server answers.
-  const showing = useRef({ title, body });
+  const saving = useSaveState((failure) =>
+    failure instanceof ApiError && failure.message !== ''
+      ? failure.message
+      : 'That could not be saved just now.',
+  );
+
+  // The body as it stands *now*, readable from a callback that has been waiting on the
+  // network. A save closes over the value it sent, which is not necessarily the value on the
+  // screen by the time the server answers.
+  const showing = useRef(body);
   useEffect(() => {
-    showing.current = { title, body };
-  }, [title, body]);
+    showing.current = body;
+  }, [body]);
 
   /**
-   * The edit as it stands, for the exits that do not blur a field.
+   * The edit as it stands, for the exits that do not blur the field.
    *
-   * Saving on blur made this screen inconsistent in a way no mental model survives. Clicking
-   * the "Documents" link at the top saved, because the click moves focus out of the textarea
-   * first. Browser Back did not. Reloading did not. Pressing Escape, or simply stopping
-   * typing and walking away, did not. So the rule was neither "an explicit Save is the only
-   * thing that counts" nor "your work is kept" — it was "clicking away saves and everything
-   * else throws it out", which cannot be learned and cannot be relied on.
+   * Saving on blur alone made this screen inconsistent in a way no mental model survives.
+   * Clicking the breadcrumb saved, because the click moves focus out of the textarea first.
+   * Browser Back did not. Reloading did not. So the rule was neither "an explicit save is
+   * the only thing that counts" nor "your work is kept" — it was "clicking away saves and
+   * everything else throws it out", which cannot be learned and cannot be relied on.
    *
    * Resolved towards keeping the work, because that is what the rest of the product already
-   * does: an issue title and an issue description are both saved when the screen goes away
-   * without a blur, and a document is the surface where somebody is *most* likely to have
-   * written something that exists nowhere else. Save stays, and still means "send it now";
-   * it stops being the only thing that ever sends it.
+   * does, and a document is the surface where somebody is most likely to have written
+   * something that exists nowhere else.
    */
-  const pending = useRef<{
-    id: string;
-    title: string;
-    body: string;
-    stored: string;
-    dirty: boolean;
-  } | null>(null);
+  const pending = useRef<{ id: string; body: string; dirty: boolean } | null>(null);
   useEffect(() => {
-    pending.current =
-      document === null
-        ? null
-        : { id: document.id, title, body, stored: document.title, dirty: titleDirty || bodyDirty };
-  }, [document, title, body, titleDirty, bodyDirty]);
+    pending.current = document === null ? null : { id: document.id, body, dirty: bodyDirty };
+  }, [document, body, bodyDirty]);
 
   useEffect(() => {
     const flush = () => {
       const edit = pending.current;
       pending.current = null;
       if (edit === null || !edit.dirty) return;
-      // A blank title cannot be saved, and on this path there is nobody to tell: refusing
-      // outright would take the body down with it, which is the larger loss by far. The
-      // title the document already had is the honest stand-in — it is exactly what the
-      // on-screen refusal leaves in place.
-      const next = edit.title.trim() === '' ? edit.stored : edit.title.trim();
-      updateDocument(engine, { id: edit.id, title: next, body: edit.body }).catch(() => {
+      updateDocument(engine, { id: edit.id, body: edit.body }).catch(() => {
         // The screen is going. A refusal here has nowhere to be shown, and the write is in
         // the outbox if it was merely the network.
       });
@@ -115,14 +154,12 @@ export function DocumentDetail() {
     };
   }, [engine]);
 
-  // Adopt what the store says — but never over the top of an unsaved edit to the field it
-  // would land in. Any change to this document re-runs the effect, including one that
-  // touches a field nobody here is typing in, and a teammate renaming the document used to
-  // wipe a half-written body out of the textarea mid-sentence with no way to get it back.
-  // Per field rather than per screen, so that rename still shows up in the title while the
-  // body being typed is left alone; Save is what reconciles a field somebody did edit.
+  // Adopt what the store says — but never over the top of an unsaved edit. Any change to
+  // this document re-runs the effect, including one that touches the title, and a teammate
+  // renaming the document used to wipe a half-written body out of the textarea mid-sentence
+  // with no way to get it back.
   //
-  // Moving to a *different* document reloads unconditionally: the fields belong to whatever
+  // Moving to a *different* document reloads unconditionally: the field belongs to whatever
   // the route points at, and carrying one document's draft onto another would save it there.
   const loaded = useRef<string | null>(document?.id ?? null);
   useEffect(() => {
@@ -130,214 +167,315 @@ export function DocumentDetail() {
     const switched = loaded.current !== document.id;
     loaded.current = document.id;
     if (switched) {
-      setTitle(document.title);
       setBody(document.body);
-      setTitleDirty(false);
       setBodyDirty(false);
       return;
     }
-    if (!titleDirty) setTitle(document.title);
     if (!bodyDirty) setBody(document.body);
-  }, [document?.id, document?.title, document?.body, document, titleDirty, bodyDirty]);
-
-  const state = useEntityState(document);
-
-  // A deep link on a cold start used to say the document had been deleted while its row was
-  // still on the wire, and offer a button off the page. The gate holds the skeleton until
-  // the replica has actually settled.
-  if (state === 'loading') return <EntityLoading label="Loading document…" lines={8} />;
-  if (document === null) {
-    return (
-      <EmptyState
-        title="No such document"
-        description="It may have been deleted or archived, or it may belong to a team you cannot see."
-        action={<Button onClick={() => navigate(-1)}>Go back</Button>}
-      />
-    );
-  }
-
-  const backTo =
-    document.projectId === undefined
-      ? `/team/${teamKeyOf(engine.store, document.teamId)}/documents`
-      : `/project/${document.projectId}/documents`;
-
-  const save = async () => {
-    if (saving || !dirty) return;
-    const sentTitle = title;
-    const sentBody = body;
-    const trimmed = sentTitle.trim();
-    if (trimmed === '') {
-      titleRef.current?.focus();
-      return;
-    }
-    setSaving(true);
-    setFailure(null);
-    try {
-      await updateDocument(engine, {
-        id: document.id,
-        title: trimmed,
-        body: sentBody,
-      });
-      // Only a field that has not moved since the request left is clean. Typing does not
-      // stop while a save is in flight — a slow connection is when it is most likely to
-      // carry on — and clearing the flag for a field that did move hands the effect above
-      // permission to replace those keystrokes with the value that was sent, silently, with
-      // Save going disabled as if the newer text had been written. Leaving the field dirty
-      // keeps it on the screen and keeps Save live to send it.
-      if (showing.current.title === sentTitle) setTitleDirty(false);
-      if (showing.current.body === sentBody) setBodyDirty(false);
-    } catch (error) {
-      // A refusal has to be said out loud. The server rejects a title over its limit, and
-      // an uncaught rejection here left the page looking as though nothing had happened —
-      // the text still on the screen, Save still lit, and the only account of why it did
-      // not stick in the browser console. The edit stays put and stays dirty, so saying so
-      // is all that is missing.
-      setFailure(messageFor(error, 'That could not be saved just now.'));
-    } finally {
-      setSaving(false);
-    }
-  };
+  }, [document?.id, document?.body, document, bodyDirty]);
 
   /**
-   * Archive and delete, behind the same confirmation the rest of the product uses.
+   * Send the body, and say so.
    *
-   * They were two identical ghost buttons side by side, one of which is reversible and one
-   * of which is not, and a document is the surface most likely to hold the only copy of
-   * something. The dialog stays open on a refusal and shows the server's own words, rather
-   * than dropping them behind a screen the navigation has already left.
+   * Only a field that has not moved since the request left is clean. Typing does not stop
+   * while a save is in flight — a slow connection is when it is most likely to carry on —
+   * and clearing the flag for a body that did move hands the effect above permission to
+   * replace those keystrokes with the value that was sent.
    */
+  const saveBody = async () => {
+    if (document === null || !bodyDirty) return;
+    const sent = body;
+    const ok = await saving.run(() => updateDocument(engine, { id: document.id, body: sent }));
+    if (ok && showing.current === sent) setBodyDirty(false);
+  };
+
+  const rename = (title: string) => {
+    if (document === null) return;
+    void saving.run(() => updateDocument(engine, { id: document.id, title }));
+  };
+
+  const copyLink = () => {
+    if (document !== null) void copyText(`${window.location.origin}/document/${document.id}`);
+  };
+
+  const toggleFavourite = () => {
+    if (viewerId === null || document === null) return;
+    toggleFavorite(engine, viewerId, 'document', document.id).catch(report);
+  };
+
+  // Landed here straight from the create dialog: the point of making a document is writing
+  // in it, and the old flow left the caret nowhere.
+  const focusBody = (location.state as { focusBody?: boolean } | null)?.focusBody === true;
+  // Once, and only for the document that was just made: the effect re-runs on every delta
+  // this document receives, and a version without the latch would drag the caret back into
+  // the body each time somebody else touched the row.
+  const focused = useRef(false);
+  useEffect(() => {
+    if (!focusBody || document === null || focused.current) return;
+    focused.current = true;
+    bodyRef.current?.focus();
+    setEditing(true);
+  }, [focusBody, document]);
+
+  useKeyContext('detail');
+  useActions(
+    [
+      {
+        id: 'document.rename',
+        title: 'Rename document',
+        keys: ['e'],
+        when: 'detail',
+        group: 'Documents',
+        enabled: () => document !== null,
+        run: () => titleRef.current?.focus(),
+      },
+      {
+        // Escape while the title is being typed abandons the edit. Registered here rather
+        // than inside the field for the reason every other one is: the registry lives above
+        // it, and an unfocused field must not hold Escape hostage from the rest of the page.
+        id: 'document.rename.cancel',
+        title: 'Stop renaming the document',
+        keys: ['Escape'],
+        when: 'detail',
+        group: 'Documents',
+        enabled: () => titleRef.current?.editing() === true,
+        run: () => titleRef.current?.revert(),
+      },
+      {
+        // The body saves itself; this is "send it now". It is a keystroke rather than a
+        // button because a button beside a working autosave reads as the thing that does
+        // the saving, which is how this screen came to have two of them.
+        id: 'document.save',
+        title: 'Save document',
+        keys: ['mod+s'],
+        when: 'detail',
+        group: 'Documents',
+        enabled: () => document !== null,
+        run: () => void saveBody(),
+      },
+      {
+        id: 'document.copyLink',
+        title: 'Copy link to document',
+        when: 'detail',
+        group: 'Documents',
+        enabled: () => document !== null,
+        run: copyLink,
+      },
+      {
+        id: 'document.favorite',
+        title: 'Favourite document',
+        when: 'detail',
+        group: 'Documents',
+        enabled: () => viewerId !== null && document !== null,
+        run: toggleFavourite,
+      },
+      {
+        id: 'document.delete',
+        title: 'Delete document',
+        when: 'detail',
+        group: 'Documents',
+        enabled: () => document !== null,
+        run: () => setConfirming('delete'),
+      },
+    ],
+    [document, viewerId, body, bodyDirty],
+  );
+
   const confirmRemoval = () => {
-    if (confirming === null) return;
+    if (confirming === null || document === null) return;
     const archiving = confirming === 'archive';
     setRemoving(true);
-    setFailure(null);
+    setRemoveError(null);
     const work = archiving
       ? archiveDocument(engine, document.id, true)
       : deleteDocument(engine, document.id);
     void work
       .then(() => {
         setConfirming(null);
-        void navigate(backTo);
+        void navigate(listPath);
       })
       .catch((error: unknown) =>
-        setFailure(
-          messageFor(
-            error,
-            archiving ? 'That could not be archived.' : 'That could not be deleted.',
-          ),
+        setRemoveError(
+          error instanceof ApiError && error.message !== ''
+            ? error.message
+            : archiving
+              ? 'That could not be archived.'
+              : 'That could not be deleted.',
         ),
       )
       .finally(() => setRemoving(false));
   };
 
+  /**
+   * Where the trail goes back to.
+   *
+   * A project's documents when it has one, its team's when the team is in the replica, and
+   * the workspace list otherwise. That last branch is the point: the old code wrote the
+   * team's key into the URL with `'unknown'` as its fallback, which is a link to a page that
+   * cannot exist.
+   */
+  const listPath =
+    document?.projectId !== undefined
+      ? `/project/${document.projectId}/documents`
+      : team !== null
+        ? `/team/${team.key}/documents`
+        : '/documents';
+
+  const menuItems: MenuNode[] = [
+    { id: 'copy-link', label: 'Copy link', onSelect: copyLink },
+    ...(viewerId === null
+      ? []
+      : [
+          {
+            id: 'favourite',
+            label: favourite ? 'Remove from favourites' : 'Add to favourites',
+            onSelect: toggleFavourite,
+          },
+        ]),
+    { kind: 'separator' as const },
+    { id: 'archive', label: 'Archive document', onSelect: () => setConfirming('archive') },
+    {
+      id: 'delete',
+      label: 'Delete document',
+      danger: true,
+      onSelect: () => setConfirming('delete'),
+    },
+  ];
+
   return (
-    <article className={styles.screen}>
-      <header className={styles.header}>
-        <Link to={backTo} className={styles.back}>
-          Documents
-        </Link>
-        <div className={styles.actions}>
-          <Button variant="ghost" onClick={() => setConfirming('archive')}>
-            Archive
-          </Button>
-          <Button variant="danger" onClick={() => setConfirming('delete')}>
-            Delete
-          </Button>
-          <Button variant="primary" loading={saving} disabled={!dirty} onClick={() => void save()}>
-            Save
-          </Button>
-        </div>
-      </header>
-
-      {failure === null ? null : (
-        <p className={styles.error} role="alert">
-          {failure}
-        </p>
-      )}
-
-      <h1 className={styles.title}>
-        <Input
-          ref={titleRef}
-          label="Title"
-          hideLabel
-          surface="plain"
-          value={title}
-          onChange={(event) => {
-            setTitle(event.target.value);
-            setTitleDirty(true);
-          }}
-          onBlur={() => void save()}
+    <EntityGate
+      entity={document}
+      label="Loading document…"
+      lines={8}
+      missing={
+        <EmptyState
+          title="No such document"
+          description="It may have been deleted or archived, or it may belong to a team you cannot see."
+          action={<Button onClick={() => navigate(-1)}>Go back</Button>}
         />
-      </h1>
+      }
+    >
+      {() => {
+        if (document === null) return null;
 
-      <div className={styles.bodyWrap}>
-        <Textarea
-          ref={bodyRef}
-          label="Body"
-          hideLabel
-          surface="plain"
-          className={styles.body}
-          value={body}
-          minRows={16}
-          onFocus={() => setEditing(true)}
-          onChange={(event) => {
-            setBody(event.target.value);
-            setBodyDirty(true);
-          }}
-          onBlur={() => {
-            setEditing(false);
-            void save();
-          }}
-        />
-        {editing ? null : (
-          /*
-           * The document as it reads, laid over the field that holds its source.
-           *
-           * A document was stored as markdown and shown as markdown, so every reader saw
-           * `## Heading` where a heading belonged. This is the read side of that: it is
-           * `aria-hidden`, carries no focus stops of its own and is transparent to the
-           * pointer, so the textarea underneath is still the field in every sense — a click
-           * lands on it and focuses it natively, which is what swaps this layer away.
-           * Duplicating the body in the accessibility tree would announce it twice.
-           */
-          <div className={styles.reader} aria-hidden="true">
-            {body.trim() === '' ? (
-              <p className={styles.placeholder}>Empty. Click to write.</p>
-            ) : (
-              <Markdown source={body} interactive={false} />
+        return (
+          <article className={styles.screen}>
+            <header className={styles.header}>
+              <Breadcrumb
+                className={styles.crumbs}
+                items={[
+                  // The team, then this document's list, then the document. The first crumb
+                  // goes to the team rather than to its documents, so the two steps are two
+                  // destinations — a trail whose crumbs are the same link is one crumb.
+                  ...(team === null ? [] : [{ label: team.name, to: `/team/${team.key}` }]),
+                  { label: 'Documents', to: listPath },
+                  { label: document.title },
+                ]}
+              />
+              <SaveIndicator state={saving.state} className={styles.indicator} />
+              <div className={styles.actions}>
+                {viewerId === null ? null : (
+                  <IconButton
+                    icon={<StarGlyph on={favourite} />}
+                    aria-label={favourite ? 'Remove from favourites' : 'Add to favourites'}
+                    aria-pressed={favourite}
+                    onClick={toggleFavourite}
+                  />
+                )}
+                <IconButton
+                  {...more.props}
+                  icon={<DotsGlyph />}
+                  aria-label="Document options"
+                  onClick={more.toggle}
+                />
+                <Menu
+                  open={more.open}
+                  onClose={more.hide}
+                  trigger={more.ref}
+                  label="Document options"
+                  items={menuItems}
+                />
+              </div>
+            </header>
+
+            {saving.error === undefined ? null : (
+              <p className={styles.error} role="alert">
+                {saving.error}
+              </p>
             )}
-          </div>
-        )}
-      </div>
 
-      <ConfirmDialog
-        open={confirming !== null}
-        title={confirming === 'archive' ? 'Archive this document?' : 'Delete this document?'}
-        consequence={
-          confirming === 'archive'
-            ? `“${document.title}” leaves the documents list and stays in the archive, where it can be restored.`
-            : `“${document.title}” and everything written in it go for good. There is no undo.`
-        }
-        confirmLabel={confirming === 'archive' ? 'Archive' : 'Delete'}
-        destructive={confirming === 'delete'}
-        busy={removing}
-        error={confirming === null ? undefined : (failure ?? undefined)}
-        onConfirm={confirmRemoval}
-        onClose={() => {
-          setConfirming(null);
-          setFailure(null);
-        }}
-      />
-    </article>
+            <TitleField
+              key={`document-title-${document.id}`}
+              subjectId={document.id}
+              value={document.title}
+              label="Title"
+              handle={titleRef}
+              className={styles.title}
+              onSave={rename}
+            />
+
+            <div className={styles.bodyWrap}>
+              <Textarea
+                ref={bodyRef}
+                label="Body"
+                hideLabel
+                surface="plain"
+                className={styles.body}
+                value={body}
+                minRows={16}
+                onFocus={() => setEditing(true)}
+                onChange={(event) => {
+                  setBody(event.target.value);
+                  setBodyDirty(true);
+                }}
+                onBlur={() => {
+                  setEditing(false);
+                  void saveBody();
+                }}
+              />
+              {editing ? null : (
+                /*
+                 * The document as it reads, laid over the field that holds its source.
+                 *
+                 * A document was stored as markdown and shown as markdown, so every reader
+                 * saw `## Heading` where a heading belonged. This is the read side of that:
+                 * it is `aria-hidden`, carries no focus stops of its own and is transparent
+                 * to the pointer, so the textarea underneath is still the field in every
+                 * sense — a click lands on it and focuses it natively, which is what swaps
+                 * this layer away. Duplicating the body in the accessibility tree would
+                 * announce it twice.
+                 */
+                <div className={styles.reader} aria-hidden="true">
+                  {body.trim() === '' ? (
+                    <p className={styles.placeholder}>Empty. Click to write.</p>
+                  ) : (
+                    <Markdown source={body} interactive={false} />
+                  )}
+                </div>
+              )}
+            </div>
+
+            <ConfirmDialog
+              open={confirming !== null}
+              title={confirming === 'archive' ? 'Archive this document?' : 'Delete this document?'}
+              consequence={
+                confirming === 'archive'
+                  ? `“${document.title}” leaves the documents list and stays in the archive, where it can be restored.`
+                  : `“${document.title}” and everything written in it go for good. There is no undo.`
+              }
+              confirmLabel={confirming === 'archive' ? 'Archive' : 'Delete'}
+              destructive={confirming === 'delete'}
+              busy={removing}
+              error={removeError ?? undefined}
+              onConfirm={confirmRemoval}
+              onClose={() => {
+                setConfirming(null);
+                setRemoveError(null);
+              }}
+            />
+          </article>
+        );
+      }}
+    </EntityGate>
   );
-}
-
-/** The server's own words where there are any, and a plain sentence where there are not. */
-function messageFor(error: unknown, fallback: string): string {
-  if (error instanceof ApiError && error.message !== '') return error.message;
-  return fallback;
-}
-
-function teamKeyOf(store: import('~/store').Store, teamId: string): string {
-  return store.get('team', teamId)?.key ?? 'unknown';
 }

@@ -1,6 +1,10 @@
 /**
  * The cycles timeline: the order the windows are read in, the word each wears, and where
  * the burn-up lives.
+ *
+ * The order is newest-first inside each of the three groups rather than across the whole
+ * list, which is what splitting Current / Upcoming / Past means: the running window is at
+ * the top because it is the one being asked about, not because it is the newest.
  */
 
 import { render, screen, within } from '@testing-library/react';
@@ -104,16 +108,16 @@ function mount(store: Store) {
 }
 
 describe('Cycles timeline', () => {
-  it('reads newest first: planned, upcoming, current, completed', () => {
+  it('reads the running window first, then newest-first inside each group', () => {
     mount(seeded());
     const names = screen
       .getAllByRole('link')
       .map((link) => link.textContent ?? '')
       .filter((text) => text.startsWith('Cycle'));
     expect(names.map((text) => text.slice(0, 7))).toEqual([
+      'Cycle 2',
       'Cycle 4',
       'Cycle 3',
-      'Cycle 2',
       'Cycle 1',
     ]);
   });
@@ -136,12 +140,15 @@ describe('Cycles timeline', () => {
     expect(screen.queryByText(/issues$/)).toBeNull();
   });
 
-  it('opens the burn-up under the current row only', () => {
+  it('draws no burn-up on a window with nothing to chart, whatever its tense', () => {
+    // Nothing is on any of these cycles, so no row has a series — and a row that cannot
+    // chart itself says nothing rather than printing a paragraph about it.
     mount(seeded());
-    const current = screen.getByRole('link', { name: /Cycle 2/ }).closest('li');
-    expect(current?.textContent).toContain('Not enough data to chart this cycle yet.');
-    const previous = screen.getByRole('link', { name: /Cycle 1/ }).closest('li');
-    expect(previous?.textContent).not.toContain('Not enough data');
+    for (const name of ['Cycle 1', 'Cycle 2', 'Cycle 3', 'Cycle 4']) {
+      const row = screen.getByRole('link', { name: new RegExp(name) }).closest('[role="option"]');
+      expect(row?.textContent).not.toContain('Not enough data');
+    }
+    expect(screen.queryByRole('region', { name: 'Cycle graph' })).toBeNull();
   });
 
   it('puts the team in the breadcrumb', () => {

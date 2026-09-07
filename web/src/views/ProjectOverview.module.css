@@ -32,41 +32,12 @@
   padding: var(--space-10) var(--space-8) var(--space-16) var(--space-12);
 }
 
-.titleRow {
+/* The save line sits above the prose it reports on, at the trailing edge, where it can
+   appear and fade without moving a word of the document. */
+.saveRow {
   display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-/* The emoji at the title's own size, or the project glyph in the title's weight of grey. */
-.mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: var(--space-8);
-  height: var(--space-8);
-  border-radius: var(--radius-md);
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  font-size: var(--font-size-xl);
-  line-height: var(--line-height-none);
-}
-
-/* 24px at semibold — two steps up the ladder plus the half-step, so the size still follows
-   the font-size preference rather than being pinned. */
-.title {
-  margin: 0;
-  min-width: 0;
-  overflow: hidden;
-  font-size: calc(var(--font-size-2xl) + var(--space-0-5));
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--line-height-tight);
-  letter-spacing: -0.02em;
-  color: var(--text-primary);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  justify-content: flex-end;
+  min-height: var(--space-4);
 }
 
 .summary {

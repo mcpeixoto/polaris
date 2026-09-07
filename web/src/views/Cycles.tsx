@@ -1,27 +1,42 @@
 /**
- * A team's cycles: upcoming, current, previous, and pause gaps between them, down a
- * timeline.
+ * A team's cycles: current, upcoming, past, and the pause gaps between them.
  *
- * Cycles are minted by cadence, not filed by hand. The ⋯ menu is where dates move,
- * names change, the next window can be pulled forward to today, and the team calendar
- * can be subscribed as ICS.
+ * Cycles are minted by cadence, not filed by hand. The ⋯ menu — reachable by right-click on
+ * any row as well — is where dates move, names change, the next window can be pulled forward
+ * to today, and the team calendar can be subscribed as ICS.
  *
- * Newest at the top, because the list is a calendar read backwards: what is coming, what
- * is running, what is done. The gutter on the left ticks each window's start and draws the
- * running one in the accent, and the running one alone opens up to its burn-up.
+ * Three headed groups rather than one flat run, because a sprint list is read in three
+ * tenses and the flat version made the reader find the boundary by scanning phase chips. The
+ * one running now is at the top, what is coming next is under it, and everything finished is
+ * below that and folds away — the group a team looks at least is the group with the most rows
+ * in it. Inside each group the gutter still ticks each window's start and draws the running
+ * one in the accent.
  *
  * Every row answers the same question in the tense that row is in. An upcoming cycle is
  * asked whether it is over-committed, so it wears the capacity ring; a running or finished
- * one is asked how much of it is done, so it wears progress. Before this, only the upcoming
- * rows had an answer and the rest of the list fell through to "12 issues" — a number that
- * says nothing about a sprint that ended last month.
+ * one is asked how much of it is done, so it wears progress and opens to its burn-up. The
+ * graph used to be drawn for the current cycle alone, which is the one window whose outcome
+ * nobody is asking about yet: how a sprint went is a question about a sprint that has ended.
+ *
+ * The keyboard is the issue list's, through `useListCursor`: `j`/`k` move, Enter opens,
+ * right-click or the ⋯ button opens the same menu on the same row. Before this the screen
+ * registered nothing at all and every one of those was a mouse-only affordance.
  */
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { Button, ConfirmDialog, EmptyState, IconButton, Menu } from '~/components';
+import { useKeyContext } from '~/app/keymap';
+import {
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  IconButton,
+  ListGroup,
+  Menu,
+  type MenuNode,
+} from '~/components';
 import { EntityLoading, useEntityState } from '~/features/entity-gate/EntityGate';
 import { CycleEditModal, isNextUpcoming, phaseOf } from '~/features/cycles/CycleEditModal';
 import { CycleCalendarModal } from '~/features/cycles/CycleCalendarModal';
@@ -30,12 +45,18 @@ import { CapacityDial } from '~/features/cycles/CapacityDial';
 import { cycleCapacity, type CycleCapacity } from '~/features/cycles/computeCapacity';
 import { buildCycleGraph } from '~/features/cycles/computeCycleGraph';
 import { cycleWindow, daysLeftLabel } from '~/features/cycles/format';
-import { CycleGlyph, ScopeGlyph } from '~/features/cycles/glyphs';
+import { CycleGlyph, NextCycleGlyph, ScopeGlyph } from '~/features/cycles/glyphs';
 import { inheritsCycleSchedule } from '~/features/cycles/inherit';
 import { startCycleToday, updateCycle } from '~/features/cycles/mutations';
 import { useNow } from '~/features/cycles/useNow';
+// The three-dot glyph is the issue screens', rather than the fourth hand-drawn copy of
+// three circles in this codebase.
+import { CalendarGlyph, DotsGlyph, PencilGlyph } from '~/features/issue/glyphs';
 import { uiLocale } from '~/features/locale';
 import { ProgressRing } from '~/features/projects/ProgressRing';
+import { readCollapsed } from '~/features/view/collapse';
+import { useContextMenu } from '~/hooks/useContextMenu';
+import { useListCursor, listRowDomId } from '~/hooks/useListCursor';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Cycle, Store, Team, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
@@ -51,6 +72,8 @@ interface CycleProgress {
 /** What the chip beside the name says. Linear's four words for a window's tense. */
 export type CycleChip = 'Planned' | 'Upcoming' | 'Current' | 'Completed';
 
+type CyclePhase = 'Current' | 'Upcoming' | 'Previous';
+
 type ListRow =
   | {
       readonly kind: 'cycle';
@@ -62,10 +85,12 @@ type ListRow =
       readonly window: string;
       readonly issueCount: number;
       readonly openCount: number;
-      readonly phase: 'Current' | 'Upcoming' | 'Previous';
+      readonly phase: CyclePhase;
       readonly canStartToday: boolean;
       readonly capacity: CycleCapacity | null;
       readonly progress: CycleProgress | null;
+      /** Whether the burn-up has anything to draw: a started window with issues on it. */
+      readonly hasGraph: boolean;
     }
   | {
       readonly kind: 'gap';
@@ -73,7 +98,18 @@ type ListRow =
       readonly label: string;
       readonly tick: string;
       readonly window: string;
+      /** The tense of the cycle the pause runs up to, which is the group it belongs in. */
+      readonly phase: CyclePhase;
     };
+
+/** The three groups, in the order they are read: what is running, what is next, what is done. */
+const GROUPS: readonly { readonly key: CyclePhase; readonly name: string }[] = [
+  { key: 'Current', name: 'Current' },
+  { key: 'Upcoming', name: 'Upcoming' },
+  { key: 'Previous', name: 'Past' },
+];
+
+const PREFERENCE_KEY = 'cycles';
 
 export function Cycles() {
   const navigate = useNavigate();
@@ -119,6 +155,7 @@ export function Cycles() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuCycle, setMenuCycle] = useState<Cycle | null>(null);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const scrollerRef = useRef<HTMLDivElement>(null);
 
   const [editOpen, setEditOpen] = useState(false);
   const [editCycle, setEditCycle] = useState<Cycle | null>(null);
@@ -126,6 +163,44 @@ export function Cycles() {
   const [startCycle, setStartCycle] = useState<Cycle | null>(null);
   const [startBusy, setStartBusy] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+
+  // Folded groups are excluded from the cursor's list: a cursor inside a shut group means
+  // `j` steps through rows nobody can see and Enter opens one of them.
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() =>
+    readCollapsed(PREFERENCE_KEY),
+  );
+
+  const grouped = useMemo(
+    () =>
+      GROUPS.map((group) => ({
+        ...group,
+        rows: rows.filter((row) => row.phase === group.key),
+      })),
+    [rows],
+  );
+
+  const ids = useMemo(
+    () =>
+      grouped.flatMap((group) =>
+        collapsed.has(group.key)
+          ? []
+          : group.rows.filter((row) => row.kind === 'cycle').map((row) => row.id),
+      ),
+    [grouped, collapsed],
+  );
+
+  useKeyContext('list');
+  const cursor = useListCursor({
+    ids,
+    prefix: 'cycleList',
+    noun: 'cycle',
+    onOpen: (id) => void navigate(`/cycle/${id}`),
+  });
+
+  const contextMenu = useContextMenu<UUID>({
+    onOpen: (id) => cursor.setCursor(id),
+    returnFocusTo: scrollerRef,
+  });
 
   if (teamState === 'loading') {
     return (
@@ -163,10 +238,56 @@ export function Cycles() {
     setEditCycle(cycle);
     setEditOpen(true);
     closeMenu();
+    contextMenu.close();
   };
 
-  const menuPhase = menuCycle === null ? 'Previous' : phaseOf(menuCycle, now);
+  const askStart = (cycle: Cycle) => {
+    // Asked before it happens, because it closes whatever is running and moves its open
+    // work, and the spec calls that irreversible.
+    setStartError(null);
+    setStartCycle(cycle);
+    closeMenu();
+    contextMenu.close();
+  };
+
   const currentRow = rows.find((row) => row.kind === 'cycle' && row.phase === 'Current');
+  const contextCycle =
+    contextMenu.id === null
+      ? null
+      : (allCycles.find((cycle) => cycle.id === contextMenu.id) ?? null);
+
+  const go = (id: UUID) => {
+    closeMenu();
+    contextMenu.close();
+    void navigate(`/cycle/${id}`);
+  };
+
+  /** One menu, whichever way it was opened: the ⋯ button and the right-click agree. */
+  const itemsFor = (cycle: Cycle): MenuNode[] => [
+    { id: 'open', label: 'Open cycle', icon: <CycleGlyph />, onSelect: () => go(cycle.id) },
+    { id: 'edit', label: 'Edit cycle', icon: <PencilGlyph />, onSelect: () => openEdit(cycle) },
+    {
+      id: 'subscribe',
+      label: 'Subscribe to cycle calendar',
+      icon: <CalendarGlyph />,
+      onSelect: () => {
+        closeMenu();
+        contextMenu.close();
+        setCalendarOpen(true);
+      },
+    },
+    ...(!inherited && phaseOf(cycle, now) === 'Upcoming' && isNextUpcoming(cycle, allCycles, now)
+      ? [
+          {
+            id: 'start-today',
+            label: 'Start cycle today',
+            icon: <NextCycleGlyph />,
+            danger: true,
+            onSelect: () => askStart(cycle),
+          },
+        ]
+      : []),
+  ];
 
   return (
     <div className={styles.screen}>
@@ -185,107 +306,156 @@ export function Cycles() {
         </h1>
       </header>
 
-      {!team.cyclesEnabled || rows.length === 0 ? (
+      {/* Two empty states, not one. A team with cycles switched off is one click from having
+          them; a team whose cadence has not minted a window yet has nothing to click, and
+          offering it a settings button says the wait is a misconfiguration. */}
+      {!team.cyclesEnabled ? (
         <EmptyState
-          title={team.cyclesEnabled ? 'No cycles yet' : 'Cycles are off'}
-          description={
-            team.cyclesEnabled
-              ? 'The next window will appear when the cadence catches up. Check team settings if this stays empty.'
-              : 'Turn cycles on in team settings. A current window and the next few are created for you — there is nothing to file into a cooldown, because a cooldown is a gap, not a cycle.'
-          }
+          title="Cycles are off"
+          description="Turn cycles on in team settings. A current window and the next few are created for you — there is nothing to file into a cooldown, because a cooldown is a gap, not a cycle."
           action={
             <Button variant="primary" onClick={settings}>
               Team settings
             </Button>
           }
         />
+      ) : rows.length === 0 ? (
+        <EmptyState
+          title="No cycles yet"
+          description="The first window appears when the cadence reaches it. Nothing to do until then."
+        />
       ) : (
-        <ul className={styles.list}>
-          {rows.map((row) =>
-            row.kind === 'gap' ? (
-              <li key={row.id} className={`${styles.item ?? ''} ${styles.gapItem ?? ''}`}>
-                <span className={styles.tick} aria-hidden="true">
-                  <span className={styles.tickLabel}>{row.tick}</span>
-                </span>
-                <div className={styles.gapRow}>
-                  <span className={styles.gapLabel}>{row.label}</span>
-                  <span className={styles.gapWindow}>{row.window}</span>
-                </div>
-              </li>
-            ) : (
-              <li
-                key={row.id}
-                className={[styles.item, row.phase === 'Current' ? styles.currentItem : null]
-                  .filter(Boolean)
-                  .join(' ')}
+        <div
+          ref={scrollerRef}
+          className={styles.list}
+          role="listbox"
+          aria-label={`${team.name} cycles`}
+          aria-activedescendant={
+            cursor.cursorId === null ? undefined : listRowDomId('cycleList', cursor.cursorId)
+          }
+          tabIndex={0}
+        >
+          {grouped.map((group) =>
+            group.rows.length === 0 ? null : (
+              <ListGroup
+                key={group.key}
+                groupKey={group.key}
+                preferenceKey={PREFERENCE_KEY}
+                name={group.name}
+                count={group.rows.filter((row) => row.kind === 'cycle').length}
+                onToggle={(key, shut) =>
+                  setCollapsed((held) => {
+                    const next = new Set(held);
+                    if (shut) next.add(key);
+                    else next.delete(key);
+                    return next;
+                  })
+                }
               >
-                <span className={styles.tick} aria-hidden="true">
-                  <span className={styles.tickLabel}>{row.tick}</span>
-                </span>
-                <div className={styles.body}>
-                  <div className={styles.rowLine}>
-                    <Link to={`/cycle/${row.id}`} className={styles.row}>
-                      <span className={styles.glyph} aria-hidden="true">
-                        <CycleGlyph />
-                      </span>
-                      <span className={styles.name}>{row.name}</span>
-                      <span className={styles.chip}>{row.chip}</span>
-                      <span className={styles.window}>{row.window}</span>
-                      <span className={styles.meter}>
-                        {row.capacity !== null ? (
-                          <CapacityDial data={row.capacity} compact />
-                        ) : (
-                          <>
-                            <ProgressRing
-                              percent={row.progress?.percent ?? 0}
-                              label={`${row.name} progress`}
-                              detail={
-                                row.progress === null
-                                  ? 'nothing completed'
-                                  : `${row.progress.completed} of ${row.progress.scope} ${row.progress.unitLabel} completed`
-                              }
+                {/* A real list inside the group, so a row is a list item as well as an
+                    option: the outer scroller is the listbox and this only carries them. */}
+                <ul role="presentation" className={styles.groupList}>
+                  {group.rows.map((row) =>
+                    row.kind === 'gap' ? (
+                      <li
+                        key={row.id}
+                        role="presentation"
+                        className={`${styles.item ?? ''} ${styles.gapItem ?? ''}`}
+                      >
+                        <span className={styles.tick} aria-hidden="true">
+                          <span className={styles.tickLabel}>{row.tick}</span>
+                        </span>
+                        <div className={styles.gapRow}>
+                          <span className={styles.gapLabel}>{row.label}</span>
+                          <span className={styles.gapWindow}>{row.window}</span>
+                        </div>
+                      </li>
+                    ) : (
+                      <li
+                        key={row.id}
+                        {...cursor.rowProps(row.id)}
+                        role="option"
+                        className={[
+                          styles.item,
+                          row.phase === 'Current' ? styles.currentItem : null,
+                          row.id === cursor.cursorId ? styles.cursorItem : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          contextMenu.openAt(event.clientX, event.clientY, row.id);
+                        }}
+                      >
+                        <span className={styles.tick} aria-hidden="true">
+                          <span className={styles.tickLabel}>{row.tick}</span>
+                        </span>
+                        <div className={styles.body}>
+                          <div className={styles.rowLine}>
+                            <Link
+                              to={`/cycle/${row.id}`}
+                              className={styles.row}
+                              onClick={() => cursor.setCursor(row.id)}
+                            >
+                              <span className={styles.glyph} aria-hidden="true">
+                                <CycleGlyph />
+                              </span>
+                              <span className={styles.name}>{row.name}</span>
+                              <span className={styles.chip}>{row.chip}</span>
+                              <span className={styles.window}>{row.window}</span>
+                              <span className={styles.meter}>
+                                {row.capacity !== null ? (
+                                  <CapacityDial data={row.capacity} compact />
+                                ) : (
+                                  <>
+                                    <ProgressRing
+                                      percent={row.progress?.percent ?? 0}
+                                      label={`${row.name} progress`}
+                                      detail={
+                                        row.progress === null
+                                          ? 'nothing completed'
+                                          : `${row.progress.completed} of ${row.progress.scope} ${row.progress.unitLabel} completed`
+                                      }
+                                    />
+                                    <span className={styles.meterText}>
+                                      {row.progress?.percent ?? 0}% completed
+                                    </span>
+                                  </>
+                                )}
+                              </span>
+                              <span className={styles.scope}>
+                                <ScopeGlyph />
+                                {row.issueCount} scope
+                              </span>
+                            </Link>
+                            <IconButton
+                              aria-label={`Options for ${row.name}`}
+                              size="sm"
+                              className={styles.menuButton}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                openMenu(row.cycle, event.currentTarget);
+                              }}
+                              icon={<DotsGlyph />}
                             />
-                            <span className={styles.meterText}>
-                              {row.progress?.percent ?? 0}% completed
-                            </span>
-                          </>
-                        )}
-                      </span>
-                      <span className={styles.scope}>
-                        <ScopeGlyph />
-                        {row.issueCount} scope
-                      </span>
-                    </Link>
-                    <IconButton
-                      aria-label={`Options for ${row.name}`}
-                      size="sm"
-                      className={styles.menuButton}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        openMenu(row.cycle, event.currentTarget);
-                      }}
-                      icon={
-                        <svg viewBox="0 0 16 16" aria-hidden="true">
-                          <circle cx="3" cy="8" r="1.2" fill="currentColor" />
-                          <circle cx="8" cy="8" r="1.2" fill="currentColor" />
-                          <circle cx="13" cy="8" r="1.2" fill="currentColor" />
-                        </svg>
-                      }
-                    />
-                  </div>
-                  {/* The window you are in is the one the page is about, so it is the one
-                      row that opens: the burn-up sits under it rather than above the list,
-                      where it read as a chart of the list. */}
-                  {row.phase === 'Current' && (
-                    <div className={styles.graph}>
-                      <CycleGraph cycleId={row.id} inline />
-                    </div>
+                          </div>
+                          {/* Under the row rather than above the list, where it read as a
+                              chart of the list. Drawn wherever there is something to draw:
+                              how a sprint went is a question about a sprint that has ended. */}
+                          {row.hasGraph && (
+                            <div className={styles.graph}>
+                              <CycleGraph cycleId={row.id} inline />
+                            </div>
+                          )}
+                        </div>
+                      </li>
+                    ),
                   )}
-                </div>
-              </li>
+                </ul>
+              </ListGroup>
             ),
           )}
-        </ul>
+        </div>
       )}
 
       <Menu
@@ -293,42 +463,16 @@ export function Cycles() {
         onClose={closeMenu}
         trigger={menuTriggerRef}
         label="Cycle options"
-        items={[
-          {
-            id: 'edit',
-            label: 'Edit cycle',
-            onSelect: () => {
-              if (menuCycle !== null) openEdit(menuCycle);
-            },
-          },
-          {
-            id: 'subscribe',
-            label: 'Subscribe to cycle calendar',
-            onSelect: () => {
-              closeMenu();
-              setCalendarOpen(true);
-            },
-          },
-          ...(menuCycle !== null &&
-          !inherited &&
-          menuPhase === 'Upcoming' &&
-          isNextUpcoming(menuCycle, allCycles, now)
-            ? [
-                {
-                  id: 'start-today',
-                  label: 'Start cycle today',
-                  onSelect: () => {
-                    if (menuCycle === null) return;
-                    // Asked before it happens, because it closes whatever is running and
-                    // moves its open work, and the spec calls that irreversible.
-                    setStartError(null);
-                    setStartCycle(menuCycle);
-                    closeMenu();
-                  },
-                },
-              ]
-            : []),
-        ]}
+        items={menuCycle === null ? [] : itemsFor(menuCycle)}
+      />
+
+      {contextMenu.at === null ? null : <div {...contextMenu.anchorProps} />}
+      <Menu
+        open={contextMenu.at !== null && contextCycle !== null}
+        onClose={contextMenu.close}
+        trigger={contextMenu.anchorRef}
+        label={contextCycle === null ? 'Cycle options' : `Options for ${contextCycle.name}`}
+        items={contextCycle === null ? [] : itemsFor(contextCycle)}
       />
 
       <CycleEditModal
@@ -428,7 +572,7 @@ function tickLabel(iso: string, timeZone: string): string {
  * Linear's word for each window's tense. "Upcoming" is only the next window — the one the
  * ⋯ menu can start today — and the ones after it are "Planned".
  */
-export function cycleChip(phase: 'Current' | 'Upcoming' | 'Previous', isNext: boolean): CycleChip {
+export function cycleChip(phase: CyclePhase, isNext: boolean): CycleChip {
   if (phase === 'Current') return 'Current';
   if (phase === 'Previous') return 'Completed';
   return isNext ? 'Upcoming' : 'Planned';
@@ -451,6 +595,7 @@ function listRows(store: Store, team: Team, now: number): ListRow[] {
   for (let index = 0; index < cycles.length; index++) {
     const cycle = cycles[index];
     if (cycle === undefined) continue;
+    const phase = phaseOf(cycle, now);
     if (index > 0) {
       const prev = cycles[index - 1];
       if (prev === undefined) continue;
@@ -463,11 +608,13 @@ function listRows(store: Store, team: Team, now: number): ListRow[] {
           label: isCooldown ? 'Cooldown' : 'Cycles paused',
           tick: tickLabel(prev.endsAt, zone),
           window: cycleWindow(prev.endsAt, cycle.startsAt, zone, now),
+          // The pause belongs with the window it runs up to: a break before next month's
+          // sprint is upcoming, not past.
+          phase,
         });
       }
     }
 
-    const phase = phaseOf(cycle, now);
     const window = cycleWindow(cycle.startsAt, cycle.endsAt, zone, now);
     const graph = phase === 'Upcoming' ? null : buildCycleGraph(store, cycle.id);
     const isNext = phase === 'Upcoming' && isNextUpcoming(cycle, cycles, now);
@@ -487,6 +634,13 @@ function listRows(store: Store, team: Team, now: number): ListRow[] {
       phase,
       canStartToday: isNext,
       capacity: phase === 'Upcoming' ? cycleCapacity(store, cycle.id, now) : null,
+      // The same three questions `CycleGraph` asks itself, asked here so a row with no
+      // answer draws no chart rather than a paragraph saying it has none.
+      hasGraph:
+        graph !== null &&
+        graph.issueCount > 0 &&
+        graph.points.length >= 2 &&
+        Date.parse(graph.startsAt) <= now,
       progress:
         graph === null || graph.totalScope === 0
           ? null
@@ -499,7 +653,8 @@ function listRows(store: Store, team: Team, now: number): ListRow[] {
     });
   }
 
-  // Newest first: the timeline reads down from what is coming to what is done.
+  // Newest first within each group: the timeline still reads down from what is coming to
+  // what is done, now inside a heading that says which of the three it is.
   return rows.reverse();
 }
 

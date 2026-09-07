@@ -4,9 +4,11 @@
  * description, what the issue is attached to and what has happened to it, and a 300px rail
  * of properties on the right. On a narrow window the rail folds under the document.
  *
- * Sizes below that are not tokens are Linear's measured ones — the 24px title, the 68px
- * gutter, the 720px column — and are the reason this file exists; the type scale's stops
- * were chosen for a 13px list and have no seat for a document title.
+ * Sizes below that are not tokens are Linear's measured ones — the 68px gutter, the 720px
+ * column — and are the reason this file exists. The title is no longer among them: it is
+ * TitleField's now, and TitleField asks for --font-size-2xl, which the scale grew a stop
+ * for precisely so that a document title would not have to be a literal on every screen
+ * that draws one.
  */
 
 .screen {
@@ -180,61 +182,6 @@
 }
 
 /* --- The document ---------------------------------------------------------------------- */
-
-.titleForm {
-  display: flex;
-}
-
-/*
- * The title is a field that does not look like one until it is being used. An issue title is
- * edited about once in its life and read hundreds of times, so at rest it is a heading; the
- * border and the surface arrive on focus, when the field has become a control.
- *
- * `.title` is the wrapper `Textarea` hands a caller's className to, and the typography has to
- * reach the control through a descendant selector rather than through it — the control takes
- * `font-size` from its own box, so a rule on the frame never arrives. This is the same
- * wrapper-scoped shape `CreateIssueModal.module.css` argues for at `.title input`, and it is
- * not the bare-element `:global()` the house rule forbids: it cannot match anything this
- * screen has not put inside this one field.
- */
-.title {
-  flex: 1;
-  min-width: 0;
-  margin-left: calc(var(--space-2) * -1);
-}
-
-.title textarea {
-  padding: var(--space-1) var(--space-2);
-  border-color: transparent;
-  background-color: transparent;
-  font-size: 24px;
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.02em;
-  line-height: 1.3;
-  /* The comment above says the border and the surface "arrive on focus". Without a ramp they
-     did not arrive, they appeared — which made a heading look like it had been replaced by a
-     text box rather than revealed as one. */
-  transition:
-    border-color var(--duration-fast) var(--ease-out),
-    background-color var(--duration-fast) var(--ease-out);
-}
-
-.title textarea:hover {
-  border-color: var(--border-subtle);
-}
-
-/*
- * `:focus` rather than `:focus-visible`, which is the rule for a text field and not the
- * exception: Field's own `.control:focus-within` already says so — "unlike a button this
- * fires for pointer users too, which is correct — a text field the pointer clicked into
- * really is focused, and it is about to receive typing".
- */
-.title textarea:focus {
-  border-color: var(--border-focus);
-  background-color: var(--bg-primary);
-  outline: var(--focus-ring-width) solid var(--border-focus);
-  outline-offset: var(--focus-ring-offset);
-}
 
 /*
  * The description at document size: 15px on a 1.6 leading, in the primary colour.

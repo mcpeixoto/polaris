@@ -1,44 +1,58 @@
 /**
- * Project overview — the project as a document: its name, what it is for, how it is
- * going, and the checkpoints on the way.
+ * Project overview — the project as a document: what it is for, how it is going, and the
+ * checkpoints on the way.
  *
- * The centre column reads top to bottom the way Linear's does: the title with its emoji,
- * a one-line summary and the description as plain text you can type into, then every
- * update as a card in the colour of the health it claimed, the composer for the next one,
- * the milestones, and the progress graph. Everything that is a property of the project
- * rather than its content lives in the rail beside it.
+ * The centre column reads top to bottom the way Linear's does: a one-line summary, the
+ * description in the same editor an issue's is written in, the latest update with the
+ * composer for the next one, the milestones, and the progress graph. Everything that is a
+ * property of the project rather than its content lives in the rail beside it, and the name
+ * lives in the shell's breadcrumb, which is also where it is renamed.
+ *
+ * The update *feed* is the activity tab's, not this one's. Both used to draw every update,
+ * with different affordances on each copy — edit here, edit and delete there — which made
+ * "where do I delete this from" a question about which tab you happened to be on. This tab
+ * keeps the composer and the standing answer to "how is it going"; the history is one click
+ * away and says so.
  */
 
 import { useState, type FormEvent } from 'react';
 import { useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { Button, IconButton, Input, Select, Textarea } from '~/components';
+import {
+  Button,
+  IconButton,
+  Input,
+  Menu,
+  SaveIndicator,
+  Textarea,
+  useSaveState,
+  type MenuNode,
+} from '~/components';
+import { DescriptionEditor } from '~/editor/DescriptionEditor';
 import { ProjectGraph } from '~/features/projects/ProjectGraph';
-import { ProjectGlyph } from '~/features/projects/glyphs';
 import { updateProject } from '~/features/projects/mutations';
 import { MilestoneSection } from '~/features/project-milestones/MilestoneSection';
 import { createProjectUpdate } from '~/features/project-updates/mutations';
 import { HealthDot, ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
-import { PencilGlyph } from '~/features/project-updates/glyphs';
+import { HealthGlyph, PencilGlyph } from '~/features/project-updates/glyphs';
 import { ProjectUpdateEditor } from '~/features/project-updates/ProjectUpdateEditor';
 import {
   listProjectUpdates,
+  PROJECT_UPDATE_HEALTH_LABEL,
   PROJECT_UPDATE_HEALTH_TOKEN,
 } from '~/features/project-updates/helpers';
-import { report } from '~/features/issue/mutations';
+import { personName } from '~/features/prefs/prefs';
+import { exact, when } from '~/features/time';
 import { useViewerId } from '~/hooks/useViewer';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { IssueCustomers } from '~/features/customers/IssueCustomers';
-import type { ProjectUpdateHealth, UUID } from '~/store';
+import type { ProjectUpdateHealth } from '~/store';
 import { ApiError } from '~/sync/api';
 import styles from './ProjectOverview.module.css';
 
-const HEALTH_OPTIONS: readonly { readonly value: ProjectUpdateHealth; readonly label: string }[] = [
-  { value: 'on_track', label: 'On track' },
-  { value: 'at_risk', label: 'At risk' },
-  { value: 'off_track', label: 'Off track' },
-];
+const HEALTHS: readonly ProjectUpdateHealth[] = ['on_track', 'at_risk', 'off_track'];
 
 export function ProjectOverview() {
   const engine = useEngine();
@@ -48,7 +62,15 @@ export function ProjectOverview() {
   const [body, setBody] = useState('');
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
-  const [editing, setEditing] = useState<UUID | null>(null);
+  const [editingLatest, setEditingLatest] = useState(false);
+  const healthMenu = useMenuTrigger();
+
+  // Autosave with nothing to show for it was the state of three detail screens: the summary
+  // and the description both write on blur, and a refused write looked exactly like a
+  // successful one. This says which of the two just happened.
+  const save = useSaveState((failure) =>
+    failure instanceof ApiError ? failure.message : 'That change could not be saved.',
+  );
 
   const project = useLiveQuery(
     (store) => store.projects.get(projectId) ?? null,
@@ -56,14 +78,23 @@ export function ProjectOverview() {
     [projectId],
   );
 
-  const updates = useLiveQuery(
-    (store) =>
-      listProjectUpdates(store, projectId).map((update) => ({
-        update,
-        author: store.users.get(update.authorId)?.displayName ?? null,
-      })),
+  const latest = useLiveQuery(
+    (store) => {
+      const [first] = listProjectUpdates(store, projectId);
+      if (first === undefined) return null;
+      return { update: first, author: store.users.get(first.authorId)?.displayName ?? null };
+    },
     ['projectUpdate', 'user'],
     [projectId],
+  );
+
+  const names = useLiveQuery(
+    (store) => {
+      const out: Record<string, string> = {};
+      for (const user of store.users.values()) out[user.id] = personName(user);
+      return out;
+    },
+    ['user'],
   );
 
   if (project === null) return null;
@@ -98,83 +129,102 @@ export function ProjectOverview() {
     }
   };
 
+  const healthItems: MenuNode[] = HEALTHS.map((value) => ({
+    id: value,
+    label: PROJECT_UPDATE_HEALTH_LABEL[value],
+    icon: <HealthGlyph health={value} />,
+    selected: value === health,
+    onSelect: () => setHealth(value),
+  }));
+
   return (
     <div className={styles.screen}>
       <div className={styles.column}>
-        <div className={styles.titleRow}>
-          <span className={styles.mark} aria-hidden="true">
-            {project.icon === undefined || project.icon === '' ? <ProjectGlyph /> : project.icon}
-          </span>
-          {/* Not a heading: the shell's breadcrumb already carries the page's h1, and two
-              headings with the same words is one more than a screen reader wants. */}
-          <p className={styles.title}>{project.name}</p>
+        {/* Summary and description are the page, not a form, so they are unboxed and save on
+            blur: prose, and a mutation per keystroke would put a hundred entries in the
+            activity feed for one sentence. */}
+        <div className={styles.saveRow}>
+          <SaveIndicator state={save.state} />
         </div>
-
-        {/* Summary and description are the page, not a form, so they are unboxed and save
-            on blur: prose, and a mutation per keystroke would put a hundred entries in the
-            activity feed for one sentence. Keyed on the stored value so a change arriving
-            over sync replaces the field rather than fighting a stale draft. */}
         <SummaryField
           key={`summary:${project.summary ?? ''}`}
           stored={project.summary ?? ''}
-          onSave={(summary) => updateProject(engine, project.id, { summary }).catch(report)}
+          onSave={(summary) => void save.run(() => updateProject(engine, project.id, { summary }))}
         />
-        <DescriptionField
-          key={`description:${project.description}`}
-          stored={project.description}
-          onSave={(description) => updateProject(engine, project.id, { description }).catch(report)}
-        />
+        {save.error === undefined ? null : (
+          <p className={styles.error} role="alert">
+            {save.error}
+          </p>
+        )}
+        {/* The rich editor rather than a keyed `Textarea`. The key was the bug: a change
+            arriving over sync remounted the field, so somebody else's edit threw away the
+            paragraph you were part-way through typing. The editor keeps a draft that only
+            exists while the field has focus, which is the same fix the title made. */}
+        <div className={styles.description}>
+          <DescriptionEditor
+            target={{ kind: 'project', id: project.id }}
+            description={project.description}
+            names={names}
+            viewerId={viewerId}
+            enterSubmits={false}
+            onSave={(description) =>
+              void save.run(() => updateProject(engine, project.id, { description }))
+            }
+          />
+        </div>
 
         <section className={styles.section} aria-labelledby={`updates-${project.id}`}>
           <h3 className={styles.sectionTitle} id={`updates-${project.id}`}>
-            Updates
+            Latest update
           </h3>
-          {updates.length === 0 ? (
+          {latest === null ? (
             <p className={styles.muted}>No updates yet. The first one sets the health.</p>
           ) : (
             <ul className={styles.updates}>
-              {updates.map(({ update, author }) => (
-                <li
-                  key={update.id}
-                  className={styles.card}
-                  style={{
-                    borderInlineStartColor: `var(${PROJECT_UPDATE_HEALTH_TOKEN[update.health]})`,
-                  }}
-                >
-                  <div className={styles.cardHead}>
-                    <ProjectHealthBadge health={update.health} />
-                    {author !== null && (
-                      <span className={styles.cardMeta}>
-                        {author} · {formatWhen(update.createdAt)}
-                        {update.editedAt === undefined ? '' : ' · edited'}
-                      </span>
-                    )}
-                    {/* Author-only, because the server refuses anybody else's edit. */}
-                    {viewerId === update.authorId && editing !== update.id && (
-                      <IconButton
-                        size="sm"
-                        className={styles.cardEdit}
-                        icon={<PencilGlyph />}
-                        aria-label="Edit update"
-                        tooltip="Edit update"
-                        onClick={() => setEditing(update.id)}
-                      />
-                    )}
-                  </div>
-                  {editing === update.id ? (
-                    <ProjectUpdateEditor update={update} onDone={() => setEditing(null)} />
-                  ) : (
-                    update.body !== '' && <p className={styles.cardBody}>{update.body}</p>
+              <li
+                className={styles.card}
+                style={{
+                  borderInlineStartColor: `var(${PROJECT_UPDATE_HEALTH_TOKEN[latest.update.health]})`,
+                }}
+              >
+                <div className={styles.cardHead}>
+                  <ProjectHealthBadge health={latest.update.health} />
+                  {latest.author !== null && (
+                    <span className={styles.cardMeta} title={exact(latest.update.createdAt)}>
+                      {latest.author} · {when(latest.update.createdAt)}
+                      {latest.update.editedAt === undefined ? '' : ' · edited'}
+                    </span>
                   )}
-                </li>
-              ))}
+                  {/* Author-only, because the server refuses anybody else's edit. */}
+                  {viewerId === latest.update.authorId && !editingLatest && (
+                    <IconButton
+                      size="sm"
+                      className={styles.cardEdit}
+                      icon={<PencilGlyph />}
+                      aria-label="Edit update"
+                      tooltip="Edit update"
+                      onClick={() => setEditingLatest(true)}
+                    />
+                  )}
+                </div>
+                {editingLatest ? (
+                  <ProjectUpdateEditor
+                    update={latest.update}
+                    onDone={() => setEditingLatest(false)}
+                  />
+                ) : (
+                  latest.update.body !== '' && (
+                    <p className={styles.cardBody}>{latest.update.body}</p>
+                  )
+                )}
+              </li>
             </ul>
           )}
 
           {/* Correcting a post and writing the next one are the same decision made twice,
-              so the composer stands down while an editor is open — which also keeps one
+              so the composer stands down while the editor is open — which also keeps one
               "Health" control on the screen rather than two identically named ones. */}
-          {editing === null && (
+          {!editingLatest && (
             <form className={styles.composer} onSubmit={onSubmit}>
               <Textarea
                 label="Update"
@@ -194,18 +244,21 @@ export function ProjectOverview() {
                 </p>
               )}
               <div className={styles.composerFoot}>
-                <Select
+                <Button
+                  {...healthMenu.props}
+                  variant="secondary"
                   aria-label="Health"
-                  value={health}
-                  prefix={<HealthDot health={health} />}
-                  onChange={(event) => setHealth(event.target.value as ProjectUpdateHealth)}
+                  icon={<HealthDot health={health} />}
                 >
-                  {HEALTH_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </Select>
+                  {PROJECT_UPDATE_HEALTH_LABEL[health]}
+                </Button>
+                <Menu
+                  open={healthMenu.open}
+                  onClose={healthMenu.hide}
+                  trigger={healthMenu.ref}
+                  label="Health"
+                  items={healthItems}
+                />
                 <Button type="submit" variant="primary" disabled={posting || viewerId === null}>
                   Post update
                 </Button>
@@ -252,41 +305,4 @@ function SummaryField({ stored, onSave }: ProseFieldProps) {
       }}
     />
   );
-}
-
-/** The description, unboxed and growing, saved on blur when it changed. */
-function DescriptionField({ stored, onSave }: ProseFieldProps) {
-  const [draft, setDraft] = useState(stored);
-  return (
-    <Textarea
-      surface="plain"
-      aria-label="Description"
-      className={styles.description}
-      value={draft}
-      minRows={2}
-      placeholder="Add description…"
-      onChange={(event) => setDraft(event.target.value)}
-      onBlur={() => {
-        if (draft !== stored) onSave(draft);
-      }}
-    />
-  );
-}
-
-/**
- * The year is here on purpose, and it matches `ProjectActivity`'s formatter.
- *
- * The two used to disagree — this one printed "12 Jan 09:30" and the activity feed printed
- * the year — so the same update was dated differently depending on which tab you read it
- * on, and a year-old update looked recent on the overview.
- */
-function formatWhen(iso: string): string {
-  const date = new Date(iso);
-  return date.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
 }

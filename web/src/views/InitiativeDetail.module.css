@@ -1,10 +1,24 @@
+/* The reading column and the property rail, the two-column shape `IssueDetail` sets. The
+   rail drops under the body on a narrow window rather than squeezing the prose. */
 .screen {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   animation: pageEnter var(--duration-normal) var(--ease-out);
+}
+
+@media (max-width: 960px) {
+  .screen {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 /* Reduced motion is answered at the token: --duration-normal collapses to 1ms. */
@@ -46,24 +60,6 @@
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
   white-space: pre-wrap;
-}
-
-.descriptionInput {
-  width: 100%;
-  min-height: 8rem;
-  padding: var(--space-2);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font: inherit;
-  line-height: var(--line-height-normal);
-  resize: vertical;
-}
-
-.descriptionInput:focus-visible {
-  outline: var(--focus-ring-width) solid var(--border-focus);
-  outline-offset: 0;
 }
 
 /*
@@ -142,7 +138,7 @@
   white-space: nowrap;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 960px) {
   .projectRow {
     grid-template-columns: auto minmax(0, 1fr) 10ch 10ch auto;
   }
@@ -210,54 +206,6 @@
   line-height: var(--line-height-none);
 }
 
-.properties {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--space-3);
-}
-
-.labelField {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-/*
- * The labels trigger, shaped to stand in a grid of native selects.
- *
- * It is the one control in the property grid that is not a `Field`, and one group gets one
- * affordance: the same border, the same radius and the same height as the selects beside
- * it, so the row does not read as five controls and one piece of static text. The height
- * is `--control-height-lg`, the ladder's rung for a form field on its own line, rather
- * than the 32px issue row's `--row-height` it used to borrow — the two happen to be equal
- * today, and only one of them is a statement about this control.
- */
-.propertyButton {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  width: fit-content;
-  min-height: var(--control-height-lg);
-  padding-inline: var(--space-2);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: var(--font-size-md);
-  cursor: pointer;
-  transition: background-color var(--duration-fast) var(--ease-out);
-}
-
-.propertyButton:hover {
-  background: var(--bg-hover);
-}
-
-.propertyButton:focus-visible {
-  outline: var(--focus-ring-width) solid var(--border-focus);
-  outline-offset: var(--focus-ring-offset);
-}
-
 .labelRun {
   display: inline-flex;
   flex-wrap: wrap;
@@ -274,8 +222,95 @@
   line-height: var(--line-height-normal);
 }
 
-@media (max-width: 720px) {
-  .properties {
-    grid-template-columns: minmax(0, 1fr);
+/* One row per sub-initiative: the name takes the width, the action keeps its own. */
+.childRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--row-height);
+  padding-inline: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* --- The property rail ------------------------------------------------------------------
+   The same drawing as `IssueDetail.module.css`'s rail: a hidden label per row, a ghost
+   button whose glyph and value are the row, and an unset value that reads as an invitation
+   rather than as data. */
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  align-content: start;
+  min-width: 0;
+  padding: var(--space-6) var(--space-4);
+  border-left: 1px solid var(--border-subtle);
+}
+
+@media (max-width: 960px) {
+  .rail {
+    padding: 0 var(--space-4) var(--space-6);
+    border-left: 0;
+    border-top: 1px solid var(--border-subtle);
   }
+}
+
+.railHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-inline: var(--space-2);
+}
+
+.railTitle,
+.railGroup {
+  margin: 0 0 var(--space-1);
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--control-height-md);
+}
+
+.railGroup {
+  margin-top: var(--space-6);
+  padding-inline: var(--space-2);
+}
+
+.property {
+  display: flex;
+  min-width: 0;
+}
+
+/* Doubled with `.rail` so the value colour beats the ghost variant's secondary at a weight
+   the bundler cannot reorder. */
+.rail .propertyTrigger {
+  justify-content: flex-start;
+  min-width: 0;
+  min-height: var(--control-height-md);
+  height: auto;
+  padding: var(--space-0-5) var(--space-2);
+  color: var(--text-primary);
+  white-space: normal;
+  text-align: left;
+}
+
+.rail .propertyTrigger:hover {
+  color: var(--text-primary);
+}
+
+.rail .unset {
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
 }

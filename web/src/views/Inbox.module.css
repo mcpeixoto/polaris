@@ -30,7 +30,7 @@
 }
 
 /* Under one pane's worth of width the list takes the window and the preview waits for it. */
-@media (max-width: 900px) {
+@media (max-width: 960px) {
   .listPane {
     width: 100%;
     border-right: 0;
@@ -67,10 +67,24 @@
 }
 
 /*
- * The find box and the display toggles, on their own line under the header.
+ * The tab row: Inbox, Unread, Snoozed, Done.
+ *
+ * Directly under the header and above the find box, because it is the coarser question —
+ * which of the four lists — and the find box narrows whichever one is open. It scrolls
+ * rather than wrapping: four tabs and their counts fit a 425px pane, and a tab row that
+ * became two lines on a long count would move the list under the reader's cursor.
+ */
+.tabs {
+  flex: none;
+  padding-inline: var(--space-3);
+  overflow-x: auto;
+}
+
+/*
+ * The find box and the kind filter, on their own line under the tabs.
  *
  * They used to share the header with the title and the count, and on a 425px pane that row
- * overflowed before the first checkbox. The box shrinks first: it is the one control here
+ * overflowed before the first control. The box shrinks first: it is the one control here
  * that still works at half its width, because the text scrolls.
  */
 .toolbar {
@@ -88,7 +102,15 @@
   min-width: 5rem;
 }
 
+/*
+ * The list, which is the scroller whether or not it is grouped.
+ *
+ * `position: relative` so the selection bar below is placed against the list rather than
+ * against the window — the inbox is one pane of two, and a bar centred on the viewport would
+ * sit under the issue preview.
+ */
 .list {
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -313,4 +335,86 @@
 
 .empty {
   padding: var(--space-8) var(--space-4);
+}
+
+/* Inside a day group. Presentational: the group's own header carries the name and count. */
+.groupList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * A selected row, which is not the same mark as the cursor.
+ *
+ * The cursor is one row and moves constantly; a selection is a set that a command is about to
+ * act on. So the cursor is a wash and the selection is an edge — two marks that can be on the
+ * same row at once and still be told apart, which they have to be, because the bar at the
+ * bottom is counting one of them and not the other.
+ */
+.picked {
+  box-shadow: inset 0 0 0 1px var(--border-focus);
+}
+
+/*
+ * The bulk bar, over the foot of the list.
+ *
+ * Absolute against the list rather than fixed to the window: this pane is 425px of a
+ * two-pane screen, and a bar centred on the viewport would hang over the issue preview,
+ * which is not what it is about. No exit animation, for the reason the issue list gives —
+ * a selection cleared is a bar with nothing true left to say.
+ */
+.selectionBar {
+  position: absolute;
+  z-index: var(--z-sticky);
+  right: var(--space-4);
+  bottom: var(--space-4);
+  left: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+  animation: barIn var(--duration-fast) var(--ease-out);
+}
+
+@keyframes barIn {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-3));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* The bar moves, so it owes an answer: the same arrival, without the travel. */
+@media (prefers-reduced-motion: reduce) {
+  .selectionBar {
+    animation-name: barFade;
+  }
+
+  @keyframes barFade {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+/* Announced rather than merely drawn: a bulk action's whole risk is acting on more rows
+   than you meant to, and this is the only line that says how many. */
+.selectionCount {
+  margin-inline-end: auto;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
 }

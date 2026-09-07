@@ -5,9 +5,13 @@
  *
  * The other half is louder: every write here was `void fn()` with no catch, so a rejected
  * rename, reorder or delete left the tab bar exactly as it was and said nothing.
+ *
+ * Creating a view is `SaveViewModal` now rather than a second dialog written here, so the
+ * two things this file's copy never had — a submit chord, and a message instead of a dead
+ * button — are what the create cases below check.
  */
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -17,6 +21,8 @@ import { KeymapProvider } from '~/app/keymap';
 import { EMPTY_FILTER } from '~/filter';
 import { Store, type Change, type Entity } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
+
+import { createView } from '~/features/view/mutations';
 
 import { ProjectViewTabs } from './attachedViews';
 
@@ -149,5 +155,33 @@ describe('project view tabs', () => {
     expect(alert.textContent).toBe('That view could not be deleted.');
     // Still open, so the reader can retry rather than wondering whether it worked.
     expect(screen.getByRole('button', { name: 'Delete view' })).toBeTruthy();
+  });
+
+  it('creates a view through the shared dialog, which answers the submit chord', async () => {
+    const { user } = renderTabs();
+
+    await user.click(screen.getByRole('button', { name: 'New view' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New view' });
+    await user.type(within(dialog).getByLabelText('Name'), 'Alpha');
+
+    // The dialog this replaced registered no action at all: ⌘⏎ in it did nothing.
+    fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true });
+
+    await waitFor(() => expect(createView).toHaveBeenCalled());
+    expect(vi.mocked(createView).mock.calls[0]?.[1]).toMatchObject({
+      name: 'Alpha',
+      projectId: PROJECT,
+    });
+  });
+
+  it('says a view needs a name rather than offering a dead Create button', async () => {
+    const { user } = renderTabs();
+
+    await user.click(screen.getByRole('button', { name: 'New view' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New view' });
+    await user.click(within(dialog).getByRole('button', { name: 'Create view' }));
+
+    expect(await screen.findByText('A view needs a name')).toBeTruthy();
+    expect(createView).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { cycleWindow, daysLeft, daysLeftLabel } from './format';
+import { cycleDay, cycleWindow, daysLeft, daysLeftLabel } from './format';
 
 const NOW = Date.parse('2026-01-08T12:00:00.000Z');
 
@@ -39,5 +39,19 @@ describe('daysLeft', () => {
 
   it('never counts below zero for a window that has already closed', () => {
     expect(daysLeft('2026-01-01T00:00:00.000Z', 'UTC', NOW)).toBe(0);
+  });
+});
+
+describe('cycleDay', () => {
+  it('writes one end of a window in the same grammar as the pair', () => {
+    expect(cycleDay('2026-01-05T00:00:00.000Z', 'UTC', NOW)).toBe('Jan 5');
+  });
+
+  it('names the year once it stops being this one', () => {
+    expect(cycleDay('2024-01-05T00:00:00.000Z', 'UTC', NOW)).toContain('2024');
+  });
+
+  it('reads the day in the team’s zone', () => {
+    expect(cycleDay('2026-01-04T15:00:00.000Z', 'Asia/Tokyo', NOW)).toBe('Jan 5');
   });
 });

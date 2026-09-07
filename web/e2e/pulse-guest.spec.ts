@@ -25,7 +25,13 @@ async function projectWithAnUpdate(page: Page, name: string): Promise<void> {
   await page.getByRole('button', { name: /^create/i }).click();
   await page.waitForURL(/\/project\/[0-9a-f-]{36}/);
   await page.getByRole('heading', { name, level: 1 }).waitFor();
-  await page.getByLabel('Health').selectOption({ label: 'On track' });
+  // The composer's health is a menu button rather than a select now; the update itself is
+  // only the bait this test needs a guest not to be shown.
+  await page.getByRole('button', { name: 'Health' }).click();
+  await page
+    .getByRole('menu', { name: 'Health' })
+    .getByRole('menuitem', { name: 'On track' })
+    .click();
   await page.getByLabel('Update', { exact: true }).fill('An update a guest must not read.');
   await page.getByRole('button', { name: 'Post update' }).click();
   await expect(page.getByLabel('Update', { exact: true })).toHaveValue('');

@@ -11,7 +11,7 @@
  * flipped a boolean would pass for a version that forgot everything on refresh.
  */
 
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -539,5 +539,162 @@ describe('the offline badge', () => {
       screen.getByRole('button', { name: 'Offline. Failed to fetch. Try connecting again' }),
     );
     expect(engine.start).toHaveBeenCalled();
+  });
+});
+
+/**
+ * The four surfaces that could not be favourited until `FavoriteKind` grew.
+ *
+ * The href matters as much as the label: a favourite whose row points at the wrong route is
+ * worse than no row at all, because the person clicks it once and stops trusting the section.
+ * The second half of each case archives the target the same way the replica would — the row
+ * simply leaves — which is the client's half of the server rule that an archived target reads
+ * as missing.
+ */
+describe('favourites for a project, an initiative, a cycle and a document', () => {
+  const kinds = [
+    {
+      kind: 'project',
+      type: 'project',
+      label: 'Apollo',
+      href: '/project/p-1',
+      row: {
+        id: 'p-1',
+        workspaceId: WORKSPACE,
+        name: 'Apollo',
+        description: '',
+        statusId: 'ps-1',
+        priority: 0,
+        updateSchedule: 'never',
+        sortOrder: 'V',
+        createdAt: AT,
+        updatedAt: AT,
+      },
+    },
+    {
+      kind: 'initiative',
+      type: 'initiative',
+      label: 'Growth',
+      href: '/initiative/i-1',
+      row: {
+        id: 'i-1',
+        workspaceId: WORKSPACE,
+        name: 'Growth',
+        description: '',
+        status: 'planned',
+        priority: 0,
+        sortOrder: 'V',
+        createdAt: AT,
+        updatedAt: AT,
+      },
+    },
+    {
+      kind: 'cycle',
+      type: 'cycle',
+      // The row wears its team key, as an issue favourite wears its identifier.
+      label: 'ENG Cycle 3',
+      href: '/cycle/c-1',
+      row: {
+        id: 'c-1',
+        workspaceId: WORKSPACE,
+        teamId: TEAM,
+        number: 3,
+        name: 'Cycle 3',
+        startsAt: AT,
+        endsAt: AT,
+        createdAt: AT,
+        updatedAt: AT,
+      },
+    },
+    {
+      kind: 'document',
+      type: 'document',
+      label: 'Spec',
+      href: '/document/d-1',
+      row: {
+        id: 'd-1',
+        workspaceId: WORKSPACE,
+        teamId: TEAM,
+        title: 'Spec',
+        body: '',
+        sortOrder: 'V',
+        createdAt: AT,
+        updatedAt: AT,
+      },
+    },
+  ] as const;
+
+  it.each(kinds)('renders a favourited $kind at $href', ({ type, label, href, row }) => {
+    renderShell(seeded([[type, row as unknown as Entity], favorite('f-1', type, row.id)]));
+    expect(screen.getByRole('link', { name: label }).getAttribute('href')).toBe(href);
+  });
+
+  it.each(kinds)('drops the row when the $kind is archived', ({ type, label, row }) => {
+    renderShell(
+      seeded([
+        [type, { ...row, archivedAt: AT } as unknown as Entity],
+        favorite('f-1', type, row.id),
+      ]),
+    );
+    expect(screen.queryByRole('link', { name: label })).toBeNull();
+  });
+
+  it.each(kinds)(
+    'drops the row when the $kind is not in the replica at all',
+    ({ type, label, row }) => {
+      renderShell(seeded([favorite('f-1', type, row.id)]));
+      expect(screen.queryByRole('link', { name: label })).toBeNull();
+    },
+  );
+});
+
+describe('a right-click on a favourite', () => {
+  /*
+    A favourite could be dragged between folders and removed only by finding the thing it
+    points at and un-starring it there. The row now answers the secondary button with both,
+    and the folders it can be filed into are the ones this person actually has.
+  */
+  const withFolder = () =>
+    seeded([
+      favorite('f-folder', 'folder', 'f-folder', { name: 'Reading', position: 'V' }),
+      view('v-1', 'All bugs'),
+      favorite('f-1', 'view', 'v-1', { position: 'W' }),
+    ]);
+
+  it('removes the favourite by what it points at', async () => {
+    const user = userEvent.setup();
+    const engine = renderShell(withFolder());
+
+    await user.pointer({
+      target: screen.getByRole('link', { name: 'All bugs' }),
+      keys: '[MouseRight]',
+    });
+    const menu = await screen.findByRole('menu', { name: 'All bugs actions' });
+    await user.click(within(menu).getByRole('menuitem', { name: 'Remove from favourites' }));
+
+    await waitFor(() => expect(engine.mutate).toHaveBeenCalled());
+    const [call] = engine.mutate.mock.calls as unknown as [
+      [{ variables: { kind: string; targetId: string } }],
+    ];
+    expect(call[0].variables).toMatchObject({ kind: 'VIEW', targetId: 'v-1' });
+  });
+
+  it('files it into a folder from the same menu', async () => {
+    const user = userEvent.setup();
+    const engine = renderShell(withFolder());
+
+    await user.pointer({
+      target: screen.getByRole('link', { name: 'All bugs' }),
+      keys: '[MouseRight]',
+    });
+    const menu = await screen.findByRole('menu', { name: 'All bugs actions' });
+    await user.click(within(menu).getByRole('menuitem', { name: 'Move to folder' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Reading' }));
+
+    await waitFor(() => expect(engine.mutate).toHaveBeenCalled());
+    const [call] = engine.mutate.mock.calls as unknown as [
+      [{ variables: { input: { id: string; folderId: string } } }],
+    ];
+    expect(call[0].variables.input).toMatchObject({ id: 'f-1', folderId: 'f-folder' });
   });
 });

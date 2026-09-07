@@ -1,0 +1,96 @@
+/*
+ * Two drawings of the same control.
+ *
+ * `track`: a tinted rail with the chosen segment lifted onto the elevated surface. The
+ * shape is what says "one of these is in force", so the pair needs neither a primary fill
+ * nor a border between the segments.
+ *
+ * `bare`: the same segments on nothing, fully round. In a list header the row sits beside
+ * other controls on the header's own surface, and a second surface under it would read as
+ * a panel that is not there.
+ */
+
+.group {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+.track {
+  gap: var(--space-0-5);
+  padding: var(--space-0-5);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-tertiary);
+}
+
+.bare {
+  gap: var(--space-0-5);
+}
+
+.segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+/* Inside the rail the segment is short by the rail's own padding, so the control as a whole
+   is one --control-height-md tall and lines up with the fields beside it. */
+.track .segment {
+  flex: 1;
+  height: calc(var(--control-height-md) - var(--space-1));
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-md);
+}
+
+.bare .segment {
+  height: var(--control-height-md);
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-full);
+}
+
+.segment:hover {
+  color: var(--text-primary);
+}
+
+.bare .segment:hover {
+  background-color: var(--bg-hover);
+}
+
+/* Two classes, so the chosen state wins over the hover above on specificity rather than on
+   the order the rules are emitted in. */
+.track .segment.on {
+  background-color: var(--bg-elevated);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.bare .segment.on {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* Inset in the rail, because a ring drawn outside the segment would be clipped by the
+   track it sits in. */
+.track .segment:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+.bare .segment:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}

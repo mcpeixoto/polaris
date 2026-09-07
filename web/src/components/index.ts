@@ -122,3 +122,60 @@ export type { ColorPickerProps } from './ColorPicker';
 // renamed its own button "Copied" for good.
 export { CopyButton } from './CopyButton';
 export type { CopyButtonProps } from './CopyButton';
+
+// The anchored panel: portal, anchor, outside-click and focus restore, written once. Three
+// feature popovers had each copied the due-date panel's machinery, and only one of them kept
+// the exit animation. Escape is a registered action whose id the caller supplies, because the
+// registry refuses two actions with one id and a screen may hold two of these.
+export { Popover } from './Popover';
+export type { PopoverProps } from './Popover';
+
+// A day, with the relatives people actually mean and a way to say there is no date at all.
+// Generalised out of the issue due-date panel for the projects, initiatives and cycles that
+// had all settled for a raw `<input type="date">`.
+export { DatePicker, addDays, defaultRelatives, isoWeekdayOf } from './DatePicker';
+export type { DatePickerProps, DateRelative } from './DatePicker';
+
+// The group header list screens share. Nine of them grew their own, and each one lost either
+// `aria-expanded` or the fold that survives a reload.
+export { ListGroup } from './ListGroup';
+export type { ListGroupProps } from './ListGroup';
+
+// The chrome a screen is framed in: the trail that says where you are, the row of sections
+// it is divided into, the one-of-these control its list is scoped by, the standing message
+// across the top, the fold every detail panel is inside, and the pill a property is set
+// from. Each of these existed two or three times over before it was one thing, and each
+// copy had lost a different half of its accessibility.
+export { Banner } from './Banner';
+export type { BannerProps, BannerTone } from './Banner';
+
+export { Breadcrumb } from './Breadcrumb';
+export type { BreadcrumbItem, BreadcrumbProps } from './Breadcrumb';
+
+export { PropertyPill } from './PropertyPill';
+export type { PropertyPillProps } from './PropertyPill';
+
+export { Section } from './Section';
+export type { SectionProps } from './Section';
+
+export { SegmentedControl } from './SegmentedControl';
+export type {
+  SegmentedControlProps,
+  SegmentedControlVariant,
+  SegmentedOption,
+} from './SegmentedControl';
+
+export { Tabs } from './Tabs';
+export type { TabItem, TabsProps } from './Tabs';
+
+// The title a detail screen renames itself from. The issue screen had the only one, and the
+// project screen had a static heading — the same three properties (a draft that lives only
+// while the field has focus, a commit on blur, a flush for the exits that are not one) are
+// not worth writing twice.
+export { TitleField } from './TitleField';
+export type { TitleFieldProps, TitleHandle } from './TitleField';
+
+// Drawn here rather than imported from `features/issue/glyphs`, because a primitive may not
+// reach into the product. Only what the components above draw for themselves.
+export { ChevronGlyph } from './glyphs';
+export type { GlyphProps } from './glyphs';

@@ -6,18 +6,39 @@
  * had an empty milestone axis and no way to fill it. This is the missing half: list, add,
  * rename, retarget, remove.
  *
- * Each row states its own progress in words as well as in the bar, because a bar is a
- * length and a length is not a number anybody can read back to a colleague.
+ * The panel is a `Section`, so it folds like every other panel on a detail screen and adds
+ * from the "+" on its header rather than from a form standing permanently open at the
+ * bottom of the list. A form that is always there reads as something waiting to be filled
+ * in, on a list most projects finish with four rows in.
+ *
+ * Each row states its own progress in words as well as in the ring, because a ring is a
+ * length and a length is not a number anybody can read back to a colleague. Removing one
+ * asks first: a milestone carries the issues pinned to it, and until this it was the one
+ * destructive act in the product that happened on a single click with no undo behind it.
  */
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 
 import { useEngine } from '~/app/context';
-import { Button, Input } from '~/components';
+import {
+  Button,
+  ConfirmDialog,
+  DatePicker,
+  IconButton,
+  Input,
+  Menu,
+  Progress,
+  Section,
+  type MenuNode,
+} from '~/components';
+import { browserTimezone } from '~/features/locale';
+import { whenDay } from '~/features/time';
+import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 
+import { DotsGlyph, PlusGlyph } from '~/features/issue/glyphs';
 import { MilestoneGlyph } from '~/features/projects/glyphs';
 
 import { listProjectMilestones, type MilestoneRow } from './helpers';
@@ -34,17 +55,30 @@ interface MilestoneSectionProps {
 
 export function MilestoneSection({ projectId }: MilestoneSectionProps) {
   const engine = useEngine();
+  const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
-  const [targetDate, setTargetDate] = useState('');
+  const [targetDate, setTargetDate] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<UUID | null>(null);
+  const [removing, setRemoving] = useState<MilestoneRow | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const addDate = useMenuTrigger<HTMLButtonElement>('dialog');
+  const nameRef = useRef<HTMLInputElement>(null);
 
   const rows = useLiveQuery(
     (store) => listProjectMilestones(store, projectId),
     ['projectMilestone', 'issue', 'workflowState'],
     [projectId],
   );
+
+  const openAdd = () => {
+    setError(null);
+    setAdding(true);
+    // The "+" is the whole affordance, so the caret lands where the next word goes rather
+    // than leaving a form open that somebody still has to click into.
+    globalThis.requestAnimationFrame(() => nameRef.current?.focus());
+  };
 
   const onAdd = async (event: FormEvent) => {
     event.preventDefault();
@@ -60,10 +94,11 @@ export function MilestoneSection({ projectId }: MilestoneSectionProps) {
       await createProjectMilestone(engine, {
         projectId,
         name: trimmed,
-        ...(targetDate === '' ? null : { targetDate }),
+        ...(targetDate === null ? null : { targetDate }),
       });
       setName('');
-      setTargetDate('');
+      setTargetDate(null);
+      setAdding(false);
     } catch (failure) {
       setError(failure instanceof ApiError ? failure.message : 'That milestone was not created.');
     } finally {
@@ -71,76 +106,143 @@ export function MilestoneSection({ projectId }: MilestoneSectionProps) {
     }
   };
 
+  const confirmRemove = () => {
+    if (removing === null) return;
+    const { id } = removing.milestone;
+    if (editing === id) setEditing(null);
+    setRemoving(null);
+    deleteProjectMilestone(engine, id).catch((failure: unknown) => {
+      setRemoveError(
+        failure instanceof ApiError ? failure.message : 'That milestone was not removed.',
+      );
+    });
+  };
+
   return (
-    <section className={styles.section} aria-labelledby={`milestones-${projectId}`}>
-      <h2 className={styles.sectionTitle} id={`milestones-${projectId}`}>
-        Milestones
-      </h2>
-      {rows.length === 0 ? (
+    <Section
+      title="Milestones"
+      headingId={`milestones-${projectId}`}
+      count={rows.length === 0 ? undefined : rows.length}
+      className={styles.section}
+      action={
+        <IconButton
+          size="sm"
+          icon={<PlusGlyph />}
+          aria-label="New milestone"
+          tooltip="New milestone"
+          onClick={openAdd}
+        />
+      }
+    >
+      {rows.length === 0 && !adding ? (
         <p className={styles.empty}>No milestones yet. The first one is the next checkpoint.</p>
-      ) : (
+      ) : null}
+      {rows.length === 0 ? null : (
         <ul className={styles.list}>
-          {rows.map((row) =>
-            editing === row.milestone.id ? (
-              <li key={row.milestone.id} className={styles.row}>
+          {rows.map((row) => (
+            <li key={row.milestone.id} className={styles.row}>
+              {editing === row.milestone.id ? (
                 <MilestoneEdit row={row} onDone={() => setEditing(null)} />
-              </li>
-            ) : (
-              <li key={row.milestone.id} className={styles.row}>
-                <MilestoneReadout row={row} onEdit={() => setEditing(row.milestone.id)} />
-              </li>
-            ),
-          )}
+              ) : (
+                <MilestoneReadout
+                  row={row}
+                  onEdit={() => setEditing(row.milestone.id)}
+                  onRemove={() => {
+                    setRemoveError(null);
+                    setRemoving(row);
+                  }}
+                />
+              )}
+            </li>
+          ))}
         </ul>
       )}
-      <form className={styles.add} onSubmit={onAdd}>
-        <Input
-          label="Milestone"
-          className={styles.addName}
-          value={name}
-          placeholder="What is the next checkpoint?"
-          autoComplete="off"
-          onChange={(event) => {
-            setName(event.target.value);
-            if (error !== null) setError(null);
-          }}
-        />
-        <Input
-          label="Target date"
-          type="date"
-          value={targetDate}
-          onChange={(event) => setTargetDate(event.target.value)}
-        />
-        <Button type="submit" variant="secondary" disabled={saving}>
-          Add milestone
-        </Button>
-      </form>
+
+      {adding && (
+        <form className={styles.add} onSubmit={onAdd}>
+          <Input
+            ref={nameRef}
+            label="Milestone"
+            className={styles.addName}
+            value={name}
+            placeholder="What is the next checkpoint?"
+            autoComplete="off"
+            onChange={(event) => {
+              setName(event.target.value);
+              if (error !== null) setError(null);
+            }}
+          />
+          <Button {...addDate.props} variant="secondary">
+            {targetDate === null ? 'Target date' : whenDay(targetDate)}
+          </Button>
+          <DatePicker
+            open={addDate.open}
+            onClose={addDate.hide}
+            trigger={addDate.ref}
+            value={targetDate}
+            timezone={browserTimezone()}
+            actionId="milestone.closeAddPicker"
+            actionGroup="Projects"
+            label="Target date"
+            clearLabel="No target date"
+            onSelect={setTargetDate}
+          />
+          <Button type="submit" variant="secondary" disabled={saving}>
+            Add milestone
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={saving}
+            onClick={() => {
+              setAdding(false);
+              setError(null);
+            }}
+          >
+            Cancel
+          </Button>
+        </form>
+      )}
       {error === null ? null : (
         <p className={styles.error} role="alert">
           {error}
         </p>
       )}
-    </section>
+      {removeError === null ? null : (
+        <p className={styles.error} role="alert">
+          {removeError}
+        </p>
+      )}
+
+      <ConfirmDialog
+        open={removing !== null}
+        title={`Remove ${removing?.milestone.name ?? 'this milestone'}?`}
+        consequence={`The checkpoint leaves the project and its timeline. Issues pinned to it keep their history and stop belonging to a milestone.`}
+        confirmLabel="Remove milestone"
+        destructive
+        onConfirm={confirmRemove}
+        onClose={() => setRemoving(null)}
+      />
+    </Section>
   );
 }
 
 interface ReadoutProps {
   readonly row: MilestoneRow;
   readonly onEdit: () => void;
+  readonly onRemove: () => void;
 }
 
-function MilestoneReadout({ row, onEdit }: ReadoutProps) {
-  const engine = useEngine();
-  const [error, setError] = useState<string | null>(null);
+function MilestoneReadout({ row, onEdit, onRemove }: ReadoutProps) {
+  const menu = useMenuTrigger();
   const { milestone, percent, total } = row;
 
   const progress = total === 0 ? 'No issues yet' : `${percent}% · ${row.done} of ${total} issues`;
 
-  const onDelete = () => {
-    deleteProjectMilestone(engine, milestone.id).catch((failure: unknown) => {
-      setError(failure instanceof ApiError ? failure.message : 'That milestone was not removed.');
-    });
-  };
+  const items: MenuNode[] = [
+    { id: 'edit', label: 'Edit milestone', onSelect: onEdit },
+    { id: 'remove', label: 'Remove milestone', danger: true, onSelect: onRemove },
+  ];
 
   return (
     <>
@@ -153,41 +255,32 @@ function MilestoneReadout({ row, onEdit }: ReadoutProps) {
           <MilestoneGlyph />
         </span>
         <span className={styles.name}>{milestone.name}</span>
-        {/* The current focus says so in a word. The bar's colour carries the same fact and
+        {/* The current focus says so in a word. The ring's colour carries the same fact and
             is not allowed to be the only thing that carries it. */}
         {row.current && <span className={styles.current}>Current</span>}
         <span className={styles.when}>
-          {milestone.targetDate === undefined ? 'No target date' : formatDay(milestone.targetDate)}
+          {milestone.targetDate === undefined ? 'No target date' : whenDay(milestone.targetDate)}
         </span>
-        <Button variant="ghost" size="sm" onClick={onEdit}>
-          Edit
-        </Button>
-        <Button
-          variant="ghost"
+        <Progress percent={percent} label={milestone.name} detail={progress} size="sm" />
+        {/* One menu rather than two standing buttons: a list of checkpoints is read far more
+            often than it is edited, and "Edit  Remove" on every row is a row of commands
+            with the content squeezed between them. */}
+        <IconButton
+          {...menu.props}
           size="sm"
-          onClick={onDelete}
-          aria-label={`Remove milestone ${milestone.name}`}
-        >
-          Remove
-        </Button>
-      </div>
-      <div
-        className={styles.track}
-        role="img"
-        aria-label={`${milestone.name}: ${progress}`}
-        title={progress}
-      >
-        <span
-          className={`${styles.fill ?? ''} ${row.current ? (styles.fillCurrent ?? '') : ''}`.trim()}
-          style={{ width: `${percent}%` }}
+          icon={<DotsGlyph />}
+          aria-label={`Actions for ${milestone.name}`}
+        />
+        <Menu
+          open={menu.open}
+          onClose={menu.hide}
+          trigger={menu.ref}
+          label={`Actions for ${milestone.name}`}
+          placement="bottom-end"
+          items={items}
         />
       </div>
       <span className={styles.progressText}>{progress}</span>
-      {error === null ? null : (
-        <p className={styles.error} role="alert">
-          {error}
-        </p>
-      )}
     </>
   );
 }
@@ -200,9 +293,10 @@ interface EditProps {
 function MilestoneEdit({ row, onDone }: EditProps) {
   const engine = useEngine();
   const [name, setName] = useState(row.milestone.name);
-  const [targetDate, setTargetDate] = useState(row.milestone.targetDate ?? '');
+  const [targetDate, setTargetDate] = useState<string | null>(row.milestone.targetDate ?? null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const date = useMenuTrigger<HTMLButtonElement>('dialog');
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -219,7 +313,7 @@ function MilestoneEdit({ row, onDone }: EditProps) {
         name: trimmed,
         // An emptied date field is a request to take the date off, which the API spells as
         // its own flag — see `ProjectMilestoneFields`.
-        targetDate: targetDate === '' ? null : targetDate,
+        targetDate,
       });
       onDone();
     } catch (failure) {
@@ -237,11 +331,20 @@ function MilestoneEdit({ row, onDone }: EditProps) {
         autoComplete="off"
         onChange={(event) => setName(event.target.value)}
       />
-      <Input
-        label="Target date"
-        type="date"
+      <Button {...date.props} variant="secondary">
+        {targetDate === null ? 'Target date' : whenDay(targetDate)}
+      </Button>
+      <DatePicker
+        open={date.open}
+        onClose={date.hide}
+        trigger={date.ref}
         value={targetDate}
-        onChange={(event) => setTargetDate(event.target.value)}
+        timezone={browserTimezone()}
+        actionId="milestone.closeEditPicker"
+        actionGroup="Projects"
+        label="Target date"
+        clearLabel="No target date"
+        onSelect={setTargetDate}
       />
       <div className={styles.editActions}>
         <Button type="submit" variant="primary" size="sm" disabled={saving}>
@@ -258,13 +361,4 @@ function MilestoneEdit({ row, onDone }: EditProps) {
       )}
     </form>
   );
-}
-
-function formatDay(day: string): string {
-  return new Date(`${day.slice(0, 10)}T00:00:00.000Z`).toLocaleDateString(undefined, {
-    timeZone: 'UTC',
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
 }

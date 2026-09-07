@@ -3,11 +3,14 @@ import { describe, expect, it } from 'vitest';
 import { Store, type Change, type Notification } from '~/store';
 
 import {
-  DEFAULT_INBOX_DISPLAY,
+  dayGroupName,
   describeEvent,
+  groupByDay,
   matchesInboxQuery,
   notificationHref,
-  visibleNotificationIds,
+  stepTab,
+  tabCounts,
+  tabNotificationIds,
 } from './inbox';
 
 const WORKSPACE = 'w1';
@@ -47,25 +50,91 @@ function storeWith(...rows: Notification[]): Store {
   return store;
 }
 
-describe('visibleNotificationIds', () => {
-  it('hides still-snoozed rows unless Show snoozed is on', () => {
+/**
+ * The four tabs, which replaced a pair of checkboxes.
+ *
+ * The pair could say "everything" and "only unread" and had no way to ask the two questions
+ * the tabs exist for: what is still asleep, and what have I already dealt with.
+ */
+describe('tabNotificationIds', () => {
+  it('keeps a still-snoozed row out of every tab but Snoozed', () => {
     const store = storeWith(
       row('awake'),
       row('asleep', { snoozedUntil: '2026-08-16T18:00:00.000Z' }),
     );
-    expect(visibleNotificationIds(store, NOW, DEFAULT_INBOX_DISPLAY)).toEqual(['awake']);
-    expect(visibleNotificationIds(store, NOW, { showRead: true, showSnoozed: true })).toEqual([
-      'awake',
-      'asleep',
-    ]);
+    expect(tabNotificationIds(store, NOW, 'inbox')).toEqual(['awake']);
+    expect(tabNotificationIds(store, NOW, 'unread')).toEqual(['awake']);
+    expect(tabNotificationIds(store, NOW, 'snoozed')).toEqual(['asleep']);
+    expect(tabNotificationIds(store, NOW, 'done')).toEqual([]);
   });
 
-  it('hides read rows when Show read is off', () => {
+  it('splits read from unread, and Inbox holds both', () => {
     const store = storeWith(row('unread'), row('read', { readAt: AT }));
-    expect(visibleNotificationIds(store, NOW, DEFAULT_INBOX_DISPLAY)).toEqual(['unread', 'read']);
-    expect(visibleNotificationIds(store, NOW, { showRead: false, showSnoozed: false })).toEqual([
-      'unread',
+    expect(tabNotificationIds(store, NOW, 'inbox')).toEqual(['unread', 'read']);
+    expect(tabNotificationIds(store, NOW, 'unread')).toEqual(['unread']);
+    expect(tabNotificationIds(store, NOW, 'done')).toEqual(['read']);
+  });
+
+  it('wakes a snoozed row into the list when its moment has passed', () => {
+    const store = storeWith(row('was-asleep', { snoozedUntil: '2026-08-16T11:30:00.000Z' }));
+    expect(tabNotificationIds(store, Date.parse('2026-08-16T11:00:00.000Z'), 'snoozed')).toEqual([
+      'was-asleep',
     ]);
+    expect(tabNotificationIds(store, NOW, 'inbox')).toEqual(['was-asleep']);
+  });
+});
+
+describe('tabCounts', () => {
+  it('counts what each tab would draw, from one walk', () => {
+    const store = storeWith(
+      row('unread'),
+      row('read', { readAt: AT }),
+      row('asleep', { snoozedUntil: '2026-08-16T18:00:00.000Z' }),
+    );
+    expect(tabCounts(store, NOW)).toEqual({ inbox: 2, unread: 1, snoozed: 1, done: 1 });
+  });
+
+  it('agrees with the rows each tab actually holds', () => {
+    const store = storeWith(
+      row('a'),
+      row('b', { readAt: AT }),
+      row('c', { snoozedUntil: '2026-08-16T18:00:00.000Z' }),
+      row('d', { readAt: AT, snoozedUntil: '2026-08-16T18:00:00.000Z' }),
+    );
+    const counts = tabCounts(store, NOW);
+    for (const tab of ['inbox', 'unread', 'snoozed', 'done'] as const) {
+      expect(tabNotificationIds(store, NOW, tab).length).toBe(counts[tab]);
+    }
+  });
+});
+
+describe('stepTab', () => {
+  it('wraps in both directions, so the two chords cannot dead-end', () => {
+    expect(stepTab('inbox', 1)).toBe('unread');
+    expect(stepTab('done', 1)).toBe('inbox');
+    expect(stepTab('inbox', -1)).toBe('done');
+  });
+});
+
+describe('groupByDay', () => {
+  it('cuts a newest-first run into days without reordering it', () => {
+    const groups = groupByDay(
+      [
+        { id: 'a', createdAt: '2026-08-16T11:00:00.000Z' },
+        { id: 'b', createdAt: '2026-08-16T09:00:00.000Z' },
+        { id: 'c', createdAt: '2026-08-15T22:00:00.000Z' },
+      ],
+      'UTC',
+      NOW,
+    );
+    expect(groups.map((group) => group.key)).toEqual(['2026-08-16', '2026-08-15']);
+    expect(groups.map((group) => group.name)).toEqual(['Today', 'Yesterday']);
+    expect(groups[0]?.rows.map((r) => r.id)).toEqual(['a', 'b']);
+    expect(groups[1]?.rows.map((r) => r.id)).toEqual(['c']);
+  });
+
+  it('names anything older by its date rather than by arithmetic the reader has to undo', () => {
+    expect(dayGroupName('2026-08-10', 'UTC', NOW)).toBe('Mon 10 Aug');
   });
 });
 

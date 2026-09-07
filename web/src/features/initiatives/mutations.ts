@@ -4,6 +4,7 @@ import {
   type EntityOf,
   type InitiativeStatus,
   type StateCategory,
+  type TimeframeGranularity,
   type UUID,
 } from '~/store';
 import { ApiError } from '~/sync/api';
@@ -22,10 +23,23 @@ import {
 type Initiative = EntityOf<'initiative'>;
 type InitiativeProject = EntityOf<'initiativeProject'>;
 
+/**
+ * Everything `CreateInitiativeInput` accepts, which is everything the create dialog offers.
+ *
+ * It used to be name, description, owner and parent — three fields short of the input the
+ * API has always taken — so a status, a priority, a target date or a lead team chosen in the
+ * dialog would have been dropped on the way to the wire. Labels are the exception and are
+ * not here: they are link rows rather than columns, and are applied after the id resolves.
+ */
 export interface NewInitiative {
   readonly name: string;
   readonly description?: string | undefined;
+  readonly status?: InitiativeStatus | undefined;
+  readonly priority?: number | undefined;
   readonly ownerId?: UUID | undefined;
+  readonly leadTeamId?: UUID | undefined;
+  readonly targetDate?: string | undefined;
+  readonly targetDateGranularity?: TimeframeGranularity | undefined;
   readonly parentInitiativeId?: UUID | undefined;
 }
 
@@ -38,10 +52,20 @@ export async function createInitiative(engine: SyncEngine, input: NewInitiative)
     workspaceId: store.workspaceId,
     name: input.name,
     description: input.description ?? '',
-    status: 'planned',
-    priority: 0,
+    // The same defaults the server applies, so the row the list draws on the first frame is
+    // the row the stream sends back — a provisional that said "planned" while the dialog set
+    // "active" would move between statuses on its own a second later.
+    status: input.status ?? 'planned',
+    priority: input.priority ?? 0,
     sortOrder: 'z',
     ...(input.ownerId === undefined ? null : { ownerId: input.ownerId }),
+    ...(input.leadTeamId === undefined ? null : { leadTeamId: input.leadTeamId }),
+    ...(input.targetDate === undefined
+      ? null
+      : {
+          targetDate: input.targetDate,
+          targetDateGranularity: input.targetDateGranularity ?? 'day',
+        }),
     createdAt: now,
     updatedAt: now,
   };
@@ -54,6 +78,15 @@ export async function createInitiative(engine: SyncEngine, input: NewInitiative)
           name: input.name,
           description: input.description ?? '',
           ownerId: input.ownerId,
+          ...(input.status === undefined ? null : { status: toWire(input.status) }),
+          ...(input.priority === undefined ? null : { priority: input.priority }),
+          ...(input.leadTeamId === undefined ? null : { leadTeamId: input.leadTeamId }),
+          ...(input.targetDate === undefined
+            ? null
+            : {
+                targetDate: input.targetDate,
+                targetDateGranularity: toWire(input.targetDateGranularity ?? 'day'),
+              }),
           ...(input.parentInitiativeId === undefined
             ? null
             : { parentInitiativeId: input.parentInitiativeId }),
@@ -80,6 +113,21 @@ export async function createInitiative(engine: SyncEngine, input: NewInitiative)
   }
 }
 
+/**
+ * The five statuses, in the order a person reads them: proposed through to cancelled.
+ *
+ * Exported because every surface that offers the choice has to offer the same five in the
+ * same order — the shell's status pill, the rail, the create dialog — and three private
+ * copies of a list is how one of them ends up missing "canceled".
+ */
+export const INITIATIVE_STATUSES: readonly InitiativeStatus[] = [
+  'proposed',
+  'planned',
+  'active',
+  'completed',
+  'canceled',
+];
+
 export interface InitiativeFields {
   readonly name?: string | undefined;
   readonly description?: string | undefined;
@@ -88,6 +136,13 @@ export interface InitiativeFields {
   readonly ownerId?: UUID | null | undefined;
   readonly leadTeamId?: UUID | null | undefined;
   readonly targetDate?: string | null | undefined;
+  /**
+   * How precisely the target date is meant — a day, a month, a quarter, a half or a year.
+   * It used to be pinned to `'day'` here while the create input took the real thing, so a
+   * quarter chosen in the dialog became a day the first time anybody touched the date on
+   * the detail screen. Ignored without a `targetDate`, which is the only thing it qualifies.
+   */
+  readonly targetDateGranularity?: TimeframeGranularity | undefined;
 }
 
 export async function updateInitiative(
@@ -115,7 +170,10 @@ export async function updateInitiative(
       ? null
       : fields.targetDate === null
         ? { targetDate: undefined, targetDateGranularity: undefined }
-        : { targetDate: fields.targetDate, targetDateGranularity: 'day' as const }),
+        : {
+            targetDate: fields.targetDate,
+            targetDateGranularity: fields.targetDateGranularity ?? 'day',
+          }),
     updatedAt: new Date().toISOString(),
   };
 
@@ -143,7 +201,10 @@ export async function updateInitiative(
             ? null
             : fields.targetDate === null
               ? { clearTarget: true }
-              : { targetDate: fields.targetDate, targetDateGranularity: toWire('day') }),
+              : {
+                  targetDate: fields.targetDate,
+                  targetDateGranularity: toWire(fields.targetDateGranularity ?? 'day'),
+                }),
         },
       },
       optimistic: [{ type: 'initiative', id, before, after }],

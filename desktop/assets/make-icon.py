@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Renders the Polaris app icon.
+"""Renders the Polaris desktop app icon.
+
+The geometry is not defined here. `web/src/components/Logo.tsx` draws the mark on a 40x40
+grid and is the source of truth for it; `scripts/polaris_mark.py` is that drawing as numbers,
+and this script imports it. It used to carry its own star — a different tip length, a waist
+pulled to a third of the canonical depth, no orbit and no rays — which is how the product
+ended up with two drawings of "the mark" in one directory. If the star needs to change, it
+changes in Logo.tsx, then in polaris_mark.py, then this is re-run.
 
 Drawn in Pillow rather than authored as an SVG and rasterised, and that is not the obvious
 choice, so: the first version was an SVG with three gradients, and ImageMagick's built-in
@@ -16,15 +23,29 @@ The mark: Polaris is the north star — the fixed point you navigate by. A four-
 with concave sides, because a five-pointed one turns to mush below about 24px, and this
 icon has to survive a Windows taskbar and a favicon.
 
+## The orbit and the rays below 64px
+
+The orbit is a 1-unit stroke and each ray is 1.4 units on a 40-unit grid, inside a mark
+inset to 82% of the square. At 32px that is a third of a pixel and a half of one: they do
+not render as hairlines, they render as grey haze around the star, which is worse than not
+having them. So the icon is built twice — with the orbit and rays for 64px and up, without
+them for 48, 32 and 16 — and the small sizes are the star alone, which is what the previous
+icon was and what survives a taskbar. This is a deliberate divergence with a threshold
+written down, not the silent kind that produced the second logo.
+
     python3 make-icon.py        # writes icon.png, icon.icns, icon.ico
 """
 
+import io
 import pathlib
-import shutil
-import subprocess
+import struct
 import sys
 
 from PIL import Image, ImageDraw, ImageFilter
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / 'scripts'))
+
+import polaris_mark as mark  # noqa: E402
 
 HERE = pathlib.Path(__file__).parent
 
@@ -32,33 +53,45 @@ SIZE = 1024
 SS = 4  # supersampling factor
 S = SIZE * SS
 
-# The product's own accent ramp, from web/src/styles/tokens.css. The icon and the interface
-# are the same blue rather than two blues nobody quite matched.
-GROUND_TOP = (26, 29, 34)      # --color-neutral-900
-GROUND_BOTTOM = (14, 16, 19)   # --color-neutral-950
-STAR_LIGHT = (122, 131, 230)   # --color-accent-400
-STAR_DARK = (75, 86, 186)      # --color-accent-600
-GLOW = (94, 106, 210)          # --color-accent-500
+#: Below this, the icon is rendered without the orbit and the rays. See the header.
+THIN_DETAIL_MIN = 64
 
 # 22.4% of the width: the macOS squircle proportion. Close enough that the icon does not
 # look like a different shape sitting next to system apps.
-RADIUS = int(0.224 * S)
+RADIUS = int(mark.SQUIRCLE * S)
 
 
-def vertical_gradient(size, top, bottom):
-    """A one-pixel-wide column stretched, which is both exact and instant."""
-    column = Image.new('RGB', (1, size), top)
-    px = column.load()
-    for y in range(size):
-        t = y / max(size - 1, 1)
-        px[0, y] = tuple(round(a + (b - a) * t) for a, b in zip(top, bottom))
-    return column.resize((size, size), Image.NEAREST)
+#: The .icns entries, as (four-character type, pixel size). Every one of these takes a PNG
+#: payload — macOS has read PNG-in-icns since 10.7, and the packed-RGB formats it replaced
+#: are the reason this used to need a macOS-only tool at all.
+ICNS_ENTRIES = (
+    (b'icp4', 16), (b'icp5', 32), (b'ic11', 32), (b'ic12', 64),
+    (b'ic07', 128), (b'ic13', 256), (b'ic08', 256), (b'ic14', 512),
+    (b'ic09', 512), (b'ic10', 1024),
+)
 
 
-def rounded_mask(size, radius):
-    mask = Image.new('L', (size, size), 0)
-    ImageDraw.Draw(mask).rounded_rectangle([0, 0, size - 1, size - 1], radius, fill=255)
-    return mask
+def write_icns(path, frame):
+    """Write an .icns, without iconutil.
+
+    This used to shell out to `iconutil`, which ships with Xcode and exists nowhere else, so
+    the .icns could only be rebuilt on a Mac — and the check was a skip, which meant every
+    run on Linux or CI left the old file in place claiming to be current. That is how a
+    stale icon outlives the mark it was drawn from. The container is a 'icns' magic, a
+    big-endian total length, then one typed, length-prefixed chunk per size; the payload is
+    an ordinary PNG. Writing it here makes the icon reproducible on any machine that can run
+    the rest of this script.
+
+    `frame(px)` returns the image to use at that size.
+    """
+    chunks = []
+    for kind, px in ICNS_ENTRIES:
+        buf = io.BytesIO()
+        frame(px).save(buf, format='PNG')
+        data = buf.getvalue()
+        chunks.append(kind + struct.pack('>I', len(data) + 8) + data)
+    body = b''.join(chunks)
+    path.write_bytes(b'icns' + struct.pack('>I', len(body) + 8) + body)
 
 
 def radial_glow(size, colour, cx, cy, r, peak):
@@ -78,85 +111,29 @@ def radial_glow(size, colour, cx, cy, r, peak):
     return layer, glow
 
 
-def quad(p0, p1, p2, steps=96):
-    """Points along a quadratic bezier. The star's concave sides are four of these."""
-    out = []
-    for i in range(steps + 1):
-        t = i / steps
-        u = 1 - t
-        out.append((
-            u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0],
-            u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1],
-        ))
-    return out
+def build(thin_detail=True):
+    ground = mark.vertical_gradient(S, mark.GROUND_TOP, mark.GROUND_BOTTOM)
 
+    glow_layer, glow_mask = radial_glow(S, mark.ACCENT, S * 0.5, S * 0.46, S * 0.42, 95)
+    ground = Image.composite(glow_layer, ground, glow_mask.point(lambda v: v // 3))
 
-def star_points():
-    """
-    A four-pointed star, drawn as four concave quadratic sides.
-
-    The control points decide everything. A straight line between two adjacent tips would
-    put its midpoint at 0.71 x tip from the centre; anything near that value produces a
-    diamond, which is what the first attempt drew. Pulling the controls right in to 0.13 x
-    tip is what makes the sides concave enough to read as a star at 32px.
-    """
-    c = S / 2
-    tip = 0.345 * S      # distance from centre to a point
-    waist = 0.045 * S    # how far the control points pull the sides in
-
-    north = (c, c - tip)
-    east = (c + tip, c)
-    south = (c, c + tip)
-    west = (c - tip, c)
-
-    pts = []
-    pts += quad(north, (c + waist, c - waist), east)
-    pts += quad(east, (c + waist, c + waist), south)
-    pts += quad(south, (c - waist, c + waist), west)
-    pts += quad(west, (c - waist, c - waist), north)
-    return pts
-
-
-def diagonal_gradient(size, a, b):
-    """Top-left light, as every physical object is. Flat fills read as stickers."""
-    grad = Image.new('RGB', (size, size))
-    px = grad.load()
-    # Built at low resolution and scaled: a per-pixel loop over 4096² is minutes, and the
-    # gradient has no detail that survives the downsample anyway.
-    small = 64
-    tmp = Image.new('RGB', (small, small))
-    tpx = tmp.load()
-    for y in range(small):
-        for x in range(small):
-            t = (x / (small - 1) * 0.45) + (y / (small - 1) * 0.55)
-            tpx[x, y] = tuple(round(p + (q - p) * t) for p, q in zip(a, b))
-    grad = tmp.resize((size, size), Image.BICUBIC)
-    return grad
-
-
-def build():
-    ground = vertical_gradient(S, GROUND_TOP, GROUND_BOTTOM)
-
-    glow_layer, glow_mask = radial_glow(S, GLOW, S * 0.5, S * 0.46, S * 0.42, 95)
-    ground = Image.composite(
-        Image.blend(ground, glow_layer, 0.55), ground, glow_mask,
-    ) if False else Image.composite(glow_layer, ground, glow_mask.point(lambda v: v // 3))
-
-    # The star.
-    star_mask = Image.new('L', (S, S), 0)
-    ImageDraw.Draw(star_mask).polygon(star_points(), fill=255)
-    star = diagonal_gradient(S, STAR_LIGHT, STAR_DARK)
-    ground = Image.composite(star, ground, star_mask)
+    ground = mark.draw_mark(
+        ground, ground=mark.GROUND_BOTTOM, thin_detail=thin_detail,
+    )
 
     # A single highlight on the upper-right limb: what stops the star reading as a flat
-    # vector shape, without adding anything that disappears at 16px.
-    c = S / 2
-    tip = 0.345 * S
-    waist = 0.045 * S
-    limb = quad((c, c - tip), (c + waist, c - waist), (c + tip, c))
-    limb += [(c + tip * 0.30, c - tip * 0.30), (c, c - tip)]
+    # vector shape, without adding anything that disappears at 16px. It is the star's own
+    # north-east side, so it is cut from the canonical outline rather than redrawn.
+    quarter = len(mark.star_outline()) // 4
+    limb = mark.star_outline()[: quarter + 1]
+    to_px = [
+        (S / 2 + (x - mark.CENTRE) * S * mark.MARK_SCALE / mark.GRID,
+         S / 2 + (y - mark.CENTRE) * S * mark.MARK_SCALE / mark.GRID)
+        for x, y in limb
+    ]
+    to_px.append((S / 2, S / 2))
     hl_mask = Image.new('L', (S, S), 0)
-    ImageDraw.Draw(hl_mask).polygon(limb, fill=56)
+    ImageDraw.Draw(hl_mask).polygon(to_px, fill=48)
     ground = Image.composite(Image.new('RGB', (S, S), (255, 255, 255)), ground, hl_mask)
 
     # The inner edge, a hairline lighter than the ground. Icons without one look pasted
@@ -168,40 +145,28 @@ def build():
     ground = Image.composite(Image.new('RGB', (S, S), (255, 255, 255)), ground, edge)
 
     icon = ground.convert('RGBA')
-    icon.putalpha(rounded_mask(S, RADIUS))
+    icon.putalpha(mark.rounded_mask(S, RADIUS))
     return icon.resize((SIZE, SIZE), Image.LANCZOS)
 
 
 def main():
     icon = build()
+    plain = build(thin_detail=False)
     icon.save(HERE / 'icon.png')
 
-    # macOS wants an .icns built from a named iconset; Windows wants a multi-resolution
-    # .ico. Both are generated here rather than by electron-builder so that the small sizes
-    # are downsampled from this render with LANCZOS instead of from whatever the packager
-    # picks — the 16px version is the one people actually look at all day.
-    iconset = HERE / 'polaris.iconset'
-    iconset.mkdir(exist_ok=True)
-    for base in (16, 32, 128, 256, 512):
-        icon.resize((base, base), Image.LANCZOS).save(iconset / f'icon_{base}x{base}.png')
-        icon.resize((base * 2, base * 2), Image.LANCZOS).save(iconset / f'icon_{base}x{base}@2x.png')
-    # iconutil ships with Xcode and exists nowhere else, so the .icns is buildable only on
-    # macOS. The Linux and Windows runners need the .png and the .ico this script also
-    # writes, and electron-builder never reads an .icns on those platforms — so a missing
-    # iconutil is a skip, not a failure. It used to be `check=True` unconditionally, which
-    # failed the Desktop workflow on two of its three runners.
-    if shutil.which('iconutil'):
-        subprocess.run(
-            ['iconutil', '-c', 'icns', str(iconset), '-o', str(HERE / 'icon.icns')], check=True,
-        )
-    else:
-        print('iconutil not found — skipping icon.icns (macOS-only artefact)')
-    for f in iconset.iterdir():
-        f.unlink()
-    iconset.rmdir()
+    def at(px):
+        return (icon if px >= THIN_DETAIL_MIN else plain).resize((px, px), Image.LANCZOS)
+
+    # macOS wants an .icns; Windows wants a multi-resolution .ico. Both are generated here
+    # rather than by electron-builder so that the small sizes are downsampled from this
+    # render with LANCZOS instead of from whatever the packager picks — the 16px version is
+    # the one people actually look at all day.
+    write_icns(HERE / 'icon.icns', at)
 
     sizes = [(s, s) for s in (256, 128, 64, 48, 32, 16)]
-    icon.save(HERE / 'icon.ico', sizes=sizes)
+    # Pillow builds an .ico by downsampling the image it is given, which would put the thin
+    # detail back into the 16px frame. Each frame is rendered from the right source instead.
+    icon.save(HERE / 'icon.ico', sizes=sizes, append_images=[at(s) for s, _ in sizes])
 
     print('wrote icon.png, icon.icns, icon.ico')
 

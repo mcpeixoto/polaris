@@ -782,7 +782,8 @@ export interface Favorite {
   readonly updatedAt: Timestamp;
 }
 
-export type FavoriteKind = 'view' | 'team' | 'issue' | 'label' | 'folder';
+export type FavoriteKind =
+  'view' | 'team' | 'issue' | 'label' | 'folder' | 'project' | 'initiative' | 'cycle' | 'document';
 
 export interface IssueTemplate {
   readonly id: UUID;

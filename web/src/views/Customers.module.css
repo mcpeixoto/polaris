@@ -49,7 +49,7 @@
 
 .row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 12ch 16ch 8ch;
+  grid-template-columns: minmax(0, 1fr) 12ch 10ch 16ch 8ch;
   align-items: center;
   gap: var(--space-3);
   height: var(--row-height);
@@ -94,6 +94,7 @@
 }
 
 .status,
+.tier,
 .owner,
 .ownerMuted,
 .count {
@@ -116,4 +117,24 @@
 
 .count {
   text-align: right;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.search {
+  flex: 1;
+  min-width: 0;
+  max-width: 32ch;
+}
+
+.cursorItem .row {
+  background: var(--bg-hover);
+  box-shadow: inset 2px 0 0 var(--accent);
 }

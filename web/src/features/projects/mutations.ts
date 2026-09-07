@@ -8,6 +8,8 @@
  */
 
 import { toWire } from '~/gql/enums';
+import { addInitiativeProject } from '~/features/initiatives/mutations';
+import { addProjectLabel } from '~/features/project-labels/mutations';
 import {
   uuidv7,
   type DateOnly,
@@ -26,6 +28,8 @@ import {
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
+import { ARCHIVE_PROJECT } from '~/features/archive/operations';
+
 import {
   ADD_PROJECT_DEPENDENCY,
   ADD_PROJECT_MEMBER,
@@ -33,7 +37,9 @@ import {
   ARCHIVE_PROJECT_STATUS,
   CREATE_PROJECT,
   CREATE_PROJECT_STATUS,
+  DELETE_PROJECT,
   REMOVE_PROJECT_DEPENDENCY,
+  REMOVE_PROJECT_MEMBER,
   UPDATE_PROJECT,
   UPDATE_PROJECT_STATUS,
 } from './operations';
@@ -50,6 +56,22 @@ export interface NewProject {
   readonly startDate?: DateOnly | undefined;
   readonly targetDate?: DateOnly | undefined;
   readonly projectTemplateId?: UUID | undefined;
+  readonly icon?: string | undefined;
+  readonly color?: string | undefined;
+  readonly priority?: number | undefined;
+  /** Everybody on it besides the lead. `CreateProjectInput.memberIds` writes the rows. */
+  readonly memberIds?: readonly UUID[] | undefined;
+  /**
+   * Initiatives and labels the composer set, which the create input does not carry.
+   *
+   * Everything above goes on `CreateProjectInput` and lands in one round trip. These two
+   * are link tables with their own mutations, so they are written after the id comes back
+   * — and deliberately not awaited into the caller's failure path: a project that exists
+   * without the label somebody picked is a project they can label in one click, while a
+   * project thrown away because a label link was refused is work they have to retype.
+   */
+  readonly initiativeIds?: readonly UUID[] | undefined;
+  readonly labelIds?: readonly UUID[] | undefined;
 }
 
 export async function createProject(engine: SyncEngine, input: NewProject): Promise<UUID> {
@@ -72,9 +94,10 @@ export async function createProject(engine: SyncEngine, input: NewProject): Prom
     // the optimistic row changed colour the moment the delta landed, and a copy taken here
     // freezes while the status it was copied from goes on moving. Screens that draw the
     // mark fall back to a token when this is empty — see ProjectShell.module.css.
-    color: '',
+    ...(input.icon === undefined || input.icon === '' ? null : { icon: input.icon }),
+    color: input.color ?? '',
     statusId,
-    priority: 0,
+    priority: input.priority ?? 0,
     leadId: input.leadId,
     // The lead is a decision about who runs this; the creator is a fact about who filed
     // it. Recording the lead as the creator meant a project handed to somebody else was
@@ -119,6 +142,14 @@ export async function createProject(engine: SyncEngine, input: NewProject): Prom
             ? null
             : { description: input.description }),
           teamIds: [...input.teamIds],
+          ...(input.memberIds === undefined || input.memberIds.length === 0
+            ? null
+            : { memberIds: [...input.memberIds] }),
+          ...(input.icon === undefined || input.icon === '' ? null : { icon: input.icon }),
+          ...(input.color === undefined || input.color === '' ? null : { color: input.color }),
+          ...(input.priority === undefined || input.priority === 0
+            ? null
+            : { priority: input.priority }),
           ...(input.leadId === undefined ? null : { leadId: input.leadId }),
           ...(input.statusId === undefined ? null : { statusId: input.statusId }),
           ...(input.startDate === undefined
@@ -152,10 +183,39 @@ export async function createProject(engine: SyncEngine, input: NewProject): Prom
         match: ['name'],
       },
     });
-    return data.createProject.project.id;
+    const id = data.createProject.project.id;
+    await linkProject(engine, id, input);
+    return id;
   } catch (error) {
     if (error instanceof ApiError && error.isOffline) return provisional.id;
     throw error;
+  }
+}
+
+/**
+ * The two properties the create input does not carry: labels and initiatives.
+ *
+ * They are link tables with their own mutations, so they can only be written once the
+ * project has a real id. Each one is attempted on its own and a refusal is swallowed: the
+ * project is already created and already on screen, and letting a rejected label link throw
+ * out of `createProject` would leave the dialog reporting a failure for work that succeeded
+ * — and, because the dialog keeps the only copy of what was typed, inviting the user to
+ * file it a second time.
+ */
+async function linkProject(engine: SyncEngine, projectId: UUID, input: NewProject): Promise<void> {
+  for (const labelId of input.labelIds ?? []) {
+    try {
+      await addProjectLabel(engine, projectId, labelId);
+    } catch {
+      // Left unsaid on purpose: see above. The label is one click away on the project.
+    }
+  }
+  for (const initiativeId of input.initiativeIds ?? []) {
+    try {
+      await addInitiativeProject(engine, initiativeId, projectId);
+    } catch {
+      // As above.
+    }
   }
 }
 
@@ -347,6 +407,59 @@ export async function addProjectMember(
       path: ['addProjectMember', 'projectMember'],
       match: ['projectId', 'userId'],
     },
+  });
+}
+
+/**
+ * Takes somebody off the project.
+ *
+ * The row is found by the pair rather than held by the caller: membership arrives from the
+ * server as people are given work, so the id of a person's `projectMember` row is not
+ * something a rail listing avatars ever had.
+ */
+export async function removeProjectMember(
+  engine: SyncEngine,
+  projectId: UUID,
+  userId: UUID,
+): Promise<void> {
+  const store = engine.store;
+  let found: EntityOf<'projectMember'> | undefined;
+  for (const id of store.projectMemberIdsFor(projectId)) {
+    const row = store.projectMembers.get(id);
+    if (row !== undefined && row.userId === userId) {
+      found = row;
+      break;
+    }
+  }
+  if (found === undefined) return;
+
+  await engine.mutate({
+    mutation: REMOVE_PROJECT_MEMBER,
+    variables: { projectId, userId },
+    optimistic: [{ type: 'projectMember', id: found.id, before: found, after: null }],
+  });
+}
+
+/**
+ * Takes the project out of every list, keeping it restorable from the team's archives.
+ *
+ * No optimistic patch, for the reason `unarchiveProject` has none in the other direction:
+ * archiving is a server-side sweep over the project's rows, and the delta that removes them
+ * is the honest version of what happened.
+ */
+export async function archiveProject(engine: SyncEngine, id: UUID): Promise<void> {
+  await engine.mutate({ mutation: ARCHIVE_PROJECT, variables: { id, archived: true } });
+}
+
+/** Deletes the project. Its issues survive and stop belonging to one. */
+export async function deleteProject(engine: SyncEngine, id: UUID): Promise<void> {
+  const before = engine.store.get('project', id);
+  await engine.mutate({
+    mutation: DELETE_PROJECT,
+    variables: { id },
+    ...(before === undefined
+      ? null
+      : { optimistic: [{ type: 'project' as const, id, before, after: null }] }),
   });
 }
 

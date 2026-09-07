@@ -1,0 +1,61 @@
+/*
+ * The section row, drawn as the project header draws it: text on nothing, the current one
+ * lifted onto the tertiary surface. No underline and no bottom rule — the header carries no
+ * edge of its own, and a rule under the tabs would invent one.
+ */
+
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-0-5);
+  flex: none;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-height-md);
+  padding-inline: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.tab:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-hover);
+}
+
+/* Two classes, so the current tab wins over the hover above on specificity rather than on
+   the order the rules happen to be emitted in. */
+.tab.active {
+  color: var(--text-primary);
+  background-color: var(--bg-tertiary);
+}
+
+/* :focus-visible rather than :focus, so clicking a tab does not draw a ring around the
+   thing the pointer has just landed on. Selection is announced by aria-current or
+   aria-selected; this is the keyboard's own mark. */
+.tab:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* A count after the label. Quieter than the label at every state, including the current
+   tab's, because "Issues 24" is one tab and not two facts. */
+.detail {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}

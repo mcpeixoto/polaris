@@ -1,4 +1,5 @@
 import SwiftUI
+import PolarisCore
 
 /// The press response, on every interactive control in the app.
 ///
@@ -170,38 +171,187 @@ struct PropertyChip<Icon: View>: View {
     }
 }
 
-/// The Polaris mark: a flat accent tile with the star cut into it.
+/// The Polaris mark: the four-point star inside its tilted orbit, drawn.
 ///
-/// It breathes very slightly — two off-phase loops rather than one, so it does not read as a
-/// progress indicator — and it holds still under Reduce Motion, because a permanently-moving
-/// element is precisely what that setting exists to stop. No glow: a shadow that leaks onto
-/// the copy beneath is the one thing a welcome screen cannot afford.
+/// It was `Image(systemName: "sparkle")` on an accent tile — Apple's glyph, on the welcome
+/// screen, standing in for the logo. Meanwhile the web client, the browser tab and the desktop
+/// dock icon all drew the actual mark, so the first thing a new user saw on iOS was the one
+/// surface that did not show it.
+///
+/// The geometry is `PolarisCore.Mark`, which is `web/src/components/Logo.tsx` as numbers, on a
+/// 40x40 grid scaled to whatever `size` asks for. Nothing here invents a coordinate and nothing
+/// here names a colour: both come from Core, for the same reason — a number that exists in one
+/// place cannot fall out of step with itself.
+///
+/// ## The entrance
+///
+/// The web lockup's timeline, at the same beats: the orbit draws itself round, the star unwinds
+/// in from a rotation, and the four rays burst outward one after another. It runs once, on
+/// appear. The old mark instead breathed forever, which is a thing a welcome screen should not
+/// do — a permanently-moving element is precisely what Reduce Motion exists to stop, and it also
+/// reads as a progress indicator for something that is not loading.
+///
+/// Under Reduce Motion the mark is painted in its finished state with no animation at all — not
+/// slowed, removed — which is what `prefers-reduced-motion` does to the web one.
 struct PolarisMark: View {
     var size: CGFloat = 64
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var breathe = false
+    @State private var entered = false
+
+    /// The spring the web logo uses: cubic-bezier(0.22, 1.35, 0.36, 1). It overshoots slightly,
+    /// which is what makes the star look thrown into place rather than faded up. `Theme.easing`
+    /// is the product's ordinary curve and does not overshoot; this is the one exception, and
+    /// it is here rather than in Theme because the logo is the only thing that uses it.
+    private func spring(_ duration: Double, delay: Double) -> Animation? {
+        reduceMotion ? nil : .timingCurve(0.22, 1.35, 0.36, 1, duration: duration).delay(delay)
+    }
+
+    private func ease(_ duration: Double, delay: Double) -> Animation? {
+        reduceMotion ? nil : Theme.easing(duration).delay(delay)
+    }
+
+    /// One grid unit in points. Every stroke width below is a Core value times this.
+    private var unit: CGFloat { size / CGFloat(Mark.grid) }
+
+    /// Below `Mark.thinDetailMinimum` the orbit and the rays are a fraction of a point wide and
+    /// paint as haze around the star rather than as hairlines, so a small mark is the star
+    /// alone. The same threshold, for the same reason, as `desktop/assets/make-icon.py`.
+    private var thinDetail: Bool { size >= CGFloat(Mark.thinDetailMinimum) }
 
     var body: some View {
-        RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
-            .fill(Theme.accent)
-            .frame(width: size, height: size)
-            .overlay(
-                Image(systemName: "sparkle")
-                    .font(.system(size: size * 0.42, weight: .medium))
-                    .foregroundStyle(Theme.accentContrast)
-            )
-            .scaleEffect(breathe ? 1.03 : 1)
-            .animation(
-                reduceMotion ? nil : .easeInOut(duration: 3.4).repeatForever(autoreverses: true),
-                value: breathe
-            )
-            .accessibilityHidden(true)
-            .onAppear {
-                // Under Reduce Motion this stays false: the animation is nil there, so setting
-                // it would snap the tile to its end scale rather than hold it still.
-                guard !reduceMotion else { return }
-                breathe = true
+        ZStack {
+            if thinDetail {
+                MarkOrbit()
+                    .trim(from: 0, to: entered ? 1 : 0)
+                    .stroke(
+                        Theme.accent.opacity(Mark.orbitOpacity),
+                        lineWidth: CGFloat(Mark.orbitStroke) * unit
+                    )
+                    .animation(ease(1.0, delay: 0.06), value: entered)
+
+                ForEach(Array(Mark.rays.enumerated()), id: \.offset) { index, ray in
+                    MarkRay(ray: ray)
+                        .trim(from: 0, to: entered ? 1 : 0)
+                        .stroke(
+                            Theme.accent.opacity(Mark.rayOpacity),
+                            style: StrokeStyle(
+                                lineWidth: CGFloat(Mark.rayStroke) * unit, lineCap: .round
+                            )
+                        )
+                        .animation(spring(0.62, delay: 0.42 + Double(index) * 0.06), value: entered)
+                }
             }
+
+            ZStack {
+                // Two strengths of one colour rather than two colours: the facet needs the star
+                // to fall away underneath it, not to change hue.
+                MarkStar()
+                    .fill(
+                        LinearGradient(
+                            colors: [Theme.accent, Theme.accent.opacity(Mark.starFadeOpacity)],
+                            startPoint: .init(x: 0.35, y: 0),
+                            endPoint: .init(x: 0.7, y: 1)
+                        )
+                    )
+                MarkFacet()
+                    .fill(Theme.accent.opacity(Mark.facetOpacity))
+                Circle()
+                    .fill(Theme.background)
+                    .frame(
+                        width: CGFloat(Mark.coreRadius) * 2 * unit,
+                        height: CGFloat(Mark.coreRadius) * 2 * unit
+                    )
+            }
+            // The star arrives unwinding, which is the beat the web entrance opens on. It is one
+            // transform on the group rather than three on the parts, so the facet and the core
+            // cannot drift off the star while it turns.
+            .rotationEffect(.degrees(entered ? 0 : -140))
+            .scaleEffect(entered ? 1 : 0.2)
+            .opacity(entered ? 1 : 0)
+            .animation(spring(0.7, delay: 0.14), value: entered)
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+        .onAppear {
+            // Under Reduce Motion every animation above is nil, so this sets the finished state
+            // with no transition rather than being skipped: the mark must still be visible.
+            entered = true
+        }
+    }
+}
+
+/// The star silhouette. `Mark.sides`, which is `STAR` in Logo.tsx.
+///
+/// The three mark shapes are separate `Shape`s rather than one path with holes because each is
+/// painted differently — a gradient, a flat accent, the page colour — and because `trim` on a
+/// combined path would trim across all of them at once.
+private struct MarkStar: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: rect.point(Mark.sides[0].from))
+        for side in Mark.sides {
+            path.addQuadCurve(to: rect.point(side.to), control: rect.point(side.control))
+        }
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// The two vertical points, painted again over the star. One shape, and the star stops being a
+/// silhouette and starts being faceted like a compass rose.
+private struct MarkFacet: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        for subpath in Mark.facets {
+            path.move(to: rect.point(subpath[0].from))
+            for side in subpath {
+                path.addQuadCurve(to: rect.point(side.to), control: rect.point(side.control))
+            }
+            path.closeSubpath()
+        }
+        return path
+    }
+}
+
+/// One diagonal ray, as its own shape so the four can burst in sequence.
+private struct MarkRay: Shape {
+    let ray: Mark.Ray
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: rect.point(ray.from))
+        path.addLine(to: rect.point(ray.to))
+        return path
+    }
+}
+
+/// The orbit: a hairline ellipse turned about the centre. It describes the star rather than
+/// being a second shape competing with it, which is why it is drawn at 42% and one unit wide.
+private struct MarkOrbit: Shape {
+    func path(in rect: CGRect) -> Path {
+        let centre = rect.point(Mark.centre)
+        let scale = rect.width / CGFloat(Mark.grid)
+        let box = CGRect(
+            x: centre.x - CGFloat(Mark.orbitRX) * scale,
+            y: centre.y - CGFloat(Mark.orbitRY) * scale,
+            width: CGFloat(Mark.orbitRX) * 2 * scale,
+            height: CGFloat(Mark.orbitRY) * 2 * scale
+        )
+        // Rotated inside the path rather than with `.rotationEffect`, so that `trim` measures
+        // the ellipse the viewer sees and the draw-on starts where it appears to start.
+        let turn = CGAffineTransform(translationX: centre.x, y: centre.y)
+            .rotated(by: CGFloat(Mark.orbitDegrees) * .pi / 180)
+            .translatedBy(x: -centre.x, y: -centre.y)
+        return Path(ellipseIn: box).applying(turn)
+    }
+}
+
+private extension CGRect {
+    /// A point on Mark's 40x40 grid, in this rect. The mark is always square — callers frame it
+    /// — so the width is the scale for both axes.
+    func point(_ point: Mark.Point) -> CGPoint {
+        let scale = width / CGFloat(Mark.grid)
+        return CGPoint(x: minX + CGFloat(point.x) * scale, y: minY + CGFloat(point.y) * scale)
     }
 }
 

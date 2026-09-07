@@ -13,7 +13,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { IconButton } from '~/components';
+import { IconButton, Section } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { CreateCustomerRequestModal } from '~/features/customers/CreateCustomerRequestModal';
 import { CustomerRequestEditor } from '~/features/customers/CustomerRequestEditor';
@@ -23,7 +23,6 @@ import {
 } from '~/features/customers/mutations';
 import { PlusGlyph } from '~/features/issue/glyphs';
 import { report } from '~/features/issue/mutations';
-import { Section } from '~/features/issue/Section';
 import { PencilGlyph, TrashGlyph } from '~/features/project-updates/glyphs';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewer } from '~/hooks/useViewer';

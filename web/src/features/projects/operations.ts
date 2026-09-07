@@ -145,6 +145,15 @@ export const ADD_PROJECT_MEMBER = /* GraphQL */ `
   }
 `;
 
+export const REMOVE_PROJECT_MEMBER = /* GraphQL */ `
+  mutation RemoveProjectMember($projectId: UUID!, $userId: UUID!, $clientId: UUID, $opId: UUID) {
+    removeProjectMember(projectId: $projectId, userId: $userId, clientId: $clientId, opId: $opId) {
+      version
+      id
+    }
+  }
+`;
+
 export const PROJECT_DEPENDENCY_FIELDS = /* GraphQL */ `
   fragment ProjectDependencyFields on ProjectDependency {
     id

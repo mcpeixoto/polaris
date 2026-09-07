@@ -115,8 +115,17 @@
   font-weight: var(--font-weight-normal);
 }
 
+/*
+ * A value gets a share of the window, not a count of characters.
+ *
+ * 28ch alone is about 300 pixels of pill, which on a phone meant the bar wrapped to one
+ * clause per line and each of those lines still overflowed. `min()` rather than a media
+ * query, because the useful width here is the smaller of "how long is the value" and "how
+ * much window is left" — a comparison the browser can make on every resize and this file
+ * could only make once.
+ */
 .chipValue {
-  max-width: 28ch;
+  max-width: min(28ch, 40vw);
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -443,5 +452,61 @@ button.conj:focus-visible {
     to {
       opacity: 0;
     }
+  }
+}
+
+/* ---------------------------------------------------------------------------------------
+ * The read-only summary: the same sentence, drawn as something to look at rather than press.
+ */
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.summaryChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-height-pill);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+  white-space: nowrap;
+}
+
+.summaryConj {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.summaryEmpty {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+/* ------------------------------------------------------------------ *
+ * Narrow windows
+ * ------------------------------------------------------------------ */
+
+/*
+ * `.row` has wrapped since it was written, for the reason at the top of this file: a filter
+ * of six clauses is legitimate and a horizontal scroller would hide half of it behind a
+ * gesture nobody makes at a toolbar. What did not survive a narrow window was the *clause*
+ * — see `.chipValue` above, which now takes a share of the window rather than a fixed
+ * count of characters.
+ */
+@media (max-width: 720px) {
+  /* The bar keeps the toolbar's block padding and gives up its inline gutters, matching the
+     pane, which has none left at this width. */
+  .bar {
+    padding-inline: var(--space-2);
   }
 }

@@ -34,7 +34,9 @@ test('edit and remove a request from the issue and the customer page', async ({
   const section = page.getByRole('region', { name: 'Customers' });
   await section.getByRole('button', { name: 'Add request' }).click();
   await page.getByRole('textbox', { name: 'Request' }).fill('SSO with Okta please.');
-  await page.getByRole('combobox', { name: 'Customer' }).selectOption({ label: 'Globex' });
+  // The customer is a pill and a filterable menu now, not a native select.
+  await page.getByRole('dialog').getByRole('button', { name: 'No customer' }).click();
+  await page.getByRole('menuitem', { name: 'Globex' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Add request' }).click();
   await expect(section.getByText('SSO with Okta please.')).toHaveCount(1);
 
@@ -97,7 +99,9 @@ test('edit and remove a request from the issue and the customer page', async ({
   await page.goto(`/issue/${issue.identifier}`);
   await section.getByRole('button', { name: 'Add request' }).click();
   await page.getByRole('textbox', { name: 'Request' }).fill('Second thoughts.');
-  await page.getByRole('combobox', { name: 'Customer' }).selectOption({ label: 'Globex' });
+  // The customer is a pill and a filterable menu now, not a native select.
+  await page.getByRole('dialog').getByRole('button', { name: 'No customer' }).click();
+  await page.getByRole('menuitem', { name: 'Globex' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Add request' }).click();
   await expect(section.getByText('Second thoughts.')).toHaveCount(1);
   await section.getByRole('button', { name: /^Remove request from Globex$/ }).click();
@@ -123,7 +127,9 @@ test('the admin toggle takes the issue section with it', async ({ page, workspac
   const section = page.getByRole('region', { name: 'Customers' });
   await section.getByRole('button', { name: 'Add request' }).click();
   await page.getByRole('textbox', { name: 'Request' }).fill('Made while on.');
-  await page.getByRole('combobox', { name: 'Customer' }).selectOption({ label: 'Globex' });
+  // The customer is a pill and a filterable menu now, not a native select.
+  await page.getByRole('dialog').getByRole('button', { name: 'No customer' }).click();
+  await page.getByRole('menuitem', { name: 'Globex' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Add request' }).click();
   await expect(section.getByText('Made while on.')).toHaveCount(1);
 

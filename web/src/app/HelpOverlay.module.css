@@ -45,7 +45,7 @@
   column-gap: var(--space-10);
 }
 
-@media (min-width: 640px) {
+@media (min-width: 721px) {
   .columns {
     columns: 2;
   }

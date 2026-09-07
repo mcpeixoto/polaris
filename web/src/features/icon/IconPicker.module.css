@@ -1,0 +1,69 @@
+/*
+ * A panel of glyphs. The surface is components/Popover; everything here is the grid inside it.
+ *
+ * The width is fixed rather than fluid because the grid is: ten columns of one emoji is what
+ * makes the four groups scannable as blocks instead of as a wrapping paragraph.
+ */
+
+.panel {
+  width: 300px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* Secondary and not tertiary: this sits on `--bg-elevated`, where tertiary fails body text in
+   dark. See 08-ui-composition.md. */
+.heading {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: var(--space-0-5);
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-none);
+  cursor: pointer;
+  transition: background-color var(--duration-instant) var(--ease-out);
+}
+
+.icon:hover {
+  background-color: var(--bg-hover);
+}
+
+.icon:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+.icon[aria-pressed='true'] {
+  background-color: var(--bg-selected);
+}
+
+.custom {
+  display: flex;
+  flex-direction: column;
+}

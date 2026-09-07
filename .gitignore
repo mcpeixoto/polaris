@@ -70,3 +70,7 @@ ios/PolarisCore/.build/
 ios/build/
 ios/Polaris/Info.plist
 ios/build/
+
+# The icon generators import scripts/polaris_mark.py, so running either of them now leaves a
+# bytecode cache next to it. Nothing here is Python source anyone ships.
+__pycache__/

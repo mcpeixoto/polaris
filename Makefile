@@ -156,7 +156,7 @@ fmt-check: ## Fail if anything is unformatted
 	@npx prettier --check "web/src/**/*.{ts,tsx,css}" "web/e2e/**/*.ts" "web/*.{ts,json}" "ee/web/**/*.{ts,tsx,css}" "desktop/src/**/*.{ts,cts}"
 
 .PHONY: lint
-lint: lint-go lint-compose lint-desktop lint-editions lint-images lint-imports lint-ios-graphql lint-keymap lint-routes lint-tokens lint-web ## All linters
+lint: lint-go lint-breakpoints lint-compose lint-desktop lint-editions lint-images lint-imports lint-ios-graphql lint-keymap lint-routes lint-tokens lint-web ## All linters
 
 .PHONY: lint-go
 lint-go:
@@ -167,6 +167,10 @@ lint-go:
 .PHONY: lint-editions
 lint-editions: ## Enforce that the community build does not CONTAIN the enterprise code
 	@bash scripts/lint-editions.sh
+
+.PHONY: lint-breakpoints
+lint-breakpoints: ## Enforce that every media query uses one of the three documented breakpoints
+	@bash scripts/lint-breakpoints.sh
 
 .PHONY: lint-compose
 lint-compose: ## Enforce that an opt-in compose service cannot break commands for people who did not enable it

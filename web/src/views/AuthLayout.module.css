@@ -290,7 +290,7 @@
   align-items: start;
 }
 
-@media (max-width: 420px) {
+@media (max-width: 720px) {
   .pair {
     grid-template-columns: minmax(0, 1fr);
   }

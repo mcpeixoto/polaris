@@ -239,7 +239,11 @@ export function useSectionSpy(ids: readonly string[]): string | null {
  * than the panel: the toggle button must not be an outside click, or the button would
  * close the panel and reopen it in the same gesture.
  */
-export function useDisclosure(breakpoint = 900) {
+// The default is the md breakpoint from tokens.css, and it is a default rather than a
+// constant because Landing.module.css is where the same number is spelled for the layout —
+// these two have to agree, and the way they are kept in agreement is that neither invents a
+// third value. scripts/lint-breakpoints.sh holds the stylesheet's half.
+export function useDisclosure(breakpoint = 960) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLElement>(null);
 
