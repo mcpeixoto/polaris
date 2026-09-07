@@ -124,7 +124,11 @@ jobs:
           fi
           [ "$(jq -r .env <<<"$got")" = production ] || { echo "::error::Not configured as production."; exit 1; }
 
-      - name: A build reached TestFlight
+      # This asserts the iOS job succeeded, and that is only meaningful because the job now
+      # ends by assigning the build to a beta group. It did not before: `v0.9.0` passed this
+      # very check while its build sat in App Store Connect belonging to no group, which
+      # means visible to nobody. The verifier was reading the job's word for it.
+      - name: A build reached testers
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
