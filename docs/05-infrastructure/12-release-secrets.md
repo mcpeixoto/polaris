@@ -10,7 +10,8 @@ so a new one cannot be introduced silently.
 
 ## Deploying to production
 
-Merging to `main` deploys. These four are configured and working.
+Cutting a `v*` tag deploys; merging to `main` runs the tests and stops. These four are
+configured and working.
 
 | Secret | What it is | Without it |
 |---|---|---|

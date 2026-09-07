@@ -1,0 +1,144 @@
+# Did the release actually ship?
+#
+# A tag fans out to three workflows that know nothing about each other: ci.yml deploys the
+# website, desktop.yml builds and publishes the installers, ios-release.yml uploads to
+# TestFlight. Each reports its own success. Nothing has ever reported whether *the release*
+# happened, and the difference is not academic — v0.8.0 published four platforms' installers
+# while the website was never redeployed and no iOS build was uploaded, and every workflow
+# involved was green or failed in isolation where nobody was looking.
+#
+# This is the one place to look. It waits for the other runs on this exact tag, then checks
+# the outcome rather than the job: the release is published and holds installers, production
+# is serving this tag's commit, TestFlight took a build. It fails when a surface did not
+# ship, so "the tag is green" and "users can get it" become the same statement.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to re-check, e.g. v0.8.0.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify:
+    name: Every surface shipped
+    runs-on: ubuntu-latest
+    # Long enough for the macOS desktop build and the iOS archive, which are the slow ones.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve the tag
+        id: t
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          tag="${INPUT_TAG:-$GITHUB_REF_NAME}"
+          sha=$(git rev-list -n1 "$tag")
+          echo "tag=$tag"   >> "$GITHUB_OUTPUT"
+          echo "sha=$sha"   >> "$GITHUB_OUTPUT"
+          echo "short=${sha:0:7}" >> "$GITHUB_OUTPUT"
+          echo "Verifying $tag ($sha)"
+
+      # Waiting on the other workflows by head_sha rather than by name-and-hope. A run that
+      # has not appeared yet is not the same as a run that failed, so absence is retried
+      # until the timeout rather than reported as a failure on the first poll.
+      - name: Wait for the other workflows on this tag
+        id: runs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.t.outputs.tag }}
+        run: |
+          set -uo pipefail
+          want="CI Desktop iOS release"
+          deadline=$(( $(date +%s) + 75*60 ))
+          while :; do
+            runs=$(gh run list --commit "$SHA" --limit 50 \
+                   --json workflowName,status,conclusion,databaseId)
+            pending=""
+            for w in CI Desktop "iOS release"; do
+              row=$(jq -r --arg w "$w" '[.[]|select(.workflowName==$w)][0] // empty' <<<"$runs")
+              [ -z "$row" ] && { pending="$pending $w(absent)"; continue; }
+              [ "$(jq -r .status <<<"$row")" != completed ] && pending="$pending $w(running)"
+            done
+            [ -z "$pending" ] && break
+            if [ "$(date +%s)" -gt "$deadline" ]; then
+              echo "::error::Timed out waiting for:$pending"
+              exit 1
+            fi
+            echo "waiting for:$pending"
+            sleep 30
+          done
+          echo "$runs" | jq -r '.[]|"\(.workflowName)\t\(.conclusion)"'
+          echo "$runs" > /tmp/runs.json
+
+      # From here on the checks are about outcomes, not about job status. A job can be green
+      # having skipped the step that mattered, and a job can be red for a reason that did not
+      # stop the release.
+      - name: The installers are published and downloadable
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.t.outputs.tag }}
+        run: |
+          set -euo pipefail
+          rel=$(gh release view "$TAG" --json isDraft,assets)
+          if [ "$(jq -r .isDraft <<<"$rel")" != false ]; then
+            echo "::error::$TAG is still a draft. Nobody outside this repository can download it, and electron-updater will not see it."
+            exit 1
+          fi
+          names=$(jq -r '.assets[].name' <<<"$rel")
+          echo "$names"
+          for want in '\.dmg$' '\.exe$' '\.AppImage$' '^latest\.yml$' '^latest-mac\.yml$' '^latest-linux\.yml$'; do
+            grep -qE "$want" <<<"$names" || { echo "::error::$TAG has no asset matching $want"; exit 1; }
+          done
+          # The version in the filenames must be the tag's, not whatever package.json held.
+          v="${TAG#v}"
+          grep -q "$v" <<<"$names" || { echo "::error::No asset carries version $v — the build did not take its version from the tag."; exit 1; }
+
+      - name: Production is serving this commit
+        env:
+          URL: ${{ secrets.DEPLOY_BASE_URL || 'https://polaris.peixotolabs.com' }}
+          SHORT: ${{ steps.t.outputs.short }}
+        run: |
+          set -euo pipefail
+          got=$(curl -fsS --retry 5 --retry-delay 10 --retry-all-errors "$URL/deployment")
+          echo "$got"
+          rev=$(jq -r .revision <<<"$got")
+          if [ "$rev" != "$SHORT" ]; then
+            echo "::error::$URL is serving $rev, not $SHORT. The tag did not reach the website."
+            exit 1
+          fi
+          [ "$(jq -r .env <<<"$got")" = production ] || { echo "::error::Not configured as production."; exit 1; }
+
+      - name: A build reached TestFlight
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          c=$(jq -r '[.[]|select(.workflowName=="iOS release")][0].conclusion' /tmp/runs.json)
+          if [ "$c" != success ]; then
+            echo "::error::The iOS release run concluded '$c'. No build reached TestFlight. See docs/05-infrastructure/12-release-secrets.md."
+            exit 1
+          fi
+
+      - name: Summary
+        if: always()
+        env:
+          TAG: ${{ steps.t.outputs.tag }}
+          SHORT: ${{ steps.t.outputs.short }}
+        run: |
+          {
+            echo "## $TAG — $SHORT"
+            echo
+            jq -r '.[]|"- \(.workflowName): \(.conclusion)"' /tmp/runs.json 2>/dev/null || true
+          } >> "$GITHUB_STEP_SUMMARY"

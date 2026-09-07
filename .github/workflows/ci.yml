@@ -383,10 +383,22 @@ jobs:
     name: Deploy to production
     runs-on: ubuntu-latest
     needs: [go, go-ee, generated, web, e2e, discipline, secrets]
-    # Pushes to main only. Not tags: tags are cut from commits already on main and
-    # would deploy the same tree a second time. Not pull_request: a fork PR would
-    # otherwise ask for production credentials, and gets none.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Tags only. Merging to main is integration, not release: main is where changes
+    # land and get proven, and a tag is the decision to put them in front of people.
+    #
+    # It used to be the other way round, and the cost was that "deployed" and "released"
+    # were different events nobody could line up. Every merge went to production
+    # immediately while the installers and the iOS build only moved on a tag, so the
+    # website ran ahead of every client by however many merges had happened since the
+    # last release. v0.8.0 is the example: it published installers for four platforms
+    # against a website that had already moved on.
+    #
+    # Now one tag ships all of them from one commit, and .github/workflows/release.yml
+    # checks afterwards that each surface actually took it.
+    #
+    # Not pull_request: a fork PR would otherwise ask for production credentials, and
+    # gets none.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     # Named so that GitHub's environment protection rules apply if you ever want a
     # human approval or a deploy window in front of this — Settings → Environments.
     environment: production
@@ -428,6 +440,9 @@ jobs:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           SSH_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
           SSH_HOST_KEY: ${{ secrets.DEPLOY_HOST_KEY }}
+          # On a tag push this is the commit the tag points at, which is the one this
+          # run validated. The server refuses any sha that is not an ancestor of
+          # origin/main, so a tag cut off a branch cannot deploy.
           SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
