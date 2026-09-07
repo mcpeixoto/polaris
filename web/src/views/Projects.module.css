@@ -77,6 +77,13 @@
   --col-status: 9ch;
   --col-spark: var(--space-10);
 
+  /* The table is a flex item of `.body`, the row it shares with Peek. Without a flex basis
+     it is sized to its content, and a grid whose only flexible track is `minmax(0, 1fr)`
+     has no content width to speak of — the rows end mid-window and the headings sit over
+     nothing. `flex: 1` is what makes the 1fr name column mean the rest of the window. */
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-bottom: var(--space-8);
