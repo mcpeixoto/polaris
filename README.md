@@ -1,135 +1,164 @@
-# Polaris
+<div align="center">
 
-**Polaris** is a keyboard-first, local-first issue tracker for software teams. It is
-self-hosted, AGPL-licensed, and built so the common actions never wait on a round trip: every
-filter, sort and grouping runs against a local replica of your workspace, and the server's
-job is to keep that replica true.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/logo-dark.svg">
+  <img src=".github/assets/logo-light.svg" alt="Polaris" width="300">
+</picture>
 
-The repository holds a **complete functional scope** — the features, how they depend on each
-other, what the data model has to look like, what the integrations do, what the API surface
-is — and the implementation of it, currently through **Milestone 1** plus **Projects v1**,
-**Cycles v1**, **Triage v1**, **Archives v1**, **Attachments v1**, **Webhooks v1**, **Documents v1**, **Initiatives v1** and **Project updates v1** (the first slices of Milestone 2).
+### Issue tracking without the wait.
 
-## What runs today
+Keyboard-first, local-first issue tracking for software teams.<br>
+Your whole workspace lives on your machine, so filtering, sorting and grouping<br>take a keystroke — not a round trip.
 
-Backend and web client are both complete through Milestone 1 and tested end to end, in the browser as well as in unit tests. Projects v1, Cycles v1, Peek, Triage v1, Archives v1, Attachments v1, Webhooks v1, Documents v1, Initiatives v1 and Project updates v1 sit on the same visual system as the rest of the web app (dense list/detail, compact pickers, command menu). The desktop shell packages and runs on macOS, Windows and Linux.
+[**Website**](https://polaris.peixotolabs.com) · [**Pricing**](https://polaris.peixotolabs.com/pricing) · [**Self-hosting guide**](docs/05-infrastructure/11-self-hosting.md) · [**Docs**](docs/)
 
-| Working | |
+[![CI](https://github.com/mcpeixoto/polaris/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/mcpeixoto/polaris/actions/workflows/ci.yml) [![Licence: AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-5e6ad2)](LICENSE) [![Go 1.26](https://img.shields.io/badge/go-1.26-00ADD8)](services/go.mod) [![Self-host: free, unlimited seats](https://img.shields.io/badge/self--host-free%20%C2%B7%20unlimited%20seats-5e6ad2)](docs/05-infrastructure/11-self-hosting.md)
+
+</div>
+
+---
+
+Most trackers put a network request between you and your own backlog. Polaris keeps a full
+replica of your workspace in the browser and answers from it: the server's job is to keep
+that replica true, not to be asked permission for a sort.
+
+Measured against a 50 ms budget, not asserted:
+
+| | |
 |---|---|
-| Schema | 44 migrations, including team lifecycle index, project templates, form templates, project update reminder cadence, project labels, attached project views, project dependencies, project updates, initiatives, documents, webhooks, attachments, auto-close/archive, triage, cycles, projects, statuses, teams, members and milestones; monthly-partitioned change log, UUIDv7 |
-| Sync engine | Gapless per-workspace versions, NDJSON bootstrap, WebSocket hub, resume, revoke, backpressure |
-| API | GraphQL over the whole domain, one contract in `schema/schema.graphql`, complexity scored by the published model |
-| Auth | Argon2id, rotating refresh tokens, HttpOnly cookies, invitations |
-| Client store | IndexedDB replica (schema 52), in-memory indexes, durable outbox, optimistic mutations |
-| Keyboard | One registry; the command menu and help overlay are views over it. Peek is `Space`; triage is `G T` / `1` `2` `3` `H`; archives is `G X` / `#`; add link is `⌘⇧U` |
-| Projects | Workspace and team lists with health from latest update, Display → Timeline (bars, deps, milestones), overview graph/issues/activity tabs, `Shift+P` picker, `C` files into the open project |
-| Cycles | Team cadence, auto-created windows, rollover and auto-add, cycle graph on detail, `G C` / `Shift+C`, `C` files into the open cycle |
-| Triage | Per-team intake status, hidden from ordinary views, accept / duplicate / decline / snooze |
-| Archives | Auto-close and auto-archive with parent/sub/project blocking; on-demand archives page |
-| Attachments | URL-idempotent link cards on issues, `attachmentsForURL`, duplicate merge moves unique URLs |
-| Webhooks | Admin HTTPS subscriptions, HMAC-SHA256 of the raw body, SSRF pin, 1m/1h/6h then disable — Settings → Webhooks, `N` to create |
-| Documents | Team and project markdown docs, `/team/:key/documents`, `/document/:id`, archive and soft-delete on the sync stream |
-| Initiatives | Workspace objectives grouping curated projects, `/initiatives`, `/initiative/:id`, status/owner/target date, updates + health roll-up, labels, nested sub-initiatives (max 5) |
-| Project updates | Health plus markdown status posts, Overview compose and Activity history, derived health on project list |
-| Project dependencies | End→start Blocked by / Blocking on Overview and sidebar, command menu, list filters, timeline lines — client schema 12 |
-| Project timeline | Display → Timeline on `/projects`: Gantt bars, dependency lines, milestones, zoom — web-only, no migration |
-| Attached project views | Saved filters as reorderable tabs on the project shell, + to create, copy link / favorite / rename / delete — client schema 13 |
-| Project labels | Workspace taxonomy with groups, picker on project sidebar, chips on `/projects` — client schema 14 |
-| Form templates | Structured intake templates with fields; form tab on Templates settings and form fill in create-issue — client schema 19; migration `000042` |
-| Project templates | Prefilled projects with milestones and starter issues; project tab on Templates settings and picker in create-project — client schema 21; migration `000043` |
-| Private teams | Team visibility toggle in settings, privatize cleanup, initiative project filtering, admin team directory — client schema 21; no migration |
-| Team lifecycle | Retire/unretire, delete/restore (30 days), deleted-teams settings screen, retired teams hidden from sidebar, read-only projects — client schema 21; migration `000044` |
-| Sub-teams | Nest/move teams, private inheritance, parent-owner sync, depth limits by plan, nested sidebar — client schema 21; no migration |
-| Cycle editing | Edit dates and names, start cycle today, pause/cooldown gaps on Cycles page — client schema 21; no migration |
-| Project update reminders | Workspace cadence settings, per-project schedule, staleness on list and shell — client schema 18; migration `000041` |
-| Project priority | Five-level scale, P shortcut, grouped/drag reorder on `/projects` |
-| Deployment | Dockerfiles, self-contained compose + Caddy, `app.sh`, CI |
-| Desktop | Electron shell for macOS, Windows and Linux; per-architecture builds, auto-update, deep links |
-| Notifications | Inbox, unread badge, subscriptions, coalescing fan-out, digest email |
+| Filter, group and sort 5,000 issues with four active clauses | **0.2 ms** |
+| Full workspace snapshot | **24 ms**, 20 KB gzipped |
+| Local commit to the rest of the team seeing it | **< 100 ms** |
 
-Measured, not asserted: filter/group/sort with four active clauses over **5,000 issues in 0.2 ms** against a 50 ms budget; a full workspace snapshot in **24 ms / 20 KB gzipped**; commit-to-delta under 100 ms locally.
+## Try it
 
 ```bash
-make up          # postgres + valkey
-make migrate
-make seed        # a realistic workspace
-make dev         # api :8088, sync :8089, worker, Vite :5173 — supervised
+make up && make migrate && make seed
+make dev
 ```
 
-(Or one per terminal: `make api`, `make sync`, `make worker`, `make web`. The worker
-is what turns changes into inbox notifications; skip it and the inbox stays empty.)
+That brings up Postgres, applies 77 migrations, seeds a realistic workspace, and runs the
+API on `:8088`, the sync hub on `:8089`, the worker, and Vite on `:5173`. Open
+http://localhost:5173/ and it opens as the seed account — no login form.
 
-On http://localhost:5173/ the tracker opens as the seed account — no login form.
+Run them separately with `make api`, `make sync`, `make worker`, `make web`. The worker is
+what turns changes into inbox notifications; skip it and the inbox stays empty.
 
-See [`docs/07-milestones/00-milestone-0.md`](docs/07-milestones/00-milestone-0.md), [`01-milestone-1.md`](docs/07-milestones/01-milestone-1.md), [`02-milestone-2.md`](docs/07-milestones/02-milestone-2.md), [`03-cycles.md`](docs/07-milestones/03-cycles.md), [`04-peek.md`](docs/07-milestones/04-peek.md) and [`05-triage.md`](docs/07-milestones/05-triage.md) for the scope freezes and the acceptance tests that define done. Each of the M1 ten names the test that proves it, and `services/internal/acceptance/m1_test.go` fails if one loses its proof.
+## Self-host it
+
+One Compose file, no published ports on any datastore, a reverse proxy terminating TLS in
+front. Free, under the AGPL, with **no ceiling on seats, teams or history** — that is what
+makes it open source rather than a demo.
+
+```bash
+cp .env.example .env      # set POSTGRES_PASSWORD, POLARIS_JWT_SECRET, POLARIS_PUBLIC_URL
+docker compose up -d
+```
+
+[**docs/05-infrastructure/11-self-hosting.md**](docs/05-infrastructure/11-self-hosting.md)
+is the runbook, and it is written to be followed on a machine that is not ours: every
+environment variable, what breaks when it is wrong, and the failure modes that look like
+something else.
+
+Registration is **invite-only by default** on a self-hosted install — the first account
+bootstraps it, everybody after that needs an invitation. [Our cloud](https://polaris.peixotolabs.com)
+runs open signup and is EU-only.
+
+## What it does
+
+**Issues** — parent/sub-issues, relations, estimates, due dates, priorities, labels,
+templates, recurring issues. Triage as a hidden intake status: accept, duplicate, decline,
+snooze. Auto-close and auto-archive that respect parents, subs and projects.
+
+**Projects and initiatives** — cross-team projects with milestones, health from the latest
+update, dependency lines, a Gantt timeline, project labels, attached saved views, project
+templates. Initiatives group projects, nest up to five deep, and roll health up.
+
+**Cycles** — per-team cadence, auto-created windows, rollover and auto-add, capacity graph.
+
+**Teams** — sub-teams with inherited privacy, private teams, guests, retire/restore, a
+30-day delete window.
+
+**Documents, comments, notifications** — team and project markdown docs, threaded comments
+and reactions, an inbox with subscriptions, coalescing fan-out and digest email.
+
+**Platform** — one GraphQL API over the whole domain, webhooks with HMAC-SHA256 and an SSRF
+pin, OAuth apps and scopes, personal API keys, an MCP server, and an in-app agent. The
+public API is the same API the product itself uses; there is no private backdoor.
+
+**Clients** — web, an Electron desktop shell for macOS, Windows and Linux with auto-update
+and deep links, and a native iOS app.
+
+Everything is driven from one keymap registry — the command menu and the help overlay are
+views over it, not separate lists. `Space` peeks, `⌘K` commands, `G` then a letter goes
+somewhere.
+
+## How it is built
+
+- **Go 1.26** backend — `gqlgen` GraphQL, a WebSocket sync hub, a worker. 30 packages, 193 test files.
+- **TypeScript/React** frontend — IndexedDB replica, in-memory indexes, a durable outbox, optimistic mutations. 324 test files.
+- **Custom delta sync** — gapless per-workspace versions, NDJSON bootstrap, resume, revoke, backpressure. Client schema version 54.
+- **Postgres 17** — 77 migrations, UUIDv7, a monthly-partitioned change log.
+- **Docker Compose** for the whole stack, with `Caddyfile` as the reference edge.
+
+Six discipline lints run in CI and are gates, not suggestions: every colour is a
+`var(--token)`, every shortcut goes through the keymap registry, every route a server
+registers is routed by the proxy, package imports respect their boundaries, Compose
+profiles stay honest, and the community build is proven — from the linked packages of the
+built binary, not from a build tag — to contain nothing from `ee/`.
+
+## The repository
+
+| Path | What's in it |
+|---|---|
+| [`services/`](services/) | Go: GraphQL API, sync hub, worker, admin CLI |
+| [`web/`](web/) | TypeScript: local-first store, sync client, keymap, UI |
+| [`desktop/`](desktop/) | Electron shell — the same bundle as the web app |
+| [`ios/`](ios/) | Native iOS app and its shared `PolarisCore` package |
+| [`ee/`](ee/) | Enterprise features, under a separate commercial licence |
+| [`schema/`](schema/) | The GraphQL contract, in one file |
+| [`docs/00-overview/`](docs/00-overview/) | Product shape, domain model (ERD), glossary |
+| [`docs/01-features/`](docs/01-features/) | One file per feature area — behaviour, config, edge cases |
+| [`docs/02-integrations/`](docs/02-integrations/) | Integration catalogue and per-integration contracts |
+| [`docs/03-platform/`](docs/03-platform/) | GraphQL API, webhooks, OAuth, agents, rate limits |
+| [`docs/04-scope/`](docs/04-scope/) | Inventory, dependency graph, build phases, non-goals |
+| [`docs/05-infrastructure/`](docs/05-infrastructure/) | Stack, sync engine, data layer, deployment, security, self-hosting |
+| [`docs/06-product-model/`](docs/06-product-model/) | Licensing, packaging, running the project |
+| [`docs/07-milestones/`](docs/07-milestones/) | Scope freezes and the acceptance tests that define done |
+
+**New here?** `00-overview/01-product-summary.md` → `00-overview/02-domain-model.md` →
+`04-scope/03-dependency-graph.md` → `05-infrastructure/01-architecture-overview.md`.
 
 ## Where the requirements came from
 
 The functional scope in `docs/01-features/` was written by reading the **public product
 documentation of [Linear](https://linear.app)** in full on **2026-08-14** — 138 pages of
-product docs and the developer/platform pages — and writing down what an issue tracker of
-that class has to do.
+product and platform docs — and writing down what an issue tracker of that class has to do.
 
-That provenance is stated rather than hidden because it is what makes those documents
+That provenance is stated rather than hidden, because it is what makes those documents
 trustworthy: where a behaviour is recorded there, it is a behaviour somebody documented, and
-where the docs were silent and a design decision was needed it is marked **[INFERRED]** or
+where the docs were silent and a decision was needed it is marked **[INFERRED]** or
 **[OPEN]**. Knowing which is which is the whole value of the exercise.
 
-Polaris is its own product and makes its own decisions — see `docs/05-infrastructure/` for
-where they diverge, starting with a sync engine and a permission model that are nobody's but
-ours. Nothing was reverse-engineered from a running product, and no Linear source code,
-assets, icons, copy or documentation text is included. See [`NOTICE`](NOTICE) and
-[`TRADEMARK.md`](TRADEMARK.md).
+Polaris is its own product and makes its own decisions — see `docs/05-infrastructure/`,
+starting with a sync engine and a permission model that are nobody's but ours. Nothing was
+reverse-engineered from a running product, and no Linear source code, assets, icons, copy or
+documentation text is included. See [`NOTICE`](NOTICE) and [`TRADEMARK.md`](TRADEMARK.md).
 
-## How to read this
+## Licence
 
-| Path | What's in it |
-|---|---|
-| [`docs/00-overview/`](docs/00-overview/) | Product shape, domain model (ERD), plan/tier gating matrix, glossary |
-| [`docs/01-features/`](docs/01-features/) | One file per feature area — behaviour, config surface, edge cases, dependencies |
-| [`docs/02-integrations/`](docs/02-integrations/) | The integration catalogue and per-integration contracts |
-| [`docs/03-platform/`](docs/03-platform/) | GraphQL API, webhooks, OAuth + scopes, agent platform, rate limits |
-| [`docs/04-scope/`](docs/04-scope/) | Feature inventory checklist, dependency graph, build phases, non-goals and risks |
-| [`docs/05-infrastructure/`](docs/05-infrastructure/) | How it gets built and run: stack, repo layout, sync engine, data layer, deployment, Electron desktop, API/integration infra, security & ops, scaling & cost, self-host vs cloud |
-| [`docs/06-product-model/`](docs/06-product-model/) | Licensing, packaging and running the open-source project |
-| [`docs/07-milestones/`](docs/07-milestones/) | The scope freeze for each milestone and its acceptance tests |
-| [`services/`](services/) | Go: GraphQL API, sync hub, worker, admin CLI |
-| [`web/`](web/) | TypeScript: local-first store, sync client, keymap, UI |
-| [`desktop/`](desktop/) | Electron shell — same bundle as the web app |
+The core is [**AGPL-3.0**](LICENSE). Enterprise features live in [`ee/`](ee/) under a
+separate commercial licence — source-available, not open source, and never linked into the
+community build.
 
-**Read order for someone new:** `00-overview/01-product-summary.md` → `00-overview/02-domain-model.md` → `04-scope/03-dependency-graph.md` → `04-scope/02-build-phases.md` → `05-infrastructure/01-architecture-overview.md`. Then dive into feature files as you pick up work.
+Self-hosting is free and unlimited on seats. The paid pitch is "you would rather not keep a
+Postgres alive", plus SSO, SCIM, audit log and dashboards for the organisations that need
+them. See [`docs/06-product-model/02-plans-and-packaging.md`](docs/06-product-model/02-plans-and-packaging.md).
 
-## How it will be built
+## Contributing
 
-Decisions taken (see [`docs/05-infrastructure/`](docs/05-infrastructure/) for the reasoning):
+[`CONTRIBUTING.md`](CONTRIBUTING.md) has the shape of it, and
+[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) the rest. Security reports go to
+[`SECURITY.md`](SECURITY.md) — please do not open a public issue for one.
 
-- **Go** backend (`gqlgen` GraphQL + a WebSocket sync hub), **TypeScript/React** frontend
-- **Custom delta sync over WebSocket** — local-first client store, optimistic mutations, offline outbox
-- **Electron** desktop for Windows + macOS, loading the same bundle as the web app
-- **Docker Compose**, with a reverse proxy terminating TLS in front of it and no published ports on any datastore — see [`docs/05-infrastructure/11-self-hosting.md`](docs/05-infrastructure/11-self-hosting.md), which is written to be followed on a machine that is not ours
-- **One GraphQL API** serving web, desktop, the published SDK, agents, and every integration — no private backdoor API
-
-## How it will be distributed
-
-- **Open source on GitHub**: **AGPL-3.0** core, with enterprise features in `ee/` under a commercial licence (CLA required)
-- **Self-host free and unlimited on seats** — the paid pitch is "you don't want to run it" plus SSO, SCIM, audit log and dashboards
-- **Hosted cloud in the EU**, freemium: Free (≤5 users) → Pro (per seat) → Enterprise
-- **Signup differs by who runs it** — a self-hosted install is invite-only by default (the first account bootstraps it, everybody after that needs an invitation); our cloud runs open signup
-- Residency is EU-only for the cloud; self-hosters choose their own hardware
-
-## The one-paragraph version
-
-A **workspace** contains **teams**. A team owns **issues**, which move through the team's ordered **workflow statuses**. Issues carry properties (assignee, priority, labels, estimate, due date, SLA, relations, parent/sub-issues) and are grouped for delivery by **cycles** (time-boxed, per-team, auto-repeating) and for outcome by **projects** (cross-team, with milestones, updates, graphs). Projects roll up into **initiatives** (nestable, strategic). Everything is surfaced through **views** (filters + display options + layouts: list/board/timeline), analysed with **Insights** and **dashboards**, and fed by **intake** surfaces (Triage, Asks, support integrations, email, Slack, GitHub). Layered on top: a **real-time sync engine** with offline support, an **agent platform** (first-party and third-party agents, coding sessions), and a **GraphQL API + webhooks** that every integration is built on, including our own.
-
-## Scale of the thing
-
-Rough count of what a faithful clone has to ship:
-
-- **~28 first-class entities** in the domain model
-- **~35 distinct feature areas**
-- **~20 first-party integrations** + a directory of 250+ third-party ones
-- **4 pricing tiers** with feature gating woven through nearly every surface
-- **5 clients** (web, macOS, Windows, iOS, Android) sharing one sync engine
-- **1 public GraphQL API** that is the same API the product itself uses — this is an architectural constraint, not a bolt-on
-
-See [`docs/04-scope/02-build-phases.md`](docs/04-scope/02-build-phases.md) for what a sane sequencing looks like, and [`docs/04-scope/04-risks-and-non-goals.md`](docs/04-scope/04-risks-and-non-goals.md) for the parts that are much harder than they look — the sync engine, the command menu, keyboard-first UX, and the performance budget that a product like this lives or dies by.
+Before you push: `make check`.
