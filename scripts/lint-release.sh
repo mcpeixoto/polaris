@@ -59,6 +59,35 @@ if ! grep -q 'CURRENT_PROJECT_VERSION: ' "$ios"; then
   echo "      archive, with the tag already spent."
 fi
 
+# Production is deployed by a tag, not by a merge.
+#
+# Merging to main is integration; a tag is the decision to put something in front of
+# people. When main deployed, "deployed" and "released" were different events nobody could
+# line up: the website ran ahead of every client by however many merges had happened since
+# the last tag. Flipping this back is a product decision, not a refactor, so it fails here
+# rather than being noticed weeks later by a version mismatch.
+ci=.github/workflows/ci.yml
+if grep -qE "if: github.event_name == 'push' && github.ref == 'refs/heads/main'" "$ci"; then
+  note "$ci: the deploy job is gated on main, not on a tag"
+  echo "      Merging would ship the website while the installers and the iOS build waited"
+  echo "      for a tag — which is how a release ends up meaning two different commits."
+fi
+if ! grep -qE "startsWith\(github.ref, 'refs/tags/v'\)" "$ci"; then
+  note "$ci: the deploy job is not gated on a v* tag"
+fi
+
+# The workflow that checks a tag actually reached every surface. Without it each workflow
+# reports only itself, and nothing reports the release.
+rel=.github/workflows/release.yml
+if [ ! -f "$rel" ]; then
+  note "$rel is missing — nothing checks that a tag reached the website, the installers and TestFlight"
+else
+  grep -q '/deployment' "$rel" \
+    || note "$rel does not check that production is serving the tag's commit"
+  grep -q 'isDraft' "$rel" \
+    || note "$rel does not check that the release was published"
+fi
+
 # Every secret a workflow reads must be written down, with what breaks without it.
 #
 # This is the drift that costs a release day: a workflow grows a `secrets.NEW_THING`, the

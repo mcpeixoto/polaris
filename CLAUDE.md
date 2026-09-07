@@ -163,8 +163,8 @@ Five containers: `Polaris_web`, `Polaris_api`, `Polaris_sync`, `Polaris_worker`,
 
 ## Deploying to prod
 
-Merging to the default branch is the deploy — the `deploy` job in
-`.github/workflows/ci.yml` does it. The runbook for the maintainer's own hosting is kept
+Cutting a `v*` tag is the deploy — the `deploy` job in `.github/workflows/ci.yml` does it,
+on a tag push only. Merging to the default branch runs the tests and nothing else. The runbook for the maintainer's own hosting is kept
 privately and is not part of this repository.
 
 ## Before declaring done
@@ -251,9 +251,17 @@ discipline lints are gates, not suggestions.
 
 ## Ship
 
-**Merging to `$BASE` is the deploy.** The `deploy` job at the end of `.github/workflows/ci.yml`
-runs on a push to `$BASE` only — never on a PR, never on a tag — and ships the exact commit
-that run validated. Do not cut a tag for a deploy here.
+**Cutting a `v*` tag is the deploy.** Merging to `$BASE` is integration: it runs the full
+suite and stops there. The `deploy` job at the end of `.github/workflows/ci.yml` runs on a
+tag push only — never on a PR, never on a merge — and ships the commit the tag points at.
+
+One tag ships every surface from one commit: the website, the macOS/Windows/Linux
+installers, and the TestFlight build. `.github/workflows/release.yml` then checks that each
+of them actually took it, so a green tag and an installable release are the same claim.
+
+So **production lags `$BASE` until a tag is cut**, deliberately. A merged fix is not live;
+a tagged one is. Finishing a task therefore means cutting the tag, not just merging — and
+`## Live check` below is how you prove it landed.
 
 ## Live check
 
