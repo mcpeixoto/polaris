@@ -30,6 +30,7 @@ import { CreateInitiativeModal } from '~/features/initiatives/CreateInitiativeMo
 import { CreateCustomerModal } from '~/features/customers/CreateCustomerModal';
 import { CreateCustomerRequestModal } from '~/features/customers/CreateCustomerRequestModal';
 import { CreateDashboardModal } from '~/features/dashboards/CreateDashboardModal';
+import { CreateDocumentModal } from '~/features/documents/CreateDocumentModal';
 import { getPrefs } from '~/features/prefs/prefs';
 import { ToastHost } from '~/features/toast/ToastHost';
 import { useQuery } from './context';
@@ -393,6 +394,9 @@ function SignedInShell() {
       renderCreateDashboard={({ open, onClose }) => (
         <CreateDashboardModal open={open} onClose={onClose} />
       )}
+      renderCreateDocument={({ open, onClose }) => (
+        <CreateDocumentModal open={open} onClose={onClose} />
+      )}
     >
       {/*
         The inner boundary, keyed on the path.
@@ -418,6 +422,9 @@ function SignedInShell() {
             <Route path="/drafts" element={<Drafts />} />
             <Route path="/new" element={<CreateIssueFromUrl />} />
             <Route path="/projects" element={<Projects />} />
+            {/* The workspace-wide list. The team and project routes below keep their
+                narrower scope; this one is what the sidebar row points at. */}
+            <Route path="/documents" element={<Documents />} />
             <Route
               path="/initiatives"
               element={

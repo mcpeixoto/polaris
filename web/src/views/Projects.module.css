@@ -48,51 +48,8 @@
 }
 
 .pills {
-  display: flex;
-  align-items: center;
-  gap: var(--space-0-5);
   min-width: 0;
   overflow-x: auto;
-}
-
-/*
- * One pressed pill at a time. The pressed one wears the tertiary surface and primary text,
- * the rest are text on nothing — a segmented control drawn as a row of pills, which is what
- * every list view's "Active / Backlog / All" is.
- */
-.pill {
-  display: inline-flex;
-  align-items: center;
-  flex: none;
-  height: var(--control-height-md);
-  padding-inline: var(--space-3);
-  border: 0;
-  border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    background-color var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
-}
-
-.pill:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.pill.pillActive {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-.pill:focus-visible {
-  outline: var(--focus-ring-width) solid var(--border-focus);
-  outline-offset: var(--focus-ring-offset);
 }
 
 /*
@@ -104,15 +61,29 @@
  * in tokens for the glyph columns.
  */
 .table {
-  --project-grid: minmax(0, 1fr) 16ch 7ch 5ch 12ch 6ch 9ch;
+  /* One track per column that is on, in the order they are drawn. The template itself is
+     built in Projects.tsx from the columns the reader has chosen and handed back as an
+     inline `--project-grid`; the widths stay here, as tokens, so a narrow window can take
+     one out of the running without the component knowing anything about the viewport. */
+  /* Declared here as the name's track alone, and replaced inline by Projects.tsx with the
+     full template once it knows which columns are on. A stylesheet that only ever read a
+     variable somebody else sets is one typo away from an unstyled grid. */
+  --project-grid: minmax(0, 1fr);
+  --col-health: 16ch;
+  --col-priority: 7ch;
+  --col-lead: 5ch;
+  --col-target: 12ch;
+  --col-issues: 6ch;
+  --col-status: 9ch;
+  --col-spark: var(--space-10);
 
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-bottom: var(--space-8);
 }
 
-.tableSparkline {
-  --project-grid: minmax(0, 1fr) 16ch 7ch 5ch 12ch 6ch 9ch var(--space-10);
+.table:focus-visible {
+  outline: none;
 }
 
 .columns {
@@ -137,20 +108,11 @@
   flex-direction: column;
 }
 
-/* The issue list's group header, unchanged: 36px on the tertiary surface, inset from the
-   panel edge with the row radius, the band's glyph and name and a count. */
-.groupTitle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  height: 36px;
-  margin: var(--space-2) var(--space-2) 0;
-  padding-inline: var(--space-2);
+/* The band under the pointer while a row is being dragged onto its heading. The heading
+   itself is the shared ListGroup, so the highlight lands on the group around it. */
+.groupOver {
+  background: var(--bg-selected);
   border-radius: var(--radius-lg);
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-medium);
 }
 
 .groupCount {
@@ -159,14 +121,23 @@
   font-variant-numeric: tabular-nums;
 }
 
-.groupTitleOver {
-  background: var(--bg-selected);
-}
-
 .groupList {
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+/* The row the keyboard is on. A ring rather than a fill, so it can be read on top of the
+   hover and the selected backgrounds without any of the three becoming ambiguous. */
+.groupList > [data-cursor],
+.columnList > [data-cursor] {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: calc(-1 * var(--focus-ring-width));
+  border-radius: var(--radius-md);
+}
+
+.groupList > [aria-selected='true'] {
+  background: var(--bg-selected);
 }
 
 /* 51px: the project row is taller than an issue row because its name cell carries a second
@@ -365,17 +336,17 @@
 }
 
 /* Seven columns do not fit a narrow window. Target and the sparkline go first: both are
-   repeated on the project's own overview, and neither is what the list is scanned for. */
+   repeated on the project's own overview, and neither is what the list is scanned for. The
+   tracks collapse rather than leaving the template, because the template is the reader's
+   choice of columns and a viewport is not entitled to rewrite it. */
 @media (max-width: 1100px) {
-  .table,
-  .tableSparkline {
-    --project-grid: minmax(0, 1fr) 16ch 7ch 5ch 6ch 9ch;
+  .table {
+    --col-target: 0;
+    --col-spark: 0;
   }
 
   .target,
-  .spark,
-  .columns > :nth-child(5),
-  .columns > :nth-child(8) {
+  .spark {
     display: none;
   }
 }
@@ -391,4 +362,139 @@
   overflow: hidden;
   white-space: nowrap;
   clip-path: inset(50%);
+}
+
+/*
+ * The board: one column per project status, and the cards that move between them.
+ *
+ * Not the issue board's stylesheet. That column is a virtualised drop target built around
+ * an issue's identifier and assignee, and sharing it would have meant refactoring a surface
+ * rebuilt last round to serve a second caller with different cards. The tokens are the
+ * same — the same tinted lane, the same card border, background and hair of shadow, the
+ * same density — so the two read as one product without one of them owning the other.
+ */
+.board {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-2);
+  overflow-x: auto;
+  /* A flick that reaches the last column must not start scrolling the page behind it,
+     which on a trackpad is how you lose your place. */
+  overscroll-behavior-x: contain;
+}
+
+.board:focus-visible {
+  outline: none;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: 320px;
+  min-height: 0;
+  border-radius: var(--radius-lg);
+  background: var(--bg-secondary);
+}
+
+.columnOver {
+  background: var(--bg-selected);
+}
+
+.columnHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  height: var(--control-height-lg);
+  padding-inline: var(--space-3);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+/* The status's own colour arrives inline as `color`, so the dot is the one mark on the
+   board that a workspace decides rather than the theme. */
+.columnDot {
+  width: var(--space-2);
+  height: var(--space-2);
+  flex: none;
+  border-radius: var(--radius-full);
+  background: currentcolor;
+}
+
+.columnName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.columnList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1;
+  min-height: 0;
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2);
+  overflow-y: auto;
+}
+
+.columnBlank {
+  padding: var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.cardItem {
+  display: flex;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-sm);
+  color: inherit;
+  text-decoration: none;
+  font-size: var(--font-size-md);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.card:hover {
+  background: var(--bg-hover);
+}
+
+.cardDragging {
+  opacity: 0.5;
+}
+
+.cardTop {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.cardMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.cardSpacer {
+  flex: 1;
 }

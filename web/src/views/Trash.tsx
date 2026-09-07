@@ -24,6 +24,17 @@
  * more, because on a screen answering "where did my issue go" the person who filed it a month
  * ago is the wrong person to point at.
  *
+ * The table is a `role="grid"` with a cursor, which is the idiom the sibling `Archives`
+ * screen already uses for the same rows read the same way. It had no keyboard at all: `j`
+ * and `k` did nothing, and the only way to restore anything was to find its button with a
+ * mouse. The cursor is `useListCursor`, so the chords are the product's own rather than a
+ * third set written here, and Enter restores the row under it — a deleted issue has no page
+ * to open, and the one thing this screen exists to do is the honest meaning of "open" on it.
+ *
+ * The wait is `EntityLoading`, not a bare `Spinner`. A spinner over a table says something
+ * is happening; a skeleton of the rows about to arrive says what is coming, and it is the
+ * one loading treatment the rest of the product uses.
+ *
  * The empty case is still real and is still not filled in with a guess. `deleted_by` is
  * nullable for two different reasons — a row deleted before the column existed has no answer,
  * and the retention sweep deletes on a schedule rather than on somebody's instruction, so for
@@ -31,10 +42,12 @@
  * rather than showing a blank cell.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { useEngine } from '~/app/context';
-import { Badge, Button, EmptyState, Spinner } from '~/components';
+import { useKeyContext } from '~/app/keymap';
+import { Badge, Button, EmptyState } from '~/components';
+import { EntityLoading } from '~/features/entity-gate/EntityGate';
 import { when } from '~/features/time';
 import {
   type DeletedIssue,
@@ -42,6 +55,7 @@ import {
   RESTORE_WINDOW_DAYS,
   restoreIssue,
 } from '~/features/trash/mutations';
+import { listRowDomId, useListCursor } from '~/hooks/useListCursor';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { UUID } from '~/store';
 import { ApiError } from '~/sync/api';
@@ -168,6 +182,21 @@ export function Trash() {
     }
   };
 
+  const ids = useMemo(() => rows.map((row) => row.id), [rows]);
+
+  useKeyContext('list');
+  const cursor = useListCursor({
+    ids,
+    prefix: 'trashList',
+    noun: 'issue',
+    // Enter restores. It is the only verb this screen has, and a cursor whose Enter does
+    // nothing is a cursor that teaches people the keyboard here is decorative.
+    onOpen: (id) => {
+      const row = rows.find((candidate) => candidate.id === id);
+      if (row !== undefined) void restore(row);
+    },
+  });
+
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
@@ -201,9 +230,7 @@ export function Trash() {
         )}
 
         {load.phase === 'loading' ? (
-          <div className={styles.loading}>
-            <Spinner label="Looking for deleted issues" />
-          </div>
+          <EntityLoading label="Looking for deleted issues…" lines={4} />
         ) : null}
 
         {load.phase === 'failed' ? (
@@ -226,9 +253,17 @@ export function Trash() {
         ) : null}
 
         {rows.length === 0 ? null : (
-          <table className={styles.table}>
+          <table
+            className={styles.table}
+            role="grid"
+            aria-activedescendant={
+              cursor.cursorId === null ? undefined : listRowDomId('trashList', cursor.cursorId)
+            }
+            tabIndex={0}
+          >
             <caption className={styles.caption}>
-              Deleted issues, most recently deleted first.
+              Deleted issues, most recently deleted first. Move with j and k, restore the row under
+              the cursor with Enter.
             </caption>
             <thead>
               <tr>
@@ -242,7 +277,14 @@ export function Trash() {
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.id}>
+                <tr
+                  key={row.id}
+                  {...cursor.rowProps(row.id)}
+                  className={[styles.row, row.id === cursor.cursorId ? styles.cursorRow : null]
+                    .filter(Boolean)
+                    .join(' ')}
+                  onClick={() => cursor.setCursor(row.id)}
+                >
                   <th scope="row" className={styles.issue}>
                     <span className={styles.identifier}>{row.identifier}</span>
                     <span className={styles.issueTitle}>{row.title}</span>

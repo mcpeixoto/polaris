@@ -191,3 +191,17 @@
   white-space: nowrap;
   border: 0;
 }
+
+/*
+ * The cursor row. The grid has one tab stop and an active descendant rather than a roving
+ * `tabIndex`, so the ring the reader follows is drawn here: focus is on the table, and the
+ * row under the cursor is the one about to be restored.
+ */
+.row {
+  transition: background-color var(--duration-instant) var(--ease-out);
+}
+
+.cursorRow {
+  background: var(--bg-hover);
+  box-shadow: inset 2px 0 0 var(--accent);
+}

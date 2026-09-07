@@ -139,7 +139,9 @@ function renderInbox(rows: Notification[]) {
 }
 
 describe('Inbox leftovers', () => {
-  it('hides a read row when Show read is off', async () => {
+  // Was "hides a read row when Show read is off": the checkbox pair is now the tab row, and
+  // the behaviour it stood for — Inbox holds both, Unread holds one — is what is asserted.
+  it('keeps a read row out of Unread and in Inbox', async () => {
     const { user } = renderInbox([
       notification('n-unread'),
       notification('n-read', { readAt: AT, type: 'comment' }),
@@ -148,7 +150,7 @@ describe('Inbox leftovers', () => {
     expect(screen.getByText(/assigned ENG-4 to you/)).toBeTruthy();
     expect(screen.getByText(/commented on ENG-4/)).toBeTruthy();
 
-    await user.click(screen.getByRole('checkbox', { name: 'Show read' }));
+    await user.click(screen.getByRole('tab', { name: /Unread/ }));
     expect(screen.queryByText(/commented on ENG-4/)).toBeNull();
     expect(screen.getByText(/assigned ENG-4 to you/)).toBeTruthy();
   });
@@ -181,14 +183,17 @@ describe('Inbox leftovers', () => {
  * has a find in the box, it is the screen failing to notice what it is showing them.
  */
 describe('the empty inbox', () => {
-  it('distinguishes a filtered inbox from an empty one, and offers the box that unhides it', async () => {
+  // Was asserted against the "Show read" checkbox and the button that unticked it. The
+  // situation is the same one — this tab is empty and another is not — and so is the answer:
+  // say which tab the rest of the inbox is in, and offer the way to it.
+  it('distinguishes an empty tab from an empty inbox, and offers the tab that has the rest', async () => {
     const { user } = renderInbox([notification('n-read', { readAt: AT, type: 'comment' })]);
 
-    await user.click(screen.getByRole('checkbox', { name: 'Show read' }));
-    expect(screen.getByText('Nothing unread')).toBeTruthy();
+    await user.click(screen.getByRole('tab', { name: /Unread/ }));
+    expect(screen.getByText('Nothing in unread')).toBeTruthy();
     expect(screen.queryByText(/You are subscribed/)).toBeNull();
 
-    await user.click(screen.getByRole('button', { name: 'Show read' }));
+    await user.click(screen.getByRole('button', { name: 'Show Inbox' }));
     expect(screen.getByText(/commented on ENG-4/)).toBeTruthy();
   });
 

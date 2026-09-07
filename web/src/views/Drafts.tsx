@@ -6,13 +6,26 @@
  * start and not finish", not which storage it lives in. Local rows say they are on this
  * device; saved rows survive logout. Opening one files it back into the composer it came
  * from.
+ *
+ * The screen used to claim the list key context and register a single "new issue" action
+ * into it, so `j`, `k` and Enter did nothing on a screen that had told the keyboard it was
+ * a list. The claim is honoured now rather than dropped: both piles feed one cursor —
+ * unsent work is one question, whichever store it sits in — and Enter resumes the row under
+ * it. Two listboxes carry it because a listbox may hold options and groups and not the two
+ * headings and the paragraph between the piles; the cursor is one, and only the box holding
+ * it names an active descendant.
+ *
+ * Waiting is drawn with `EntityLoading`, not with an `EmptyState` titled "Loading drafts".
+ * An empty state is an answer, and "there is nothing unsent" is precisely the answer this
+ * screen does not have while the saved pile is still on the wire.
  */
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Button, EmptyState } from '~/components';
+import { Button, EmptyState, Field, useFieldIds } from '~/components';
+import { EntityLoading } from '~/features/entity-gate/EntityGate';
 import {
   commentPayloadOf,
   deleteDraft,
@@ -30,6 +43,8 @@ import {
 } from '~/features/drafts/local';
 import { useCreateIssue } from '~/features/issue/create-context';
 import { exact, when } from '~/features/time';
+import { useListCursor, listRowDomId } from '~/hooks/useListCursor';
+import type { UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import styles from './Drafts.module.css';
 
@@ -46,6 +61,8 @@ export function Drafts() {
   const [local, setLocal] = useState<readonly LocalDraft[]>(() => listLocalDrafts());
   const [discardError, setDiscardError] = useState<string | null>(null);
   const [retryDiscard, setRetryDiscard] = useState<string | null>(null);
+  const fetchErrorIds = useFieldIds();
+  const discardErrorIds = useFieldIds();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -145,7 +162,30 @@ export function Drafts() {
     refreshLocal();
   };
 
+  const saved = load.phase === 'ready' ? load.saved : [];
+  const empty = local.length === 0 && saved.length === 0 && load.phase !== 'loading';
+
+  // One list, in the order it is drawn: local first, then saved. A local row's id is its
+  // slot rather than a uuid, because that is what identifies it — there is one issue
+  // composer draft per device and one comment draft per thread.
+  const ids: readonly UUID[] = [
+    ...local.map((draft) => localKey(draft)),
+    ...saved.map((draft) => draft.id),
+  ];
+
+  const resume = (id: UUID) => {
+    const localDraft = local.find((draft) => localKey(draft) === id);
+    if (localDraft !== undefined) {
+      resumeLocal(localDraft);
+      return;
+    }
+    const savedDraft = saved.find((draft) => draft.id === id);
+    if (savedDraft !== undefined) resumeSaved(savedDraft);
+  };
+
   useKeyContext('list');
+  const cursor = useListCursor({ ids, prefix: 'draftList', noun: 'draft', onOpen: resume });
+
   useActions(
     [
       {
@@ -162,8 +202,13 @@ export function Drafts() {
     [create],
   );
 
-  const saved = load.phase === 'ready' ? load.saved : [];
-  const empty = local.length === 0 && saved.length === 0 && load.phase !== 'loading';
+  const activeIn = (rowIds: readonly string[]): string | undefined =>
+    cursor.cursorId !== null && rowIds.includes(cursor.cursorId)
+      ? listRowDomId('draftList', cursor.cursorId)
+      : undefined;
+
+  const rowClass = (id: string) =>
+    [styles.savedRow, id === cursor.cursorId ? styles.cursorRow : null].filter(Boolean).join(' ');
 
   return (
     <div className={styles.screen}>
@@ -172,10 +217,7 @@ export function Drafts() {
       </header>
 
       {load.phase === 'loading' && local.length === 0 ? (
-        <EmptyState
-          title="Loading drafts"
-          description="Saved drafts come from the server; local ones are already here."
-        />
+        <EntityLoading label="Loading drafts…" lines={3} />
       ) : empty ? (
         <EmptyState
           title="Nothing unsent"
@@ -199,10 +241,28 @@ export function Drafts() {
               <p className={styles.sectionNote}>
                 Cleared by logout or a restart. Save one to keep it.
               </p>
-              <ul className={styles.list}>
+              <ul
+                className={styles.list}
+                role="listbox"
+                aria-label="Drafts on this device"
+                tabIndex={0}
+                aria-activedescendant={activeIn(local.map((draft) => localKey(draft)))}
+              >
                 {local.map((draft) => (
-                  <li key={localKey(draft)} className={styles.savedRow}>
-                    <button type="button" className={styles.row} onClick={() => resumeLocal(draft)}>
+                  <li
+                    key={localKey(draft)}
+                    {...cursor.rowProps(localKey(draft))}
+                    role="option"
+                    className={rowClass(localKey(draft))}
+                  >
+                    <button
+                      type="button"
+                      className={styles.row}
+                      onClick={() => {
+                        cursor.setCursor(localKey(draft));
+                        resumeLocal(draft);
+                      }}
+                    >
                       <span className={styles.kind}>
                         {draft.kind === 'issue' ? 'Issue' : 'Comment'}
                       </span>
@@ -227,19 +287,26 @@ export function Drafts() {
             </section>
           )}
 
+          {/* The message and the control that answers it, through the same `Field` every
+              form control on the product renders through — rather than a `<p role="alert">`
+              of this screen's own, which is how two spellings of an error message start. */}
           {load.phase === 'failed' ? (
-            <p className={styles.error} role="alert">
-              {load.message}{' '}
-              <Button size="sm" variant="ghost" onClick={() => setAttempt((n) => n + 1)}>
+            <Field ids={fetchErrorIds} error={load.message}>
+              <Button
+                id={fetchErrorIds.controlId}
+                size="sm"
+                variant="ghost"
+                onClick={() => setAttempt((n) => n + 1)}
+              >
                 Try again
               </Button>
-            </p>
+            </Field>
           ) : null}
 
           {discardError === null ? null : (
-            <p className={styles.error} role="alert">
-              {discardError}{' '}
+            <Field ids={discardErrorIds} error={discardError}>
               <Button
+                id={discardErrorIds.controlId}
                 size="sm"
                 variant="ghost"
                 onClick={() => {
@@ -248,7 +315,7 @@ export function Drafts() {
               >
                 Try again
               </Button>
-            </p>
+            </Field>
           )}
 
           {saved.length > 0 && (
@@ -257,10 +324,28 @@ export function Drafts() {
               <p className={styles.sectionNote}>
                 Kept for six months, on every device you sign in on.
               </p>
-              <ul className={styles.list}>
+              <ul
+                className={styles.list}
+                role="listbox"
+                aria-label="Saved drafts"
+                tabIndex={0}
+                aria-activedescendant={activeIn(saved.map((draft) => draft.id))}
+              >
                 {saved.map((draft) => (
-                  <li key={draft.id} className={styles.savedRow}>
-                    <button type="button" className={styles.row} onClick={() => resumeSaved(draft)}>
+                  <li
+                    key={draft.id}
+                    {...cursor.rowProps(draft.id)}
+                    role="option"
+                    className={rowClass(draft.id)}
+                  >
+                    <button
+                      type="button"
+                      className={styles.row}
+                      onClick={() => {
+                        cursor.setCursor(draft.id);
+                        resumeSaved(draft);
+                      }}
+                    >
                       <span className={styles.kind}>
                         {draft.kind === 'issue' ? 'Issue' : 'Comment'}
                       </span>

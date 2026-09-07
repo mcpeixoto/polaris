@@ -18,6 +18,12 @@
  * everything else: a notification arriving over the socket appears without a refetch. The
  * one query is the backfill on mount, for rows written while this client was away.
  *
+ * **It is four lists.** Inbox, Unread, Snoozed and Done are tabs rather than a pair of
+ * checkboxes in a popover, because the two questions the checkboxes could not ask — what is
+ * still asleep, what have I already dealt with — are the two an inbox with any volume in it
+ * is opened with. Within a tab the rows are cut into day groups, and a kind filter narrows
+ * them by why they arrived. All four are one arithmetic module away in `features/inbox`.
+ *
  * **It is two panes.** The list on the left, 425px of it, and the issue the cursor row is
  * about on the right. Clicking a row still opens the issue for real — that is how most rows
  * get read, and the end-to-end walk holds it to that — so the pane is what the keyboard
@@ -25,7 +31,7 @@
  * a list. Until the cursor has moved, the pane says how much is unread instead.
  */
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 
 import { useEngine } from '~/app/context';
@@ -33,42 +39,60 @@ import { useActions, useKeyContext } from '~/app/keymap';
 import {
   Avatar,
   Button,
-  Checkbox,
   EmptyState,
   IconButton,
   Input,
+  ListGroup,
   Menu,
   priorityLabel,
   StateIcon,
+  Tabs,
   type MenuNode,
+  type TabItem,
 } from '~/components';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
 import { updateIssues, type IssueFields } from '~/features/issue/mutations';
+import { browserTimezone } from '~/features/locale';
 import { exact } from '~/features/time';
 import { notificationGlyph } from '~/features/inbox/glyphs';
 import { InboxDetail } from '~/features/inbox/InboxDetail';
 import {
   age,
   coalescedTail,
-  DEFAULT_INBOX_DISPLAY,
+  DEFAULT_INBOX_TAB,
   describeEvent,
-  isAwake,
+  groupByDay,
+  INBOX_TABS,
+  INBOX_TAB_NAMES,
   matchesInboxQuery,
+  matchesTab,
   notificationHref,
   payloadId,
+  stepTab,
+  tabCounts,
   useWakingQuery,
-  visibleNotificationIds,
-  type InboxDisplay,
+  type InboxTab,
+  type InboxTabCounts,
 } from '~/features/inbox/inbox';
 import {
-  dismissNotification,
+  INBOX_KIND_GLYPH_TYPES,
+  INBOX_KIND_NAMES,
+  INBOX_KINDS,
+  matchesKinds,
+  type InboxKind,
+} from '~/features/inbox/kinds';
+import {
+  dismissNotificationSoon,
   dismissReadNotifications,
+  flushDismissals,
   hydrateInbox,
   markAllNotificationsRead,
   markNotificationRead,
   report,
   snoozeNotification,
 } from '~/features/inbox/mutations';
+import { offerUndo } from '~/features/undo/UndoToast';
+import { useSelection } from '~/hooks/useSelection';
 import { useViewerId } from '~/hooks/useViewer';
 import type { NotificationType, StateCategory, Store, UUID } from '~/store';
 import styles from './Inbox.module.css';
@@ -114,16 +138,14 @@ interface InboxAnswer {
   readonly unread: number;
   readonly wakeAt: number | null;
   /**
-   * How many rows the two display toggles are holding back, split by which toggle is doing
-   * it.
+   * How many rows each tab holds, before the find box and the kind filter narrow them.
    *
-   * Only the empty state reads these, and only to say which kind of empty this is. An inbox
-   * with forty read notifications and Show read off is not the same screen as an inbox with
-   * nothing in it, and it used to say the same sentence on both — a first-run explanation of
-   * what the inbox is for, to somebody who had just cleared theirs.
+   * The tabs draw these, and the empty state reads them to say which kind of empty this is.
+   * An inbox with forty rows in Done and nothing unread is not the same screen as an inbox
+   * with nothing in it, and it used to say the same sentence on both — a first-run
+   * explanation of what the inbox is for, to somebody who had just cleared theirs.
    */
-  readonly hiddenRead: number;
-  readonly hiddenSnoozed: number;
+  readonly counts: InboxTabCounts;
 }
 
 export function Inbox() {
@@ -141,7 +163,7 @@ export function Inbox() {
    */
   const [placed, setPlaced] = useState(false);
   const findRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   /**
@@ -158,9 +180,15 @@ export function Inbox() {
   const [snoozeFor, setSnoozeFor] = useState<UUID | null>(null);
   const [contextFor, setContextFor] = useState<Row | null>(null);
   const [picker, setPicker] = useState<'status' | 'assignee' | 'priority' | null>(null);
-  const [display, setDisplay] = useState<InboxDisplay>(DEFAULT_INBOX_DISPLAY);
+  const [tab, setTab] = useState<InboxTab>(DEFAULT_INBOX_TAB);
+  const [kinds, setKinds] = useState<ReadonlySet<InboxKind>>(() => new Set());
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLButtonElement>(null);
+  const bulkSnoozeRef = useRef<HTMLButtonElement>(null);
+  const [bulkSnoozeOpen, setBulkSnoozeOpen] = useState(false);
   const [query, setQuery] = useState('');
   const viewerId = useViewerId();
+  const timezone = browserTimezone();
 
   // The backfill. Everything after this arrives as a delta, so this runs once and is not a
   // refresh the user can trigger — a button that refetches a stream that is already live
@@ -169,35 +197,31 @@ export function Inbox() {
     hydrateInbox(engine).catch(report);
   }, [engine]);
 
-  const { rows, unread, hiddenRead, hiddenSnoozed } = useWakingQuery<InboxAnswer>(
+  // A dismissal waits out the undo window before it is sent (see `dismissNotificationSoon`),
+  // and leaving the screen is the user having stopped deciding. Anything still held goes now
+  // rather than dying with the timer that was holding it.
+  useEffect(() => flushDismissals, []);
+
+  const { rows, unread, counts } = useWakingQuery<InboxAnswer>(
     useCallback(
       (store: Store, now: number) => {
-        const ids = visibleNotificationIds(store, now, display);
         const built: Row[] = [];
-        let unreadCount = 0;
-        let hiddenReadCount = 0;
-        let hiddenSnoozedCount = 0;
+        const counted = tabCounts(store, now);
         let wake: number | null = null;
 
-        for (const row of store.notifications.values()) {
-          if (row.readAt === undefined && isAwake(row, now)) unreadCount++;
-          // The same two questions `visibleNotificationIds` asks, in the same order, so the
-          // count of what is held back cannot disagree with what is drawn. Read wins the tie:
-          // a row that is both read and asleep is one row, and counting it twice would put
-          // "read or snoozed" on screen for a single hidden notification.
-          if (row.readAt !== undefined && !display.showRead) hiddenReadCount++;
-          else if (!isAwake(row, now) && !display.showSnoozed) hiddenSnoozedCount++;
-          if (row.snoozedUntil === undefined) continue;
-          const until = Date.parse(row.snoozedUntil);
-          if (!Number.isNaN(until) && until > now && (wake === null || until < wake)) {
-            wake = until;
+        for (const notification of store.notifications.values()) {
+          if (notification.snoozedUntil !== undefined) {
+            const until = Date.parse(notification.snoozedUntil);
+            if (!Number.isNaN(until) && until > now && (wake === null || until < wake)) {
+              wake = until;
+            }
           }
-        }
+          // The tab and the kind filter first, because both are one field comparison and
+          // everything below them is a walk through five other tables.
+          if (!matchesTab(notification, now, tab)) continue;
+          if (!matchesKinds(notification.type, kinds)) continue;
 
-        for (const id of ids) {
-          const notification = store.notifications.get(id);
-          if (notification === undefined) continue;
-
+          const id = notification.id;
           const issue =
             notification.issueId === undefined
               ? undefined
@@ -281,19 +305,27 @@ export function Inbox() {
           built.push(builtRow);
         }
 
-        return {
-          rows: built,
-          unread: unreadCount,
-          wakeAt: wake,
-          hiddenRead: hiddenReadCount,
-          hiddenSnoozed: hiddenSnoozedCount,
-        };
+        // Newest first, with the id breaking a tie — a bulk edit delivers a run of rows
+        // written in the same millisecond, and without the tie-break their order is whatever
+        // the map happened to iterate.
+        built.sort((a, b) => {
+          const delta = Date.parse(b.createdAt) - Date.parse(a.createdAt);
+          if (delta !== 0 && !Number.isNaN(delta)) return delta;
+          return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+        });
+
+        return { rows: built, unread: counted.unread, wakeAt: wake, counts: counted };
       },
-      [display, query],
+      [tab, kinds, query],
     ),
     ['notification', 'issue', 'user', 'team', 'project', 'initiative', 'customer', 'workflowState'],
-    [display.showRead, display.showSnoozed, query],
+    [tab, kinds, query],
   );
+
+  /** The rows in the order the list draws them — what a selection and a range resolve over. */
+  const ids = useMemo(() => rows.map((row) => row.id), [rows]);
+  const selection = useSelection(ids);
+  const groups = useMemo(() => groupByDay(rows, timezone), [rows, timezone]);
 
   // Clamped rather than reset: marking the last row read shortens the list, and a cursor
   // that jumped back to the top every time would make working down an inbox impossible.
@@ -377,6 +409,79 @@ export function Inbox() {
     if (issueId !== undefined) updateIssues(engine, [issueId], fields, viewerId).catch(report);
   };
 
+  /**
+   * What a command acts on: the selection when there is one, the cursor row otherwise.
+   *
+   * The same rule the issue list uses, and for the same reason — every shortcut on this
+   * screen worked on one row before there was a selection, and a version where `U` meant one
+   * thing with the bar up and another with it down would be two keyboards.
+   */
+  const targets = useCallback(
+    (): readonly UUID[] =>
+      selection.size > 0 ? selection.ordered : current === undefined ? [] : [current.id],
+    [selection, current],
+  );
+
+  /**
+   * Marks rows read, and offers the way back.
+   *
+   * One write per row rather than `markAllNotificationsRead`: that mutation clears the whole
+   * inbox, which is a different command and is still bound to `alt+u`. A bulk mark-read over
+   * eleven selected rows must touch eleven rows and no twelfth.
+   *
+   * The undo is a genuine inverse — `readAt` going away is a mutation the server has — and it
+   * names only the rows that actually changed, so undoing does not un-read something that was
+   * already read before the bar was used.
+   */
+  const markRead = useCallback(
+    (ids: readonly UUID[]) => {
+      const changed = ids.filter(
+        (id) => engine.store.get('notification', id)?.readAt === undefined,
+      );
+      if (changed.length === 0) return;
+      for (const id of changed) markNotificationRead(engine, id, true).catch(report);
+      selection.clear();
+      offerUndo({
+        label: `Marked ${notificationCount(changed.length)} read`,
+        undo: async () => {
+          await Promise.all(changed.map((id) => markNotificationRead(engine, id, false)));
+        },
+      });
+    },
+    [engine, selection],
+  );
+
+  /**
+   * Dismisses rows, and offers the way back for as long as the toast is up.
+   *
+   * The undo here is the request not having been sent yet rather than a second write — see
+   * `dismissNotificationSoon`, which explains why this screen is the one place in the product
+   * where that is the only honest arrangement.
+   */
+  const dismiss = useCallback(
+    (ids: readonly UUID[]) => {
+      if (ids.length === 0) return;
+      const restore = ids.map((id) => dismissNotificationSoon(engine, id));
+      selection.clear();
+      offerUndo({
+        label: `Dismissed ${notificationCount(ids.length)}`,
+        undo: async () => {
+          for (const put of restore) put();
+        },
+      });
+    },
+    [engine, selection],
+  );
+
+  /** Snoozes rows to the same moment. Snoozing is reversible by itself, so no undo is offered. */
+  const snooze = useCallback(
+    (ids: readonly UUID[], until: Date | null) => {
+      for (const id of ids) snoozeNotification(engine, id, until).catch(report);
+      selection.clear();
+    },
+    [engine, selection],
+  );
+
   // The inbox is a list screen, and its shortcuts belong to the list context rather than to
   // the whole application.
   //
@@ -421,8 +526,14 @@ export function Inbox() {
         when: 'list',
         group: 'Inbox',
         run: () => {
-          if (current === undefined) return;
-          markNotificationRead(engine, current.id, current.unread).catch(report);
+          // A toggle on one row stays a toggle and offers no undo: pressing `U` again is the
+          // undo, and a toast for it would be up more often than not.
+          if (selection.size === 0) {
+            if (current === undefined) return;
+            markNotificationRead(engine, current.id, current.unread).catch(report);
+            return;
+          }
+          markRead(selection.ordered);
         },
       },
       {
@@ -431,7 +542,14 @@ export function Inbox() {
         keys: ['h'],
         when: 'list',
         group: 'Inbox',
-        run: () => openOn(current, (row) => setSnoozeFor(row.id)),
+        run: () => {
+          if (selection.size > 0) {
+            bulkSnoozeRef.current?.focus();
+            setBulkSnoozeOpen(true);
+            return;
+          }
+          openOn(current, (row) => setSnoozeFor(row.id));
+        },
       },
       {
         id: 'inbox.dismiss',
@@ -439,9 +557,7 @@ export function Inbox() {
         keys: ['Backspace'],
         when: 'list',
         group: 'Inbox',
-        run: () => {
-          if (current !== undefined) dismissNotification(engine, current.id).catch(report);
-        },
+        run: () => dismiss(targets()),
       },
       {
         id: 'inbox.dismissRead',
@@ -458,6 +574,78 @@ export function Inbox() {
         when: 'list',
         group: 'Inbox',
         run: () => markAllNotificationsRead(engine).catch(report),
+      },
+      {
+        id: 'inbox.tab.next',
+        title: 'Next inbox tab',
+        keys: [']'],
+        when: 'list',
+        group: 'Inbox',
+        run: () => setTab((current) => stepTab(current, 1)),
+      },
+      {
+        id: 'inbox.tab.previous',
+        title: 'Previous inbox tab',
+        keys: ['['],
+        when: 'list',
+        group: 'Inbox',
+        run: () => setTab((current) => stepTab(current, -1)),
+      },
+      {
+        id: 'inbox.select.toggle',
+        title: 'Select notification',
+        keys: ['x'],
+        when: 'list',
+        group: 'Selection',
+        run: () => {
+          if (current !== undefined) selection.toggle(current.id);
+        },
+      },
+      {
+        id: 'inbox.select.extendDown',
+        title: 'Extend selection down',
+        keys: ['shift+ArrowDown'],
+        when: 'list',
+        group: 'Selection',
+        run: () => {
+          const next = rows[Math.min(active + 1, rows.length - 1)];
+          if (next === undefined) return;
+          selection.extendTo(next.id, current?.id ?? null);
+          place((c) => Math.min(c + 1, Math.max(rows.length - 1, 0)));
+        },
+      },
+      {
+        id: 'inbox.select.extendUp',
+        title: 'Extend selection up',
+        keys: ['shift+ArrowUp'],
+        when: 'list',
+        group: 'Selection',
+        run: () => {
+          const next = rows[Math.max(active - 1, 0)];
+          if (next === undefined) return;
+          selection.extendTo(next.id, current?.id ?? null);
+          place((c) => Math.max(c - 1, 0));
+        },
+      },
+      {
+        id: 'inbox.select.all',
+        title: 'Select every notification',
+        keys: ['mod+a'],
+        when: 'list',
+        group: 'Selection',
+        run: () => selection.selectAll(),
+      },
+      {
+        id: 'inbox.select.clear',
+        title: 'Clear selection',
+        keys: ['Escape'],
+        when: 'list',
+        group: 'Selection',
+        hidden: true,
+        // Guarded, so Escape with nothing selected falls through to the find box's own
+        // Escape below and, when that is empty too, to the shell's dismiss.
+        enabled: () => selection.size > 0,
+        run: () => selection.clear(),
       },
       {
         id: 'inbox.find',
@@ -481,21 +669,34 @@ export function Inbox() {
         },
       },
     ],
-    [rows.length, current, engine, open, openOn, place, query],
+    [
+      rows,
+      active,
+      current,
+      engine,
+      open,
+      openOn,
+      place,
+      query,
+      selection,
+      markRead,
+      dismiss,
+      targets,
+    ],
   );
 
   /**
    * Which kind of empty this is, and the way out of it.
    *
-   * Three of them, and they were one. A find that matched nothing, an inbox whose contents
-   * are all read or all snoozed, and an inbox that has genuinely never had anything in it are
-   * different situations with different answers, and the sentence that fits the third — an
-   * explanation of what subscribes you to an issue — is faintly insulting to somebody who has
-   * just finished clearing the first two.
+   * Five of them, and they were one. A find that matched nothing, a kind filter that matched
+   * nothing, a tab that is empty while another tab is not, and an inbox that has genuinely
+   * never had anything in it are different situations with different answers — and the
+   * sentence that fits the last, an explanation of what subscribes you to an issue, is
+   * faintly insulting to somebody who has just finished clearing the first four.
    *
-   * Each carries the action that undoes the state it describes, which is the same thing the
-   * control above it does: Escape and the find box, the two display checkboxes. Nothing here
-   * is a new command.
+   * Each carries the control that undoes the state it describes, which is the same control
+   * that caused it: Escape and the find box, the filter menu, the tab row. Nothing here is a
+   * new command.
    */
   const emptyState = ((): { title: string; description: string; action?: ReactNode } => {
     if (query.trim() !== '') {
@@ -515,24 +716,25 @@ export function Inbox() {
         ),
       };
     }
-    if (hiddenRead > 0 || hiddenSnoozed > 0) {
-      const kinds = [hiddenRead > 0 ? 'read' : null, hiddenSnoozed > 0 ? 'snoozed' : null]
-        .filter((kind): kind is string => kind !== null)
-        .join(' or ');
+    if (kinds.size > 0) {
       return {
-        title: 'Nothing unread',
-        description: `The rest of this inbox is ${kinds}, and hidden by the boxes above.`,
+        title: 'No matches',
+        description: 'Nothing in this tab arrived for the reasons the filter is set to.',
         action: (
-          <Button
-            size="sm"
-            onClick={() =>
-              setDisplay((prev) => ({
-                showRead: prev.showRead || hiddenRead > 0,
-                showSnoozed: prev.showSnoozed || hiddenSnoozed > 0,
-              }))
-            }
-          >
-            {`Show ${kinds.replace(' or ', ' and ')}`}
+          <Button size="sm" onClick={() => setKinds(new Set())}>
+            Clear filter
+          </Button>
+        ),
+      };
+    }
+    const elsewhere = INBOX_TABS.find((other) => other !== tab && counts[other] > 0);
+    if (elsewhere !== undefined) {
+      return {
+        title: `Nothing in ${INBOX_TAB_NAMES[tab].toLowerCase()}`,
+        description: `${counts[elsewhere]} ${counts[elsewhere] === 1 ? 'notification is' : 'notifications are'} in ${INBOX_TAB_NAMES[elsewhere]}.`,
+        action: (
+          <Button size="sm" onClick={() => setTab(elsewhere)}>
+            {`Show ${INBOX_TAB_NAMES[elsewhere]}`}
           </Button>
         ),
       };
@@ -543,6 +745,118 @@ export function Inbox() {
         'You are subscribed to the issues you create, are assigned, comment on or are mentioned in. Anything that happens to them lands here.',
     };
   })();
+
+  const tabItems: readonly TabItem[] = INBOX_TABS.map((id) => ({
+    id,
+    label: INBOX_TAB_NAMES[id],
+    // A count and not a badge: it is the one fact the tab's name does not carry, and it is
+    // read across the row to decide which tab to be in.
+    detail: counts[id] === 0 ? undefined : counts[id],
+  }));
+
+  /** One row, drawn the same whichever day group it fell into. */
+  const renderRow = (row: Row) => (
+    <li key={row.id} role="none">
+      <button
+        type="button"
+        id={`notification-${row.id}`}
+        role="option"
+        // The selection, which is what `aria-selected` means in a listbox. The cursor is
+        // `aria-activedescendant` on the list, which is what that means.
+        aria-selected={selection.ids.has(row.id)}
+        className={[
+          styles.row,
+          row.unread ? styles.unread : null,
+          row.id === current?.id ? styles.active : null,
+          selection.ids.has(row.id) ? styles.picked : null,
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        // The two selection gestures a pointer has, and then the ordinary one. Modifier
+        // first: a cmd-click that navigated would take the row off the screen it was being
+        // added to a selection on.
+        onClick={(event) => {
+          const at = rows.indexOf(row);
+          if (event.metaKey || event.ctrlKey) {
+            place(() => at);
+            selection.toggle(row.id);
+            return;
+          }
+          if (event.shiftKey) {
+            place(() => at);
+            selection.extendTo(row.id, current?.id ?? null);
+            return;
+          }
+          setCursor(at);
+          open(row);
+        }}
+        // The contextual menu the spec asks for, on the row the pointer is over
+        // rather than on the cursor's row: right-clicking a notification is a
+        // statement about that one, so the cursor moves to it first and the menu
+        // then acts on the cursor like every other command here.
+        onContextMenu={(event) => {
+          event.preventDefault();
+          place(() => rows.indexOf(row));
+          openOn(row, setContextFor);
+        }}
+      >
+        {/* The dot is a picture, so it says nothing to a screen reader, and
+            weight says nothing either: read and unread were the same row
+            announced the same way. One hidden word is the whole fix, and it
+            leads the option so it is heard before the sentence it qualifies. */}
+        {row.unread ? <span className={styles.unreadName}>Unread</span> : null}
+        <span className={styles.avatar} aria-hidden="true">
+          <Avatar
+            name={row.avatarName}
+            src={row.avatarUrl}
+            size="md"
+            decorative
+            className={styles.avatarImage}
+          />
+          <span className={styles.badge}>{notificationGlyph(row.type)}</span>
+        </span>
+        <span className={styles.text}>
+          <span className={styles.headline}>
+            <span className={styles.dot} aria-hidden="true" />
+            {row.issueIdentifier === undefined ? (
+              <>
+                <span className={styles.actor}>{row.actor}</span>{' '}
+                <span className={styles.event}>{row.event}</span>
+              </>
+            ) : (
+              <>
+                <span className={styles.identifier}>{row.issueIdentifier}</span>
+                <span className={styles.issueTitle}>{row.issueTitle}</span>
+              </>
+            )}
+          </span>
+          {row.issueIdentifier === undefined ? null : (
+            <span className={styles.action}>
+              <span className={styles.actor}>{row.actor}</span>{' '}
+              <span className={styles.event}>{row.event}</span>
+              {row.tail === null ? null : <span className={styles.tail}>{row.tail}</span>}
+              {row.snoozedUntil === undefined ? null : (
+                <span className={styles.snoozed}>Snoozed</span>
+              )}
+            </span>
+          )}
+        </span>
+        <span className={styles.meta}>
+          <time className={styles.when} dateTime={row.createdAt} title={exact(row.createdAt)}>
+            {age(row.createdAt)}
+          </time>
+          {row.state === null ? null : (
+            <StateIcon
+              category={row.state.category}
+              color={row.state.color}
+              decorative
+              className={styles.state}
+            />
+          )}
+        </span>
+      </button>
+    </li>
+  );
 
   return (
     <div className={styles.screen}>
@@ -593,9 +907,18 @@ export function Inbox() {
           />
         </header>
 
-        {/* The find box and the two display toggles. Visible rather than folded into a
-            menu: a checkbox in a popover is a filter nobody can see is on, and "why is my
-            inbox empty" is the question that toggle already answers. */}
+        {/* Tabs rather than the two checkboxes that used to live in this space. A checkbox in
+            a popover is a filter nobody can see is on, and "why is my inbox empty" was the
+            question it caused; a tab row says which of the four lists you are looking at
+            without being opened, and carries the count of the three you are not. */}
+        <Tabs
+          className={styles.tabs}
+          aria-label="Inbox tabs"
+          items={tabItems}
+          value={tab}
+          onSelect={(id) => setTab(id as InboxTab)}
+        />
+
         <div className={styles.toolbar}>
           <div className={styles.find}>
             <Input
@@ -607,20 +930,20 @@ export function Inbox() {
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
-          <Checkbox
-            checked={display.showRead}
-            onChange={(event) =>
-              setDisplay((prev) => ({ ...prev, showRead: event.target.checked }))
-            }
-            label="Show read"
-          />
-          <Checkbox
-            checked={display.showSnoozed}
-            onChange={(event) =>
-              setDisplay((prev) => ({ ...prev, showSnoozed: event.target.checked }))
-            }
-            label="Show snoozed"
-          />
+          {/* The filter's state is on its own label rather than only inside the menu, for
+              the same reason the tabs exist: a narrowing nobody can see is a bug report. */}
+          <Button
+            ref={filterRef}
+            size="sm"
+            variant={kinds.size > 0 ? 'secondary' : 'ghost'}
+            onClick={() => setFilterOpen(true)}
+          >
+            {kinds.size === 0
+              ? 'Filter'
+              : kinds.size === 1
+                ? (INBOX_KIND_NAMES[[...kinds][0] as InboxKind] ?? 'Filter')
+                : `${kinds.size} kinds`}
+          </Button>
         </div>
 
         {rows.length === 0 ? (
@@ -632,109 +955,63 @@ export function Inbox() {
             />
           </div>
         ) : (
-          <ul
+          <div
             ref={listRef}
             className={styles.list}
             // A listbox rather than a plain list: the cursor is managed here rather than by
             // the browser's focus, so the active row has to be announced as such.
             role="listbox"
             aria-label="Notifications"
+            aria-multiselectable={true}
             // Focusable so a menu opened from a row has somewhere to hand the keyboard back
             // to when that row has been snoozed out from under it. Not in the tab order: the
             // rows are buttons and are already reachable.
             tabIndex={-1}
             aria-activedescendant={current === undefined ? undefined : `notification-${current.id}`}
           >
-            {rows.map((row) => (
-              <li key={row.id} role="none">
-                <button
-                  type="button"
-                  id={`notification-${row.id}`}
-                  role="option"
-                  aria-selected={row.id === current?.id}
-                  className={[
-                    styles.row,
-                    row.unread ? styles.unread : null,
-                    row.id === current?.id ? styles.active : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  onClick={() => {
-                    setCursor(rows.indexOf(row));
-                    open(row);
-                  }}
-                  // The contextual menu the spec asks for, on the row the pointer is over
-                  // rather than on the cursor's row: right-clicking a notification is a
-                  // statement about that one, so the cursor moves to it first and the menu
-                  // then acts on the cursor like every other command here.
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    place(() => rows.indexOf(row));
-                    openOn(row, setContextFor);
-                  }}
-                >
-                  {/* The dot is a picture, so it says nothing to a screen reader, and
-                      weight says nothing either: read and unread were the same row
-                      announced the same way. One hidden word is the whole fix, and it
-                      leads the option so it is heard before the sentence it qualifies. */}
-                  {row.unread ? <span className={styles.unreadName}>Unread</span> : null}
-                  <span className={styles.avatar} aria-hidden="true">
-                    <Avatar
-                      name={row.avatarName}
-                      src={row.avatarUrl}
-                      size="md"
-                      decorative
-                      className={styles.avatarImage}
-                    />
-                    <span className={styles.badge}>{notificationGlyph(row.type)}</span>
-                  </span>
-                  <span className={styles.text}>
-                    <span className={styles.headline}>
-                      <span className={styles.dot} aria-hidden="true" />
-                      {row.issueIdentifier === undefined ? (
-                        <>
-                          <span className={styles.actor}>{row.actor}</span>{' '}
-                          <span className={styles.event}>{row.event}</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className={styles.identifier}>{row.issueIdentifier}</span>
-                          <span className={styles.issueTitle}>{row.issueTitle}</span>
-                        </>
-                      )}
-                    </span>
-                    {row.issueIdentifier === undefined ? null : (
-                      <span className={styles.action}>
-                        <span className={styles.actor}>{row.actor}</span>{' '}
-                        <span className={styles.event}>{row.event}</span>
-                        {row.tail === null ? null : <span className={styles.tail}>{row.tail}</span>}
-                        {row.snoozedUntil === undefined ? null : (
-                          <span className={styles.snoozed}>Snoozed</span>
-                        )}
-                      </span>
-                    )}
-                  </span>
-                  <span className={styles.meta}>
-                    <time
-                      className={styles.when}
-                      dateTime={row.createdAt}
-                      title={exact(row.createdAt)}
-                    >
-                      {age(row.createdAt)}
-                    </time>
-                    {row.state === null ? null : (
-                      <StateIcon
-                        category={row.state.category}
-                        color={row.state.color}
-                        decorative
-                        className={styles.state}
-                      />
-                    )}
-                  </span>
-                </button>
-              </li>
+            {/* Day groups. A hundred notifications in one undifferentiated run is a list you
+                scroll rather than read; the day is the only division an inbox has that the
+                reader already holds in their head. */}
+            {groups.map((group) => (
+              <ListGroup
+                key={group.key}
+                groupKey={group.key}
+                preferenceKey="inbox"
+                name={group.name}
+                count={group.rows.length}
+              >
+                <ul role="presentation" className={styles.groupList}>
+                  {group.rows.map(renderRow)}
+                </ul>
+              </ListGroup>
             ))}
-          </ul>
+          </div>
+        )}
+
+        {/* The bulk bar, drawn only while there is a selection — the pointer's route to the
+            three commands the keyboard already has on `U`, `H` and Backspace. A group and not
+            a toolbar: a toolbar promises arrow-key roving, which would mean a local key
+            handler, and the keyboard here belongs to the registry. */}
+        {selection.size === 0 ? null : (
+          <div className={styles.selectionBar} role="group" aria-label="Notification actions">
+            <span className={styles.selectionCount} aria-live="polite">
+              {`${selection.size} selected`}
+            </span>
+            <Button size="sm" variant="ghost" onClick={() => markRead(selection.ordered)}>
+              Mark read
+            </Button>
+            <Button
+              ref={bulkSnoozeRef}
+              size="sm"
+              variant="ghost"
+              onClick={() => setBulkSnoozeOpen(true)}
+            >
+              Snooze
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => dismiss(selection.ordered)}>
+              Dismiss
+            </Button>
+          </div>
         )}
       </div>
 
@@ -760,6 +1037,48 @@ export function Inbox() {
             },
           },
         ]}
+      />
+      {/* Why a row arrived, not what kind of object it is about. `features/inbox/kinds`
+          folds the twenty notification types into the six reasons somebody would ask for,
+          and the glyphs are the rows' own. */}
+      <Menu
+        open={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        trigger={filterRef}
+        label="Filter by kind"
+        items={[
+          ...INBOX_KINDS.map((kind) => ({
+            id: kind,
+            label: INBOX_KIND_NAMES[kind],
+            icon: notificationGlyph(INBOX_KIND_GLYPH_TYPES[kind]),
+            selected: kinds.has(kind),
+            onSelect: () =>
+              setKinds((current) => {
+                const next = new Set(current);
+                if (!next.delete(kind)) next.add(kind);
+                return next;
+              }),
+          })),
+          ...(kinds.size === 0
+            ? []
+            : ([
+                { kind: 'separator' },
+                { id: 'clear', label: 'Clear filter', onSelect: () => setKinds(new Set()) },
+              ] as MenuNode[])),
+        ]}
+      />
+      <Menu
+        open={bulkSnoozeOpen}
+        onClose={() => {
+          setBulkSnoozeOpen(false);
+          returnToList();
+        }}
+        trigger={bulkSnoozeRef}
+        label="Snooze until"
+        items={snoozeOptions((until) => {
+          snooze(selection.ordered, until);
+          setBulkSnoozeOpen(false);
+        })}
       />
       <Menu
         open={snoozeFor !== null}
@@ -797,7 +1116,7 @@ export function Inbox() {
             if (contextFor !== null) setSnoozeFor(contextFor.id);
           },
           dismiss: () => {
-            if (contextFor !== null) dismissNotification(engine, contextFor.id).catch(report);
+            if (contextFor !== null) dismiss([contextFor.id]);
           },
           pick: (kind) => {
             handingOver.current = true;
@@ -833,6 +1152,16 @@ export function Inbox() {
       />
     </div>
   );
+}
+
+/**
+ * How many rows an undo toast is about, in words.
+ *
+ * One row is named by its count too — "Dismissed 1 notification" rather than an identifier —
+ * because unlike an issue a notification has no name a person would recognise out of context.
+ */
+function notificationCount(n: number): string {
+  return n === 1 ? '1 notification' : `${n} notifications`;
 }
 
 /** The row's element. Stable per row, because `aria-activedescendant` has to name one. */

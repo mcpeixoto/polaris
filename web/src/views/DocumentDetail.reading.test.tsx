@@ -112,15 +112,33 @@ describe('DocumentDetail reading', () => {
   it('never turns a link the writer typed into one the reader can be sent down', () => {
     const { view } = renderReading('[click](javascript:alert)');
 
-    // The back link at the top of the screen is the only anchor on the page.
-    expect(view.container.querySelectorAll('a')).toHaveLength(1);
+    // The breadcrumb's crumbs are the only anchors on the page, and none of them is the
+    // writer's. The assertion is on the hrefs rather than on a count, because the trail's
+    // length is a layout decision and the absence of a `javascript:` URL is not.
+    const hrefs = [...view.container.querySelectorAll('a')].map((link) =>
+      link.getAttribute('href'),
+    );
+    expect(hrefs).toEqual(['/team/ENG', '/team/ENG/documents']);
     expect(screen.getByText('[click](javascript:alert)')).toBeTruthy();
+  });
+
+  it('says where the document lives, and never invents a team it cannot name', () => {
+    renderReading('body');
+
+    const trail = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(trail.textContent).toContain('Engineering');
+    expect(trail.textContent).toContain('Documents');
+    // The last crumb is the page you are on, so it is text rather than a link.
+    expect(within(trail).getByText('Runbook').closest('a')).toBeNull();
   });
 
   it('asks before deleting, and names what goes', async () => {
     const { mutate, user } = renderReading('body');
 
-    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    // Behind the ⋯ menu rather than beside the title, where it was one click from happening
+    // to a document that may hold the only copy of something.
+    await user.click(screen.getByRole('button', { name: 'Document options' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Delete document' }));
 
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText(/go for good/)).toBeTruthy();

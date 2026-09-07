@@ -98,6 +98,60 @@ describe('Drafts', () => {
     expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
   });
 
+  it('waits rather than calling the wait an empty state', () => {
+    // Never resolves: the saved pile is still on the wire.
+    fetched.mockReturnValue(new Promise(() => {}));
+    renderDrafts();
+
+    // "Nothing unsent" is an answer this screen does not have yet, and "Loading drafts" as
+    // an EmptyState was that answer wearing a spinner's clothes.
+    expect(screen.queryByText('Nothing unsent')).toBeNull();
+    expect(screen.getByRole('status').textContent).toContain('Loading drafts');
+  });
+
+  it('moves a cursor with j and k and resumes the row under it', async () => {
+    listed.mockReturnValue([
+      { kind: 'comment', issueId: ISSUE, body: 'Half a reply', updatedAt: AT },
+    ]);
+    fetched.mockResolvedValue([
+      {
+        id: DRAFT,
+        workspaceId: WORKSPACE,
+        userId: USER,
+        kind: 'issue',
+        payload: { title: 'Unsent' },
+        createdAt: AT,
+        updatedAt: AT,
+      },
+    ]);
+    const open = vi.fn(() => true);
+    render(
+      <MemoryRouter>
+        <KeymapProvider>
+          <CreateIssueProvider value={{ open: open as never }}>
+            <Drafts />
+          </CreateIssueProvider>
+        </KeymapProvider>
+      </MemoryRouter>,
+    );
+    const user = userEvent.setup();
+    await screen.findByText('Unsent');
+
+    // One cursor over both piles: local first, then saved. j reaches the saved row, k comes
+    // back to the local one — the screen claimed the list key context and answered none of
+    // these keys before.
+    const rows = () => screen.getAllByRole('option');
+    await user.keyboard('j');
+    expect(rows()[1]?.getAttribute('data-cursor')).toBe('');
+    await user.keyboard('k');
+    expect(rows()[0]?.getAttribute('data-cursor')).toBe('');
+
+    await user.keyboard('j');
+    await user.keyboard('{Enter}');
+    // The saved issue draft resumes in the composer it came from.
+    await waitFor(() => expect(open).toHaveBeenCalled());
+  });
+
   it('re-reads its rows when the composer it opened shuts', async () => {
     fetched.mockResolvedValue([
       {

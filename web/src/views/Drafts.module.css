@@ -118,3 +118,11 @@
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }
+
+/* The keyboard cursor. Selection and the cursor are different facts — a row can be the one
+   the keyboard is on without being chosen — so the ring is drawn from `data-cursor` rather
+   than from `aria-selected`. */
+.cursorRow {
+  background: var(--bg-hover);
+  box-shadow: inset 2px 0 0 var(--accent);
+}

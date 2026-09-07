@@ -18,13 +18,19 @@
  * snapshot arrives on a screen, and is invisible from the outside on a fresh workspace.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Store, type Notification } from '~/store';
 import { gql } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
-import { dismissReadNotifications, hydrateInbox } from './mutations';
+import {
+  DISMISS_GRACE_MS,
+  dismissNotificationSoon,
+  dismissReadNotifications,
+  flushDismissals,
+  hydrateInbox,
+} from './mutations';
 
 vi.mock('~/sync/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('~/sync/api')>();
@@ -152,5 +158,96 @@ describe('dismissReadNotifications', () => {
 
     expect(mutate).toHaveBeenCalledTimes(1);
     expect(mutate.mock.calls[0]?.[0].variables).toEqual({ id: readId });
+  });
+});
+
+/**
+ * The dismissal that waits.
+ *
+ * `deleteNotification` is a soft delete with no inverse, so the only honest undo the inbox
+ * can offer is the request not having gone yet. What has to be true of that: the row leaves
+ * the screen at once, nothing is sent inside the window, the cancel puts it back, and
+ * leaving the screen sends what is still held rather than dropping it.
+ */
+describe('dismissNotificationSoon', () => {
+  const row: Notification = {
+    id: ROW,
+    workspaceId: WORKSPACE,
+    userId: VIEWER,
+    type: 'issue_assigned',
+    issueId: ISSUE,
+    actor: { type: 'user', id: VIEWER },
+    changeVersion: 1,
+    groupKey: 'pending',
+    count: 1,
+    createdAt: AT,
+    updatedAt: AT,
+  };
+
+  function seeded(): { store: Store; mutate: ReturnType<typeof vi.fn>; engine: SyncEngine } {
+    const store = new Store(WORKSPACE);
+    store.applyChanges([
+      {
+        v: 1,
+        type: 'notification',
+        id: ROW,
+        op: 'upsert',
+        actor: { type: 'system' },
+        payload: row,
+      },
+    ]);
+    const mutate = vi.fn().mockResolvedValue({});
+    return { store, mutate, engine: { store, mutate } as unknown as SyncEngine };
+  }
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => {
+    flushDismissals();
+    vi.useRealTimers();
+  });
+
+  it('takes the row off the screen now and sends the delete when the window closes', () => {
+    const { store, mutate, engine } = seeded();
+
+    dismissNotificationSoon(engine, ROW);
+    expect(store.notifications.has(ROW)).toBe(false);
+    expect(mutate).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(DISMISS_GRACE_MS);
+    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate.mock.calls[0]?.[0].variables).toEqual({ id: ROW });
+  });
+
+  it('puts the row back and sends nothing when the undo is taken', () => {
+    const { store, mutate, engine } = seeded();
+
+    const restore = dismissNotificationSoon(engine, ROW);
+    restore();
+
+    expect(store.notifications.get(ROW)).toEqual(row);
+    vi.advanceTimersByTime(DISMISS_GRACE_MS * 2);
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it('does nothing on a second undo, and nothing once the write has gone', () => {
+    const { store, mutate, engine } = seeded();
+
+    const restore = dismissNotificationSoon(engine, ROW);
+    vi.advanceTimersByTime(DISMISS_GRACE_MS);
+    restore();
+
+    expect(store.notifications.has(ROW)).toBe(false);
+    expect(mutate).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends what it is still holding when the inbox is left', () => {
+    const { mutate, engine } = seeded();
+
+    dismissNotificationSoon(engine, ROW);
+    flushDismissals();
+
+    expect(mutate).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(DISMISS_GRACE_MS * 2);
+    expect(mutate).toHaveBeenCalledTimes(1);
   });
 });

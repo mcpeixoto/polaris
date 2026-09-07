@@ -180,6 +180,9 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('CreateProjectModal', () => {
+  // Longer than the default 5s: this one case types three fields and drives seven pickers,
+  // which is the point of it — every pill in one file — and on a loaded machine the real work
+  // runs past the default and fails a suite that is not actually broken.
   it('sends every property the pill row was given', async () => {
     const { user } = renderComposer();
 
@@ -225,7 +228,7 @@ describe('CreateProjectModal', () => {
       initiativeIds: [INITIATIVE],
       labelIds: [LABEL],
     });
-  });
+  }, 20_000);
 
   /**
    * The two-⌘⏎ window. `saving` is state and state is a frame late, so a guard that read it

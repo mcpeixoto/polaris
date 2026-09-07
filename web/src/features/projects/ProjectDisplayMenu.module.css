@@ -81,7 +81,71 @@
   letter-spacing: 0.04em;
 }
 
-.segment {
+/*
+ * One option: its name at the left, its control at the right — the issue display menu's
+ * unit, repeated here so the two panels read as one product rather than as two menus that
+ * happen to sit under the same word.
+ */
+.row {
   display: flex;
-  gap: var(--space-1);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--control-height-md);
+}
+
+.rowLabel {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  cursor: default;
+}
+
+/* Fixed rather than to-content, so the right column lines up down the panel. The two
+   classes are what let this win over Field's own `min-width: 0` on specificity. */
+.panel .control {
+  flex: none;
+  width: 140px;
+}
+
+/* The segmented pair sizes to its own words: "Descending" cut short is a product string
+   truncated, which the composition rules forbid. */
+.panel .segmentedControl {
+  width: auto;
+}
+
+/* The columns are many and short, so they take two columns rather than six rows. */
+.columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1) var(--space-3);
+}
+
+.panel .column {
+  min-height: var(--control-height-md);
+  font-size: var(--font-size-sm);
+}
+
+/* "Default: Priority". Quiet: it is a footnote about a value rather than a warning about
+   one — the user is allowed to have changed it, and most of the time meant to. */
+.changed {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+}
+
+/* The ordering that has nothing to say under this grouping. Louder than a footnote and
+   quieter than an error: nothing is wrong, but the list is not sorted the way the control
+   above it appears to claim. */
+.note {
+  margin: 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  border-left: 2px solid var(--accent);
+  background-color: var(--accent-subtle);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
 }

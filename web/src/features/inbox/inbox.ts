@@ -342,35 +342,152 @@ export function coalescedTail(count: number): string | null {
 
 /** Rows the inbox can act on, newest first. Snoozed rows are absent until they wake. */
 export function awakeNotificationIds(store: Store, now: number): UUID[] {
-  return visibleNotificationIds(store, now, { showRead: true, showSnoozed: false });
+  return tabNotificationIds(store, now, 'inbox');
 }
-
-export interface InboxDisplay {
-  /** When false, read rows are hidden. Default true: the inbox is also a history. */
-  readonly showRead: boolean;
-  /** When true, still-snoozed rows stay in the list. Default false: they reappear when they wake. */
-  readonly showSnoozed: boolean;
-}
-
-export const DEFAULT_INBOX_DISPLAY: InboxDisplay = { showRead: true, showSnoozed: false };
 
 /**
- * The rows the inbox shows under the current display options, newest first.
+ * The four answers the inbox can give, as tabs.
  *
- * `showSnoozed` is the only way a still-sleeping row appears: the default list is the
- * awake set, which is what the badge counts. `showRead` hides dealt-with rows so the
- * inbox can be worked as a queue rather than a log.
+ * They were two checkboxes in a popover — Show read, Show snoozed — and the pair could
+ * express "everything" and "only unread" but not "only snoozed" or "only the ones I have
+ * dealt with", which are the two questions an inbox is opened with once it has any volume
+ * in it. Tabs also say which answer you are looking at without being opened, which is the
+ * thing a checkbox in a popover can never do: "why is my inbox empty" is a question the old
+ * control caused and could not answer.
+ *
+ * `inbox` is deliberately the union of `unread` and `done` rather than a fifth thing. The
+ * default screen is the whole live inbox, in one run, newest first — an inbox that hid what
+ * you had read would be a queue rather than a record, and the row you want to find again is
+ * usually one you have already seen.
  */
-export function visibleNotificationIds(store: Store, now: number, display: InboxDisplay): UUID[] {
+export type InboxTab = 'inbox' | 'unread' | 'snoozed' | 'done';
+
+export const INBOX_TABS: readonly InboxTab[] = ['inbox', 'unread', 'snoozed', 'done'];
+
+export const DEFAULT_INBOX_TAB: InboxTab = 'inbox';
+
+/** What each tab is called, in the row and in the empty state that explains it. */
+export const INBOX_TAB_NAMES: Readonly<Record<InboxTab, string>> = {
+  inbox: 'Inbox',
+  unread: 'Unread',
+  snoozed: 'Snoozed',
+  done: 'Done',
+};
+
+/**
+ * Whether one row belongs in one tab, at one instant.
+ *
+ * Every tab except `snoozed` asks `isAwake` first, so a row put aside until Monday is in
+ * exactly one place all weekend and moves by itself when the clock passes it. That is the
+ * whole reason this is a function of `now` rather than of the row alone.
+ */
+export function matchesTab(row: Notification, now: number, tab: InboxTab): boolean {
+  const awake = isAwake(row, now);
+  switch (tab) {
+    case 'unread':
+      return awake && row.readAt === undefined;
+    case 'snoozed':
+      return !awake;
+    case 'done':
+      return awake && row.readAt !== undefined;
+    default:
+      return awake;
+  }
+}
+
+/** The rows of one tab, newest first. */
+export function tabNotificationIds(store: Store, now: number, tab: InboxTab): UUID[] {
   const rows: Notification[] = [];
   for (const row of store.notifications.values()) {
-    if (row.readAt !== undefined && !display.showRead) continue;
-    if (!isAwake(row, now) && !display.showSnoozed) continue;
-    rows.push(row);
+    if (matchesTab(row, now, tab)) rows.push(row);
   }
   rows.sort(byNewest);
   return rows.map((row) => row.id);
 }
+
+export type InboxTabCounts = Readonly<Record<InboxTab, number>>;
+
+/**
+ * How many rows each tab holds, in one walk of the table.
+ *
+ * One walk rather than four, because the counts are drawn on every tab on every render and
+ * the table holds every notification the replica has ever received. The counts and the list
+ * ask `matchesTab` the same question with the same clock, so a tab can never say 3 and then
+ * draw two rows.
+ */
+export function tabCounts(store: Store, now: number): InboxTabCounts {
+  const counts = { inbox: 0, unread: 0, snoozed: 0, done: 0 };
+  for (const row of store.notifications.values()) {
+    for (const tab of INBOX_TABS) if (matchesTab(row, now, tab)) counts[tab]++;
+  }
+  return counts;
+}
+
+/**
+ * The next tab along, wrapping.
+ *
+ * Exported so the two registered actions and their test agree on what "next" means without
+ * the view owning the arithmetic.
+ */
+export function stepTab(tab: InboxTab, step: 1 | -1): InboxTab {
+  const at = INBOX_TABS.indexOf(tab);
+  const next = (at + step + INBOX_TABS.length) % INBOX_TABS.length;
+  return INBOX_TABS[next] ?? tab;
+}
+
+/** A run of rows that happened on one day, in the order the list draws them. */
+export interface DayGroup<T> {
+  /** The day, as `2026-08-16`. Stable, so `ListGroup` can remember the fold against it. */
+  readonly key: string;
+  /** What the header says: Today, Yesterday, or the date. */
+  readonly name: string;
+  readonly rows: readonly T[];
+}
+
+/**
+ * Cuts a newest-first list into day groups without reordering it.
+ *
+ * The rows arrive sorted, so this is one pass that starts a group whenever the day key
+ * changes rather than a bucket-and-sort — which matters because a bucketing version would
+ * have to decide an order for the buckets, and the only correct one is the order the rows
+ * were already in.
+ */
+export function groupByDay<T extends { readonly createdAt: string }>(
+  rows: readonly T[],
+  timezone: string,
+  now: number = Date.now(),
+): DayGroup<T>[] {
+  const groups: { key: string; name: string; rows: T[] }[] = [];
+  for (const row of rows) {
+    const key = dayKeyOf(row.createdAt, timezone);
+    const last = groups[groups.length - 1];
+    if (last !== undefined && last.key === key) last.rows.push(row);
+    else groups.push({ key, name: dayGroupName(key, timezone, now), rows: [row] });
+  }
+  return groups;
+}
+
+/**
+ * What a day group is called: Today, Yesterday, or the date itself.
+ *
+ * Named relative to the reader's own day for the two days they are living in, and by the
+ * date for everything older — "3 days ago" is arithmetic the reader has to do backwards to
+ * find out when something actually happened, and an inbox is read to find out when.
+ */
+export function dayGroupName(dayKey: string, timezone: string, now: number = Date.now()): string {
+  if (dayKey === dayKeyOf(new Date(now).toISOString(), timezone)) return 'Today';
+  if (dayKey === dayKeyOf(new Date(now - DAY_MS).toISOString(), timezone)) return 'Yesterday';
+  const at = Date.parse(`${dayKey}T12:00:00.000Z`);
+  if (Number.isNaN(at)) return dayKey;
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'UTC',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  }).format(at);
+}
+
+const DAY_MS = 86_400_000;
 
 /**
  * Whether a haystack matches the inbox's Cmd+F filter.

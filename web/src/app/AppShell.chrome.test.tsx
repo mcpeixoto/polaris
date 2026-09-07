@@ -264,6 +264,33 @@ describe('the sections', () => {
     expect(links.indexOf('My issues')).toBeLessThan(links.indexOf('Projects'));
   });
 
+  it('points a Documents row at the workspace list', () => {
+    renderShell(seeded());
+    const nav = screen.getByRole('navigation', { name: 'Workspace' });
+    // Documents were reachable only by typing a URL: the surface existed on two team- and
+    // project-scoped routes and nothing in the chrome linked to either.
+    expect(within(nav).getByRole('link', { name: 'Documents' }).getAttribute('href')).toBe(
+      '/documents',
+    );
+  });
+
+  it('offers Create document in the command menu', async () => {
+    const user = userEvent.setup();
+    renderShell(seeded());
+    await user.keyboard('{Control>}k{/Control}');
+    await user.keyboard('Create document');
+    expect(screen.getByRole('option', { name: /Create document/ })).toBeTruthy();
+  });
+
+  it('withholds Create document from a guest', async () => {
+    role = 'guest';
+    const user = userEvent.setup();
+    renderShell(seeded());
+    await user.keyboard('{Control>}k{/Control}');
+    await user.keyboard('Create document');
+    expect(screen.queryByRole('option', { name: /Create document/ })).toBeNull();
+  });
+
   it('has no Search row, because the button and / are how search is reached', () => {
     renderShell(seeded());
     const nav = screen.getByRole('navigation', { name: 'Workspace' });

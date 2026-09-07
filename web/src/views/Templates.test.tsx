@@ -314,6 +314,22 @@ const TEAMS: [EntityType, Entity][] = [
  * stated *while the choice is live* is a claim about what is on screen at a particular
  * moment, which no test of the write can make at all.
  */
+/**
+ * Picks a row action out of the row's own ⋯ menu.
+ *
+ * The four always-visible buttons on every template row are one menu now, so a test that
+ * used to click "Edit Bug report" opens the row's options and picks "Edit". The behaviour
+ * asserted after it is unchanged — this is only the new way to reach the same command.
+ */
+async function rowAction(
+  user: ReturnType<typeof userEvent.setup>,
+  name: string,
+  action: string,
+): Promise<void> {
+  await user.click(screen.getByRole('button', { name: `Options for ${name}` }));
+  await user.click(await screen.findByRole('menuitem', { name: action }));
+}
+
 describe('Templates', () => {
   it('groups templates by scope, workspace first, and lists each only where it is offered', () => {
     renderScreen(
@@ -351,7 +367,7 @@ describe('Templates', () => {
     expect(creating.textContent).toContain('fixed when it is created');
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
-    await user.click(screen.getByRole('button', { name: 'Edit Bug report' }));
+    await rowAction(user, 'Bug report', 'Edit');
 
     const editing = screen.getByRole('form', { name: 'Editing Bug report' });
     // Stated as a fact rather than offered as a disabled control: `UpdateIssueTemplateInput`
@@ -454,7 +470,7 @@ describe('Templates', () => {
       ]),
     );
 
-    await user.click(screen.getByRole('button', { name: 'Edit Bug report' }));
+    await rowAction(user, 'Bug report', 'Edit');
     const nameField = screen.getByRole('textbox', { name: 'Name' });
     await user.clear(nameField);
     await user.type(nameField, 'Defect report');
@@ -497,7 +513,7 @@ describe('Templates', () => {
       storeWith([...TEAMS, ['issueTemplate', template('t-eng', 'Bug report', { teamId: ENG })]]),
     );
 
-    await user.click(screen.getByRole('button', { name: 'Archive Bug report' }));
+    await rowAction(user, 'Bug report', 'Archive');
 
     const dialog = screen.getByRole('dialog', { name: 'Archive Bug report?' });
     // Not "are you sure": there is no un-archive mutation and no query on this side that can
@@ -807,7 +823,7 @@ describe('Templates and the create dialog', () => {
     expect(screen.getByRole('menuitem', { name: 'Bug report' })).toBeTruthy();
     await user.keyboard('{Escape}');
 
-    await user.click(screen.getByRole('button', { name: 'Archive Bug report' }));
+    await rowAction(user, 'Bug report', 'Archive');
     await user.click(
       within(screen.getByRole('dialog')).getByRole('button', { name: 'Archive it' }),
     );

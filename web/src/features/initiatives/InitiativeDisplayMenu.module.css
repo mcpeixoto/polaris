@@ -1,0 +1,20 @@
+/*
+ * A display option drawn as a menu row: the option's name at the left, the value in force at
+ * the right. The same two columns the issue list's display panel lays its options out in, so
+ * somebody who has used one recognises the other.
+ */
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex: 1;
+  min-width: 0;
+}
+
+.value {
+  flex: none;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}

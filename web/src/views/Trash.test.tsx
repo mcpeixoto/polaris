@@ -243,7 +243,45 @@ describe('Trash', () => {
 
     expect(await screen.findByText('Nothing has been deleted')).toBeTruthy();
     expect(screen.getByText(/good kind of empty/)).toBeTruthy();
-    expect(screen.queryByRole('table')).toBeNull();
+    // The listing is a `role="grid"` now, matching Archives — so this asks about the grid.
+    // Asking about `table` would pass whatever the screen drew.
+    expect(screen.queryByRole('grid')).toBeNull();
+  });
+});
+
+describe('Trash keyboard', () => {
+  it('waits with the shared loading treatment rather than a bare spinner', () => {
+    // Never resolves: the screen is held in its loading phase.
+    vi.mocked(gql).mockReturnValue(new Promise(() => {}) as ReturnType<typeof gql>);
+    renderTrash();
+
+    // Two live regions on this screen: the restore confirmation, always in the document,
+    // and the skeleton's own. This is about the second.
+    expect(screen.getAllByRole('status').map((region) => region.textContent ?? '')).toContain(
+      'Looking for deleted issues…',
+    );
+    expect(screen.queryByText('Nothing has been deleted')).toBeNull();
+  });
+
+  it('moves a cursor with j and k and restores the row under it with Enter', async () => {
+    vi.mocked(gql).mockResolvedValue({
+      deletedIssues: [deleted(9, 'Ship the importer'), deleted(4, 'Fix the flake')],
+    });
+    const { mutate, user } = renderTrash();
+    await screen.findByRole('button', { name: 'Restore ENG-9' });
+
+    // The cursor starts on the first row; j moves it to the second.
+    await user.keyboard('j');
+    expect(screen.getAllByRole('row')[2]?.getAttribute('data-cursor')).toBe('');
+
+    await user.keyboard('k');
+    expect(screen.getAllByRole('row')[1]?.getAttribute('data-cursor')).toBe('');
+
+    // Enter is Restore here: a deleted issue has no page, and restoring it is the one thing
+    // this screen does.
+    await user.keyboard('{Enter}');
+    await screen.findByText('ENG-9 is back in Engineering.');
+    expect(mutate.mock.calls[0]?.[0].variables).toEqual({ id: 'issue-9' });
   });
 });
 

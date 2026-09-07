@@ -4,12 +4,20 @@
  * The issue list remains `/team/:key`. This page is the overview you open when you want
  * the team itself rather than its backlog — members, a count, and the shortcuts that used
  * to live only in the sidebar.
+ *
+ * `snapshot` answers null for a team that is not in the replica, and on a cold boot that is
+ * every team: the shell mounts before the first snapshot lands, so a bookmarked team page
+ * rendered "No such team — nothing in this workspace has the key ENG" over a row that was
+ * still on the wire. `views/Projects.tsx` documents the same trap at its own gate. The
+ * signal that separates "not here" from "not here yet" is `useEntityState`, and an absence
+ * is only an answer once the store has settled.
  */
 
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { useKeymap } from '~/app/keymap';
 import { Avatar, Badge, Button, EmptyState } from '~/components';
+import { EntityLoading, useEntityState } from '~/features/entity-gate/EntityGate';
 import { personName } from '~/features/prefs/prefs';
 import { triageQueueCount } from '~/features/triage/queue';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
@@ -47,6 +55,17 @@ export function TeamHome() {
     ['team', 'teamMembership', 'user', 'issue', 'project', 'projectTeam', 'workflowState'],
     [teamKey ?? ''],
   );
+
+  const state = useEntityState(view);
+
+  if (state === 'loading') {
+    return (
+      <div className={styles.screen}>
+        <h1 className={styles.screenTitle}>Team</h1>
+        <EntityLoading label="Loading the team…" lines={4} />
+      </div>
+    );
+  }
 
   if (view === null) {
     return (

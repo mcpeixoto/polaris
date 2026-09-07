@@ -73,8 +73,9 @@ test.describe('native undo', () => {
     await signIn(page, workspace.account);
     await page.goto(`/team/${workspace.teamKey}/documents`);
 
-    await page.getByPlaceholder('New document…').fill('Undo runbook');
-    await page.getByRole('button', { name: 'Create', exact: true }).click();
+    await page.getByRole('button', { name: 'New document' }).click();
+    await page.getByLabel('Title').fill('Undo runbook');
+    await page.getByRole('button', { name: 'Create document' }).click();
 
     const area = page.getByLabel('Body');
     await area.waitFor();
@@ -93,8 +94,9 @@ test.describe('native undo', () => {
     await signIn(page, workspace.account);
     await page.goto(`/team/${workspace.teamKey}/documents`);
 
-    await page.getByPlaceholder('New document…').fill('Undo over existing text');
-    await page.getByRole('button', { name: 'Create', exact: true }).click();
+    await page.getByRole('button', { name: 'New document' }).click();
+    await page.getByLabel('Title').fill('Undo over existing text');
+    await page.getByRole('button', { name: 'Create document' }).click();
 
     const area = page.getByLabel('Body');
     await area.waitFor();
@@ -103,8 +105,11 @@ test.describe('native undo', () => {
     // and only then type on top of it.
     await area.click();
     await area.pressSequentially('Existing paragraph.', { delay: 5 });
-    await page.getByRole('button', { name: 'Save' }).click();
-    await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled();
+    // The Save button is gone: the body saves itself, and ⌘S is the explicit "send it now".
+    // The indicator is what says the write landed, which the button's disabled state used
+    // to stand in for.
+    await page.keyboard.press('ControlOrMeta+s');
+    await expect(page.getByRole('status')).toHaveText('Saved');
 
     await page.reload();
     const reloaded = page.getByLabel('Body');
@@ -130,8 +135,9 @@ test.describe('native undo', () => {
     await signIn(page, workspace.account);
     await page.goto(`/team/${workspace.teamKey}/documents`);
 
-    await page.getByPlaceholder('New document…').fill('Growing body');
-    await page.getByRole('button', { name: 'Create', exact: true }).click();
+    await page.getByRole('button', { name: 'New document' }).click();
+    await page.getByLabel('Title').fill('Growing body');
+    await page.getByRole('button', { name: 'Create document' }).click();
 
     const area = page.getByLabel('Body');
     await area.waitFor();

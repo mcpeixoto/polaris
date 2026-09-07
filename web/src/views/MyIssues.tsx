@@ -15,11 +15,13 @@
 import { useMemo } from 'react';
 
 import { EmptyState } from '~/components';
+import { EntityLoading, useStoreSettled } from '~/features/entity-gate/EntityGate';
 import { useViewerId } from '~/hooks/useViewer';
 import { IssueList, type IssueListSource } from './IssueList';
 
 export function MyIssues() {
   const viewerId = useViewerId();
+  const settled = useStoreSettled();
 
   // Memoised because the source is part of the list's query identity: an object built
   // inline would be a new one every render, and the query would never be reused.
@@ -29,11 +31,18 @@ export function MyIssues() {
   );
 
   if (source === null) {
-    // Reachable for a moment on a cold boot, before the viewer query lands. An empty state
-    // rather than a spinner: the list that follows occupies the same space, so nothing
-    // moves when it arrives.
-    return (
-      <EmptyState title="Loading your work" description="Finding the issues assigned to you." />
+    // Reachable for a moment on a cold boot, before the viewer row lands. It used to be an
+    // `EmptyState` titled "Loading your work" — a wait dressed as an answer, which is the
+    // fourth loading idiom `EntityGate` exists to retire. Once the replica has settled and
+    // there is still no viewer, the wait is over and the honest thing to say is that this
+    // client cannot tell whose issues to show.
+    return settled ? (
+      <EmptyState
+        title="We cannot tell who you are"
+        description="This device is signed in but the viewer's own row has not arrived. Reload, or sign in again."
+      />
+    ) : (
+      <EntityLoading label="Loading your issues…" lines={5} />
     );
   }
 

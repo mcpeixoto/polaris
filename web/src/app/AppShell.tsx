@@ -108,6 +108,7 @@ export interface AppShellProps {
   renderCreateCustomer?: (props: { open: boolean; onClose: () => void }) => ReactNode;
   renderCreateCustomerRequest?: (props: { open: boolean; onClose: () => void }) => ReactNode;
   renderCreateDashboard?: (props: { open: boolean; onClose: () => void }) => ReactNode;
+  renderCreateDocument?: (props: { open: boolean; onClose: () => void }) => ReactNode;
 }
 
 /**
@@ -160,6 +161,7 @@ export function AppShell({
   renderCreateCustomer,
   renderCreateCustomerRequest,
   renderCreateDashboard,
+  renderCreateDocument,
 }: AppShellProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -210,6 +212,7 @@ export function AppShell({
   const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
   const [createCustomerRequestOpen, setCreateCustomerRequestOpen] = useState(false);
   const [createDashboardOpen, setCreateDashboardOpen] = useState(false);
+  const [createDocumentOpen, setCreateDocumentOpen] = useState(false);
   const [createTeamOpen, setCreateTeamOpen] = useState(false);
   const session = useWorkspaceSession();
   const workspaceMenu = useMenuTrigger();
@@ -231,6 +234,12 @@ export function AppShell({
   const onDashboards = pathname === '/dashboards' || pathname.startsWith('/dashboard/');
   const onPulse = pathname === '/pulse';
   const onCycles = pathname.startsWith('/cycle/') || /\/team\/[^/]+\/cycles(?:\/|$)/.test(pathname);
+  // A project's documents deliberately do not light this row: that tab is inside the
+  // project shell, and the row that should be lit while you are in a project is Projects.
+  const onDocuments =
+    pathname === '/documents' ||
+    pathname.startsWith('/document/') ||
+    /\/team\/[^/]+\/documents(?:\/|$)/.test(pathname);
   /**
    * Whether the shell is showing settings rather than the workspace.
    *
@@ -423,6 +432,7 @@ export function AppShell({
     setCreateCustomerOpen(false);
     setCreateCustomerRequestOpen(false);
     setCreateDashboardOpen(false);
+    setCreateDocumentOpen(false);
     setCreateTeamOpen(false);
     // `closeAgent` is stable, so this list still never changes.
   }, [closeAgent]);
@@ -546,6 +556,15 @@ export function AppShell({
               title: 'Create initiative',
               group: 'Initiatives',
               run: () => setCreateInitiativeOpen(true),
+            },
+            {
+              // Documents had no create action at all, so ⌘K could open one and never make
+              // one — the only way to write a document was to already be on a team's or a
+              // project's documents page and use the input in its header.
+              id: 'document.create',
+              title: 'Create document',
+              group: 'Documents',
+              run: () => setCreateDocumentOpen(true),
             },
           ]
         : []),
@@ -1403,6 +1422,10 @@ export function AppShell({
                 <NavGlyph name="cycle" />
                 <span className={navStyles.navLabel}>Cycles</span>
               </NavLink>
+              <NavLink to="/documents" className={() => navClass({ isActive: onDocuments })}>
+                <NavGlyph name="document" />
+                <span className={navStyles.navLabel}>Documents</span>
+              </NavLink>
               {showCustomers && (
                 <NavLink to="/customers" className={() => navClass({ isActive: onCustomers })}>
                   <NavGlyph name="customer" />
@@ -1634,6 +1657,10 @@ export function AppShell({
         {renderCreateDashboard?.({
           open: createDashboardOpen,
           onClose: () => setCreateDashboardOpen(false),
+        })}
+        {renderCreateDocument?.({
+          open: createDocumentOpen,
+          onClose: () => setCreateDocumentOpen(false),
         })}
         {/* Mounted only while it is open, the way the settings page mounts it: this dialog
             awaits a real round trip rather than a stand-in row (see `features/team/create.ts`),

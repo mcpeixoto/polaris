@@ -12,7 +12,8 @@
  */
 
 import { priorityLabel } from '~/components';
-import type { Issue, Project, Store, User, UUID } from '~/store';
+import { formatInitiativeStatus } from '~/features/initiatives/mutations';
+import type { Initiative, Issue, Project, Store, User, UUID } from '~/store';
 
 export type ExportRole = 'owner' | 'admin' | 'member' | 'guest';
 
@@ -20,9 +21,14 @@ const MEMBER_ISSUE_CAP = 250;
 const ADMIN_ISSUE_CAP = 2000;
 const PROJECT_CAP = 200;
 
-export function exportCap(role: ExportRole, kind: 'issues' | 'projects'): number {
+/** What a caller is exporting. The noun is the cap, the header set and the sentence below. */
+export type ExportKind = 'issues' | 'projects' | 'initiatives';
+
+export function exportCap(role: ExportRole, kind: ExportKind): number {
   if (role === 'guest') return 0;
-  if (kind === 'projects') return PROJECT_CAP;
+  // Initiatives share the project cap: there are always fewer of them than projects, and a
+  // second number would be one more thing for the docs and the banner to disagree about.
+  if (kind === 'projects' || kind === 'initiatives') return PROJECT_CAP;
   return role === 'member' ? MEMBER_ISSUE_CAP : ADMIN_ISSUE_CAP;
 }
 
@@ -40,11 +46,7 @@ export function exportCap(role: ExportRole, kind: 'issues' | 'projects'): number
  * replica: counting rows that were never candidates announces a truncation that did not
  * happen.
  */
-export function exportCapNote(
-  total: number,
-  cap: number,
-  noun: 'issues' | 'projects',
-): string | null {
+export function exportCapNote(total: number, cap: number, noun: ExportKind): string | null {
   if (total <= cap) return null;
   const shown = cap.toLocaleString('en-US');
   const all = total.toLocaleString('en-US');
@@ -179,9 +181,28 @@ const PROJECT_HEADERS = [
   'Teams',
 ] as const;
 
+const INITIATIVE_HEADERS = [
+  'Name',
+  'Description',
+  'Status',
+  'Owner',
+  'Labels',
+  'Projects',
+  'Target Date',
+  'Created At',
+  'Updated At',
+] as const;
+
 export function issuesToCsv(store: Store, ids: readonly UUID[]): string {
   const rows = ids.map((id) => issueRow(store, store.issues.get(id))).filter((row) => row !== null);
   return toCsv(ISSUE_HEADERS, rows);
+}
+
+export function initiativesToCsv(store: Store, ids: readonly UUID[]): string {
+  const rows = ids
+    .map((id) => initiativeRow(store, store.initiatives.get(id)))
+    .filter((row) => row !== null);
+  return toCsv(INITIATIVE_HEADERS, rows);
 }
 
 export function projectsToCsv(store: Store, ids: readonly UUID[]): string {
@@ -238,6 +259,37 @@ function issueRow(store: Store, issue: Issue | undefined): string[] | null {
     parent === undefined ? '' : store.identifierOf(parent),
     milestone?.id ?? '',
     milestone?.name ?? '',
+  ];
+}
+
+function initiativeRow(store: Store, initiative: Initiative | undefined): string[] | null {
+  if (initiative === undefined) return null;
+  const owner = initiative.ownerId === undefined ? undefined : store.users.get(initiative.ownerId);
+
+  const labels: string[] = [];
+  for (const id of store.initiativeLabelIdsFor(initiative.id)) {
+    const label = store.initiativeLabels.get(id);
+    if (label !== undefined && label.archivedAt === undefined) labels.push(label.name);
+  }
+
+  const projects: string[] = [];
+  for (const id of store.initiativeProjectIdsFor(initiative.id)) {
+    const link = store.initiativeProjects.get(id);
+    if (link === undefined) continue;
+    const project = store.projects.get(link.projectId);
+    if (project !== undefined) projects.push(project.name);
+  }
+
+  return [
+    initiative.name,
+    initiative.description,
+    formatInitiativeStatus(initiative.status),
+    nameOf(owner),
+    labels.join(', '),
+    projects.join(', '),
+    initiative.targetDate ?? '',
+    initiative.createdAt,
+    initiative.updatedAt,
   ];
 }
 
