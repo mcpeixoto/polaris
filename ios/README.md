@@ -177,6 +177,24 @@ launch — marked as a saved copy, and replaced the moment a request answers. Th
 cold-start half of offline; live updates while the app sits open come over the socket, or the
 poll while the socket is down.
 
+## Sign in with Google
+
+No SDK. `ASWebAuthenticationSession` opens Google's authorization page, the PKCE plumbing is
+in `PolarisCore/Networking/GoogleSignIn.swift`, and the code is exchanged for an ID token on
+the device — an iOS OAuth client is issued without a client secret precisely so that it can.
+What reaches Polaris is the same `idToken` the Apple button sends, on `POST /auth/oidc/google`.
+
+Three values have to agree, and only the first is written by hand more than once:
+
+| Where | What |
+|---|---|
+| `GoogleSignIn.clientID` | The iOS OAuth client from the Google Cloud console. The one place the app names it. |
+| `CFBundleURLSchemes` in `project.yml` | The same client id with its components reversed. A literal, because iOS reads the Info.plist before any Swift runs — `GoogleSignInTests` pins the two together. |
+| `POLARIS_GOOGLE_CLIENT_IDS` on the server | Must include the iOS client id. The audience in a token minted for the iOS client is the iOS client, and a server configured only with the web one rejects every sign-in from the app. |
+
+The button is drawn only when `GET /auth/providers` lists `google`, so a deployment that has
+configured no Google client shows no button rather than one ending at a 404.
+
 ## Signing and TestFlight
 
 Team `H874DPF6H5`, bundle id `com.peixotolabs.polaris`.

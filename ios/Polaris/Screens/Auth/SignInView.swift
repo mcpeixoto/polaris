@@ -65,9 +65,29 @@ struct SignInView: View {
                         isSubmitting = true
                     }
                 )
+
+                // Only when the server has said it offers Google. Apple's button above needs
+                // no such check — it is native and works against any deployment — but Google
+                // is a per-install configuration, and a button for a provider that is not
+                // configured ends at a 404 after a full trip through Google's consent screen.
+                if model.authProviders?.offersGoogle == true {
+                    GoogleSignInButton(
+                        title: "Sign in with Google",
+                        onFailure: { failure in
+                            isSubmitting = false
+                            error = failure
+                        },
+                        onStart: {
+                            error = nil
+                            isSubmitting = true
+                        },
+                        onCancel: { isSubmitting = false }
+                    )
+                }
             }
         }
         .onAppear { focused = .email }
+        .task { await model.loadAuthProviders() }
     }
 
     private func prompt(_ text: String) -> Text {

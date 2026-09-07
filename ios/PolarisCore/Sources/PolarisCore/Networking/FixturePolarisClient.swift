@@ -146,6 +146,25 @@ public actor FixturePolarisClient: PolarisAPI {
         return session()
     }
 
+    public func signInWithGoogle(
+        idToken: String,
+        nonce: String,
+        displayName: String?
+    ) async throws -> Session {
+        // Same standing-in as Apple's: an assertion arrived, or it did not.
+        guard !idToken.isEmpty else {
+            throw PolarisError.unauthorized("that sign-in could not be verified")
+        }
+        return session()
+    }
+
+    /// Both, so the fixture app draws the buttons a fully-configured server would. The UI
+    /// tests run against this client and are the only place the Google button is ever
+    /// exercised without a real Google account.
+    public func authProviders() async throws -> AuthProviders {
+        AuthProviders(providers: ["google", "apple"], openSignup: true)
+    }
+
     public func register(
         email: String,
         password: String,
