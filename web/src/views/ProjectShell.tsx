@@ -198,8 +198,14 @@ export function ProjectShell() {
         const { status: current } = row;
         const project = row.project;
         const base = `/project/${project.id}`;
+        // Tinted with the project's own colour, which is the other half of what the icon
+        // picker writes and until now was stored and never drawn.
         const mark =
-          project.icon === undefined || project.icon === '' ? <ProjectGlyph /> : project.icon;
+          project.icon === undefined || project.icon === '' ? (
+            <ProjectGlyph />
+          ) : (
+            <span style={{ color: project.color }}>{project.icon}</span>
+          );
 
         // One row, one landmark. The attached views sit between Issues and Activity and draw
         // themselves, because a saved view's tab also drags to reorder and opens a context

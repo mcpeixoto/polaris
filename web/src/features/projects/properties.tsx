@@ -34,6 +34,7 @@ import {
   type MenuNode,
 } from '~/components';
 import { AssigneePicker, PriorityPicker } from '~/features/issue/pickers';
+import { IconPicker } from '~/features/icon/IconPicker';
 import { UserPicker } from '~/features/members/UserPicker';
 import { useEngine } from '~/app/context';
 import { browserTimezone } from '~/features/locale';
@@ -68,6 +69,7 @@ const SCHEDULES: readonly { readonly id: string; readonly label: string }[] = [
 
 export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
   const engine = useEngine();
+  const icon = useMenuTrigger<HTMLButtonElement>('dialog');
   const status = useMenuTrigger();
   const priority = useMenuTrigger();
   const labels = useMenuTrigger();
@@ -169,6 +171,14 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
       // registry refuses two actions on one key in one context, and `S` should reach the
       // control the reader can see from every tab rather than only from the rail.
       {
+        id: 'projectDetail.icon',
+        title: 'Set icon',
+        keys: ['i'],
+        when: 'detail',
+        group: 'Projects',
+        run: () => icon.show(),
+      },
+      {
         id: 'projectDetail.priority',
         title: 'Set priority',
         keys: ['p'],
@@ -245,6 +255,33 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
 
   return (
     <div className={styles.panel}>
+      {/* First, because it is the only property that changes how the project is recognised
+          everywhere else it appears — the list, the sidebar, the breadcrumb. It was settable
+          in the create dialog and nowhere afterwards, which made the one property you pick
+          before you know anything about the project the one you could never revise. */}
+      <div className={styles.row}>
+        <span className={styles.label}>Icon</span>
+        <Button
+          {...icon.props}
+          variant="ghost"
+          fullWidth
+          className={styles.trigger}
+          aria-label="Set icon"
+          icon={
+            project.icon === undefined || project.icon === '' ? undefined : (
+              <span aria-hidden="true" style={{ color: project.color }}>
+                {project.icon}
+              </span>
+            )
+          }
+        >
+          {project.icon === undefined || project.icon === '' ? (
+            <span className={styles.unset}>Set icon</span>
+          ) : (
+            project.icon
+          )}
+        </Button>
+      </div>
       <div className={styles.row}>
         <span className={styles.label}>Status</span>
         <Button
@@ -468,6 +505,17 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
       )}
 
       <ProjectDependencies projectId={project.id} compact addable />
+      <IconPicker
+        open={icon.open}
+        onClose={icon.hide}
+        trigger={icon.ref}
+        value={{ icon: project.icon ?? '', color: project.color }}
+        onChange={(next) =>
+          updateProject(engine, project.id, { icon: next.icon, color: next.color }).catch(report)
+        }
+        actionId="projectDetail.closeIconPicker"
+        label="Project icon"
+      />
       <ProjectStatusPicker
         open={status.open}
         onClose={status.hide}

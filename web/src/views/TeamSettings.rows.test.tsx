@@ -211,4 +211,30 @@ describe('TeamSettings on the settings frame', () => {
         .some((node) => node.textContent?.includes('This team is retired') === true),
     ).toBe(true);
   });
+
+  /**
+   * The team's mark reaches the sidebar, the issue list and every breadcrumb that names a
+   * team — and `updateTeam` did not carry it, so a team wore whatever was picked in the
+   * create dialog for the rest of its life.
+   */
+  it('changes the team icon and sends it with the rest of the form', async () => {
+    const user = renderScreen([['team', team()]]);
+
+    await user.click(await screen.findByRole('button', { name: 'Set team icon' }));
+    await user.click(screen.getByRole('button', { name: '\u{1F680}' }));
+    await user.click(screen.getByRole('button', { name: 'Save team' }));
+
+    await waitFor(() => expect(mutate).toHaveBeenCalled());
+    expect(mutate.mock.calls[0]![0].variables.input).toMatchObject({
+      id: TEAM,
+      icon: '\u{1F680}',
+    });
+  });
+
+  it('leaves Save team disabled until something actually changed', async () => {
+    renderScreen([['team', team({ icon: '\u{1F680}' })]]);
+
+    const save = await screen.findByRole('button', { name: 'Save team' });
+    expect((save as HTMLButtonElement).disabled).toBe(true);
+  });
 });

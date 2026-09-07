@@ -1084,7 +1084,11 @@ function ProjectRowLink({
     >
       <span className={styles.nameCell}>
         <span className={styles.icon} aria-hidden="true">
-          {row.icon === undefined || row.icon === '' ? <ProjectGlyph /> : row.icon}
+          {row.icon === undefined || row.icon === '' ? (
+            <ProjectGlyph />
+          ) : (
+            <span style={row.color === '' ? undefined : { color: row.color }}>{row.icon}</span>
+          )}
         </span>
         <span className={styles.name}>{row.name}</span>
         {row.milestone === null ? (
@@ -1217,7 +1221,11 @@ function ProjectCard({
     >
       <span className={styles.cardTop}>
         <span className={styles.icon} aria-hidden="true">
-          {row.icon === undefined || row.icon === '' ? <ProjectGlyph /> : row.icon}
+          {row.icon === undefined || row.icon === '' ? (
+            <ProjectGlyph />
+          ) : (
+            <span style={row.color === '' ? undefined : { color: row.color }}>{row.icon}</span>
+          )}
         </span>
         <span className={styles.name}>{row.name}</span>
       </span>

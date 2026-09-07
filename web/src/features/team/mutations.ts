@@ -41,6 +41,13 @@ export interface TeamFields {
   readonly private?: boolean | undefined;
   /** IANA zone due dates and cycle midnights are reckoned in. */
   readonly timezone?: string | undefined;
+  /**
+   * The emoji the team is drawn as, and the colour it is tinted with. Empty string clears
+   * the icon back to the key, so these two are passed through when defined rather than when
+   * non-empty — the guard the name and the key need would make an icon impossible to remove.
+   */
+  readonly icon?: string | undefined;
+  readonly color?: string | undefined;
 }
 
 /**
@@ -70,13 +77,17 @@ export async function updateTeam(
     ...(fields.timezone === undefined || fields.timezone === ''
       ? null
       : { timezone: fields.timezone }),
+    ...(fields.icon === undefined ? null : { icon: fields.icon }),
+    ...(fields.color === undefined ? null : { color: fields.color }),
     updatedAt: new Date().toISOString(),
   };
   if (
     after.name === before.name &&
     after.key === before.key &&
     after.private === before.private &&
-    after.timezone === before.timezone
+    after.timezone === before.timezone &&
+    after.icon === before.icon &&
+    after.color === before.color
   )
     return;
 
@@ -89,6 +100,8 @@ export async function updateTeam(
         ...(after.key === before.key ? null : { key: after.key }),
         ...(after.private === before.private ? null : { private: after.private }),
         ...(after.timezone === before.timezone ? null : { timezone: after.timezone }),
+        ...(after.icon === before.icon ? null : { icon: after.icon ?? '' }),
+        ...(after.color === before.color ? null : { color: after.color ?? '' }),
       },
     },
     optimistic: [{ type: 'team', id: teamId, before, after }],

@@ -46,6 +46,7 @@ import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { SettingsRow, type SettingsSectionProps } from '~/components/SettingsSection';
 import { featureBlock, useEntitlements } from '~/features/admin/entitlements';
 import { PlanBlock } from '~/features/admin/PlanBlock';
+import { IconPicker, type IconValue } from '~/features/icon/IconPicker';
 import { updateTeamArchive } from '~/features/archive/mutations';
 import { inheritsCycleSchedule } from '~/features/cycles/inherit';
 import { updateTeamCycles } from '~/features/cycles/mutations';
@@ -81,6 +82,7 @@ import { addTeamMember, removeTeamMember } from '~/features/team/create';
 import { deleteTeam, retireTeam, unretireTeam } from '~/features/team-lifecycle/mutations';
 import { moveTeam } from '~/features/team-lifecycle/move';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import {
   CATEGORY_ORDER,
   type RecurringCadence,
@@ -122,6 +124,8 @@ interface TeamView {
   readonly retiredAt?: string;
   readonly parentTeamId?: UUID;
   readonly timezone: string;
+  readonly icon: string;
+  readonly color: string;
   readonly cyclesEnabled: boolean;
   readonly cycleDurationWeeks: number;
   readonly cycleCooldownWeeks: number;
@@ -443,16 +447,26 @@ function TeamForm({
   onSave,
 }: {
   team: TeamView;
-  onSave: (fields: { name: string; key: string; timezone: string }) => void;
+  onSave: (fields: {
+    name: string;
+    key: string;
+    timezone: string;
+    icon: string;
+    color: string;
+  }) => void;
 }) {
   const [name, setName] = useState(team.name);
   const [key, setKey] = useState(team.key);
   const [timezone, setTimezone] = useState(team.timezone);
+  const [icon, setIcon] = useState<IconValue>({ icon: team.icon, color: team.color });
+  const iconTrigger = useMenuTrigger<HTMLButtonElement>('dialog');
 
   const dirty =
     name.trim() !== team.name ||
     key.trim().toUpperCase() !== team.key ||
-    timezone !== team.timezone;
+    timezone !== team.timezone ||
+    icon.icon !== team.icon ||
+    icon.color !== team.color;
 
   const zones = listTimezones().includes(team.timezone)
     ? listTimezones()
@@ -462,7 +476,13 @@ function TeamForm({
     <form
       onSubmit={(event: FormEvent) => {
         event.preventDefault();
-        onSave({ name: name.trim(), key: key.trim().toUpperCase(), timezone });
+        onSave({
+          name: name.trim(),
+          key: key.trim().toUpperCase(),
+          timezone,
+          icon: icon.icon,
+          color: icon.color,
+        });
       }}
     >
       <TeamSection title="Team">
@@ -472,6 +492,41 @@ function TeamForm({
             hideLabel
             value={name}
             onChange={(event) => setName(event.target.value)}
+          />
+        </SettingsRow>
+        {/* The team's mark is drawn in the sidebar, the issue list and every breadcrumb that
+            names a team. It could be chosen when the team was created and never again, which
+            is why so many teams still show their key where an icon was meant to be. */}
+        <SettingsRow
+          label="Icon"
+          description="Shown wherever the team is named. Empty falls back to the key."
+          wide
+        >
+          <Button
+            {...iconTrigger.props}
+            variant="ghost"
+            aria-label="Set team icon"
+            icon={
+              icon.icon === '' ? undefined : (
+                <span
+                  aria-hidden="true"
+                  style={icon.color === '' ? undefined : { color: icon.color }}
+                >
+                  {icon.icon}
+                </span>
+              )
+            }
+          >
+            {icon.icon === '' ? 'Set icon' : icon.icon}
+          </Button>
+          <IconPicker
+            open={iconTrigger.open}
+            onClose={iconTrigger.hide}
+            trigger={iconTrigger.ref}
+            value={icon}
+            onChange={setIcon}
+            actionId="teamSettings.closeIconPicker"
+            label="Team icon"
           />
         </SettingsRow>
         <SettingsRow label="Key" description="The prefix in every identifier this team owns." wide>
@@ -1992,6 +2047,8 @@ function readTeam(store: Store, teamKey: string): TeamView | null {
     defaultTemplateForMembersId: team.defaultTemplateForMembersId,
     defaultTemplateForNonMembersId: team.defaultTemplateForNonMembersId,
     timezone: team.timezone,
+    icon: team.icon ?? '',
+    color: team.color ?? '',
     templates,
     recurring,
     statuses,
