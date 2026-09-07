@@ -66,11 +66,22 @@ jobs:
           KEY: ${{ secrets.APPLE_API_KEY_PATH }}
           KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          P12: ${{ secrets.IOS_DIST_P12 }}
+          P12_PW: ${{ secrets.IOS_DIST_P12_PASSWORD }}
         run: |
           missing=()
           [ -n "$KEY" ]    || missing+=(APPLE_API_KEY_PATH)
           [ -n "$KEY_ID" ] || missing+=(APPLE_API_KEY_ID)
           [ -n "$ISSUER" ] || missing+=(APPLE_API_ISSUER)
+          # The distribution identity is a separate requirement and the one that is easy to
+          # believe you already have. -allowProvisioningUpdates fetches the *certificate*
+          # from App Store Connect, and a certificate without its private key signs nothing;
+          # the private key exists only in the keychain whose CSR created it. No API role
+          # substitutes for it. Getting this wrong fails ten minutes in, with
+          # `No signing certificate "iOS Distribution" found ... with a private key`, which
+          # reads like a missing certificate and is a missing key.
+          [ -n "$P12" ]    || missing+=(IOS_DIST_P12)
+          [ -n "$P12_PW" ] || missing+=(IOS_DIST_P12_PASSWORD)
           if [ ${#missing[@]} -ne 0 ]; then
             echo "::error::Missing App Store Connect secrets: ${missing[*]}. Nothing can be uploaded; failing rather than reporting a release that did not happen. Run \`make release-secrets ARGS=--set\` on a machine with the key, or see docs/05-infrastructure/12-release-secrets.md."
             exit 1
@@ -102,6 +113,50 @@ jobs:
           fi
           chmod 600 "$out"
           echo "ASC_KEY_PATH=$out" >> "$GITHUB_ENV"
+
+      # The distribution identity, into a keychain of this run's own.
+      #
+      # Not the login keychain: a runner is shared infrastructure and a signing key left in
+      # a default keychain outlives the job that needed it. This one is created here, given
+      # a random password, and dies with the runner.
+      #
+      # set-key-partition-list is the step whose absence produces the strangest failure:
+      # without it codesign finds the key, macOS prompts for permission to use it, there is
+      # nobody to answer, and the build hangs until the job times out.
+      - name: Import the distribution identity
+        env:
+          P12: ${{ secrets.IOS_DIST_P12 }}
+          P12_PW: ${{ secrets.IOS_DIST_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/polaris-signing.keychain-db"
+          pw=$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')
+
+          security create-keychain -p "$pw" "$keychain"
+          # Default is a five-minute lock timeout, which is shorter than an archive.
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$pw" "$keychain"
+
+          printf '%s' "$P12" | base64 --decode > "$RUNNER_TEMP/dist.p12" 2>/dev/null || {
+            echo "::error::IOS_DIST_P12 is not base64. Export with: base64 -i dist.p12 | gh secret set IOS_DIST_P12"
+            exit 1
+          }
+          security import "$RUNNER_TEMP/dist.p12" -k "$keychain" -P "$P12_PW" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          rm -f "$RUNNER_TEMP/dist.p12"
+
+          security set-key-partition-list -S apple-tool:,apple: -k "$pw" "$keychain" >/dev/null
+          # The search list, so xcodebuild looks here at all. Keeping login.keychain-db in
+          # it leaves the runner's own tooling working.
+          security list-keychain -d user -s "$keychain" login.keychain-db
+
+          found=$(security find-identity -v -p codesigning "$keychain" | grep -c 'Apple Distribution' || true)
+          if [ "$found" -eq 0 ]; then
+            echo "::error::No 'Apple Distribution' identity in the imported .p12. Export the identity — certificate *and* private key — not just the certificate."
+            security find-identity -v -p codesigning "$keychain" || true
+            exit 1
+          fi
+          echo "imported $found Apple Distribution identity(ies)"
 
       - name: Install XcodeGen
         run: brew install xcodegen
