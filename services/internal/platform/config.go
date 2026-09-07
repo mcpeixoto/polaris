@@ -210,7 +210,22 @@ type Config struct {
 	//
 	// Empty disables the provider outright: its route is refused rather than served in a
 	// state where every token fails an audience check nobody configured.
+	// The client id the *browser* starts a sign-in with, and the one /auth/providers
+	// publishes for Google's JS. Kept separate from the list below for the same reason
+	// AppleWebClientID is: a list cannot say which of its entries is the web one, and
+	// handing Google's JS an iOS client id fails with an error that names neither.
 	GoogleClientID string `envconfig:"POLARIS_GOOGLE_CLIENT_ID"`
+
+	// Google issues a different client id per platform — the web client and the iOS client
+	// are different strings against one project — so a token's `aud` may be any of these.
+	//
+	// This exists because it was missing: Sign in with Google worked on the web and could
+	// not work in the app at all, since an iOS token names the iOS client id and the server
+	// would only ever accept the web one. The failure would have been an audience mismatch
+	// on a token that was in every other way valid.
+	//
+	// GoogleClientID is added automatically, so a web-only deployment sets that alone.
+	GoogleClientIDs []string `envconfig:"POLARIS_GOOGLE_CLIENT_IDS"`
 
 	// Apple issues tokens for several client ids against one team — the iOS bundle id and
 	// the web Services ID are different strings — so this is a list of what a token's `aud`
@@ -303,10 +318,22 @@ func (c Config) GitHubOAuthConfigured() bool {
 // GoogleSignInAudiences and AppleSignInAudiences are the client ids each provider's tokens
 // may name. Empty means the provider is off.
 func (c Config) GoogleSignInAudiences() []string {
-	if id := strings.TrimSpace(c.GoogleClientID); id != "" {
-		return []string{id}
+	seen := map[string]bool{}
+	out := make([]string, 0, len(c.GoogleClientIDs)+1)
+	// The web id first, so it stays the one /auth/providers publishes: that endpoint takes
+	// the first audience, and the browser cannot use an iOS client id.
+	for _, id := range append([]string{c.GoogleClientID}, c.GoogleClientIDs...) {
+		trimmed := strings.TrimSpace(id)
+		if trimmed == "" || seen[trimmed] {
+			continue
+		}
+		seen[trimmed] = true
+		out = append(out, trimmed)
 	}
-	return nil
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func (c Config) AppleSignInAudiences() []string {
