@@ -106,18 +106,45 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      # The build number, before the project is generated, because it is a project setting.
-      # TestFlight rejects a CFBundleVersion it has already accepted for this version string,
-      # and the rejection arrives at the end of a ten-minute archive.
-      - name: Choose the build number
+      # The version, before the project is generated, because both keys are project
+      # settings that xcodegen bakes into Info.plist.
+      #
+      # Until this step existed the tag decided *when* a build was uploaded and nothing
+      # about *what* it was: project.yml carried a literal MARKETING_VERSION, so cutting
+      # v0.9.0 from a tree whose manifest still said 0.8.0 would have shipped a TestFlight
+      # build called 0.8.0. And CURRENT_PROJECT_VERSION was a hand-bumped literal, so the
+      # second tag cut without somebody remembering to edit it dies at the end of a
+      # ten-minute archive on "The bundle version must be higher than the previously
+      # uploaded version" — the tag spent, the upload gone, nothing wrong with the code.
+      #
+      # The build number comes from github.run_number, which is monotonic per workflow and
+      # never repeats, so a retry against the same tag gets a fresh one for free. The
+      # explicit input still wins, for the case where TestFlight has already seen a run
+      # number because an upload half-succeeded.
+      - name: Stamp the version from the tag
         env:
           OVERRIDE: ${{ inputs.build_number }}
+          RUN_NUMBER: ${{ github.run_number }}
         working-directory: ios
         run: |
-          if [ -n "$OVERRIDE" ]; then
-            sed -i '' -E "s/^( *CURRENT_PROJECT_VERSION: ).*/\1\"$OVERRIDE\"/" project.yml
-            echo "Build number overridden to $OVERRIDE"
+          set -euo pipefail
+
+          if [ "${GITHUB_REF_TYPE:-}" = tag ]; then
+            marketing="${GITHUB_REF_NAME#v}"
+            # CFBundleShortVersionString is one to three dot-separated integers and nothing
+            # else. App Store Connect rejects `0.9.0-rc1` on submission rather than on
+            # upload, which is late and confusing, so a tag that cannot be a marketing
+            # version is refused here where the message can say why.
+            if ! [[ "$marketing" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
+              echo "::error::Tag $GITHUB_REF_NAME does not yield a usable CFBundleShortVersionString ($marketing). Release tags must be vMAJOR.MINOR.PATCH."
+              exit 1
+            fi
+            sed -i '' -E "s/^( *MARKETING_VERSION: ).*/\1\"$marketing\"/" project.yml
           fi
+
+          build="${OVERRIDE:-$RUN_NUMBER}"
+          sed -i '' -E "s/^( *CURRENT_PROJECT_VERSION: ).*/\1\"$build\"/" project.yml
+
           grep -E 'MARKETING_VERSION|CURRENT_PROJECT_VERSION' project.yml
 
       - name: Generate the Xcode project

@@ -237,3 +237,61 @@ jobs:
             desktop/release/latest*.yml
           if-no-files-found: error
           retention-days: 14
+
+  # The step that turns a build into a release.
+  #
+  # `release` above creates the GitHub release as a *draft*, and until now nothing ever
+  # cleared that flag. Every tag this repo has cut — v0.6.2 through v0.7.3, six of them —
+  # is still sitting as a draft: invisible on the releases page, undownloadable by anyone
+  # without push access, and, worse, invisible to `electron-updater`. The updater asks the
+  # GitHub API for the latest *published* release; a draft is not one, so every installed
+  # copy has been checking for updates, being told there are none, and staying where it is.
+  # The auto-update path has therefore never worked in production, and every job was green
+  # the whole time, because "the artefacts uploaded" and "the release exists" are both true
+  # of a draft.
+  #
+  # Gated on `needs: build`, which is the matrix. `fail-fast: false` lets the three
+  # platforms finish independently, but `needs` still requires all of them to have
+  # succeeded — so a tag where Windows failed publishes nothing, rather than publishing a
+  # release whose Windows installer is missing. That is the v0.2.0 failure the `release`
+  # job above was written to prevent, arriving from the other end.
+  publish:
+    name: Publish the release
+    needs: build
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Read the release back before publishing it rather than trusting that the build jobs
+      # uploaded what they said they did. electron-builder's publisher is fire-and-forget:
+      # a failed asset upload is logged and the step still exits zero, so the only honest
+      # check is what the release actually holds now.
+      #
+      # The update manifests are checked by name because they are the files that make this
+      # an auto-updating app rather than a download page. An installer with no `latest.yml`
+      # beside it installs once and never updates again.
+      - name: Check the release holds a full set of artefacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          assets=$(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')
+          echo "$assets"
+          missing=()
+          for want in '\.dmg$' '\.exe$' '\.AppImage$' '^latest\.yml$' '^latest-mac\.yml$' '^latest-linux\.yml$'; do
+            grep -qE "$want" <<<"$assets" || missing+=("$want")
+          done
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "::error::$GITHUB_REF_NAME is missing: ${missing[*]}. Not publishing a partial release — a user who downloads it gets an app that cannot update itself."
+            exit 1
+          fi
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # --latest=true is explicit: GitHub only moves the "Latest" pointer on its own when
+        # it judges the tag newest by semver, and this is the pointer the download page and
+        # every "latest release" link resolve through.
+        run: |
+          gh release edit "$GITHUB_REF_NAME" --draft=false --latest
+          gh release view "$GITHUB_REF_NAME" --json isDraft,url --jq '"published: \(.isDraft == false)  \(.url)"'
