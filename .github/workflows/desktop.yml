@@ -246,15 +246,14 @@ jobs:
       #
       # When CSC_LINK is absent it unsets the signing variables and builds anyway — right for
       # a build that is still useful unsigned, and the reason the mac builds shipped unsigned
-      # for weeks under a step called "sign" while every job stayed green. The releases page
-      # offered them the whole time.
+      # for weeks under a step called "sign" while every job stayed green.
       #
-      # What gets checked is the .dmg, not the unpacked .app: the .dmg is the file a person
-      # downloads, and it is the one whose signature and notarisation decide whether the app
-      # opens on their machine. The first version of this step looked for
-      # `release/**/Polaris.app` and failed on v0.11.0 because it could not find one — a
-      # check that fails when it cannot find its subject is a check that blocks releases for
-      # its own reasons.
+      # What is checked is the .app, and it took two wrong guesses to get there. The first
+      # version searched for `Polaris.app` and found nothing, because electron-builder writes
+      # `polaris.app` in lower case and `find -name` is case-sensitive. The second checked
+      # the .dmg instead and failed with "code object is not signed at all", which is simply
+      # true: electron-builder signs and staples the application, not the disk image that
+      # carries it. Both times the build was correct and the check was not.
       - name: Verify the macOS build is signed and notarised
         if: ${{ startsWith(github.ref, 'refs/tags/v') && matrix.name == 'macOS' }}
         shell: bash
@@ -263,48 +262,56 @@ jobs:
         run: |
           set -uo pipefail
 
-          # Before anything else, including looking for files. Without a certificate the
-          # build is legitimately unsigned and there is nothing here to assert.
+          # Before looking for anything: without a certificate the build is legitimately
+          # unsigned and there is nothing here to assert.
           if [ "$HAVE_CERT" != true ]; then
             echo "::warning::MAC_CERT_P12 is not set, so this build is unsigned and Gatekeeper will refuse it on any machine that did not build it. Run \`make release-secrets ARGS=--set\` on a machine with the certificate."
             exit 0
           fi
 
-          shopt -s nullglob
-          dmgs=( desktop/release/*.dmg )
-          if [ ${#dmgs[@]} -eq 0 ]; then
-            echo "::error::No .dmg in desktop/release to verify. Contents:"
+          # -iname, and both arch directories. release/mac-arm64 and release/mac are what
+          # electron-builder writes and what desktop/scripts/smoke.mjs already looks for.
+          mapfile -t apps < <(find desktop/release -maxdepth 2 -iname 'polaris.app' -type d)
+          if [ ${#apps[@]} -eq 0 ]; then
+            echo "::error::No .app under desktop/release to verify. Contents:"
             ls -la desktop/release || true
             exit 1
           fi
 
           fail=0
-          for dmg in "${dmgs[@]}"; do
-            echo "=== $(basename "$dmg") ==="
+          for app in "${apps[@]}"; do
+            echo "=== $app ==="
 
-            # Signed by us, and by the right kind of certificate. A development certificate
-            # verifies perfectly on the machine that holds it and is refused everywhere else,
-            # which is the failure that looks like success.
-            if ! codesign --verify --strict --verbose=2 "$dmg" 2>&1; then
-              echo "::error::$(basename "$dmg") is not validly signed."
-              fail=1
-              continue
-            fi
-            if ! codesign -dvv "$dmg" 2>&1 | grep -q 'Authority=Developer ID Application'; then
-              echo "::error::$(basename "$dmg") is signed, but not by a Developer ID Application certificate. Gatekeeper will refuse it."
-              codesign -dvv "$dmg" 2>&1 | grep -E 'Authority|TeamIdentifier' || true
+            if ! codesign --verify --deep --strict --verbose=2 "$app" 2>&1; then
+              echo "::error::$app is not validly signed."
               fail=1
               continue
             fi
 
-            # The only question a user asks. Gatekeeper needs the notarisation ticket, not
-            # merely a signature, so this is what separates "signed" from "opens".
-            if ! spctl --assess --type open --context context:primary-signature --verbose=4 "$dmg" 2>&1; then
-              echo "::error::Gatekeeper rejects $(basename "$dmg"). Signed but not notarised — read the electron-builder log above for what Apple said."
+            # A development certificate verifies perfectly on the machine that holds it and
+            # is refused on every other one, which is the failure that looks like success.
+            if ! codesign -dvv "$app" 2>&1 | grep -q 'Authority=Developer ID Application'; then
+              echo "::error::$app is signed, but not by a Developer ID Application certificate. Gatekeeper will refuse it."
+              codesign -dvv "$app" 2>&1 | grep -E 'Authority|TeamIdentifier' || true
               fail=1
               continue
             fi
-            echo "signed and notarised"
+
+            # The ticket, stapled into the bundle. Without it the app still needs to reach
+            # Apple on first launch, and fails closed on a machine that is offline.
+            if ! xcrun stapler validate "$app" 2>&1; then
+              echo "::error::$app carries no notarisation ticket."
+              fail=1
+              continue
+            fi
+
+            # The only question a user asks.
+            if ! spctl --assess --type execute --verbose=4 "$app" 2>&1; then
+              echo "::error::Gatekeeper rejects $app."
+              fail=1
+              continue
+            fi
+            echo "signed, notarised, stapled, and accepted by Gatekeeper"
           done
           exit $fail
 

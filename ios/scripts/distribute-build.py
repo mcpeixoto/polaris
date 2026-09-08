@@ -53,19 +53,33 @@ def main() -> int:
         return 1
     app = apps[0]["id"]
 
-    # Processing is asynchronous and a build cannot join a group until it finishes. Ten
-    # minutes is generous for a project this size and short enough to fail the job rather
-    # than hold a runner.
-    deadline = time.time() + 600
+    # The build this run made, found by its number rather than by being newest.
+    #
+    # "Newest by upload date" was the original rule and it shipped the wrong build twice:
+    # App Store Connect does not list a build the moment altool finishes, so seconds after
+    # the upload the newest visible build is still the previous release's — already VALID,
+    # so the wait exits at once and distributes it. v0.12.0 handed testers v0.11.1.
+    #
+    # Processing is also asynchronous, so a build can be listed and not yet distributable.
+    deadline = time.time() + 900
     while True:
-        builds = call(tok, f"builds?filter[app]={app}&limit=5&sort=-uploadedDate"
+        builds = call(tok, f"builds?filter[app]={app}&limit=20&sort=-uploadedDate"
                            "&include=preReleaseVersion")["data"]
-        if not builds:
-            print("::error::No builds found for this app")
-            return 1
-        build = builds[0]
-        state = build["attributes"]["processingState"]
+        build = next((b for b in builds
+                      if b["attributes"]["version"] == want_build), None)
+
+        if build is None:
+            if time.time() > deadline:
+                seen = ", ".join(b["attributes"]["version"] for b in builds[:5]) or "none"
+                print(f"::error::Build {want_build} never appeared in App Store Connect "
+                      f"after 15 minutes. Newest seen: {seen}.")
+                return 1
+            print(f"build {want_build} not listed yet; waiting")
+            time.sleep(30)
+            continue
+
         num = build["attributes"]["version"]
+        state = build["attributes"]["processingState"]
         if state == "VALID":
             break
         if state in ("INVALID", "FAILED"):
@@ -73,10 +87,21 @@ def main() -> int:
                   f"emails the reason; nothing can be distributed.")
             return 1
         if time.time() > deadline:
-            print(f"::error::Build {num} still {state} after 10 minutes.")
+            print(f"::error::Build {num} still {state} after 15 minutes.")
             return 1
         print(f"build {num} is {state}; waiting")
         time.sleep(30)
+
+    # And it must be the version this run built. A build number that matched something
+    # unexpected would otherwise ship the wrong app under the right number.
+    if want:
+        inc = call(tok, f'builds/{build["id"]}?include=preReleaseVersion').get("included", [])
+        got = next((i["attributes"]["version"] for i in inc
+                    if i["type"] == "preReleaseVersions"), "")
+        if got and got != want:
+            print(f"::error::Build {num} is version {got}, not {want}. Refusing to "
+                  f"distribute a build this run did not produce.")
+            return 1
 
     groups = [g for g in call(tok, f"betaGroups?filter[app]={app}")["data"]
               if g["attributes"].get("isInternalGroup")]
