@@ -102,9 +102,17 @@ test('G chords still navigate from the inbox and from pulse', async ({ page, wor
   const errors = collectPageErrors(page);
   await signIn(page, workspace.account);
 
-  for (const from of ['/inbox', '/pulse']) {
+  for (const from of ['/inbox', '/pulse'] as const) {
     await page.goto(from);
     await page.getByRole('navigation', { name: /workspace/i }).waitFor();
+    // Both routes are lazy. The shell's nav is up under Suspense before the screen mounts,
+    // and mounting pushes `list`, which resets any pending G chord. Wait for the screen —
+    // not just the chrome — so `g m` is one gesture against a settled keymap.
+    if (from === '/pulse') {
+      await page.getByRole('tablist', { name: /pulse tabs/i }).waitFor();
+    } else {
+      await page.getByRole('heading', { name: 'Inbox', exact: true }).waitFor();
+    }
     await page.keyboard.press('g');
     await page.keyboard.press('m');
     await expect(page, `g m from ${from}`).toHaveURL(/\/my-issues$/, { timeout: 5000 });
