@@ -41,6 +41,11 @@ def main() -> int:
     tok = token()
     bundle = os.environ.get("BUNDLE_ID", "com.peixotolabs.polaris")
     want = os.environ.get("BUILD_VERSION", "")
+    want_build = os.environ.get("BUILD_NUMBER", "").strip()
+    if not want_build:
+        print("::error::BUILD_NUMBER is empty. Without it this cannot tell this run's build "
+              "from the previous release's, and would distribute the wrong one.")
+        return 1
 
     apps = call(tok, f"apps?filter[bundleId]={bundle}")["data"]
     if not apps:
@@ -92,8 +97,7 @@ def main() -> int:
         print("::error::The build still belongs to no group after assignment.")
         return 1
     print(f"distributed to: {', '.join(named)}")
-    if want and want != "?":
-        print(f"marketing version {want}, build {num}")
+    print(f"marketing version {want or '?'}, build {num}")
     return 0
 
 
