@@ -213,40 +213,64 @@ jobs:
       # for weeks under a step called "sign" while every job stayed green. The releases page
       # offered them the whole time.
       #
-      # codesign --verify is the difference between the step having run and the app being
-      # signed. spctl is the stricter question — whether Gatekeeper will actually open it,
-      # which needs notarisation and not merely a signature, and is the thing a user
-      # experiences.
+      # What gets checked is the .dmg, not the unpacked .app: the .dmg is the file a person
+      # downloads, and it is the one whose signature and notarisation decide whether the app
+      # opens on their machine. The first version of this step looked for
+      # `release/**/Polaris.app` and failed on v0.11.0 because it could not find one — a
+      # check that fails when it cannot find its subject is a check that blocks releases for
+      # its own reasons.
       - name: Verify the macOS build is signed and notarised
         if: ${{ startsWith(github.ref, 'refs/tags/v') && matrix.name == 'macOS' }}
         shell: bash
         env:
           HAVE_CERT: ${{ secrets.MAC_CERT_P12 != '' }}
         run: |
-          set -euo pipefail
-          app=$(find desktop/release -maxdepth 3 -name 'Polaris.app' -print -quit)
-          [ -n "$app" ] || { echo "::error::No Polaris.app under desktop/release to check."; exit 1; }
+          set -uo pipefail
 
+          # Before anything else, including looking for files. Without a certificate the
+          # build is legitimately unsigned and there is nothing here to assert.
           if [ "$HAVE_CERT" != true ]; then
-            echo "::warning::MAC_CERT_P12 is not set, so this build is unsigned and Gatekeeper will refuse it. Run \`make release-secrets ARGS=--set\` on a machine with the certificate."
+            echo "::warning::MAC_CERT_P12 is not set, so this build is unsigned and Gatekeeper will refuse it on any machine that did not build it. Run \`make release-secrets ARGS=--set\` on a machine with the certificate."
             exit 0
           fi
 
-          echo "--- codesign ---"
-          codesign --verify --deep --strict --verbose=2 "$app"
-          codesign -dvv "$app" 2>&1 | grep -E 'Authority|TeamIdentifier|Timestamp' || true
-
-          # A Developer ID signature that is not from Developer ID is the failure worth
-          # naming: a build signed with a development certificate verifies here and is
-          # refused on every machine but this one.
-          codesign -dvv "$app" 2>&1 | grep -q 'Authority=Developer ID Application' \
-            || { echo "::error::Signed, but not with a Developer ID Application certificate. Gatekeeper will refuse it."; exit 1; }
-
-          echo "--- Gatekeeper ---"
-          if ! spctl --assess --type execute --verbose=4 "$app" 2>&1; then
-            echo "::error::Gatekeeper rejects the app. Signed but not notarised — notarisation needs the APPLE_API_* secrets and `notarize: true`, both of which are configured, so read the electron-builder log above for what Apple said."
+          shopt -s nullglob
+          dmgs=( desktop/release/*.dmg )
+          if [ ${#dmgs[@]} -eq 0 ]; then
+            echo "::error::No .dmg in desktop/release to verify. Contents:"
+            ls -la desktop/release || true
             exit 1
           fi
+
+          fail=0
+          for dmg in "${dmgs[@]}"; do
+            echo "=== $(basename "$dmg") ==="
+
+            # Signed by us, and by the right kind of certificate. A development certificate
+            # verifies perfectly on the machine that holds it and is refused everywhere else,
+            # which is the failure that looks like success.
+            if ! codesign --verify --strict --verbose=2 "$dmg" 2>&1; then
+              echo "::error::$(basename "$dmg") is not validly signed."
+              fail=1
+              continue
+            fi
+            if ! codesign -dvv "$dmg" 2>&1 | grep -q 'Authority=Developer ID Application'; then
+              echo "::error::$(basename "$dmg") is signed, but not by a Developer ID Application certificate. Gatekeeper will refuse it."
+              codesign -dvv "$dmg" 2>&1 | grep -E 'Authority|TeamIdentifier' || true
+              fail=1
+              continue
+            fi
+
+            # The only question a user asks. Gatekeeper needs the notarisation ticket, not
+            # merely a signature, so this is what separates "signed" from "opens".
+            if ! spctl --assess --type open --context context:primary-signature --verbose=4 "$dmg" 2>&1; then
+              echo "::error::Gatekeeper rejects $(basename "$dmg"). Signed but not notarised — read the electron-builder log above for what Apple said."
+              fail=1
+              continue
+            fi
+            echo "signed and notarised"
+          done
+          exit $fail
 
       # A permanent URL to each installer.
       #
