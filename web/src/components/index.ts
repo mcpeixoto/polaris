@@ -154,6 +154,8 @@ export type { BreadcrumbItem, BreadcrumbProps } from './Breadcrumb';
 
 export { PropertyPill } from './PropertyPill';
 export type { PropertyPillProps } from './PropertyPill';
+export { PropertyTrigger } from './PropertyTrigger';
+export type { PropertyTriggerProps } from './PropertyTrigger';
 
 export { Section } from './Section';
 export type { SectionProps } from './Section';

@@ -122,7 +122,7 @@ generate:
 |---|---|---|
 | `polaris-api`, `polaris-sync`, `polaris-worker` | Go static builds, `CGO_ENABLED=0` | Docker images, distroless base |
 | `web/dist` | Vite | Baked into `web` nginx image **and** into the Electron app |
-| `Polaris.dmg`, `Polaris Setup.exe` | electron-builder | GitHub Releases (auto-update feed) |
+| `Polaris-<version>-mac-<arch>.dmg`, `Polaris-Setup-<version>.exe`, `.AppImage`, `.deb` | electron-builder | GitHub Releases (auto-update feed), plus version-less copies for permanent download links |
 | `@polaris/sdk` | tsup | npm |
 
 The **same `web/dist`** goes into both the nginx image and the Electron bundle, built once per release so the desktop app can never drift from the web app.
@@ -178,4 +178,4 @@ Seed data matters more than usual here: a realistic workspace (3 teams, 2k issue
 - **Every entity carries** `created_at`, `updated_at`, `archived_at`, `workspace_id`.
 - **Soft delete** (`deleted_at`) for anything with a 30-day recovery window; hard delete only via a purge job.
 - **No `SELECT *`** in generated queries — column drift breaks sync payload shapes silently.
-- **Errors** are typed domain errors mapped once to GraphQL extensions codes (`RATELIMITED`, `FORBIDDEN`, `NOT_FOUND`, `VALIDATION`).
+- **Errors** are typed domain errors mapped once to GraphQL extensions codes (`RATELIMITED`, `QUERY_TOO_COMPLEX`, `FORBIDDEN`, `NOT_FOUND`, `VALIDATION`).

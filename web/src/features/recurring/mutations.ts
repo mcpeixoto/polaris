@@ -25,9 +25,14 @@ import {
   type TemplateProperties,
   type UUID,
 } from '~/store';
+import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
-import { ARCHIVE_RECURRING_ISSUE, CREATE_RECURRING_ISSUE } from './operations';
+import {
+  ARCHIVE_RECURRING_ISSUE,
+  CREATE_RECURRING_ISSUE,
+  UPDATE_RECURRING_ISSUE,
+} from './operations';
 
 export const CADENCE_LABELS: Readonly<Record<RecurringCadence, string>> = {
   daily: 'Daily',
@@ -258,6 +263,80 @@ function relinkSource(store: Store, sourceIssueId: UUID | undefined, wire: Recur
       },
     },
   ]);
+}
+
+export interface RecurringIssueFields {
+  readonly title?: string | undefined;
+  readonly body?: string | undefined;
+  readonly cadence?: RecurringCadence | undefined;
+  /** Calendar day, `2006-01-02`. The due date of the current occurrence. */
+  readonly nextDueDate?: string | undefined;
+}
+
+/**
+ * Edits a schedule in place.
+ *
+ * `UPDATE_RECURRING_ISSUE` has been in this file's operations since schedules landed and had
+ * no caller at all, so a cadence chosen once was a cadence for good: the only way off a
+ * weekly standup was to stop it and write a monthly one, losing the schedule's identity and
+ * with it every issue's link back to it. The mutation existed; nothing asked for it.
+ *
+ * The row is replicated and team-scoped, so the optimistic patch is a claim the delta stream
+ * will confirm rather than a guess. The cadence goes on the wire in the enum's spelling —
+ * `toWire`, as `createRecurringIssue` does — because the store holds it lowercase and the
+ * API takes it shouted.
+ */
+export async function updateRecurringIssue(
+  engine: SyncEngine,
+  id: UUID,
+  patch: RecurringIssueFields,
+): Promise<void> {
+  const before = engine.store.get('recurringIssue', id);
+  if (before === undefined) return;
+
+  const title = patch.title?.trim();
+  const after: RecurringIssue = {
+    ...before,
+    ...(title === undefined || title === '' ? null : { title }),
+    ...(patch.body === undefined ? null : { body: patch.body }),
+    ...(patch.cadence === undefined ? null : { cadence: patch.cadence }),
+    ...(patch.nextDueDate === undefined || patch.nextDueDate === ''
+      ? null
+      : { nextDueDate: patch.nextDueDate }),
+    updatedAt: new Date().toISOString(),
+  };
+
+  // A dialog reopened and confirmed unchanged is free rather than a round trip — and a
+  // version block, and an inbox row for everybody watching the team.
+  if (
+    before.title === after.title &&
+    before.body === after.body &&
+    before.cadence === after.cadence &&
+    before.nextDueDate === after.nextDueDate
+  ) {
+    return;
+  }
+
+  try {
+    await engine.mutate({
+      mutation: UPDATE_RECURRING_ISSUE,
+      variables: {
+        input: {
+          id,
+          ...(title === undefined || title === '' ? null : { title }),
+          ...(patch.body === undefined ? null : { body: patch.body }),
+          ...(patch.cadence === undefined ? null : { cadence: toWire(patch.cadence) }),
+          ...(patch.nextDueDate === undefined || patch.nextDueDate === ''
+            ? null
+            : { nextDueDate: patch.nextDueDate }),
+        },
+      },
+      optimistic: [{ type: 'recurringIssue', id, before, after }],
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.isOffline) return;
+    throw error;
+  }
 }
 
 export async function archiveRecurringIssue(engine: SyncEngine, id: UUID): Promise<void> {

@@ -170,12 +170,48 @@ jobs:
         # `env:` below, so that adding the secret in repository settings is the only thing
         # needed to turn signing on; nothing in this file has to change with it.
         run: |
+          # The Apple certificate is for the Apple build and nothing else.
+          #
+          # CSC_LINK is not a macOS variable — Windows reads it too, imports whatever it
+          # points at, and hands the lot to signtool. The .p12 exported from a login keychain
+          # holds every identity on it, so signtool found several and refused to choose:
+          # "Multiple certificates were found that meet all the given criteria". The Windows
+          # build had been fine while this secret was empty and broke the moment it was set.
+          if [ "$RUNNER_OS" != macOS ]; then
+            unset CSC_LINK CSC_KEY_PASSWORD APPLE_API_KEY APPLE_API_KEY_ID APPLE_API_ISSUER
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+
           if [ -z "${CSC_LINK:-}" ]; then
             unset CSC_LINK CSC_KEY_PASSWORD
             # Otherwise electron-builder searches the runner keychain, finds nothing, and
             # reports the absence as a signing failure instead of skipping.
             export CSC_IDENTITY_AUTO_DISCOVERY=false
           fi
+
+          # notarytool wants a *path* to the .p8, and the secret holds the key itself.
+          #
+          # The name says PATH because ios-release.yml materialises it to a file and that is
+          # what App Store Connect tooling reads. electron-builder passes APPLE_API_KEY
+          # straight through as a command-line option, so the PEM text arrived as an option
+          # and notarytool answered "Invalid option:" followed by the key — a redacted `***`
+          # in the log, which is the least useful message it could have produced. The app was
+          # correctly signed by then; only the ticket was missing.
+          if [ -n "${APPLE_API_KEY:-}" ] && [ ! -f "${APPLE_API_KEY}" ]; then
+            key="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+            if printf '%s' "$APPLE_API_KEY" | grep -q 'BEGIN PRIVATE KEY'; then
+              printf '%s\n' "$APPLE_API_KEY" > "$key"
+            else
+              printf '%s' "$APPLE_API_KEY" | base64 --decode > "$key" 2>/dev/null || {
+                echo "::error::APPLE_API_KEY_PATH is neither PEM text nor base64."
+                exit 1
+              }
+            fi
+            chmod 600 "$key"
+            export APPLE_API_KEY="$key"
+            echo "notarisation key written to a file for notarytool"
+          fi
+
           if [ -z "${APPLE_API_KEY:-}" ]; then
             unset APPLE_API_KEY APPLE_API_KEY_ID APPLE_API_ISSUER
           fi
@@ -205,6 +241,141 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      # "Package and sign" is a step name, not a result.
+      #
+      # When CSC_LINK is absent it unsets the signing variables and builds anyway — right for
+      # a build that is still useful unsigned, and the reason the mac builds shipped unsigned
+      # for weeks under a step called "sign" while every job stayed green.
+      #
+      # What is checked is the .app, and it took two wrong guesses to get there. The first
+      # version searched for `Polaris.app` and found nothing, because electron-builder writes
+      # `polaris.app` in lower case and `find -name` is case-sensitive. The second checked
+      # the .dmg instead and failed with "code object is not signed at all", which is simply
+      # true: electron-builder signs and staples the application, not the disk image that
+      # carries it. Both times the build was correct and the check was not.
+      - name: Verify the macOS build is signed and notarised
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && matrix.name == 'macOS' }}
+        shell: bash
+        env:
+          HAVE_CERT: ${{ secrets.MAC_CERT_P12 != '' }}
+        run: |
+          set -uo pipefail
+
+          # Before looking for anything: without a certificate the build is legitimately
+          # unsigned and there is nothing here to assert.
+          if [ "$HAVE_CERT" != true ]; then
+            echo "::warning::MAC_CERT_P12 is not set, so this build is unsigned and Gatekeeper will refuse it on any machine that did not build it. Run \`make release-secrets ARGS=--set\` on a machine with the certificate."
+            exit 0
+          fi
+
+          # -iname, and both arch directories. release/mac-arm64 and release/mac are what
+          # electron-builder writes and what desktop/scripts/smoke.mjs already looks for.
+          mapfile -t apps < <(find desktop/release -maxdepth 2 -iname 'polaris.app' -type d)
+          if [ ${#apps[@]} -eq 0 ]; then
+            echo "::error::No .app under desktop/release to verify. Contents:"
+            ls -la desktop/release || true
+            exit 1
+          fi
+
+          fail=0
+          for app in "${apps[@]}"; do
+            echo "=== $app ==="
+
+            if ! codesign --verify --deep --strict --verbose=2 "$app" 2>&1; then
+              echo "::error::$app is not validly signed."
+              fail=1
+              continue
+            fi
+
+            # A development certificate verifies perfectly on the machine that holds it and
+            # is refused on every other one, which is the failure that looks like success.
+            if ! codesign -dvv "$app" 2>&1 | grep -q 'Authority=Developer ID Application'; then
+              echo "::error::$app is signed, but not by a Developer ID Application certificate. Gatekeeper will refuse it."
+              codesign -dvv "$app" 2>&1 | grep -E 'Authority|TeamIdentifier' || true
+              fail=1
+              continue
+            fi
+
+            # The ticket, stapled into the bundle. Without it the app still needs to reach
+            # Apple on first launch, and fails closed on a machine that is offline.
+            if ! xcrun stapler validate "$app" 2>&1; then
+              echo "::error::$app carries no notarisation ticket."
+              fail=1
+              continue
+            fi
+
+            # The only question a user asks.
+            if ! spctl --assess --type execute --verbose=4 "$app" 2>&1; then
+              echo "::error::Gatekeeper rejects $app."
+              fail=1
+              continue
+            fi
+            echo "signed, notarised, stapled, and accepted by Gatekeeper"
+          done
+          exit $fail
+
+      # A permanent URL to each installer.
+      #
+      # electron-builder stamps the version into every asset name, so
+      # `Polaris-0.9.0-mac-arm64.dmg` is the only name a release has and there is no link
+      # that keeps working. The landing page could therefore only point at the releases
+      # page, which hands somebody who wanted the app a list of fifteen files.
+      #
+      # GitHub's `/releases/latest/download/<name>` redirect needs an exact filename, so the
+      # fix is a second copy of each installer under a name with no version in it. These are
+      # additional assets, never replacements: release.yml still asserts that some asset
+      # carries the tag's version, which is what proves the build took its version from the
+      # tag.
+      #
+      # They must stay out of `latest*.yml`, and this step cannot put them there — it copies
+      # files and uploads them, and never regenerates a manifest. That matters more than it
+      # looks: electron-updater picks a macOS update by substring from the manifest's `files`
+      # list, preferring URLs containing "arm64" on Apple Silicon and excluding them
+      # everywhere else. An extra file inside that list could hand every Mac the wrong build,
+      # silently, forever. An extra file merely *on the release* is invisible to it. That is
+      # also why the .zip files — the ones macOS actually updates from — get no alias here.
+      - name: Publish stable-named copies of the installers
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        shell: bash
+        working-directory: desktop/release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          # Exactly one match, or fail. A zero-match would publish a release whose stable
+          # link 404s — and the landing page points at that link, so the first person to
+          # notice would be a user. A two-match would pick arbitrarily between them.
+          copy() {
+            local matches=( $1 )
+            if [ ${#matches[@]} -ne 1 ]; then
+              echo "::error::Expected exactly one file matching '$1' in desktop/release, found ${#matches[@]}: ${matches[*]:-none}"
+              ls -1
+              exit 1
+            fi
+            cp "${matches[0]}" "$2"
+            gh release upload "$GITHUB_REF_NAME" "$2" --clobber
+            echo "$2  <-  ${matches[0]}"
+          }
+
+          # Globs end in the real extension so the .blockmap siblings never match. The
+          # Windows installer is globbed loosely because its name on disk carries spaces
+          # ("Polaris Setup 0.9.0.exe") while the uploaded asset does not.
+          case "${{ matrix.name }}" in
+            macOS)
+              copy '*-mac-arm64.dmg'      Polaris-mac-arm64.dmg
+              copy '*-mac-x64.dmg'        Polaris-mac-x64.dmg
+              ;;
+            Windows)
+              copy '*Setup*.exe'          Polaris-Setup.exe
+              ;;
+            Linux)
+              copy '*.AppImage'           Polaris-linux-x86_64.AppImage
+              copy '*.deb'                polaris-amd64.deb
+              ;;
+          esac
 
       # The step that separates "it compiled" from "it is an application".
       #
@@ -290,7 +461,12 @@ jobs:
           assets=$(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')
           echo "$assets"
           missing=()
-          for want in '\.dmg$' '\.exe$' '\.AppImage$' '^latest\.yml$' '^latest-mac\.yml$' '^latest-linux\.yml$'; do
+          # The versioned artefacts, the update manifests, and the stable aliases the
+          # website links to. A release missing an alias is one where every download button
+          # on the landing page 404s.
+          for want in '\.dmg$' '\.exe$' '\.AppImage$' '^latest\.yml$' '^latest-mac\.yml$' '^latest-linux\.yml$' \
+                      '^Polaris-mac-arm64\.dmg$' '^Polaris-mac-x64\.dmg$' '^Polaris-Setup\.exe$' \
+                      '^Polaris-linux-x86_64\.AppImage$' '^polaris-amd64\.deb$'; do
             grep -qE "$want" <<<"$assets" || missing+=("$want")
           done
           if [ ${#missing[@]} -ne 0 ]; then

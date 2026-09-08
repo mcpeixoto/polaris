@@ -280,9 +280,26 @@ function planUpdate(
     ...(next.assigneeId === undefined
       ? null
       : { assigneeId: next.assigneeId === null ? undefined : next.assigneeId }),
-    ...(next.projectId === undefined
+    /*
+     * The project, and the milestone that cannot outlive it.
+     *
+     * A milestone belongs to exactly one project — `issue_milestone_matches_project` in
+     * services/migrations/000024_projects.up.sql raises on any row where the two disagree —
+     * and `UpdateIssue` COALESCEs the milestone it is not given, so a plain move to another
+     * project carries the old checkpoint into the new one and the write is refused. What the
+     * user sees is "a milestone has to belong to the issue's project" (issue.go:1420) for a
+     * field they did not touch. Nothing could set a milestone from the client until now,
+     * which is the only reason `Shift+P` was not already doing this.
+     *
+     * Skipped when the project is not actually changing, so reselecting the current one
+     * stays the no-op `sameIssue` makes it.
+     */
+    ...(next.projectId === undefined || next.projectId === (before.projectId ?? null)
       ? null
-      : { projectId: next.projectId === null ? undefined : next.projectId }),
+      : {
+          projectId: next.projectId === null ? undefined : next.projectId,
+          projectMilestoneId: undefined,
+        }),
     ...(next.cycleId === undefined
       ? null
       : { cycleId: next.cycleId === null ? undefined : next.cycleId }),
@@ -401,7 +418,9 @@ export async function updateIssue(
 function sendUpdate(engine: SyncEngine, write: IssueWrite): Promise<unknown> {
   return engine.mutate({
     mutation: UPDATE_ISSUE,
-    variables: { input: { id: write.id, ...updateInputOf(write.fields) } },
+    variables: {
+      input: { id: write.id, ...updateInputOf(write.fields), ...milestoneClearOf(write) },
+    },
     optimistic: [{ type: 'issue', id: write.id, before: write.before, after: write.after }],
   });
 }
@@ -893,7 +912,7 @@ function inheritedFrom(
   };
 }
 
-/** The two properties the detail view's rail sets that a bulk action has no shape for. */
+/** The properties the detail view's rail sets that a bulk action has no shape for. */
 export interface IssueProperties {
   /** `null` clears it. Absent leaves it alone, and 0 is a real estimate rather than none. */
   readonly estimate?: number | null | undefined;
@@ -908,6 +927,16 @@ export interface IssueProperties {
    * blocking a feature is the ordinary case, not the exception.
    */
   readonly parentId?: UUID | null | undefined;
+  /**
+   * The checkpoint inside the issue's project. `null` takes it off.
+   *
+   * Here rather than on `IssueFields` because `BulkUpdateIssuesInput` has no milestone —
+   * it has no project either — so a milestone can never be part of a batch, and putting it
+   * on the shared field set would be describing a write the API cannot make. The server
+   * refuses a milestone from another project, so the caller has to be one that knows which
+   * project the issue is in.
+   */
+  readonly projectMilestoneId?: UUID | null | undefined;
 }
 
 /**
@@ -931,13 +960,17 @@ export async function updateIssueProperties(
     ...(fields.estimate === undefined ? null : { estimate: fields.estimate ?? undefined }),
     ...(fields.dueDate === undefined ? null : { dueDate: fields.dueDate ?? undefined }),
     ...(fields.parentId === undefined ? null : { parentId: fields.parentId ?? undefined }),
+    ...(fields.projectMilestoneId === undefined
+      ? null
+      : { projectMilestoneId: fields.projectMilestoneId ?? undefined }),
     updatedAt: new Date().toISOString(),
   };
   // A picker reselecting the value an issue already has is free rather than a round trip.
   if (
     before.estimate === after.estimate &&
     before.dueDate === after.dueDate &&
-    before.parentId === after.parentId
+    before.parentId === after.parentId &&
+    before.projectMilestoneId === after.projectMilestoneId
   ) {
     return;
   }
@@ -1390,7 +1423,28 @@ function propertiesInputOf(fields: IssueProperties): Record<string, unknown> {
       : fields.parentId === null
         ? { clearParent: true }
         : { parentId: fields.parentId }),
+    ...(fields.projectMilestoneId === undefined
+      ? null
+      : fields.projectMilestoneId === null
+        ? { clearMilestone: true }
+        : { projectMilestoneId: fields.projectMilestoneId }),
   };
+}
+
+/**
+ * `clearMilestone` for a write that has taken the milestone off.
+ *
+ * The flag rather than a null id, for the reason every clear on this input needs one: a null
+ * in a partial update means "leave it alone". Read off the patch rather than off the fields
+ * because the fields never mention a milestone — `planUpdate` drops it when the project
+ * moves, and this is that decision reaching the wire. `clearProject` already nulls the
+ * column in SQL (see `UpdateIssue` in services/internal/store/queries/issues.sql), so for
+ * that case this is a restatement; for a move to a *different* project it is the whole fix.
+ */
+function milestoneClearOf(write: IssueWrite): Record<string, unknown> {
+  const dropped =
+    write.before.projectMilestoneId !== undefined && write.after.projectMilestoneId === undefined;
+  return dropped ? { clearMilestone: true } : {};
 }
 
 /** Whether an update would change anything, so a picker reselecting the current value is free. */
@@ -1402,6 +1456,7 @@ function sameIssue(before: Issue, after: Issue): boolean {
     before.priority === after.priority &&
     before.assigneeId === after.assigneeId &&
     before.projectId === after.projectId &&
+    before.projectMilestoneId === after.projectMilestoneId &&
     before.cycleId === after.cycleId
   );
 }

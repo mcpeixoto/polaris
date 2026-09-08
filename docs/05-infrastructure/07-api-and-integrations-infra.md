@@ -14,10 +14,12 @@ The product requirement is API parity: **one GraphQL API serves the web client, 
 | Depth / complexity | `extension.ComplexityLimit` — see below |
 | Dataloaders | Per-request, mandatory for `nodes { … }` traversals |
 | Tracing | OTel span per resolver in dev; sampled in prod |
-| Errors | Typed domain errors → `extensions.code` (`RATELIMITED`, `FORBIDDEN`, `VALIDATION`, `NOT_FOUND`). Partial success with HTTP 200 is the GraphQL norm and the spec explicitly documents it |
+| Errors | Typed domain errors → `extensions.code` (`RATELIMITED`, `QUERY_TOO_COMPLEX`, `FORBIDDEN`, `VALIDATION`, `NOT_FOUND`). Partial success with HTTP 200 is the GraphQL norm and the spec explicitly documents it |
 
 ### Complexity scoring
 Implement the documented model exactly, because integrations calibrate against it: **field 0.1, object 1, connection multiplies children by the pagination argument (default 50), round up. Hard cap 10,000 per query.** Emit `X-Complexity` on every response along with `X-RateLimit-Complexity-*`.
+
+The per-query cap gets its own code, `QUERY_TOO_COMPLEX`, and never `RATELIMITED`. They are opposite instructions: a spent budget refills and the caller should wait, while a query over the cap is refused identically forever and the caller must send a different query. Sharing one code cost a release — the iOS inbox asked for 100 notifications, scored 17,700, and told every user to retry something that could not succeed. There is no `retryAfter` on this refusal, because there is no time at which it stops being true. Note also that the cap is not linear in the page size: an unpaginated list inside a paginated one inherits the page size, so the cost is quadratic and a client can cross the cap by doubling a number that looked safe.
 
 This is not decoration. It is the mechanism that stops one badly written integration from taking the box down, and it must exist before the first third-party app.
 

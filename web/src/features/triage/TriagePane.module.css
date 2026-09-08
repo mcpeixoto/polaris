@@ -93,6 +93,19 @@
   margin-bottom: var(--space-3);
 }
 
+/* A property nobody has set yet. Quieter than a value, but still a row you can act on. */
+.unset {
+  color: var(--text-tertiary);
+}
+
+/* A one-pixel box at the pointer, for the pane's context menu to measure itself against. */
+.contextAnchor {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
 .entityLink {
   display: inline-flex;
   align-items: center;

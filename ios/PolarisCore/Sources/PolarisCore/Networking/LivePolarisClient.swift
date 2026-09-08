@@ -59,6 +59,33 @@ public actor LivePolarisClient: PolarisAPI {
         return try await authenticate(path: "/auth/oidc/apple", body: body)
     }
 
+    public func signInWithGoogle(
+        idToken: String,
+        nonce: String,
+        displayName: String?
+    ) async throws -> Session {
+        var body: [String: JSONValue] = [
+            "idToken": .string(idToken),
+            "nonce": .string(nonce),
+        ]
+        // Google puts a name in the ID token, so unlike Apple this is not a one-time gift the
+        // client must catch. Sent anyway when the app has one: the server prefers what it can
+        // read from verified claims and this costs nothing.
+        if let displayName, !displayName.isEmpty { body["displayName"] = .string(displayName) }
+        return try await authenticate(path: "/auth/oidc/google", body: body)
+    }
+
+    /// Which providers this deployment offers.
+    ///
+    /// A plain GET with no session: it is asked from the sign-in screen, before there is one.
+    /// A deployment with no Google audiences answers with a list that omits it, and the
+    /// button is never drawn.
+    public func authProviders() async throws -> AuthProviders {
+        var request = URLRequest(url: environment.apiBaseURL.appending(path: "/auth/providers"))
+        request.httpMethod = "GET"
+        return try decode(AuthProviders.self, from: try await send(request))
+    }
+
     public func register(
         email: String,
         password: String,
@@ -268,6 +295,7 @@ public actor LivePolarisClient: PolarisAPI {
             let extensions = first["extensions"] as? [String: Any]
             throw mapGraphQLError(code: extensions?["code"] as? String,
                                   field: extensions?["field"] as? String,
+                                  retryAfter: seconds(extensions?["retryAfter"]),
                                   message: message)
         }
         guard let payload = root["data"] as? [String: Any] else { throw PolarisError.badResponse }
@@ -286,14 +314,35 @@ public actor LivePolarisClient: PolarisAPI {
         }
     }
 
-    private func mapGraphQLError(code: String?, field: String?, message: String) -> PolarisError {
+    private func mapGraphQLError(
+        code: String?, field: String?, retryAfter: TimeInterval?, message: String
+    ) -> PolarisError {
         switch code {
         case "UNAUTHORIZED", "UNAUTHENTICATED": .unauthorized(message)
         case "FORBIDDEN": .forbidden
         case "NOT_FOUND": .notFound
         case "VALIDATION": .validation(message: message, field: field)
-        case "RATELIMITED": .rateLimited(retryAfter: nil)
+        case "RATELIMITED": .rateLimited(retryAfter: retryAfter)
+        // Arrives inside an HTTP 200 — gqlgen only maps a code to a non-200 status for codes
+        // registered with it, and this one is not — so the 429 branch in `send` never sees it
+        // and this is the only place it can be recognised.
+        case "QUERY_TOO_COMPLEX": .queryTooComplex
         default: .server(status: 200, message: message)
+        }
+    }
+
+    /// `extensions.retryAfter`, in whole seconds, however JSONSerialization typed it.
+    ///
+    /// It arrives as an NSNumber and could be bridged as Int or Double depending on how the
+    /// server wrote it, so both are read. Passing nil where the server sent a number is what
+    /// turned "try again in 30s" into "try again shortly" — a sentence that tells somebody to
+    /// guess.
+    private func seconds(_ raw: Any?) -> TimeInterval? {
+        switch raw {
+        case let n as Int: TimeInterval(n)
+        case let n as Double: n
+        case let n as NSNumber: n.doubleValue
+        default: nil
         }
     }
 

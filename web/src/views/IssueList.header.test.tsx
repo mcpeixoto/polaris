@@ -154,6 +154,16 @@ function where(): string {
   return screen.getByTestId('location').textContent ?? '';
 }
 
+/**
+ * The pills, scoped.
+ *
+ * A row's status glyph is a button named by its status now, so "Backlog" on its own names
+ * both the pill and every backlog row on screen.
+ */
+function scopePills(): HTMLElement {
+  return screen.getByRole('group', { name: 'Which issues' });
+}
+
 /** See `IssueList.test.tsx`: a virtualiser told its viewport is zero pixels tall draws nothing. */
 const VIEWPORT = { offsetWidth: 900, offsetHeight: 600 };
 
@@ -199,11 +209,11 @@ describe('the scope pills', () => {
       'true',
     );
 
-    await user.click(screen.getByRole('button', { name: 'Backlog' }));
+    await user.click(within(scopePills()).getByRole('button', { name: 'Backlog' }));
     expect(where()).toContain('filter=');
-    expect(screen.getByRole('button', { name: 'Backlog' }).getAttribute('aria-pressed')).toBe(
-      'true',
-    );
+    expect(
+      within(scopePills()).getByRole('button', { name: 'Backlog' }).getAttribute('aria-pressed'),
+    ).toBe('true');
     expect(screen.getByRole('button', { name: 'All issues' }).getAttribute('aria-pressed')).toBe(
       'false',
     );

@@ -116,6 +116,13 @@ enum Theme {
     /// dropped its own gradient for the same reason.
     static var background: Color { darkBase }
 
+    /// Google's sign-in button. Fixed by their branding guidelines rather than by us — see
+    /// `Palette.googleButton` — which is why these three are the only colours in this file
+    /// that do not resolve to a Polaris semantic.
+    static let googleSurface = Color.adaptive { Palette.googleButton($0).surface }
+    static let googleBorder = Color.adaptive { Palette.googleButton($0).border }
+    static let googleLabel = Color.adaptive { Palette.googleButton($0).label }
+
     // MARK: - Metrics
 
     /// Apple's minimum. Small text links look right at 12pt and are unusable at 12pt; the

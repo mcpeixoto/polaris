@@ -16,6 +16,10 @@ export type ErrorCode =
   | 'UNAUTHENTICATED'
   | 'CONFLICT'
   | 'RATELIMITED'
+  // One operation over the per-query complexity ceiling. Not a rate limit however much it
+  // reads like one: a budget refills and this does not, so nothing should retry it. It is
+  // absent from `isRetriable` in engine.ts deliberately.
+  | 'QUERY_TOO_COMPLEX'
   | 'PLAN_LIMIT'
   | 'INTERNAL'
   | 'NETWORK';

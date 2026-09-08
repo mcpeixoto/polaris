@@ -88,6 +88,69 @@ else
     || note "$rel does not check that the release was published"
 fi
 
+# The iOS job must require a signing identity, not only an App Store Connect key.
+# Removing this check is how the "the API key is enough" assumption comes back — it is
+# wrong in a way that only shows up ten minutes into an archive on a release.
+if ! grep -q 'IOS_DIST_P12' "$ios"; then
+  note "$ios does not require a distribution identity (IOS_DIST_P12)"
+  echo "      -allowProvisioningUpdates downloads a certificate, not a private key."
+  echo "      Without the identity imported, the archive cannot be signed."
+fi
+
+# Uploading is not distributing, and the job must do both.
+#
+# A build with no beta group is VALID, READY_FOR_BETA_TESTING and invisible in the
+# TestFlight app to every tester. Five builds sat that way over six weeks with every job
+# green. If this step goes, releases silently stop reaching anybody again.
+if ! grep -q 'distribute-build.py' "$ios"; then
+  note "$ios uploads to TestFlight but never assigns the build to a group"
+  echo "      An unassigned build is invisible to testers, and the upload job stays green."
+fi
+
+# Each release must carry a copy of every installer under a name with no version in it.
+#
+# Those are the only permanent links that exist. GitHub's /releases/latest/download/<name>
+# redirect needs an exact filename, and every other asset is called Polaris-0.9.0-…, so
+# without these the landing page can offer nothing but "here is a page with fifteen files
+# on it" — which is what it did, and what somebody had to point out.
+#
+# Dropping the step breaks every download button on the site at the *next* release, not this
+# one, and nothing else goes red.
+for stable in Polaris-mac-arm64.dmg Polaris-mac-x64.dmg Polaris-Setup.exe \
+              Polaris-linux-x86_64.AppImage polaris-amd64.deb; do
+  grep -qF "$stable" "$desktop" \
+    || note "$desktop never publishes a stable-named copy called $stable"
+done
+grep -q 'gh release upload' "$desktop" \
+  || note "$desktop uploads no extra assets, so no permanent download URL exists"
+
+# The distribution step must be told which build this run made.
+#
+# Without BUILD_NUMBER the script falls back to "newest build in the list", and App Store
+# Connect does not list a build the moment altool finishes — so on v0.10.0 it distributed
+# v0.9.0's build, printed "marketing version 0.10.0, build 7", and exited zero.
+grep -q 'BUILD_NUMBER' "$ios" \
+  || note "$ios does not pass BUILD_NUMBER to the distribution step, so it cannot tell this run's build from the last release's"
+
+# And the verifier must ask App Store Connect, not the job that just ran.
+if [ -f "$rel" ] && ! grep -q 'appstoreconnect.apple.com' "$rel"; then
+  note "$rel takes the iOS job's word that a build reached testers"
+  echo "      That has been wrong twice: a build in no group, and the previous release's"
+  echo "      build distributed instead of this one. Both times the job was green."
+fi
+
+# The distribution script must select its build, not take whichever is newest.
+#
+# `builds[0]` was the original rule and it shipped the wrong build to testers twice, most
+# recently handing v0.12.0's testers the v0.11.1 build. It is a one-word regression with no
+# other symptom: the job stays green and the log reads plausibly.
+if [ -f ios/scripts/distribute-build.py ]; then
+  grep -q 'builds\[0\]' ios/scripts/distribute-build.py \
+    && note "ios/scripts/distribute-build.py takes the newest build rather than the one this run built"
+  grep -q 'want_build' ios/scripts/distribute-build.py \
+    || note "ios/scripts/distribute-build.py does not match the build by number"
+fi
+
 # Every secret a workflow reads must be written down, with what breaks without it.
 #
 # This is the drift that costs a release day: a workflow grows a `secrets.NEW_THING`, the

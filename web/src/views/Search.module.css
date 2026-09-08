@@ -309,6 +309,20 @@
 }
 
 /*
+ * Where a right-click's menu hangs from: a one-pixel box at the pointer.
+ *
+ * `Menu` positions against its trigger and hands focus back to it, and a row is neither
+ * focusable nor the place a context menu should open. The same element the issue list uses,
+ * for the same reason — it is the pointer's position expressed as something measurable.
+ */
+.contextAnchor {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+/*
  * The filter bar sits between the box and the results, matching the issue list's own order:
  * what is being asked, then what narrows it, then the answer. It draws its own chips and its
  * own error, so all this owes it is the screen's gutter and the rule under it.

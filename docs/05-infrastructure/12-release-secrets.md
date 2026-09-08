@@ -35,6 +35,22 @@ reporting success having uploaded nothing is worse than a red X.
 | `APPLE_API_KEY_PATH` | The contents of the App Store Connect `.p8` private key — the key itself, not a path, despite the name | No TestFlight build, ever |
 | `APPLE_API_KEY_ID` | Its key id, the `ABCD123456` part of an `AuthKey_ABCD123456.p8` filename | As above |
 | `APPLE_API_ISSUER` | The issuer id, a UUID. Also used by `ios/scripts/asc-setup.py`, which is where to read it from | As above |
+| `IOS_DIST_P12` | The **Apple Distribution identity** — certificate *and* private key — exported as base64 `.p12` | The archive cannot be signed |
+| `IOS_DIST_P12_PASSWORD` | The export passphrase | As above |
+
+**The API key is not enough on its own, and this is the trap.** `-allowProvisioningUpdates`
+downloads the *certificate* from App Store Connect. A certificate signs nothing without its
+private key, and that key exists only in the keychain whose CSR created it — App Store
+Connect has never had a copy and no role grants one. So a correctly-scoped App Manager key
+still fails, ten minutes into the archive, with:
+
+```
+No signing certificate "iOS Distribution" found: No "iOS Distribution" signing
+certificate matching team ID "..." with a private key was found.
+```
+
+which reads as a missing certificate and is a missing key. `make release-secrets` prints the
+`security export` line for it.
 
 The same three are what `desktop.yml` notarises macOS builds with, so setting them fixes
 two things at once.
@@ -59,6 +75,16 @@ willing to click through; they are not something to point an ordinary user at.
 |---|---|---|
 | `MAC_CERT_P12` | A "Developer ID Application" certificate exported as base64 `.p12` | macOS builds unsigned, Gatekeeper-blocked |
 | `MAC_CERT_PASSWORD` | The export passphrase | As above |
+
+`make release-secrets ARGS=--set` exports both Apple identities straight from the login
+keychain and uploads them, generating the passphrase itself. It used to print the commands
+for somebody to paste, which is why the mac builds shipped unsigned for weeks under a step
+called "Package and sign" — the paste step is the one that gets skipped. A generated
+passphrase also removes the failure where the `.p12` and the secret disagree, which surfaces
+ten minutes into a build as `MAC verification failed` and names neither.
+
+The export needs the login keychain unlocked and nothing else: the ACL on these keys already
+permits it, so there is no password prompt.
 | `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` | Azure Trusted Signing. Since June 2023 a Windows code-signing key may not sit on disk, so this is cloud signing against an HSM | Windows installer unsigned |
 
 The Azure three sign nothing on their own: electron-builder only reaches for Trusted

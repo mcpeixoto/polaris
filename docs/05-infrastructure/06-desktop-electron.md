@@ -119,6 +119,31 @@ Route on click: focus the window, restore from tray if needed, navigate to the e
 
 Badge count comes from the local store (unread inbox items), not from a server call, so it's correct offline.
 
+## Permanent download links
+
+Every asset electron-builder produces carries the version, so none of its names is a link
+that keeps working. The release workflow therefore uploads a second copy of each installer
+under a name with no version in it, and `/releases/latest/download/<name>` resolves to the
+newest release for good:
+
+| Alias | What it is |
+|---|---|
+| `Polaris-mac-arm64.dmg` | Apple Silicon |
+| `Polaris-mac-x64.dmg` | Intel Macs |
+| `Polaris-Setup.exe` | Windows, both architectures in one installer |
+| `Polaris-linux-x86_64.AppImage` | Linux, no install |
+| `polaris-amd64.deb` | Debian and Ubuntu |
+
+These are what the landing page links to, and `scripts/lint-release.sh` fails the build if
+the workflow stops producing them — the failure would otherwise appear one release later, as
+a page of dead buttons, with nothing else going red.
+
+**They are additional assets and appear in no manifest.** That is the whole reason they are
+safe: the updater's candidate list comes from the `files` array inside `latest*.yml`, so a
+release asset absent from it is invisible to `electron-updater`. Putting an alias in a
+manifest would reintroduce the substring hazard below. The `.zip` files — which are what
+macOS actually updates from — deliberately get no alias.
+
 ## Auto-update
 
 `electron-updater` against **GitHub Releases**.

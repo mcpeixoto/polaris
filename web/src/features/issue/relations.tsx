@@ -33,24 +33,34 @@
  * this issue is unblocked.
  */
 
-import { useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Link } from 'react-router';
+import { useRef, useState, type FormEvent } from 'react';
+import { Link, useNavigate } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { ApiError } from '~/sync/api';
 import { useActions } from '~/app/keymap';
 import {
+  Avatar,
   Badge,
   Button,
+  EmptyState,
   IconButton,
   Input,
+  Kbd,
+  Menu,
   Progress,
+  PropertyTrigger,
   Section,
   Select,
   StateIcon,
+  type MenuNode,
 } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
+import { copyText } from '~/features/github/copy';
+import { personName } from '~/features/prefs/prefs';
+import { useContextMenu } from '~/hooks/useContextMenu';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewerId } from '~/hooks/useViewer';
 import {
   subIssueProgress,
@@ -60,8 +70,10 @@ import {
   type UUID,
 } from '~/store';
 
-import { CrossGlyph, PlusGlyph } from './glyphs';
+import { CrossGlyph, PlusGlyph, UnassignedGlyph } from './glyphs';
 import { createRelation, createSubIssue, deleteRelation, report, updateIssue } from './mutations';
+import { AssigneePicker, StatusPicker } from './pickers';
+import { issueRowMenuItems, type IssuePropertyKind } from './rowMenu';
 import styles from './relations.module.css';
 
 /**
@@ -82,9 +94,22 @@ interface Child {
   readonly id: UUID;
   readonly identifier: string;
   readonly title: string;
+  /**
+   * The child's own team, which is what its status picker must be given.
+   *
+   * Not the parent's: a child in another team is the normal case here, and its statuses are
+   * that team's workflow. Handing the parent's team to `StatusPicker` would offer a list of
+   * states the child cannot be in, and writing one would be refused by the server after the
+   * row had already moved on screen.
+   */
+  readonly teamId: UUID;
+  readonly stateId: UUID;
   readonly category: StateCategory;
   readonly stateName: string;
   readonly color: string | undefined;
+  readonly assigneeId: UUID | null;
+  readonly assigneeName: string | null;
+  readonly assigneeAvatar: string | null;
   /** The child's team, when it is not the parent's. Null means "the same team, say nothing". */
   readonly teamName: string | null;
   readonly order: string;
@@ -173,15 +198,22 @@ export function SubIssues({ issueId, teamId, onDetach, className }: SubIssuesPro
         // the right answer if it ever does: half a row is worse than no row.
         if (child === undefined || child.archivedAt !== undefined) continue;
         const state = store.workflowStates.get(child.stateId);
+        const assignee =
+          child.assigneeId === undefined ? undefined : store.users.get(child.assigneeId);
         children.push({
           id: child.id,
           // Recomputed from the team rather than read off the issue: a team key changed this
           // morning must not leave a checklist naming issues that no longer exist.
           identifier: store.identifierOf(child),
           title: child.title,
+          teamId: child.teamId,
+          stateId: child.stateId,
           category: state?.category ?? 'backlog',
           stateName: state?.name ?? 'No status',
           color: state?.color,
+          assigneeId: child.assigneeId ?? null,
+          assigneeName: assignee === undefined ? null : personName(assignee),
+          assigneeAvatar: assignee?.avatarUrl ?? null,
           teamName:
             child.teamId === teamId
               ? null
@@ -197,7 +229,9 @@ export function SubIssues({ issueId, teamId, onDetach, className }: SubIssuesPro
       );
       return { children, progress: subIssueProgress(store, issueId) };
     },
-    ['issue', 'workflowState', 'team'],
+    // `user` because each row now names its assignee: without it, assigning somebody from
+    // this panel redraws nothing until the next issue delta happens to arrive.
+    ['issue', 'workflowState', 'team', 'user'],
     [issueId, teamId],
   );
 
@@ -266,30 +300,26 @@ export function SubIssues({ issueId, teamId, onDetach, className }: SubIssuesPro
       }
     >
       {children.length === 0 && !adding ? (
-        <p className={styles.quiet}>Nothing underneath this one yet.</p>
+        // The sentence on its own was a dead end: the only way out of it was a 24px glyph in
+        // the section header, which is exactly the affordance somebody who has just been told
+        // there is nothing here is not looking at. The chord is real on this screen — it is
+        // registered above, in this component, and does this — so it is drawn rather than
+        // described.
+        <EmptyState
+          title="Nothing underneath this one yet"
+          description="Break the work into pieces somebody can pick up and finish."
+          action={
+            <Button size="sm" onClick={() => setAdding(true)}>
+              Add sub-issue <Kbd keys="mod+shift+o" />
+            </Button>
+          }
+        />
       ) : null}
 
       {children.length === 0 ? null : (
         <ul className={styles.rows}>
           {children.map((child) => (
-            <li key={child.id} className={styles.row}>
-              <StateIcon category={child.category} color={child.color} label={child.stateName} />
-              <Link className={styles.rowLink} to={`/issue/${child.identifier}`}>
-                <span className={styles.identifier}>{child.identifier}</span>
-                <span className={styles.rowTitle}>{child.title}</span>
-              </Link>
-              {/* Only when it differs. A badge on every row saying what the reader already
-                  knows from the header teaches them to stop reading badges. */}
-              {child.teamName === null ? null : <Badge>{child.teamName}</Badge>}
-              <IconButton
-                size="sm"
-                variant="ghost"
-                icon={<CrossGlyph />}
-                aria-label={`Remove ${child.identifier} from this issue`}
-                tooltip="Remove from this issue"
-                onClick={() => setDetaching(child)}
-              />
-            </li>
+            <SubIssueRow key={child.id} child={child} onRemove={() => setDetaching(child)} />
           ))}
         </ul>
       )}
@@ -350,6 +380,174 @@ export function SubIssues({ issueId, teamId, onDetach, className }: SubIssuesPro
         />
       )}
     </Section>
+  );
+}
+
+/**
+ * The properties this panel can actually change, out of the five every issue row offers.
+ *
+ * `issueRowMenuItems` builds one list for every surface that shows issues, which is the
+ * point of it — the same words in the same order wherever you right-click. What it cannot
+ * know is that this row is 32 pixels inside a detail rail: a priority, project and label
+ * picker each mounted per child would be four more live queries a row to serve the one menu
+ * that is open. So the shared list is built and the three this panel has no picker for are
+ * dropped, rather than drawn as items that open nothing.
+ */
+const UNSERVED_PROPERTIES: ReadonlySet<string> = new Set<IssuePropertyKind>([
+  'priority',
+  'project',
+  'labels',
+]);
+
+/**
+ * One child, with its status and its assignee editable where they are drawn.
+ *
+ * A component rather than a loop body because each row owns three pieces of open state — two
+ * pickers and a context menu — and there is no singleton to hoist them into: two children of
+ * one parent are routinely in two different teams, so "the status picker" would have to be
+ * told whose workflow to offer before it could open. The cost `useMenuTrigger` warns about is
+ * a picker per row in a virtualised list of hundreds; a checklist is a handful.
+ */
+function SubIssueRow({ child, onRemove }: { child: Child; onRemove: () => void }) {
+  const engine = useEngine();
+  const viewerId = useViewerId();
+  const navigate = useNavigate();
+
+  const status = useMenuTrigger();
+  const assignee = useMenuTrigger();
+  const row = useRef<HTMLLIElement>(null);
+  const context = useContextMenu({ returnFocusTo: row });
+
+  const assigneeName = child.assigneeName ?? 'Unassigned';
+
+  const items: MenuNode[] = issueRowMenuItems(
+    { count: 1, editable: true, canSetStatus: true, identifier: child.identifier },
+    {
+      pick: (kind) => {
+        context.close();
+        // Anchored to the row rather than to the pointer: the one-pixel anchor unmounts with
+        // the menu that was hanging off it, and a picker positioned against a removed element
+        // has nowhere to go and nowhere to hand focus back to.
+        if (kind === 'status') status.showFrom(row.current);
+        if (kind === 'assignee') assignee.showFrom(row.current);
+      },
+      open: () => void navigate(`/issue/${child.identifier}`),
+      copyLink: () => void copyText(`${window.location.origin}/issue/${child.identifier}`),
+    },
+    // Per-surface and never defaulted. This panel has no chord that acts on a *child* — `S`
+    // and `A` belong to the issue being viewed — so it draws none. See `IssueRowMenuChords`.
+    {},
+  ).filter((node) => !('id' in node) || !UNSERVED_PROPERTIES.has(node.id));
+
+  // Detaching is not deleting, and the shared builder's danger item says "Delete ENG-2".
+  // Removing a child leaves the issue exactly where it was, which is the distinction the
+  // confirm dialog this routes into exists to make — so the wording is this panel's own.
+  items.push(
+    { kind: 'separator' },
+    {
+      id: 'detach',
+      label: 'Remove from this issue',
+      danger: true,
+      onSelect: () => {
+        context.close();
+        onRemove();
+      },
+    },
+  );
+
+  return (
+    <li
+      ref={row}
+      className={styles.row}
+      // Programmatically focusable, not tabbable: a menu returns focus to what it was
+      // anchored to, and a picker opened from the context menu is anchored to this row.
+      tabIndex={-1}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        context.openAt(event.clientX, event.clientY, child.id);
+      }}
+    >
+      <PropertyTrigger
+        // The value and the row it belongs to. Eight children make eight of these buttons,
+        // and "Todo" announced eight times says nothing about which child is being changed.
+        name={`${child.stateName} on ${child.identifier}`}
+        action="Change status"
+        // No `keys`, deliberately. `S` is registered in the `detail` context and changes the
+        // status of the issue being *viewed*; a cap here would promise it acts on this child.
+        open={status.open}
+        onOpen={(element) => status.showFrom(element)}
+      >
+        <StateIcon category={child.category} color={child.color} decorative />
+      </PropertyTrigger>
+      <Link className={styles.rowLink} to={`/issue/${child.identifier}`}>
+        <span className={styles.identifier}>{child.identifier}</span>
+        <span className={styles.rowTitle}>{child.title}</span>
+      </Link>
+      {/* Only when it differs. A badge on every row saying what the reader already
+          knows from the header teaches them to stop reading badges. */}
+      {child.teamName === null ? null : <Badge>{child.teamName}</Badge>}
+      <PropertyTrigger
+        name={`${assigneeName} on ${child.identifier}`}
+        action="Assign"
+        // No `keys` here either, and for the same reason: `A` assigns the parent.
+        open={assignee.open}
+        onOpen={(element) => assignee.showFrom(element)}
+      >
+        {child.assigneeName === null ? (
+          <UnassignedGlyph width="14" height="14" />
+        ) : (
+          <Avatar
+            name={child.assigneeName}
+            src={child.assigneeAvatar}
+            size="xs"
+            colorKey={child.assigneeId ?? child.assigneeName}
+            decorative
+          />
+        )}
+      </PropertyTrigger>
+      <IconButton
+        size="sm"
+        variant="ghost"
+        icon={<CrossGlyph />}
+        aria-label={`Remove ${child.identifier} from this issue`}
+        tooltip="Remove from this issue"
+        onClick={onRemove}
+      />
+
+      <StatusPicker
+        open={status.open}
+        onClose={status.hide}
+        trigger={status.ref}
+        teamId={child.teamId}
+        value={child.stateId}
+        // `viewerId` on the status write and on no other: it is the argument
+        // `withAutoAssignOnStart` reads, so moving a child nobody owns into a started state
+        // takes it, exactly as it does everywhere else in the product.
+        onSelect={(stateId) => updateIssue(engine, child.id, { stateId }, viewerId).catch(report)}
+      />
+      <AssigneePicker
+        open={assignee.open}
+        onClose={assignee.hide}
+        trigger={assignee.ref}
+        value={child.assigneeId}
+        onSelect={(assigneeId) => updateIssue(engine, child.id, { assigneeId }).catch(report)}
+      />
+
+      {context.at === null ? null : (
+        <>
+          {/* The one-pixel box at the pointer that `Menu` measures itself against. See
+              `useContextMenu`, which is where every list in the product gets this. */}
+          <div {...context.anchorProps} />
+          <Menu
+            open
+            onClose={context.close}
+            trigger={context.anchorRef}
+            label={`Actions for ${child.identifier}`}
+            items={items}
+          />
+        </>
+      )}
+    </li>
   );
 }
 
@@ -477,9 +675,21 @@ const NEW_LINK: Readonly<Record<string, (issueId: UUID, otherId: UUID) => NewLin
 interface RelationRow {
   readonly relationId: UUID;
   readonly kind: RelationKind;
+  /** The issue at the other end. Null, with everything below it, when it is not here. */
+  readonly issueId: UUID | null;
   /** Null when the issue at the other end is not in this replica. */
   readonly identifier: string | null;
   readonly title: string | null;
+  /**
+   * The other *issue's* team — `other.teamId`, never the relation row's own `teamId`.
+   *
+   * The two are different columns and they are allowed to differ: the relation's is the team
+   * the link was filed under, and an issue can be moved between teams after one is written.
+   * This is the one that says which workflow's statuses apply, so it is the one the picker
+   * gets; the other would offer a list of states this issue cannot be in.
+   */
+  readonly teamId: UUID | null;
+  readonly stateId: UUID | null;
   readonly category: StateCategory | null;
   readonly stateName: string | null;
   readonly color: string | undefined;
@@ -755,9 +965,26 @@ export function Relations({ issueId, className }: RelationsProps) {
  * real: the reader is entitled to know that something they cannot open is blocking this, and
  * to remove the link if it is stale. What it must not be is a `<Link>` to a route built out of
  * `undefined`, which is the broken row this branch exists to prevent.
+ *
+ * That same branch is why the status is a button on one row and a glyph on the next. A blocker
+ * this replica holds can be unblocked from here, which is the whole reason somebody reads this
+ * panel; one it does not hold has no id to write to, no team whose workflow to offer and no
+ * state to tick, so it stays exactly as inert as it looks.
+ *
+ * There is no assignee here, and that is a product decision rather than an omission. A blocker
+ * in another team is a reference you follow; deciding who works on it is a thing you do on its
+ * own screen, with its own team's context in front of you.
  */
-function RelationSubject({ row }: { row: RelationRow }): ReactNode {
-  if (row.identifier === null) {
+function RelationSubject({ row }: { row: RelationRow }) {
+  const engine = useEngine();
+  const viewerId = useViewerId();
+  const status = useMenuTrigger();
+
+  // Destructured so the null checks below narrow inside the picker's callback as well; the
+  // four travel together — a row either resolved to an issue in this replica or it did not.
+  const { issueId, identifier, teamId, stateId } = row;
+
+  if (identifier === null || issueId === null || teamId === null || stateId === null) {
     return (
       <span className={styles.unknown}>
         An issue you cannot see
@@ -768,16 +995,28 @@ function RelationSubject({ row }: { row: RelationRow }): ReactNode {
 
   return (
     <>
-      <StateIcon
-        category={row.category ?? 'backlog'}
-        color={row.color}
-        label={row.stateName ?? 'No status'}
-      />
-      <Link className={styles.rowLink} to={`/issue/${row.identifier}`}>
-        <span className={styles.identifier}>{row.identifier}</span>
+      <PropertyTrigger
+        name={`${row.stateName ?? 'No status'} on ${identifier}`}
+        action="Change status"
+        // No `keys`: `S` on this screen is the viewed issue's status, not this blocker's.
+        open={status.open}
+        onOpen={(element) => status.showFrom(element)}
+      >
+        <StateIcon category={row.category ?? 'backlog'} color={row.color} decorative />
+      </PropertyTrigger>
+      <Link className={styles.rowLink} to={`/issue/${identifier}`}>
+        <span className={styles.identifier}>{identifier}</span>
         <span className={styles.rowTitle}>{row.title}</span>
       </Link>
       {row.teamName === null ? null : <Badge>{row.teamName}</Badge>}
+      <StatusPicker
+        open={status.open}
+        onClose={status.hide}
+        trigger={status.ref}
+        teamId={teamId}
+        value={stateId}
+        onSelect={(next) => updateIssue(engine, issueId, { stateId: next }, viewerId).catch(report)}
+      />
     </>
   );
 }
@@ -818,8 +1057,11 @@ function collect(store: Store, out: RelationRow[], relationId: UUID, fromOtherEn
     out.push({
       relationId,
       kind,
+      issueId: null,
       identifier: null,
       title: null,
+      teamId: null,
+      stateId: null,
       category: null,
       stateName: null,
       color: undefined,
@@ -832,8 +1074,12 @@ function collect(store: Store, out: RelationRow[], relationId: UUID, fromOtherEn
   out.push({
     relationId,
     kind,
+    issueId: other.id,
     identifier: store.identifierOf(other),
     title: other.title,
+    // The issue's team, not `otherTeamId` above — see the note on the field.
+    teamId: other.teamId,
+    stateId: other.stateId,
     category: state?.category ?? 'backlog',
     stateName: state?.name ?? 'No status',
     color: state?.color,

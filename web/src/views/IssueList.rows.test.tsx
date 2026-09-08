@@ -344,7 +344,7 @@ describe('group headings', () => {
   it('announce their count and fold the group away', async () => {
     const { user } = renderList(BY_LABEL);
 
-    const heading = screen.getByRole('button', { name: /^Bug/ });
+    const heading = screen.getByRole('button', { name: /^Bug 2/ });
     expect(heading.getAttribute('aria-expanded')).toBe('true');
     expect(heading.textContent).toContain('2');
 
@@ -362,7 +362,7 @@ describe('group headings', () => {
 
     await user.keyboard('t');
 
-    expect(screen.getByRole('button', { name: /^Bug/ }).getAttribute('aria-expanded')).toBe(
+    expect(screen.getByRole('button', { name: /^Bug 2/ }).getAttribute('aria-expanded')).toBe(
       'false',
     );
   });

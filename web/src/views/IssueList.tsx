@@ -40,7 +40,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
 import { useEngine } from '~/app/context';
@@ -53,6 +53,7 @@ import {
   IconButton,
   Menu,
   PriorityIcon,
+  PropertyTrigger,
   StateIcon,
   Tooltip,
 } from '~/components';
@@ -70,12 +71,18 @@ import {
   updateIssues,
   type ReorderTarget,
 } from '~/features/issue/mutations';
+import { issueRowMenuItems, type IssuePropertyKind } from '~/features/issue/rowMenu';
 import { RESTORE_WINDOW_DAYS, restoreIssue } from '~/features/trash/mutations';
 import { offerUndo } from '~/features/undo/UndoToast';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { liveIssueCountForTeam } from '~/features/team/issueLimit';
 import { TeamIssueLimitBanner } from '~/features/team/TeamIssueLimitBanner';
-import { issueIdsForLabelView, labelViewTitle, userViewPath } from '~/features/labels/labelView';
+import {
+  issueIdsForLabelView,
+  labelViewPath,
+  labelViewTitle,
+  userViewPath,
+} from '~/features/labels/labelView';
 import { readCollapsed, writeCollapsed } from '~/features/view/collapse';
 import {
   isFavorite,
@@ -780,6 +787,18 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
     [favouriteTarget?.kind ?? '', favouriteTarget?.id ?? '', viewerId ?? ''],
   );
   /**
+   * Which row a picker was opened *from*, when it was opened from a row rather than from the
+   * toolbar or the keyboard.
+   *
+   * The list has one status picker and hundreds of rows; the picker moves to the glyph that
+   * asked for it (see `useMenuTrigger`'s `showFrom`). This is the other half of that: what
+   * the write then lands on, whether the bulk bar should appear, and which glyph draws itself
+   * as open. Null means the picker belongs to the selection, which is what every keyboard
+   * route and every toolbar button leaves it as.
+   */
+  const [origin, setOrigin] = useState<{ kind: IssuePropertyKind; id: UUID } | null>(null);
+
+  /**
    * Where a right-click landed, and the row it landed on.
    *
    * The anchor is a real element placed at the pointer rather than the row itself, because
@@ -788,9 +807,45 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
    * close, which is where a keyboard user was and where `aria-activedescendant` lives — the
    * failure this avoids is the one the inbox's hidden trigger has, where focus falls to
    * `<body>` and the reader drops out of the list entirely.
+   *
+   * The *point* and the menu's open state are two pieces of state rather than one, and that
+   * separation is load-bearing. Choosing "Status…" closes the menu and opens the picker, and
+   * while they were one flag that close unmounted the anchor — so the picker fell back to the
+   * registered trigger and opened over the bulk toolbar, half a screen from where the user
+   * had right-clicked. The point outlives the menu for exactly as long as the picker it
+   * handed off to needs it.
    */
-  const [contextAt, setContextAt] = useState<{ x: number; y: number } | null>(null);
+  const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null);
+  const [contextOpen, setContextOpen] = useState(false);
+  /** The row the menu is about, and where it is, so a hand-off can move the cursor to it. */
+  const [contextRow, setContextRow] = useState<{ id: UUID; rowIndex: number } | null>(null);
+  /** Set for the one render in which the menu is closing *into* a picker. See `closeContext`. */
+  const contextHandoff = useRef(false);
   const contextAnchor = useRef<HTMLDivElement>(null);
+
+  /**
+   * The five pickers a property can name, reached through a ref.
+   *
+   * The same bargain `commands` makes below and for the same reason: a trigger object is
+   * rebuilt every time its menu opens, so a callback that closed over one would be rebuilt
+   * with it — and these two callbacks are handed to every row on screen, which would undo the
+   * memoisation the whole list depends on.
+   */
+  const pickers = useRef({ status, assignee, priority, project, labels: labelMenu });
+  pickers.current = { status, assignee, priority, project, labels: labelMenu };
+
+  /**
+   * Open a picker for the selection: the toolbar's route, and every shortcut's.
+   *
+   * It clears the origin first, so a picker opened from a glyph and then re-opened with `S`
+   * is no longer about the row the pointer happened to be on. `show()` clears the anchor
+   * override for the same reason.
+   */
+  const openForSelection = useCallback((kind: IssuePropertyKind) => {
+    setOrigin(null);
+    pickers.current[kind].show();
+  }, []);
+
   const [peekOpen, setPeekOpen] = useState(false);
   const peekOpenRef = useRef(false);
   const peekHoldAt = useRef<number | null>(null);
@@ -851,6 +906,24 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
     [selection.size, selection.ordered, cursorId],
   );
   const excludeFromDuplicate = useMemo(() => new Set(targets), [targets]);
+
+  /**
+   * What a *property* write lands on, which is not always what a command acts on.
+   *
+   * A glyph in a row means that row. The one exception is a row that is already part of the
+   * standing selection: pressing the status circle on one of six selected rows means the six,
+   * which is the rule the context menu, the toolbar and the drag all already follow — the
+   * alternative is a bulk selection that silently stops applying the moment you touch one of
+   * its members.
+   *
+   * Only the pickers use it. Delete, archive, duplicate and snooze stay on `targets`: those
+   * are commands, they have no inline trigger, and there is no origin for them to be about.
+   */
+  const actOn = useMemo(
+    () =>
+      origin === null || selection.ids.has(origin.id) ? targets : ([origin.id] as readonly UUID[]),
+    [origin, selection.ids, targets],
+  );
 
   /**
    * How the board scrolls one of its cards into view, handed up by `Board` while it is
@@ -1012,14 +1085,14 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
     // are two doors into the same room: disabling one and not the other is how a keyboard
     // user reaches a state the interface says is unavailable.
     pickStatus: () => {
-      if (sameTeam(engine.store, targets)) status.show();
+      if (sameTeam(engine.store, targets)) openForSelection('status');
     },
-    pickAssignee: assignee.show,
-    pickPriority: priority.show,
-    pickProject: project.show,
+    pickAssignee: () => openForSelection('assignee'),
+    pickPriority: () => openForSelection('priority'),
+    pickProject: () => openForSelection('project'),
     pickCycle: cycle.show,
     pickLabels: () => {
-      if (sameTeam(engine.store, targets) && targets.length > 0) labelMenu.show();
+      if (sameTeam(engine.store, targets) && targets.length > 0) openForSelection('labels');
     },
     pickEstimate: () => {
       if (!canEstimate(engine.store, targets)) return;
@@ -1244,6 +1317,39 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
     const issue = id === undefined ? undefined : engine.store.get('issue', id);
     return issue === undefined ? null : engine.store.identifierOf(issue);
   }, [pendingDelete, engine]);
+
+  /**
+   * The right-clicked row's assignee and labels.
+   *
+   * Read here rather than in the row, because the menu is the screen's and the row that was
+   * clicked may have scrolled out of the overscan window by the time somebody chooses an
+   * item. Only the two navigation items need it, and they are about one row even when the
+   * menu acts on six — "Go to Ada's issues" is about the issue under the pointer, which is
+   * the only one with an assignee to name.
+   */
+  const contextIssue = useMemo(() => {
+    const empty = { assigneeId: null, assigneeName: null, labels: [] } as {
+      assigneeId: UUID | null;
+      assigneeName: string | null;
+      labels: readonly { id: string; name: string }[];
+    };
+    if (contextRow === null) return empty;
+    const issue = engine.store.get('issue', contextRow.id);
+    if (issue === undefined) return empty;
+    const assignee =
+      issue.assigneeId === undefined ? undefined : engine.store.get('user', issue.assigneeId);
+    const labels: { id: string; name: string }[] = [];
+    for (const labelId of engine.store.labelIdsFor(contextRow.id)) {
+      const label = engine.store.get('label', labelId);
+      if (label === undefined || label.isGroup) continue;
+      labels.push({ id: label.id, name: label.name });
+    }
+    return {
+      assigneeId: assignee?.id ?? null,
+      assigneeName: assignee === undefined ? null : personName(assignee),
+      labels,
+    };
+  }, [contextRow, engine]);
 
   // Reported after the commit rather than from the resolver, so a parent's own state update
   // is never queued during this component's render.
@@ -1744,17 +1850,71 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
   const onRowContextMenu = useCallback(
     (id: UUID, rowIndex: number, x: number, y: number) => {
       onFocusRow(id, rowIndex);
-      setContextAt({ x, y });
+      setContextRow({ id, rowIndex });
+      setPointer({ x, y });
+      setContextOpen(true);
     },
     [onFocusRow],
   );
 
+  /**
+   * Open a picker from a glyph, positioned against that glyph.
+   *
+   * The only route into an inline edit — the row triggers, the board's cards and the context
+   * menu's property items all come through here — so the three facts that have to move
+   * together always do: the cursor lands on the row, the origin says which row the write is
+   * about, and the menu hangs off the element that was pressed rather than off a toolbar
+   * button that may not even be mounted.
+   *
+   * `showFrom` and not `show`: the menu hangs off the glyph rather than off the toolbar
+   * button, which under a one-row edit is not even mounted.
+   */
+  const openFrom = useCallback(
+    (kind: IssuePropertyKind, id: UUID, rowIndex: number, element: HTMLElement | null) => {
+      onFocusRow(id, rowIndex);
+      setOrigin({ kind, id });
+      pickers.current[kind].showFrom(element);
+    },
+    [onFocusRow],
+  );
+
+  /**
+   * Shuts a picker and forgets which row it was about.
+   *
+   * The pointer goes too: a picker handed off to from the context menu is the last thing
+   * holding that one-pixel anchor open, and leaving it behind would put an invisible box at
+   * the last right-click for the rest of the session.
+   */
+  const closePicker = useCallback((hide: () => void) => {
+    hide();
+    setOrigin(null);
+    setPointer(null);
+  }, []);
+
   const closeContext = useCallback(() => {
-    setContextAt(null);
+    const handoff = contextHandoff.current;
+    contextHandoff.current = false;
+    setContextOpen(false);
+    // A hand-off keeps the anchor — the picker is about to hang off it — and keeps its hands
+    // off the focus: the frame below would land after the picker has focused its first item
+    // and yank the keyboard straight back out of the menu that just opened.
+    if (handoff) return;
+    setPointer(null);
     // After the menu's own restore, not instead of it: it hands focus back to the anchor,
     // which is about to be unmounted, so the list takes it in the following frame.
     requestAnimationFrame(() => scrollRef.current?.focus());
   }, []);
+
+  /** A context-menu property item: close the menu, and open the picker where the menu was. */
+  const handOffContext = useCallback(
+    (kind: IssuePropertyKind) => {
+      if (contextRow === null) return;
+      contextHandoff.current = true;
+      setContextOpen(false);
+      openFrom(kind, contextRow.id, contextRow.rowIndex, contextAnchor.current);
+    },
+    [contextRow, openFrom],
+  );
 
   if (scope.heading === null) {
     /*
@@ -1823,8 +1983,8 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
     due.open ||
     duplicate.open ||
     snooze.open;
-  const shared = picking ? sharedProperties(engine.store, targets) : NOTHING_SHARED;
-  const canAct = targets.length > 0;
+  const shared = picking ? sharedProperties(engine.store, actOn) : NOTHING_SHARED;
+  const canAct = actOn.length > 0;
   // Statuses belong to a team, so a selection spanning two of them has no correct set to
   // offer. Disabled with a reason rather than showing one team's statuses for another
   // team's issues, which would silently move an issue to a status its team does not have.
@@ -1832,7 +1992,7 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
   // Read from the store rather than from `shared`, which is only computed while a picker is
   // open — the first version of this line used it and the button was therefore disabled
   // whenever no menu was showing, which is exactly when somebody would want to press it.
-  const canSetStatus = canAct && sameTeam(engine.store, targets);
+  const canSetStatus = canAct && sameTeam(engine.store, actOn);
 
   // `aria-activedescendant` has to name an element that is actually in the document, and a
   // virtualised list is mostly arithmetic. The cursor is scrolled into view whenever it
@@ -2160,35 +2320,37 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
         />
       ) : null}
 
+      {/* Every one of these acts on `actOn` rather than on `targets`, and closes through
+          `closePicker` so the row it was opened from is forgotten with it. */}
       <StatusPicker
         open={status.open}
-        onClose={status.hide}
+        onClose={() => closePicker(status.hide)}
         trigger={status.ref}
         teamId={shared.teamId ?? ''}
         value={shared.stateId}
-        onSelect={(stateId) => updateIssues(engine, targets, { stateId }, viewerId).catch(report)}
+        onSelect={(stateId) => updateIssues(engine, actOn, { stateId }, viewerId).catch(report)}
       />
       <AssigneePicker
         open={assignee.open}
-        onClose={assignee.hide}
+        onClose={() => closePicker(assignee.hide)}
         trigger={assignee.ref}
         value={shared.assigneeId}
-        onSelect={(assigneeId) => updateIssues(engine, targets, { assigneeId }).catch(report)}
+        onSelect={(assigneeId) => updateIssues(engine, actOn, { assigneeId }).catch(report)}
       />
       <PriorityPicker
         open={priority.open}
-        onClose={priority.hide}
+        onClose={() => closePicker(priority.hide)}
         trigger={priority.ref}
         value={shared.priority}
-        onSelect={(priority) => updateIssues(engine, targets, { priority }).catch(report)}
+        onSelect={(priority) => updateIssues(engine, actOn, { priority }).catch(report)}
       />
       <ProjectPicker
         open={project.open}
-        onClose={project.hide}
+        onClose={() => closePicker(project.hide)}
         trigger={project.ref}
         teamIds={shared.teamId === undefined ? [] : [shared.teamId]}
         value={shared.projectId}
-        onSelect={(projectId) => updateIssues(engine, targets, { projectId }).catch(report)}
+        onSelect={(projectId) => updateIssues(engine, actOn, { projectId }).catch(report)}
       />
       <CyclePicker
         open={cycle.open}
@@ -2200,17 +2362,17 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
       />
       <LabelPicker
         open={labelMenu.open}
-        onClose={labelMenu.hide}
+        onClose={() => closePicker(labelMenu.hide)}
         trigger={labelMenu.ref}
         teamId={shared.teamId ?? null}
         value={shared.labelIds}
         onApply={(labelId, displaced) => {
-          for (const id of targets) {
+          for (const id of actOn) {
             applyLabel(engine, id, labelId, displaced).catch(report);
           }
         }}
         onRemove={(labelId) => {
-          for (const id of targets) {
+          for (const id of actOn) {
             removeLabel(engine, id, labelId).catch(report);
           }
         }}
@@ -2266,93 +2428,79 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
         })}
       />
 
-      {contextAt === null ? null : (
-        <>
-          {/* A one-pixel element at the pointer. Not `hidden`: `Menu` measures its trigger
-              to place itself, and a hidden element has no box. */}
-          <div
-            ref={contextAnchor}
-            className={styles.contextAnchor}
-            style={{ top: contextAt.y, left: contextAt.x }}
-          />
-          <Menu
-            open
-            onClose={closeContext}
-            trigger={contextAnchor}
-            label={
-              targets.length === 1 ? 'Issue actions' : `Actions for ${issueCount(targets.length)}`
-            }
-            items={[
-              {
-                id: 'status',
-                label: 'Status…',
-                disabled: !canSetStatus,
-                onSelect: () => {
-                  closeContext();
-                  status.show();
-                },
-              },
-              {
-                id: 'assignee',
-                label: 'Assignee…',
-                disabled: !canAct,
-                onSelect: () => {
-                  closeContext();
-                  assignee.show();
-                },
-              },
-              {
-                id: 'priority',
-                label: 'Priority…',
-                disabled: !canAct,
-                onSelect: () => {
-                  closeContext();
-                  priority.show();
-                },
-              },
-              {
-                id: 'labels',
-                label: 'Labels…',
-                disabled: !canSetStatus,
-                onSelect: () => {
-                  closeContext();
-                  labelMenu.show();
-                },
-              },
-              { kind: 'separator' },
-              {
-                id: 'copyLink',
-                label: 'Copy link',
-                disabled: cursorId === null,
-                onSelect: () => {
-                  closeContext();
-                  commands.current.copyIssueLink();
-                },
-              },
-              {
-                id: 'copyId',
-                label: 'Copy issue ID',
-                disabled: cursorId === null,
-                onSelect: () => {
-                  closeContext();
-                  commands.current.copyIssueId();
-                },
-              },
-              { kind: 'separator' },
-              {
-                id: 'delete',
-                label:
-                  targets.length === 1 ? 'Delete issue' : `Delete ${issueCount(targets.length)}`,
-                disabled: !canAct,
-                onSelect: () => {
-                  closeContext();
-                  commands.current.askDelete();
-                },
-              },
-            ]}
-          />
-        </>
+      {pointer === null ? null : (
+        /*
+         * The one-pixel element at the pointer. Not `hidden`: `Menu` measures its trigger to
+         * place itself, and a hidden element has no box.
+         *
+         * It is rendered on `pointer` rather than on `contextOpen`, which is the whole of the
+         * fix for a picker that used to open half a screen away: choosing "Status…" closes
+         * the menu, and while the two were one flag that close took the anchor out of the
+         * document with it. The element's identity survives the hand-off, so the picker
+         * measures the same box the menu did.
+         */
+        <div
+          ref={contextAnchor}
+          className={styles.contextAnchor}
+          style={{ top: pointer.y, left: pointer.x }}
+        />
       )}
+      <Menu
+        open={contextOpen}
+        onClose={closeContext}
+        trigger={contextAnchor}
+        label={targets.length === 1 ? 'Issue actions' : `Actions for ${issueCount(targets.length)}`}
+        /*
+         * The same builder the inbox, the search results and the relations panel draw from,
+         * so the words and the order are one thing rather than four.
+         *
+         * The chords are true — `S`, `A`, `P` and `L` are registered in this screen's `list`
+         * context and act on exactly what this menu acts on — but they are a promise about the
+         * list and not about the menu: while the menu is open they do not activate its items.
+         * `Menu` pushes a sealed `menu` key context, so a letter typed in it runs the menu's
+         * own type-ahead. That is the right behaviour for a menu and it is worth writing down,
+         * because a key cap drawn next to an item reads as "press this now".
+         */
+        items={issueRowMenuItems(
+          {
+            count: targets.length,
+            editable: canAct,
+            canSetStatus,
+            ...(contextIssue.assigneeName === null
+              ? {}
+              : { assigneeName: contextIssue.assigneeName }),
+            labels: contextIssue.labels,
+          },
+          {
+            pick: (kind) => handOffContext(kind),
+            copyLink: () => {
+              closeContext();
+              commands.current.copyIssueLink();
+            },
+            copyIdentifier: () => {
+              closeContext();
+              commands.current.copyIssueId();
+            },
+            ...(contextIssue.assigneeId === null
+              ? {}
+              : {
+                  goToAssignee: () => {
+                    closeContext();
+                    void navigate(userViewPath(contextIssue.assigneeId as UUID));
+                  },
+                }),
+            goToLabel: (labelId) => {
+              closeContext();
+              void navigate(labelViewPath(labelId as UUID));
+            },
+            askDelete: () => {
+              closeContext();
+              commands.current.askDelete();
+            },
+          },
+          { status: 's', assignee: 'a', priority: 'p', labels: 'l' },
+        )}
+      />
 
       <ConfirmDialog
         open={pendingArchive !== null}
@@ -2479,6 +2627,8 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
             onExtend={onExtendRow}
             onToggleGroup={onToggleGroup}
             onContextMenu={onRowContextMenu}
+            onProperty={openFrom}
+            openProperty={origin}
             onCreateInColumn={(url) => void navigate(url)}
             onRegisterScrollTo={registerBoardScroll}
           />
@@ -2540,6 +2690,8 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
                           onToggle={onToggleRow}
                           onExtend={onExtendRow}
                           onContextMenu={onRowContextMenu}
+                          onProperty={openFrom}
+                          openProperty={origin?.id === row.id ? origin.kind : null}
                         />
                       )}
                     </div>
@@ -2569,7 +2721,12 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
          * order and has a shortcut; claiming a pattern we do not implement would only mislead
          * the people who rely on it.
          */}
-        <SelectionBar open={selection.size > 0 || picking}>
+        {/* `origin === null` is what keeps an inline edit inline: pressing the status circle
+            on a row opens a picker, and a bulk toolbar sliding up from the bottom of the
+            screen for a one-row change would be the interface shouting about something the
+            user did quietly. It still appears for a picker opened from the keyboard, where
+            the bar is the only thing on screen saying what the picker is about to write to. */}
+        <SelectionBar open={selection.size > 0 || (picking && origin === null)}>
           {/* Announced rather than merely drawn: a bulk action's whole risk is acting on more
             rows than you meant to, and the count is the only thing that says how many. */}
           <span className={styles.selectionCount} aria-live="polite">
@@ -2585,22 +2742,38 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
             }
             keys="s"
           >
-            <Button {...status.props} disabled={!canSetStatus}>
+            <Button
+              {...status.props}
+              onClick={() => openForSelection('status')}
+              disabled={!canSetStatus}
+            >
               Status
             </Button>
           </Tooltip>
           <Tooltip label="Assign to…" keys="a">
-            <Button {...assignee.props} disabled={!canAct}>
+            <Button
+              {...assignee.props}
+              onClick={() => openForSelection('assignee')}
+              disabled={!canAct}
+            >
               Assignee
             </Button>
           </Tooltip>
           <Tooltip label="Set priority" keys="p">
-            <Button {...priority.props} disabled={!canAct}>
+            <Button
+              {...priority.props}
+              onClick={() => openForSelection('priority')}
+              disabled={!canAct}
+            >
               Priority
             </Button>
           </Tooltip>
           <Tooltip label="Set project" keys="shift+p">
-            <Button {...project.props} disabled={!canAct}>
+            <Button
+              {...project.props}
+              onClick={() => openForSelection('project')}
+              disabled={!canAct}
+            >
               Project
             </Button>
           </Tooltip>
@@ -2610,7 +2783,11 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
             </Button>
           </Tooltip>
           <Tooltip label="Add label" keys="l">
-            <Button {...labelMenu.props} disabled={!canSetStatus}>
+            <Button
+              {...labelMenu.props}
+              onClick={() => openForSelection('labels')}
+              disabled={!canSetStatus}
+            >
               Labels
             </Button>
           </Tooltip>
@@ -3034,6 +3211,22 @@ interface IssueRowProps {
   onToggle: (id: UUID) => void;
   onExtend: (id: UUID) => void;
   onContextMenu: (id: UUID, rowIndex: number, x: number, y: number) => void;
+  /**
+   * A property glyph was pressed: open that picker, anchored to that element.
+   *
+   * The row owns no picker. The screen has one of each and the list has hundreds of rows, and
+   * in a virtualised list the row holding an open menu unmounts the moment it scrolls out of
+   * the overscan window and takes the menu with it. So a press is reported upwards and the
+   * menu moves to the glyph instead — see `useMenuTrigger`'s `showFrom`.
+   */
+  onProperty: (kind: IssuePropertyKind, id: UUID, rowIndex: number, element: HTMLElement) => void;
+  /**
+   * The property whose picker is open against *this* row, and null for every other one.
+   *
+   * A bare kind rather than the screen's origin, so a memoised row that is not the origin
+   * compares `null` against `null` and does not re-render when a menu opens twenty rows away.
+   */
+  openProperty: IssuePropertyKind | null;
 }
 
 /**
@@ -3065,6 +3258,8 @@ const IssueRow = memo(function IssueRow({
   onToggle,
   onExtend,
   onContextMenu,
+  onProperty,
+  openProperty,
 }: IssueRowProps) {
   const fullNames = useSyncExternalStore(
     subscribePrefs,
@@ -3171,6 +3366,10 @@ const IssueRow = memo(function IssueRow({
        * open the issue, which is the row's default gesture.
        */}
       <span className={styles.lead}>
+        {/* Alone among the row's properties, priority is not a trigger — it shares this 16px
+            box with the hover checkbox, which fades in over it, so a control here is one no
+            pointer path can reach. `P`, the context menu and the board card are its routes.
+            Linear draws it the same way, for the same reason. */}
         {properties.has('priority') ? <PriorityIcon priority={issue.priority} decorative /> : null}
         <span
           className={styles.check}
@@ -3198,9 +3397,24 @@ const IssueRow = memo(function IssueRow({
           row that dropped either would stop being readable the moment somebody grouped by
           assignee, and a row whose contents depend on the grouping is one people cannot
           learn to read — the same call the board card makes about its own StateIcon. */}
-      <StateIcon category={issue.stateCategory} color={issue.stateColor} label={issue.stateName} />
+      <PropertyTrigger
+        roving
+        name={issue.stateName}
+        action="Change status"
+        keys="s"
+        open={openProperty === 'status'}
+        onOpen={(element) => onProperty('status', id, rowIndex, element)}
+      >
+        <StateIcon category={issue.stateCategory} color={issue.stateColor} decorative />
+      </PropertyTrigger>
       <span className={styles.rowTitle}>{issue.title}</span>
-      {properties.has('labels') ? <LabelList issueId={id} /> : null}
+      {properties.has('labels') ? (
+        <LabelList
+          issueId={id}
+          onOpenPicker={(element) => onProperty('labels', id, rowIndex, element)}
+          pickerOpen={openProperty === 'labels'}
+        />
+      ) : null}
       <span className={styles.meta}>
         {properties.has('project') && issue.projectName !== null ? (
           <span className={styles.pill}>
@@ -3265,24 +3479,37 @@ const IssueRow = memo(function IssueRow({
             <span className={styles.pillText}>{issue.subIssues}</span>
           </span>
         )}
-        {!properties.has('assignee') ? null : issue.assigneeName === null ||
-          issue.assigneeId === null ? (
-          <span className={styles.unassigned} aria-label="Unassigned" role="img" />
-        ) : (
-          <Link
-            className={styles.chipLink}
-            to={userViewPath(issue.assigneeId)}
-            onClick={(event) => event.stopPropagation()}
-            aria-label={issue.assigneeName}
+        {/*
+         * The avatar was a link to the person's issues and an unassigned row was a dashed
+         * circle with nothing behind it at all — so the rows most in need of an assignee were
+         * the ones a pointer could do least about. Both are the same trigger now, and the
+         * navigation the link carried moved to the row's context menu, which is where the
+         * label chips' navigation went for the same reason.
+         *
+         * `.unassigned` keeps its own footprint inside the trigger so the column does not
+         * shift by a pixel as rows gain and lose an assignee.
+         */}
+        {!properties.has('assignee') ? null : (
+          <PropertyTrigger
+            roving
+            name={issue.assigneeName ?? 'Unassigned'}
+            action="Assign to…"
+            keys="a"
+            open={openProperty === 'assignee'}
+            onOpen={(element) => onProperty('assignee', id, rowIndex, element)}
           >
-            <Avatar
-              name={issue.assigneeName}
-              src={issue.assigneeAvatar}
-              size="xs"
-              colorKey={issue.assigneeId}
-              decorative
-            />
-          </Link>
+            {issue.assigneeName === null || issue.assigneeId === null ? (
+              <span className={styles.unassigned} />
+            ) : (
+              <Avatar
+                name={issue.assigneeName}
+                src={issue.assigneeAvatar}
+                size="xs"
+                colorKey={issue.assigneeId}
+                decorative
+              />
+            )}
+          </PropertyTrigger>
         )}
         {properties.has('createdAt') ? (
           <span className={styles.date}>{issue.createdAt}</span>

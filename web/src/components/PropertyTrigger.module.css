@@ -1,0 +1,29 @@
+/*
+ * A glyph that admits it is a control.
+ *
+ * The wash is `--bg-selected` and not `--bg-hover`, which looks like the wrong step until
+ * you put the pointer on a row: the row is already wearing `--bg-hover` by then, so a child
+ * painted the same colour is invisible at exactly the moment it needs to say "this one, not
+ * the whole row". `--bg-selected` is the next alpha up and composites visibly over both the
+ * hover wash and a selected row's.
+ *
+ * Tighter corners than IconButton's default: these sit inside 44px rows against text, and
+ * `--radius-md` on a 22px box reads as a pill.
+ */
+.trigger {
+  border-radius: var(--radius-sm);
+}
+
+.trigger:hover {
+  background-color: var(--bg-selected);
+}
+
+/*
+ * Open is a state the pointer has usually already left — the menu is under the cursor, not
+ * the trigger — so the trigger has to hold the wash itself or the row loses all trace of
+ * what the open menu belongs to.
+ */
+.trigger[aria-expanded='true'] {
+  background-color: var(--bg-selected);
+  color: var(--text-primary);
+}

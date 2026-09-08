@@ -101,6 +101,13 @@
   background-color: var(--bg-hover);
 }
 
+/* A row takes focus only when a menu hands it back (see the `tabIndex` on it), so the ring is
+   drawn for that case and not for a tab stop the row does not have. */
+.row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
 /*
  * The identifier and the title are one link, so the accessible name is "ENG-2 Ship the
  * importer" — the way somebody would say it out loud — rather than two adjacent links to the

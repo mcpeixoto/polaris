@@ -45,28 +45,46 @@
  * says so rather than leaving it to be discovered.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 
-import { useActions, useKeyContext } from '~/app/keymap';
+import { useEngine } from '~/app/context';
+import { useActions, useKeyContext, useKeymap } from '~/app/keymap';
 import {
   Avatar,
   Button,
   EmptyState,
   Input,
+  Kbd,
   LabelChip,
+  Menu,
   PriorityIcon,
+  priorityLabel,
+  PropertyTrigger,
   SkeletonRows,
   Spinner,
   StateIcon,
 } from '~/components';
 import {
+  EMPTY_FILTER,
   FILTER_PARAM,
   filterSearchString,
   parseFilterParam,
   toFilterParam,
   type FilterNode,
 } from '~/filter';
+import { copyText } from '~/features/github/copy';
+import { TagGlyph } from '~/features/issue/glyphs';
+import { report, updateIssue, type IssueFields } from '~/features/issue/mutations';
+import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
+import {
+  issueRowMenuItems,
+  type IssuePropertyKind,
+  type IssueRowMenuChords,
+} from '~/features/issue/rowMenu';
+import { LabelPicker } from '~/features/labels/LabelPicker';
+import { applyLabel, removeLabel } from '~/features/labels/mutations';
+import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { FilterBar } from '~/features/view/ui/FilterBar';
 import {
   SEARCH_QUERY,
@@ -91,6 +109,8 @@ import {
 } from '~/features/search/search';
 import { when } from '~/features/time';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useMenuTrigger } from '~/hooks/useMenuTrigger';
+import { useViewerId } from '~/hooks/useViewer';
 import type { EntityType, StateCategory, Store, UUID } from '~/store';
 import { ApiError, currentWorkspace, gql } from '~/sync/api';
 import styles from './Search.module.css';
@@ -133,6 +153,22 @@ interface LabelRef {
   readonly groupName: string | undefined;
 }
 
+/**
+ * The chords this screen registers for the five properties, as the row menu draws them.
+ *
+ * Passed to `issueRowMenuItems` rather than left to it, because only this screen knows what
+ * it claimed in its own context — see `IssueRowMenuChords`. Each one acts on the cursor row,
+ * and opening a picker with the pointer moves the cursor to the row it was opened on, so the
+ * cap on a trigger is a promise this screen keeps.
+ */
+const ROW_MENU_CHORDS: IssueRowMenuChords = {
+  status: 's',
+  assignee: 'a',
+  priority: 'p',
+  project: 'shift+p',
+  labels: 'l',
+};
+
 /** One issue, resolved for rendering. The same fields an issue-list row draws. */
 interface IssueRow {
   readonly key: string;
@@ -147,6 +183,25 @@ interface IssueRow {
   readonly assigneeName: string | null;
   readonly assigneeAvatar: string | null;
   readonly labels: readonly LabelRef[];
+  /**
+   * Whether this client can change the issue at all.
+   *
+   * False for a result the replica does not hold — see `issueRow`, which is the only place
+   * that knows the difference. Every property control on such a row is disabled, because
+   * there is no local issue to patch optimistically: the write would be planned against
+   * nothing, return without sending, and leave a row that looks as though it took the
+   * change until the next render puts it back.
+   */
+  readonly editable: boolean;
+  /**
+   * What a picker needs to know about the issue, and what it does not have when the row
+   * came off the wire alone. Null throughout on a row that is not in the replica, which is
+   * the same fact `editable` states — kept as ids because that is what the pickers tick.
+   */
+  readonly teamId: UUID | null;
+  readonly stateId: UUID | null;
+  readonly projectId: UUID | null;
+  readonly labelIds: readonly UUID[];
 }
 
 interface CommentRow {
@@ -175,6 +230,8 @@ const NOTHING: ResultView = { issues: [], comments: [] };
 interface Navigable {
   readonly key: string;
   readonly to: string | null;
+  /** The issue this row is about, or null for a comment result. What `S` acts on. */
+  readonly issue: IssueRow | null;
 }
 
 /** What the registered actions call. Named so the ref's type is a contract, not an inference. */
@@ -187,6 +244,10 @@ interface SearchCommands {
   canOpen(): boolean;
   showMore(): void;
   canShowMore(): boolean;
+  /** Whether the cursor is on an issue this client can write. Gates the five property keys. */
+  canEdit(): boolean;
+  /** Opens one property picker on the cursor row, anchored to that row's element. */
+  pick(kind: IssuePropertyKind): void;
 }
 
 export function Search() {
@@ -299,10 +360,11 @@ export function Search() {
 
   const rows = useMemo<readonly Navigable[]>(
     () => [
-      ...view.issues.map((issue) => ({ key: issue.key, to: `/issue/${issue.identifier}` })),
+      ...view.issues.map((issue) => ({ key: issue.key, to: `/issue/${issue.identifier}`, issue })),
       ...view.comments.map((comment) => ({
         key: comment.key,
         to: comment.identifier === null ? null : `/issue/${comment.identifier}`,
+        issue: null,
       })),
     ],
     [view],
@@ -329,6 +391,109 @@ export function Search() {
   const boxRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
+  /*
+   * The five pickers, mounted once for the screen and pointed at a row when one is opened.
+   *
+   * One picker per row would be five live queries per result and a menu that unmounts with
+   * the row it hangs off; `useMenuTrigger.showFrom` exists so the picker can stay a
+   * singleton and the *anchor* move instead. Two things anchor it here: the cursor row's
+   * own element, for the keyboard, and a one-pixel element at the pointer, for a
+   * right-click — which is the arrangement the issue list already uses for its row menu.
+   */
+  const status = useMenuTrigger();
+  const assignee = useMenuTrigger();
+  const priority = useMenuTrigger();
+  const project = useMenuTrigger();
+  const labelMenu = useMenuTrigger();
+
+  /** Which property is showing, if any. Derived so there is one answer and not five. */
+  const openKind: IssuePropertyKind | null = status.open
+    ? 'status'
+    : assignee.open
+      ? 'assignee'
+      : priority.open
+        ? 'priority'
+        : project.open
+          ? 'project'
+          : labelMenu.open
+            ? 'labels'
+            : null;
+
+  /**
+   * The row the open menu is about, held by key and re-resolved.
+   *
+   * The same bargain the cursor makes above: a delta or a newer answer rebuilds every row
+   * object, and a picker holding the one it was opened with would go on ticking the status
+   * the issue had a second ago. Resolving by key means the tick follows the write.
+   */
+  const [propertyFor, setPropertyFor] = useState<string | null>(null);
+  const target = useMemo(
+    () => view.issues.find((row) => row.key === propertyFor) ?? null,
+    [view.issues, propertyFor],
+  );
+
+  /** Where a right-click landed. Kept while a picker opened from that menu is still up. */
+  const [contextAt, setContextAt] = useState<{ x: number; y: number } | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const contextAnchor = useRef<HTMLDivElement>(null);
+  /**
+   * Whether the row menu is closing because it is handing over to a picker.
+   *
+   * `Menu` closes itself once an item is chosen, and five of the items exist only to open
+   * another menu about the same row. Without this the handover would take the pointer
+   * anchor off the screen in the same tick the picker asked to hang from it.
+   */
+  const handingOver = useRef(false);
+
+  const engine = useEngine();
+  const viewerId = useViewerId();
+  const { registry, context } = useKeymap();
+
+  const openPicker = (kind: IssuePropertyKind, key: string, element: HTMLElement | null) => {
+    // The cursor moves to the row the picker is about, so that the key caps drawn on the
+    // triggers stay true: `S` acts on the cursor row, and this is what makes the row you
+    // pointed at the cursor row.
+    setCursorKey(key);
+    setPropertyFor(key);
+    const trigger = { status, assignee, priority, project, labels: labelMenu }[kind];
+    trigger.showFrom(element);
+  };
+
+  /**
+   * Closes whatever is open and puts the keyboard back in the list.
+   *
+   * Not back on the trigger, which `Menu` would do by itself: the triggers are out of the
+   * tab order (they sit inside `role="option"` rows) and the list is what carries the
+   * cursor, so the list is where the keyboard belongs. The same choice the inbox makes.
+   */
+  const closeMenus = () => {
+    status.hide();
+    assignee.hide();
+    priority.hide();
+    project.hide();
+    labelMenu.hide();
+    setMenuOpen(false);
+    setContextAt(null);
+    listRef.current?.focus();
+  };
+
+  /** One property write, refused where the row says it cannot be written. */
+  const writeTo = (row: IssueRow | null, fields: IssueFields) => {
+    if (row === null || !row.editable) return;
+    updateIssue(engine, row.id, fields, viewerId).catch(report);
+  };
+
+  const openRowMenu = (event: MouseEvent, row: IssueRow) => {
+    event.preventDefault();
+    // The cursor moves to the row that was right-clicked *before* the menu opens, because
+    // a right-click is a statement about that row and every command here acts on the
+    // cursor. Opening first would build the menu around wherever the cursor happened to be.
+    setCursorKey(row.key);
+    setPropertyFor(row.key);
+    setContextAt({ x: event.clientX, y: event.clientY });
+    setMenuOpen(true);
+  };
+
   const tally: IssueTally | null =
     request.results === null
       ? null
@@ -350,6 +515,8 @@ export function Search() {
     canOpen: () => false,
     showMore: () => {},
     canShowMore: () => false,
+    canEdit: () => false,
+    pick: () => {},
   });
 
   commands.current = {
@@ -375,6 +542,15 @@ export function Search() {
     },
     showMore: () => setExpandedFor(query),
     canShowMore: () => tally !== null && canShowMore(tally),
+    canEdit: () => {
+      const row = rows[cursorIndex]?.issue;
+      return row !== undefined && row !== null && row.editable;
+    },
+    pick: (kind) => {
+      const row = rows[cursorIndex]?.issue;
+      if (row === undefined || row === null || !row.editable) return;
+      openPicker(kind, row.key, document.getElementById(rowDomId(row.key)));
+    },
   };
 
   useKeyContext('list');
@@ -444,6 +620,62 @@ export function Search() {
         enabled: () => commands.current.canShowMore(),
         run: () => commands.current.showMore(),
       },
+      /*
+       * The five property chords, on the cursor row, spelled exactly as they are on the
+       * issue list and in the inbox — a person who has learned `S` in one list has learned
+       * it here. They were the conspicuous gap: this was the only list in the product where
+       * a result could be read and not touched.
+       *
+       * `enabled` is what keeps them honest. It is false on a comment result and on an
+       * issue this device has not received, and the registry treats a disabled action as
+       * unbound — so on those rows the keystroke falls through to whatever global claims
+       * it rather than opening a picker whose choice could not be written.
+       */
+      {
+        id: 'search.status',
+        title: 'Change status',
+        keys: ['s'],
+        when: 'list',
+        group: 'Issues',
+        enabled: () => commands.current.canEdit(),
+        run: () => commands.current.pick('status'),
+      },
+      {
+        id: 'search.assign',
+        title: 'Assign to…',
+        keys: ['a'],
+        when: 'list',
+        group: 'Issues',
+        enabled: () => commands.current.canEdit(),
+        run: () => commands.current.pick('assignee'),
+      },
+      {
+        id: 'search.priority',
+        title: 'Set priority',
+        keys: ['p'],
+        when: 'list',
+        group: 'Issues',
+        enabled: () => commands.current.canEdit(),
+        run: () => commands.current.pick('priority'),
+      },
+      {
+        id: 'search.project',
+        title: 'Set project',
+        keys: ['shift+p'],
+        when: 'list',
+        group: 'Issues',
+        enabled: () => commands.current.canEdit(),
+        run: () => commands.current.pick('project'),
+      },
+      {
+        id: 'search.labels',
+        title: 'Add label',
+        keys: ['l'],
+        when: 'list',
+        group: 'Issues',
+        enabled: () => commands.current.canEdit(),
+        run: () => commands.current.pick('labels'),
+      },
     ],
     [],
   );
@@ -453,6 +685,18 @@ export function Search() {
     !showingRecent && request.results !== null && rows.length === 0 && !request.busy;
   /** The one state with nothing to keep on screen: asked, and never yet answered. */
   const firstAnswer = request.results === null && request.busy;
+
+  /** Whether the bar is narrowing the answer, which decides what an empty result offers. */
+  const filtered = toFilterParam(filter) !== '';
+
+  /*
+   * The way out of an empty result, through the registry rather than around it.
+   *
+   * `issue.create` is registered globally on `C` by the shell, so the cap on the button is
+   * true on every screen — and invoking it by id means this button and that keystroke stay
+   * the same command rather than two copies of the composer's entry conditions.
+   */
+  const createIssue = () => registry.invoke('issue.create', { source: 'menu', context });
 
   return (
     <div className={styles.screen}>
@@ -530,12 +774,32 @@ export function Search() {
             className={styles.empty}
             title={`Nothing matches "${asked}"`}
             description="Search covers issue titles and descriptions and the text of comments. Case and accents are ignored, so acao finds Ação."
+            // Two different dead ends, and only one of them is about the query. With a
+            // filter on the bar the likeliest reason for no rows is the filter rather than
+            // the words, so the way out is to drop it; without one there is nothing to
+            // narrow and the honest offer is to file the work that is missing.
+            action={
+              filtered ? (
+                <Button variant="secondary" onClick={() => setFilterParam(EMPTY_FILTER)}>
+                  Clear filter
+                </Button>
+              ) : (
+                <Button variant="primary" onClick={createIssue}>
+                  Create issue <Kbd keys="c" surface="raised" />
+                </Button>
+              )
+            }
           />
         ) : showingRecent && view.issues.length === 0 ? (
           <EmptyState
             className={styles.empty}
             title="Nothing to search yet"
             description="Once this workspace has issues, what you were last working on will be here and the box above will find the rest."
+            action={
+              <Button variant="primary" onClick={createIssue}>
+                Create issue <Kbd keys="c" surface="raised" />
+              </Button>
+            }
           />
         ) : (
           <div
@@ -562,7 +826,10 @@ export function Search() {
                     row={row}
                     terms={terms}
                     active={at === cursorIndex}
+                    openProperty={propertyFor === row.key ? openKind : null}
                     onFocus={setCursorKey}
+                    onPick={openPicker}
+                    onMenu={openRowMenu}
                   />
                 ))}
               </>
@@ -591,9 +858,125 @@ export function Search() {
           </div>
         )}
       </div>
+
+      {contextAt === null ? null : (
+        <>
+          {/* A one-pixel element at the pointer. Not `hidden`: `Menu` measures its trigger
+              to place itself, and a hidden element has no box. It outlives the menu on
+              purpose — a picker opened from an item hangs off the same point. */}
+          <div
+            ref={contextAnchor}
+            className={styles.contextAnchor}
+            style={{ top: contextAt.y, left: contextAt.x }}
+          />
+          <Menu
+            open={menuOpen}
+            onClose={() => {
+              setMenuOpen(false);
+              if (handingOver.current) {
+                handingOver.current = false;
+                return;
+              }
+              setContextAt(null);
+              listRef.current?.focus();
+            }}
+            trigger={contextAnchor}
+            label={target === null ? 'Issue' : target.identifier}
+            /*
+             * The shared item list, minus the destructive end of it.
+             *
+             * `issueRowMenuItems` leaves Delete out when no `askDelete` is passed, and this
+             * screen deliberately passes none. Search is where you go to find something and
+             * jump to it: there is no multi-select to make the target unambiguous, no
+             * confirmation dialogue and no undo toast — the three things that make a
+             * right-click delete recoverable on the issue list. A destructive command one
+             * slip away from a search result, with nothing to take it back, is not the
+             * same command it is there.
+             */
+            items={issueRowMenuItems(
+              {
+                count: 1,
+                editable: target?.editable ?? false,
+                // One row is one team, so there is always exactly one workflow to offer.
+                canSetStatus: target?.editable ?? false,
+                identifier: target?.identifier,
+                assigneeName: target?.assigneeName ?? undefined,
+              },
+              {
+                pick: (kind) => {
+                  handingOver.current = true;
+                  if (target !== null) openPicker(kind, target.key, contextAnchor.current);
+                },
+                open: () => {
+                  if (target !== null) void navigate(`/issue/${target.identifier}`);
+                },
+                copyLink: () => {
+                  if (target !== null) {
+                    void copyText(`${window.location.origin}/issue/${target.identifier}`);
+                  }
+                },
+                copyIdentifier: () => {
+                  if (target !== null) void copyText(target.identifier);
+                },
+              },
+              ROW_MENU_CHORDS,
+            )}
+          />
+        </>
+      )}
+
+      {/* The pickers themselves: one of each for the screen, hanging off whichever row was
+          named. `target` is null while nothing is open, which is why each is gated on it —
+          a picker asked for the statuses of no team would offer the wrong list for a frame. */}
+      <StatusPicker
+        open={status.open && target !== null && target.teamId !== null}
+        onClose={closeMenus}
+        trigger={status.ref}
+        teamId={target?.teamId ?? ''}
+        value={target?.stateId ?? undefined}
+        onSelect={(stateId) => writeTo(target, { stateId })}
+      />
+      <AssigneePicker
+        open={assignee.open && target !== null}
+        onClose={closeMenus}
+        trigger={assignee.ref}
+        value={target === null ? undefined : target.assigneeId}
+        onSelect={(assigneeId) => writeTo(target, { assigneeId })}
+      />
+      <PriorityPicker
+        open={priority.open && target !== null}
+        onClose={closeMenus}
+        trigger={priority.ref}
+        value={target?.priority}
+        onSelect={(value) => writeTo(target, { priority: value })}
+      />
+      <ProjectPicker
+        open={project.open && target !== null}
+        onClose={closeMenus}
+        trigger={project.ref}
+        teamIds={target?.teamId === null || target?.teamId === undefined ? [] : [target.teamId]}
+        value={target === null ? undefined : target.projectId}
+        onSelect={(projectId) => writeTo(target, { projectId })}
+      />
+      <LabelPicker
+        open={labelMenu.open && target !== null && target.editable}
+        onClose={closeMenus}
+        trigger={labelMenu.ref}
+        teamId={target?.teamId ?? null}
+        value={target?.labelIds ?? EMPTY_LABELS}
+        onApply={(labelId, displaced) => {
+          if (target !== null) applyLabel(engine, target.id, labelId, displaced).catch(report);
+        }}
+        onRemove={(labelId) => {
+          if (target !== null) removeLabel(engine, target.id, labelId).catch(report);
+        }}
+      />
     </div>
   );
 }
+
+/** A stable empty list, so a closed label picker does not re-subscribe on every render. */
+const EMPTY_LABELS: readonly UUID[] = [];
 
 /**
  * What this browser has been asked before, above the recent work rather than instead of it.
@@ -670,7 +1053,35 @@ interface ResultProps<Row> {
   readonly onFocus: (key: string) => void;
 }
 
-function IssueResult({ row, terms, active, onFocus }: ResultProps<IssueRow>) {
+interface IssueResultProps extends ResultProps<IssueRow> {
+  /** Which of this row's pickers is showing, if any. Null on every other row. */
+  readonly openProperty: IssuePropertyKind | null;
+  readonly onPick: (kind: IssuePropertyKind, key: string, element: HTMLElement) => void;
+  readonly onMenu: (event: MouseEvent, row: IssueRow) => void;
+}
+
+/**
+ * One issue result: the row, and the four properties it can be changed from.
+ *
+ * Every glyph on it used to be a picture. That made this the one list in the product where
+ * a result could be read and not touched — you found the issue you were looking for, and
+ * the only thing to do about it was open it. The glyphs are controls now, disabled on a row
+ * whose issue this device has not received, and every one of them has the chord it also
+ * answers to drawn in its tooltip.
+ *
+ * `roving` on each: the row is a `role="option"` in a listbox that navigates by
+ * `aria-activedescendant`, and a tab stop inside an option breaks that model. The cost is
+ * that these are pointer-only, which is exactly why the chords and the row menu exist.
+ */
+function IssueResult({
+  row,
+  terms,
+  active,
+  openProperty,
+  onFocus,
+  onPick,
+  onMenu,
+}: IssueResultProps) {
   return (
     <Link
       id={rowDomId(row.key)}
@@ -682,13 +1093,39 @@ function IssueResult({ row, terms, active, onFocus }: ResultProps<IssueRow>) {
       tabIndex={-1}
       className={[styles.row, active ? styles.active : null].filter(Boolean).join(' ')}
       onClick={() => onFocus(row.key)}
+      onContextMenu={(event) => onMenu(event, row)}
+      /*
+       * A control inside a link is still inside a link.
+       *
+       * `PropertyTrigger` stops the click before it reaches this row's own handler, which
+       * is what keeps "change the status" from also meaning "open the issue" — but stopping
+       * propagation does not cancel an anchor's activation, and only `preventDefault` does.
+       * Capture runs before the trigger's own handler and is therefore the one place this
+       * can be said; without it, every property change here would navigate away from the
+       * row it was made on.
+       */
+      onClickCapture={(event) => {
+        if (event.target instanceof Element && event.target.closest('button') !== null) {
+          event.preventDefault();
+        }
+      }}
     >
       {/* The issue list's column order, and it is the same row: status, identifier, title,
           labels, then the trailing pair. It used to lead with the priority and put the status
           after the identifier, so the two densest lists in the product asked the eye to find
           the same four facts in two different places — which is most of what makes a screen
           feel like a different product from the one beside it. */}
-      <StateIcon category={row.stateCategory} color={row.stateColor} label={row.stateName} />
+      <PropertyTrigger
+        roving
+        name={row.stateName}
+        action="Change status"
+        keys="s"
+        open={openProperty === 'status'}
+        disabled={!row.editable}
+        onOpen={(element) => onPick('status', row.key, element)}
+      >
+        <StateIcon category={row.stateCategory} color={row.stateColor} decorative />
+      </PropertyTrigger>
       <span className={styles.identifier}>{row.identifier}</span>
       <span className={styles.title}>
         <Highlighted text={row.title} terms={terms} />
@@ -707,17 +1144,53 @@ function IssueResult({ row, terms, active, onFocus }: ResultProps<IssueRow>) {
         </span>
       )}
       <span className={styles.meta}>
-        <PriorityIcon priority={row.priority} decorative />
-        {row.assigneeName === null ? (
-          <span className={styles.unassigned} aria-label="Unassigned" role="img" />
-        ) : (
-          <Avatar
-            name={row.assigneeName}
-            src={row.assigneeAvatar}
-            size="xs"
-            colorKey={row.assigneeId ?? row.assigneeName}
-          />
-        )}
+        {/* The labels trigger is a glyph rather than the chips beside it, and it is on every
+            row rather than only on the labelled ones: the chips collapse to nothing when an
+            issue has none, and a control that disappears on the rows most in need of it is
+            not a route to anything. */}
+        <PropertyTrigger
+          roving
+          name={row.labels.length === 0 ? 'No labels' : row.labels.map((l) => l.name).join(', ')}
+          action="Add label"
+          keys="l"
+          open={openProperty === 'labels'}
+          disabled={!row.editable}
+          onOpen={(element) => onPick('labels', row.key, element)}
+        >
+          <TagGlyph />
+        </PropertyTrigger>
+        <PropertyTrigger
+          roving
+          name={priorityLabel(row.priority)}
+          action="Set priority"
+          keys="p"
+          open={openProperty === 'priority'}
+          disabled={!row.editable}
+          onOpen={(element) => onPick('priority', row.key, element)}
+        >
+          <PriorityIcon priority={row.priority} decorative />
+        </PropertyTrigger>
+        <PropertyTrigger
+          roving
+          name={row.assigneeName ?? 'Unassigned'}
+          action="Assign to…"
+          keys="a"
+          open={openProperty === 'assignee'}
+          disabled={!row.editable}
+          onOpen={(element) => onPick('assignee', row.key, element)}
+        >
+          {row.assigneeName === null ? (
+            <span className={styles.unassigned} aria-hidden="true" />
+          ) : (
+            <Avatar
+              name={row.assigneeName}
+              src={row.assigneeAvatar}
+              size="xs"
+              colorKey={row.assigneeId ?? row.assigneeName}
+              decorative
+            />
+          )}
+        </PropertyTrigger>
       </span>
     </Link>
   );
@@ -1111,11 +1584,28 @@ function issueRow(store: Store, id: UUID, wire: SearchIssue | null): IssueRow | 
       // No labels: the replica does not hold the issue, so it does not hold what is applied
       // to it either — and the API does not populate `Issue.labels`. See `operations.ts`.
       labels: [],
+      /*
+       * Not editable, and every id it would be edited by is null.
+       *
+       * The row is a title and a status read off a search response; there is no local issue
+       * behind it. A write planned against one is planned against nothing — `planUpdate`
+       * returns null and `updateIssue` sends nothing — so the choice would land in a menu,
+       * close it, and change neither the screen nor the server, with nothing anywhere to
+       * say why. The controls say so instead, by being disabled. The wire does carry a
+       * state id, and it is deliberately dropped: a picker offering the team's statuses is
+       * a promise to write one of them, which this row cannot keep.
+       */
+      editable: false,
+      teamId: null,
+      stateId: null,
+      projectId: null,
+      labelIds: [],
     };
   }
 
   const state = store.workflowStates.get(local.stateId);
   const assignee = local.assigneeId === undefined ? undefined : store.users.get(local.assigneeId);
+  const labels = labelsOf(store, local.id);
 
   return {
     key: `issue-${local.id}`,
@@ -1129,7 +1619,16 @@ function issueRow(store: Store, id: UUID, wire: SearchIssue | null): IssueRow | 
     assigneeId: assignee?.id ?? null,
     assigneeName: assignee?.displayName ?? null,
     assigneeAvatar: assignee?.avatarUrl ?? null,
-    labels: labelsOf(store, local.id),
+    labels,
+    // Archived work is frozen: it is out of every list and its properties are not the
+    // thing to change from a search result. Everything else in the replica can be written.
+    editable: local.archivedAt === undefined,
+    teamId: local.teamId,
+    stateId: local.stateId,
+    projectId: local.projectId ?? null,
+    // The ids that were drawn, rather than `labelIdsFor` again: a label the replica does
+    // not hold yet is not a chip on the row, and it must not be a tick in the picker either.
+    labelIds: labels.map((label) => label.id),
   };
 }
 

@@ -81,6 +81,18 @@ targets:
           - CFBundleURLName: com.peixotolabs.polaris
             CFBundleURLSchemes:
               - polaris
+          # Where Google redirects back to after an authorization. It is the OAuth client id
+          # with its dot-separated components reversed, and it must be registered here or
+          # `ASWebAuthenticationSession` refuses to start — the sheet never appears and the
+          # error says only that the callback scheme is invalid.
+          #
+          # The literal has to live in the Info.plist, because iOS reads it before any Swift
+          # runs. The Swift half derives the same string from `GoogleSignIn.clientID`, and
+          # `GoogleSignInTests` pins the two together so a client id changed in one place
+          # fails a test rather than a sign-in.
+          - CFBundleURLName: com.googleusercontent.apps.polaris
+            CFBundleURLSchemes:
+              - com.googleusercontent.apps.415057540542-s7an2kfcima1eqccpre0qq5o79et8s4f
         # Background fetch keeps the inbox badge honest between launches; there is no push
         # infrastructure server-side (see ios/README.md), so this is the only way the badge
         # can move while the app is not in front.

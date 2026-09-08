@@ -59,6 +59,7 @@ import {
 } from '~/features/pricing/plans';
 import { useBillingLive } from '~/features/pricing/useBillingLive';
 
+import { detectDownloadOS, orderedDownloads, RELEASES } from './landingDownloads';
 import {
   useDisclosure,
   useReveal,
@@ -107,6 +108,11 @@ export function Landing() {
   const menu = useDisclosure();
   // See Pricing: the poster must not offer a checkout this server cannot open.
   const billingLive = useBillingLive();
+  // Read once per render off the user agent. A guess, and treated as one: it reorders the
+  // download cards and nothing else, and every platform stays on the page.
+  const guessedOS = detectDownloadOS();
+  const platforms = orderedDownloads(guessedOS);
+  const mine = platforms[0]?.os === guessedOS ? platforms[0] : undefined;
 
   return (
     <div className={styles.page} ref={page} data-scrolled={scrolled ? '' : undefined}>
@@ -144,6 +150,13 @@ export function Landing() {
                 holds your team's whole backlog, and a reader who has to scroll a poster
                 to find that out has already decided. Hidden below 900px like navLinks —
                 the compact menu below carries it there. */}
+            {/* The app itself, from the header. Somebody who came here to install Polaris
+                should not have to read a poster to the end to find out it exists — and the
+                five section links are the five bands of this page, so this is not one of
+                them. Drops below 720px with Sign in; the compact menu carries it there. */}
+            <a href="#download" className={styles.navQuiet}>
+              Download
+            </a>
             <a href={SOURCE} className={`${styles.navQuiet} ${styles.navSource}`}>
               GitHub
             </a>
@@ -198,7 +211,16 @@ export function Landing() {
             Download Polaris
           </Link>
           {/* Outside the nav landmark above, which is the five sections of this page —
-              the repository is not one of them. */}
+              neither the download nor the repository is one of them. */}
+          <a
+            href="#download"
+            className={styles.navQuiet}
+            onClick={() => {
+              menu.setOpen(false);
+            }}
+          >
+            Download
+          </a>
           <a
             href={SOURCE}
             className={styles.navQuiet}
@@ -243,6 +265,9 @@ export function Landing() {
             <Link to={signedIn ? '/' : '/signin'} className={styles.ctaGhost}>
               {signedIn ? 'Open workspace' : 'Sign in'}
             </Link>
+            <a href="#download" className={styles.ctaGhost}>
+              {mine === undefined ? 'Download' : `Download for ${mine.name}`}
+            </a>
             <a href="#self-host" className={styles.ctaGhost}>
               Self-host
             </a>
@@ -258,6 +283,66 @@ export function Landing() {
           <figure className={styles.heroShot} data-reveal="" style={at(2)} aria-hidden="true">
             <IssueChrome live />
           </figure>
+        </section>
+
+        {/*
+          Downloads, second on the page and one click from the header.
+
+          The releases have existed for a while and nothing on this site linked to them, so
+          the only way to install Polaris was to already know where GitHub keeps its
+          artifacts. Every platform is here at once — the visitor's own first, the rest a
+          scroll of the eye away — because detection is a guess and a hidden platform is a
+          dead end for whoever it guessed wrong about.
+        */}
+        <section id="download" className={styles.band} aria-labelledby="download-title">
+          <div className={styles.bandHead} data-reveal="">
+            <p className={styles.kicker}>Download</p>
+            <h2 id="download-title" className={styles.sectionTitle}>
+              Get the desktop app.
+            </h2>
+            <p className={styles.sectionLead}>
+              The same app in its own window, with the shortcuts the browser otherwise keeps for
+              itself — <Kbd keys="mod+k" /> among them. Every button here downloads the newest
+              build. <a href={RELEASES}>Release notes and older versions</a> are on GitHub.
+            </p>
+          </div>
+          <ul className={styles.downloadGrid} role="list">
+            {platforms.map((platform, index) => (
+              <li
+                key={platform.os}
+                className={styles.download}
+                data-mine={platform.os === guessedOS ? '' : undefined}
+                data-reveal=""
+                style={at(index)}
+              >
+                <h3>
+                  {platform.name}
+                  {platform.os === guessedOS ? (
+                    <span className={styles.downloadMine}>Your machine</span>
+                  ) : null}
+                </h3>
+                {platform.builds.map((build, order) => (
+                  <div key={build.label} className={styles.downloadBuild}>
+                    <a
+                      href={build.url}
+                      // Filled once per card, and only on the card for this machine: two
+                      // solid buttons side by side is two primaries, which is none.
+                      className={
+                        platform.os === guessedOS && order === 0 ? styles.cta : styles.ctaGhost
+                      }
+                      // The visible text alone ("Intel", "Installer") would read as five
+                      // unrelated words in a screen reader's link list.
+                      aria-label={`Download Polaris for ${platform.name}, ${build.label}`}
+                    >
+                      {build.label}
+                    </a>
+                    <span className={styles.downloadDetail}>{build.detail}</span>
+                  </div>
+                ))}
+                <p className={styles.downloadCaution}>{platform.caution}</p>
+              </li>
+            ))}
+          </ul>
         </section>
 
         <section id="product" className={styles.band} aria-labelledby="features-title">
@@ -496,6 +581,7 @@ export function Landing() {
           <Link to="/signin">Sign in</Link>
           <Link to="/signup">Get started</Link>
           <Link to="/pricing">Pricing</Link>
+          <a href="#download">Download</a>
           <a href="#self-host">Self-host</a>
           <a href={SOURCE}>GitHub</a>
         </nav>

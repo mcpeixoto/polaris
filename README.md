@@ -12,6 +12,10 @@ Your whole workspace lives on your machine, so filtering, sorting and grouping<b
 
 [**Website**](https://polaris.peixotolabs.com) · [**Pricing**](https://polaris.peixotolabs.com/pricing) · [**Self-hosting guide**](docs/05-infrastructure/11-self-hosting.md) · [**Docs**](docs/)
 
+**Download** — [macOS Apple Silicon](https://github.com/mcpeixoto/polaris/releases/latest/download/Polaris-mac-arm64.dmg) · [macOS Intel](https://github.com/mcpeixoto/polaris/releases/latest/download/Polaris-mac-x64.dmg) · [Windows](https://github.com/mcpeixoto/polaris/releases/latest/download/Polaris-Setup.exe) · [Linux AppImage](https://github.com/mcpeixoto/polaris/releases/latest/download/Polaris-linux-x86_64.AppImage) · [.deb](https://github.com/mcpeixoto/polaris/releases/latest/download/polaris-amd64.deb)
+
+<sub>The mac and Windows builds are not signed yet, so the first launch needs right-click → Open on macOS, or More info → Run anyway on Windows.</sub>
+
 [![CI](https://github.com/mcpeixoto/polaris/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/mcpeixoto/polaris/actions/workflows/ci.yml) [![Licence: AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-5e6ad2)](LICENSE) [![Go 1.26](https://img.shields.io/badge/go-1.26-00ADD8)](services/go.mod) [![Self-host: free, unlimited seats](https://img.shields.io/badge/self--host-free%20%C2%B7%20unlimited%20seats-5e6ad2)](docs/05-infrastructure/11-self-hosting.md)
 
 </div>

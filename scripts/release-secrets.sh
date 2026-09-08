@@ -26,6 +26,23 @@ if ! command -v gh >/dev/null; then
   exit 1
 fi
 
+# Which checkout is this, and is it current?
+#
+# There are commonly a dozen worktrees against this repository, and a stale one is not
+# obviously stale: it has a Makefile, a scripts/ directory and a git prompt like any other.
+# Running `make release-secrets` in one that predates the target produces
+# "No rule to make target", which reads as the target not existing rather than as the
+# checkout being old. It has already happened.
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')
+git fetch --quiet origin main 2>/dev/null || true
+behind=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+if [ "${behind:-0}" -gt 0 ]; then
+  printf '\033[33mNote:\033[0m this checkout (%s, %s) is %s commit(s) behind origin/main.\n' \
+    "$(pwd)" "$branch" "$behind"
+  printf '      What you see below is still accurate — the secrets live on GitHub, not here —\n'
+  printf '      but the script itself may be old. `git merge --ff-only origin/main` to update.\n\n'
+fi
+
 have=$(gh secret list --json name --jq '.[].name' 2>/dev/null || true)
 if [ -z "$have" ]; then
   echo "No secrets readable — is this repo's remote right, and is gh authenticated?" >&2
@@ -49,6 +66,12 @@ group "TestFlight — ios-release.yml on a v* tag"
 for s in APPLE_API_KEY_PATH APPLE_API_KEY_ID APPLE_API_ISSUER; do
   configured "$s" && ok "$s" || gap "$s" "no iOS build is ever uploaded"
 done
+# Separate from the API key, and not implied by it. -allowProvisioningUpdates downloads a
+# certificate; the private key that makes it an identity lives only in the keychain whose
+# CSR created it, and no App Store Connect role can hand one out.
+for s in IOS_DIST_P12 IOS_DIST_P12_PASSWORD; do
+  configured "$s" && ok "$s" || gap "$s" "the archive cannot be signed — no distribution private key"
+done
 
 group "Desktop signing — desktop.yml on a v* tag"
 for s in MAC_CERT_P12 MAC_CERT_PASSWORD; do
@@ -70,18 +93,57 @@ asc_issuer=$(grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
              ios/scripts/asc-setup.py 2>/dev/null | head -1 || true)
 devid=$(security find-identity -v -p codesigning 2>/dev/null \
         | grep 'Developer ID Application' | head -1 | sed 's/.*"\(.*\)"/\1/' || true)
+iosid=$(security find-identity -v -p codesigning 2>/dev/null \
+        | grep 'Apple Distribution' | head -1 | sed 's/.*"\(.*\)"/\1/' || true)
 
 group "On this machine"
 [ -n "$asc_key" ]    && ok "App Store Connect key   $asc_key"        || printf '  \033[31m✗\033[0m No AuthKey_*.p8 under ~/.appstoreconnect/private_keys/\n'
 [ -n "$asc_issuer" ] && ok "Issuer id               $asc_issuer"     || printf '  \033[31m✗\033[0m No issuer id found in ios/scripts/asc-setup.py\n'
-[ -n "$devid" ]      && ok "Signing identity        $devid"          || printf '  \033[31m✗\033[0m No "Developer ID Application" identity in the keychain\n'
+[ -n "$devid" ]      && ok "Desktop identity        $devid"          || printf '  \033[31m✗\033[0m No "Developer ID Application" identity in the keychain\n'
+[ -n "$iosid" ]      && ok "iOS identity            $iosid"          || printf '  \033[31m✗\033[0m No "Apple Distribution" identity in the keychain\n'
+
+# Apple distribution certificates last a year, and a lapsed one fails the archive with the
+# same message as no certificate at all. Reporting the date turns a yearly surprise into a
+# yearly chore.
+if [ -n "$iosid" ]; then
+  end=$(security find-certificate -c 'Apple Distribution' -p login.keychain-db 2>/dev/null \
+        | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2 || true)
+  if [ -n "$end" ]; then
+    left=$(( ( $(date -j -f '%b %e %T %Y %Z' "$end" +%s 2>/dev/null || echo 0) - $(date +%s) ) / 86400 ))
+    if [ "$left" -lt 0 ]; then
+      printf '  \033[31m✗\033[0m Certificate expiry      EXPIRED %s — every iOS release fails until it is renewed\n' "$end"
+    elif [ "$left" -lt 45 ]; then
+      printf '  \033[33m!\033[0m Certificate expiry      %s — %s days left; renew and re-export IOS_DIST_P12\n' "$end" "$left"
+    else
+      ok "Certificate expiry      $end ($left days)"
+    fi
+  fi
+fi
 
 # The role check, which is the one that cannot be guessed from a filename. Creating an iOS
 # distribution asset needs App Manager; notarisation needs only Developer, and a
 # notarisation-scoped key fails inside xcodebuild with a message about certificates that
 # sends you looking at the project instead of at the key.
-if [ -n "$asc_key" ] && [ -n "$asc_issuer" ] && command -v python3 >/dev/null; then
-  role=$(ASC_KEY="$asc_key" ASC_KEY_ID="$asc_key_id" ASC_ISSUER="$asc_issuer" python3 - <<'PY' 2>/dev/null || true
+# PyJWT is not in a system Python and is not worth installing into one. A throwaway venv
+# under the cache costs a few seconds on first use and nothing afterwards — and the check
+# it enables is the difference between finding out about a too-narrow key here or ten
+# minutes into an archive on a release.
+probe_python() {
+  if python3 -c 'import jwt, cryptography' 2>/dev/null; then echo python3; return; fi
+  local venv="${XDG_CACHE_HOME:-$HOME/.cache}/polaris-asc-probe"
+  if [ ! -x "$venv/bin/python" ]; then
+    python3 -m venv "$venv" >/dev/null 2>&1 || return 1
+    "$venv/bin/pip" install --quiet --disable-pip-version-check pyjwt cryptography >/dev/null 2>&1 || return 1
+  fi
+  "$venv/bin/python" -c 'import jwt, cryptography' 2>/dev/null && echo "$venv/bin/python"
+}
+
+py=""
+if [ -n "$asc_key" ] && [ -n "$asc_issuer" ]; then
+  py=$(probe_python || true)
+fi
+if [ -n "$py" ]; then
+  role=$(ASC_KEY="$asc_key" ASC_KEY_ID="$asc_key_id" ASC_ISSUER="$asc_issuer" "$py" - <<'PY' 2>/dev/null || true
 import os, time, json, urllib.request
 try:
     import jwt
@@ -105,7 +167,7 @@ PY
     app-manager)       ok "Key role                reads distribution certificates — App Manager, which is what the archive needs" ;;
     notarisation-only) printf '  \033[31m✗\033[0m Key role                notarisation-scoped. It can notarise but cannot sign an iOS archive.\n' ;;
     unreadable)        printf '  \033[31m✗\033[0m Key role                App Store Connect rejected it. Wrong issuer, or the key was revoked.\n' ;;
-    *)                 printf '  \033[33m·\033[0m Key role                not probed (pip install pyjwt cryptography to check)\n' ;;
+    *)                 printf '  \033[33m·\033[0m Key role                probe failed to run — check by hand before relying on a release\n' ;;
   esac
 fi
 
@@ -136,19 +198,43 @@ fi
 
 # The macOS certificate is deliberately not automated. Exporting it needs the login
 # keychain password, which belongs to a person at a keyboard and to nothing else.
+# The two signing identities, exported from the login keychain.
+#
+# This used to print the commands for somebody to paste. It runs them instead, because the
+# export needs no password on an unlocked login keychain — the ACL on these keys already
+# permits it — so the paste step was ceremony that got skipped, and the builds stayed
+# unsigned for weeks with the release page offering them anyway.
+#
+# The passphrase is generated per run and never printed. It only has to match between the
+# .p12 and the secret, and a value nobody types is a value nobody can get wrong: the two
+# went out of step once already and the failure surfaced as "MAC verification failed" ten
+# minutes into an archive.
+export_identity() {  # $1 = secret name, $2 = password secret name, $3 = human label
+  local p12 pass
+  p12=$(mktemp -t polaris-signing).p12
+  pass=$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')
+
+  # -t identities exports every identity in the keychain, not just one; `security` offers no
+  # way to pick. That is harmless — electron-builder and xcodebuild each select the
+  # certificate they need by type — and it means both secrets carry the same bundle.
+  if ! security export -t identities -f pkcs12 -P "$pass" -o "$p12" -k login.keychain-db >/dev/null 2>&1; then
+    printf '  \033[31m✗\033[0m could not export %s from the login keychain\n' "$3"
+    printf '      Unlock it in Keychain Access and re-run, or export by hand.\n'
+    rm -f "$p12"
+    return 1
+  fi
+
+  base64 -i "$p12" | gh secret set "$1" >/dev/null && echo "  set $1 from the login keychain"
+  gh secret set "$2" --body "$pass" >/dev/null && echo "  set $2"
+  rm -f "$p12"
+}
+
+if ! configured IOS_DIST_P12 && [ -n "$iosid" ]; then
+  export_identity IOS_DIST_P12 IOS_DIST_P12_PASSWORD "$iosid" || true
+fi
+
 if ! configured MAC_CERT_P12 && [ -n "$devid" ]; then
-  cat <<EOT
-
-  MAC_CERT_P12 needs a manual export — the login keychain will ask for your password:
-
-    security export -t identities -f pkcs12 -P '<choose-a-passphrase>' \\
-      -o /tmp/polaris-devid.p12 -k login.keychain-db
-    base64 -i /tmp/polaris-devid.p12 | gh secret set MAC_CERT_P12
-    gh secret set MAC_CERT_PASSWORD --body '<the-same-passphrase>'
-    rm /tmp/polaris-devid.p12
-
-  Identity: $devid
-EOT
+  export_identity MAC_CERT_P12 MAC_CERT_PASSWORD "$devid" || true
 fi
 
 printf '\nRe-run without --set to confirm.\n'

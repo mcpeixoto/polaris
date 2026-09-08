@@ -11,17 +11,19 @@
  * unset value, so what a person learns to read on one surface reads on the other.
  */
 
-import { useRef } from 'react';
-import { Link } from 'react-router';
+import { useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router';
 
 import {
   Avatar,
   EmptyState,
   LabelChip,
+  Menu,
   PriorityIcon,
   priorityLabel,
   StateIcon,
 } from '~/components';
+import { useEngine } from '~/app/context';
 import { estimatesEnabled, issueEstimateLabel } from '~/features/estimate';
 import {
   CalendarGlyph,
@@ -33,10 +35,20 @@ import {
   UnassignedGlyph,
 } from '~/features/issue/glyphs';
 import { labelViewPath, userViewPath } from '~/features/labels/labelView';
-import { DueDateValue } from '~/features/issue/properties';
+import { applyLabel, removeLabel } from '~/features/labels/mutations';
+import { LabelPicker } from '~/features/labels/LabelPicker';
+import { CyclePicker } from '~/features/cycles/CyclePicker';
+import { ProjectPicker } from '~/features/projects/ProjectPicker';
+import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
+import { DueDatePicker, DueDateValue, EstimatePicker } from '~/features/issue/properties';
+import { report, updateIssue, updateIssueProperties } from '~/features/issue/mutations';
+import { issueRowMenuItems, type IssuePropertyKind } from '~/features/issue/rowMenu';
 import { exact, when } from '~/features/time';
+import { useContextMenu } from '~/hooks/useContextMenu';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { usePresence } from '~/hooks/usePresence';
+import { useViewerId } from '~/hooks/useViewer';
 import type { DateOnly, DueDateSource, StateCategory, Store, UUID } from '~/store';
 import { Fact, glanceDescription, PeekHeader } from './parts';
 import styles from './Peek.module.css';
@@ -65,14 +77,86 @@ export interface PeekProps {
   onClose?: (() => void) | undefined;
 }
 
+/**
+ * The chords drawn beside Peek's rows.
+ *
+ * They are true: Peek is only ever mounted by the issue list, `useKeyContext('list')` is
+ * above it, and the list's `targets` falls back to the row under the cursor — which is the
+ * issue Peek is showing. Pressing `S` therefore changes the status of this issue.
+ *
+ * The caveat worth writing down is *where*: `S` runs the **list's** action, so it opens the
+ * list's status picker anchored to its bulk toolbar rather than the picker on the row below.
+ * Same write, same issue, different menu on screen.
+ */
+const CHORDS = {
+  status: 's',
+  priority: 'p',
+  assignee: 'a',
+  estimate: 'shift+e',
+  dueDate: 'shift+d',
+  cycle: 'shift+c',
+  project: 'shift+p',
+  labels: 'l',
+} as const;
+
 export function Peek({ open, issueId, onClose }: PeekProps) {
   const panelRef = useRef<HTMLElement>(null);
+  const engine = useEngine();
+  const viewerId = useViewerId();
+  const navigate = useNavigate();
   const { present, exitProps } = usePresence(open, panelRef);
 
   const issue = useLiveQuery(
     (store) => (!present || issueId === null ? null : readPeek(store, issueId)),
     ['issue', 'team', 'user', 'workflowState', 'label', 'issueLabel', 'cycle', 'project'],
     [present, issueId ?? ''],
+  );
+
+  /*
+   * Peek's own pickers, and they write to the peeked issue alone — never to the list's
+   * selection.
+   *
+   * That is not an oversight about bulk editing, it is the panel being honest about what it
+   * shows. Peek draws one issue; a status chosen here with six rows selected would write six
+   * issues while showing the reader one, and nothing on screen would say so. The list's own
+   * toolbar is where a bulk write belongs, and it says how many it is about.
+   */
+  const status = useMenuTrigger();
+  const priority = useMenuTrigger();
+  const assignee = useMenuTrigger();
+  const estimate = useMenuTrigger();
+  const due = useMenuTrigger('dialog');
+  const cycle = useMenuTrigger();
+  const project = useMenuTrigger();
+  const labels = useMenuTrigger();
+
+  /**
+   * The rows themselves, so the context menu can open a picker on the row it edits.
+   *
+   * Anchoring at the pointer instead would mean keeping a one-pixel box alive across the
+   * hand-off from one menu to the next — the failure the issue list's own context menu had.
+   * A row that is always mounted is the simpler answer, and it puts the picker where the
+   * value it changes is drawn.
+   */
+  const factRefs = useRef<Partial<Record<IssuePropertyKind, HTMLButtonElement | null>>>({});
+
+  const context = useContextMenu<UUID>();
+
+  const write = useCallback(
+    (fields: Parameters<typeof updateIssue>[2]) => {
+      if (issueId === null) return;
+      updateIssue(engine, issueId, fields, viewerId).catch(report);
+    },
+    [engine, issueId, viewerId],
+  );
+
+  const pickFromMenu = useCallback(
+    (kind: IssuePropertyKind) => {
+      const anchor = factRefs.current[kind] ?? null;
+      const trigger = { status, priority, assignee, project, labels }[kind];
+      trigger.showFrom(anchor);
+    },
+    [status, priority, assignee, project, labels],
   );
 
   if (!present) return null;
@@ -106,6 +190,10 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
       ref={panelRef}
       className={styles.panel}
       aria-label={`Peek ${issue.identifier}`}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        context.openAt(event.clientX, event.clientY, issueId);
+      }}
       {...exitProps}
     >
       <PeekHeader eyebrow={issue.identifier} onClose={onClose} />
@@ -122,34 +210,77 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
 
       <h3 className={styles.railTitle}>Properties</h3>
       <dl className={styles.facts}>
-        <Fact label="Status">
+        <Fact
+          label="Status"
+          action="Change status"
+          keys={CHORDS.status}
+          open={status.open}
+          onOpen={(element) => status.showFrom(element)}
+          triggerRef={(element) => {
+            factRefs.current.status = element;
+          }}
+        >
           <StateIcon category={issue.stateCategory} color={issue.stateColor} decorative />
           {issue.stateName}
         </Fact>
-        <Fact label="Priority">
-          <PriorityIcon priority={issue.priority} />
+        <Fact
+          label="Priority"
+          action="Set priority"
+          keys={CHORDS.priority}
+          open={priority.open}
+          onOpen={(element) => priority.showFrom(element)}
+          triggerRef={(element) => {
+            factRefs.current.priority = element;
+          }}
+        >
+          <PriorityIcon priority={issue.priority} decorative />
           {priorityLabel(issue.priority)}
         </Fact>
-        <Fact label="Assignee">
+        {/* The avatar linked to the person's issues and now opens the picker instead. That
+            navigation is not gone: it is the first item in this panel's context menu, which
+            is where the list's label chips sent theirs for the same reason. */}
+        <Fact
+          label="Assignee"
+          action="Assign to…"
+          keys={CHORDS.assignee}
+          open={assignee.open}
+          onOpen={(element) => assignee.showFrom(element)}
+          triggerRef={(element) => {
+            factRefs.current.assignee = element;
+          }}
+        >
           {issue.assigneeName === null || issue.assigneeId === null ? (
             <>
               <UnassignedGlyph {...glyph} className={styles.glyph} />
               <span className={styles.unset}>Unassigned</span>
             </>
           ) : (
-            <Link className={styles.entityLink} to={userViewPath(issue.assigneeId)}>
+            <>
               <Avatar name={issue.assigneeName} src={issue.assigneeAvatar} size="xs" decorative />
               {issue.assigneeName}
-            </Link>
+            </>
           )}
         </Fact>
-        {issue.estimateLabel === null ? null : (
-          <Fact label="Estimate">
+        {!issue.estimates ? null : (
+          <Fact
+            label="Estimate"
+            action="Set estimate"
+            keys={CHORDS.estimate}
+            open={estimate.open}
+            onOpen={(element) => estimate.showFrom(element)}
+          >
             <EstimateGlyph {...glyph} className={styles.glyph} />
             {issue.estimateLabel}
           </Fact>
         )}
-        <Fact label="Due date">
+        <Fact
+          label="Due date"
+          action="Set due date"
+          keys={CHORDS.dueDate}
+          popup="dialog"
+          open={due.open}
+          onOpen={(element) => due.showFrom(element)}
+        >
           <CalendarGlyph {...glyph} className={styles.glyph} />
           <DueDateValue
             value={issue.dueDate}
@@ -158,14 +289,31 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
             className={issue.dueDate === null ? styles.unset : undefined}
           />
         </Fact>
-        <Fact label="Cycle">
+        <Fact
+          label="Cycle"
+          action="Set cycle"
+          keys={CHORDS.cycle}
+          open={cycle.open}
+          onOpen={(element) => cycle.showFrom(element)}
+        >
           <CycleGlyph {...glyph} className={styles.glyph} />
           {issue.cycleName ?? <span className={styles.unset}>No cycle</span>}
         </Fact>
-        <Fact label="Project">
+        <Fact
+          label="Project"
+          action="Set project"
+          keys={CHORDS.project}
+          open={project.open}
+          onOpen={(element) => project.showFrom(element)}
+          triggerRef={(element) => {
+            factRefs.current.project = element;
+          }}
+        >
           <ProjectGlyph {...glyph} className={styles.glyph} />
           {issue.projectName ?? <span className={styles.unset}>No project</span>}
         </Fact>
+        {/* The parent stays a fact rather than a control: re-parenting moves an issue into
+            another issue's checklist, which is not a property this rail can offer a list of. */}
         {issue.parent === null ? null : (
           <Fact label="Parent">
             <SubIssueGlyph {...glyph} className={styles.glyph} />
@@ -173,7 +321,17 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
             <span className={styles.parentTitle}>{issue.parent.title}</span>
           </Fact>
         )}
-        <Fact label="Labels" wrap>
+        <Fact
+          label="Labels"
+          wrap
+          action="Add label"
+          keys={CHORDS.labels}
+          open={labels.open}
+          onOpen={(element) => labels.showFrom(element)}
+          triggerRef={(element) => {
+            factRefs.current.labels = element;
+          }}
+        >
           {issue.labels.length === 0 ? (
             <>
               <TagGlyph {...glyph} className={styles.glyph} />
@@ -181,9 +339,7 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
             </>
           ) : (
             issue.labels.map((label) => (
-              <Link key={label.id} className={styles.entityLink} to={labelViewPath(label.id)}>
-                <LabelChip compact name={label.name} color={label.color} />
-              </Link>
+              <LabelChip key={label.id} compact name={label.name} color={label.color} />
             ))
           )}
         </Fact>
@@ -202,14 +358,143 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
       </p>
 
       <p className={styles.hint}>Enter to open · Esc to close</p>
+
+      <StatusPicker
+        open={status.open}
+        onClose={status.hide}
+        trigger={status.ref}
+        teamId={issue.teamId}
+        value={issue.stateId}
+        onSelect={(stateId) => write({ stateId })}
+      />
+      <PriorityPicker
+        open={priority.open}
+        onClose={priority.hide}
+        trigger={priority.ref}
+        value={issue.priority}
+        onSelect={(value) => write({ priority: value })}
+      />
+      <AssigneePicker
+        open={assignee.open}
+        onClose={assignee.hide}
+        trigger={assignee.ref}
+        value={issue.assigneeId}
+        onSelect={(assigneeId) => write({ assigneeId })}
+      />
+      <ProjectPicker
+        open={project.open}
+        onClose={project.hide}
+        trigger={project.ref}
+        teamIds={[issue.teamId]}
+        value={issue.projectId ?? null}
+        onSelect={(projectId) => write({ projectId })}
+      />
+      <CyclePicker
+        open={cycle.open}
+        onClose={cycle.hide}
+        trigger={cycle.ref}
+        teamId={issue.teamId}
+        value={issue.cycleId ?? null}
+        onSelect={(cycleId) => write({ cycleId })}
+      />
+      <LabelPicker
+        open={labels.open}
+        onClose={labels.hide}
+        trigger={labels.ref}
+        teamId={issue.teamId}
+        value={issue.labelIds}
+        onApply={(labelId, displaced) => {
+          applyLabel(engine, issueId, labelId, displaced).catch(report);
+        }}
+        onRemove={(labelId) => {
+          removeLabel(engine, issueId, labelId).catch(report);
+        }}
+      />
+      {!issue.estimates ? null : (
+        <EstimatePicker
+          open={estimate.open}
+          onClose={estimate.hide}
+          trigger={estimate.ref}
+          teamId={issue.teamId}
+          value={issue.estimate}
+          onSelect={(value) => {
+            updateIssueProperties(engine, issueId, { estimate: value }).catch(report);
+          }}
+        />
+      )}
+      <DueDatePicker
+        open={due.open}
+        onClose={due.hide}
+        trigger={due.ref}
+        value={issue.dueDate}
+        source={issue.dueDateSource}
+        timezone={issue.timezone}
+        onSelect={(value) => {
+          updateIssueProperties(engine, issueId, { dueDate: value }).catch(report);
+        }}
+      />
+
+      {context.at === null ? null : (
+        <>
+          {/* A one-pixel box at the pointer; `Menu` measures its trigger to place itself. */}
+          <div {...context.anchorProps} />
+          <Menu
+            open
+            onClose={context.close}
+            trigger={context.anchorRef}
+            label="Issue actions"
+            /*
+             * The navigation the assignee link and the label chips gave up when they became
+             * pickers. Without it there is no pointer route from this panel to a person's
+             * issues or to a label's view at all — which is the whole reason the user asked
+             * for a context menu here rather than accepting the loss.
+             */
+            items={issueRowMenuItems(
+              {
+                count: 1,
+                editable: true,
+                canSetStatus: true,
+                identifier: issue.identifier,
+                ...(issue.assigneeName === null ? {} : { assigneeName: issue.assigneeName }),
+                labels: issue.labels,
+              },
+              {
+                pick: pickFromMenu,
+                ...(issue.assigneeId === null
+                  ? {}
+                  : {
+                      goToAssignee: () => {
+                        void navigate(userViewPath(issue.assigneeId as UUID));
+                      },
+                    }),
+                goToLabel: (labelId) => {
+                  void navigate(labelViewPath(labelId as UUID));
+                },
+              },
+              CHORDS,
+            )}
+          />
+        </>
+      )}
     </aside>
   );
 }
 
+/**
+ * What Peek draws — and, since the rail became editable, the ids behind it.
+ *
+ * A picker needs the id to tick the value that is already set: a status called "Todo" is not
+ * something `StatusPicker` can find a row for, and an assignee's display name is not unique.
+ * So every property carries both halves now, the string for the panel and the id for the menu.
+ */
 interface PeekIssue {
   readonly identifier: string;
   readonly title: string;
   readonly description: string;
+  readonly teamId: UUID;
+  /** Whether this team estimates at all, which is what decides the row exists. */
+  readonly estimates: boolean;
+  readonly stateId: UUID;
   readonly stateName: string;
   readonly stateCategory: StateCategory;
   readonly stateColor: string | undefined;
@@ -217,14 +502,19 @@ interface PeekIssue {
   readonly assigneeId: UUID | null;
   readonly assigneeName: string | null;
   readonly assigneeAvatar: string | null;
+  readonly cycleId: UUID | null;
   readonly cycleName: string | null;
+  readonly projectId: UUID | null;
   readonly projectName: string | null;
   readonly parent: { identifier: string; title: string } | null;
+  /** The raw points, for the picker; `estimateLabel` is the same value in the team's scale. */
+  readonly estimate: number | null;
   readonly estimateLabel: string | null;
   readonly dueDate: DateOnly | null;
   readonly dueDateSource: DueDateSource;
   readonly timezone: string;
   readonly labels: readonly { id: UUID; name: string; color: string }[];
+  readonly labelIds: readonly UUID[];
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -244,10 +534,15 @@ function readPeek(store: Store, id: UUID): PeekIssue | null {
   }
   labels.sort((a, b) => a.name.localeCompare(b.name));
 
+  const estimates = team !== undefined && estimatesEnabled(team);
+
   return {
     identifier: store.identifierOf(found),
     title: found.title,
     description: glanceDescription(found.description),
+    teamId: found.teamId,
+    estimates,
+    stateId: found.stateId,
     stateName: state?.name ?? 'No status',
     stateCategory: state?.category ?? 'backlog',
     stateColor: state?.color,
@@ -255,19 +550,21 @@ function readPeek(store: Store, id: UUID): PeekIssue | null {
     assigneeId: found.assigneeId ?? null,
     assigneeName: assignee?.displayName ?? null,
     assigneeAvatar: assignee?.avatarUrl ?? null,
+    cycleId: found.cycleId ?? null,
     cycleName: found.cycleId === undefined ? null : (store.cycles.get(found.cycleId)?.name ?? null),
+    projectId: found.projectId ?? null,
     projectName:
       found.projectId === undefined ? null : (store.projects.get(found.projectId)?.name ?? null),
     parent:
       parent === undefined ? null : { identifier: store.identifierOf(parent), title: parent.title },
+    estimate: found.estimate ?? null,
     estimateLabel:
-      team !== undefined && estimatesEnabled(team)
-        ? issueEstimateLabel(found.estimate, team)
-        : null,
+      estimates && team !== undefined ? issueEstimateLabel(found.estimate, team) : null,
     dueDate: found.dueDate ?? null,
     dueDateSource: found.dueDateSource,
     timezone: team?.timezone ?? 'UTC',
     labels,
+    labelIds: labels.map((label) => label.id),
     createdAt: found.createdAt,
     updatedAt: found.updatedAt,
   };
