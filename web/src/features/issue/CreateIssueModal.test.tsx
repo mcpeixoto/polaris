@@ -486,7 +486,7 @@ describe('CreateIssueModal', () => {
 describe('CreateIssueModal pills', () => {
   /**
    * A due date is set on a minority of issues, so it waits in the overflow rather than
-   * standing in every composer — and once asked for, it is a date field the create sends.
+   * standing in every composer — and once asked for, the shared DueDatePicker writes it.
    */
   it('keeps the due date in the overflow until asked for, then files it', async () => {
     const { user } = renderComposer();
