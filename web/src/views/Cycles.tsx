@@ -270,8 +270,7 @@ export function Cycles() {
 
   /** One menu, whichever way it was opened: the ⋯ button and the right-click agree. */
   const itemsFor = (cycle: Cycle): MenuNode[] => {
-    const favorited =
-      viewerId !== null && isFavorite(engine.store, viewerId, 'cycle', cycle.id);
+    const favorited = viewerId !== null && isFavorite(engine.store, viewerId, 'cycle', cycle.id);
     const base = entityRowMenuItems(
       { noun: 'cycle', favorited },
       {

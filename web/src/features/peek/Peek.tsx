@@ -41,7 +41,12 @@ import { CyclePicker } from '~/features/cycles/CyclePicker';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
 import { DueDatePicker, DueDateValue, EstimatePicker } from '~/features/issue/properties';
-import { report, updateIssue, updateIssueProperties, setSubscribed } from '~/features/issue/mutations';
+import {
+  report,
+  updateIssue,
+  updateIssueProperties,
+  setSubscribed,
+} from '~/features/issue/mutations';
 import { issueRowMenuItems, type IssuePropertyKind } from '~/features/issue/rowMenu';
 import { isFavorite, toggleFavorite } from '~/features/view/mutations';
 import { exact, when } from '~/features/time';
@@ -110,7 +115,17 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
 
   const issue = useLiveQuery(
     (store) => (!present || issueId === null ? null : readPeek(store, issueId)),
-    ['issue', 'team', 'user', 'workflowState', 'label', 'issueLabel', 'cycle', 'project', 'favorite'],
+    [
+      'issue',
+      'team',
+      'user',
+      'workflowState',
+      'label',
+      'issueLabel',
+      'cycle',
+      'project',
+      'favorite',
+    ],
     [present, issueId ?? ''],
   );
 
@@ -474,8 +489,7 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
                 estimates: issue.estimates,
                 cycles: true,
                 subscribed:
-                  viewerId !== null &&
-                  engine.store.subscriberIdsFor(issueId).has(viewerId),
+                  viewerId !== null && engine.store.subscriberIdsFor(issueId).has(viewerId),
                 favorited:
                   viewerId !== null && isFavorite(engine.store, viewerId, 'issue', issueId),
                 ...(issue.assigneeName === null ? {} : { assigneeName: issue.assigneeName }),

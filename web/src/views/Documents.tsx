@@ -166,8 +166,7 @@ export function Documents() {
   };
 
   const itemsFor = (row: DocumentRow): MenuNode[] => {
-    const favorited =
-      viewerId !== null && isFavorite(engine.store, viewerId, 'document', row.id);
+    const favorited = viewerId !== null && isFavorite(engine.store, viewerId, 'document', row.id);
     return entityRowMenuItems(
       { noun: 'document', name: row.title, favorited },
       {

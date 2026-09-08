@@ -1376,10 +1376,8 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
       assigneeName: assignee === undefined ? null : personName(assignee),
       labels,
       identifier,
-      subscribed:
-        viewerId !== null && engine.store.subscriberIdsFor(contextRow.id).has(viewerId),
-      favorited:
-        viewerId !== null && isFavorite(engine.store, viewerId, 'issue', contextRow.id),
+      subscribed: viewerId !== null && engine.store.subscriberIdsFor(contextRow.id).has(viewerId),
+      favorited: viewerId !== null && isFavorite(engine.store, viewerId, 'issue', contextRow.id),
       estimates: team !== undefined && estimatesEnabled(team),
       cycles: team?.cyclesEnabled === true,
     };

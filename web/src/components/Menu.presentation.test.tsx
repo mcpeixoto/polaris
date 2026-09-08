@@ -85,10 +85,7 @@ describe('Menu presentation', () => {
   it('applies compact density to the panel', async () => {
     const user = userEvent.setup();
     render(
-      <Harness
-        density="compact"
-        items={[{ id: 'open', label: 'Open', onSelect: () => {} }]}
-      />,
+      <Harness density="compact" items={[{ id: 'open', label: 'Open', onSelect: () => {} }]} />,
     );
     await user.click(screen.getByRole('button', { name: 'Open' }));
     const menu = screen.getByRole('menu', { name: 'Actions' });
@@ -97,9 +94,7 @@ describe('Menu presentation', () => {
 
   it('omits the tick column when no item is selected', async () => {
     const user = userEvent.setup();
-    render(
-      <Harness items={[{ id: 'open', label: 'Open', onSelect: () => {} }]} />,
-    );
+    render(<Harness items={[{ id: 'open', label: 'Open', onSelect: () => {} }]} />);
     await user.click(screen.getByRole('button', { name: 'Open' }));
     const item = screen.getByRole('menuitem', { name: 'Open' });
     expect(item.className).toContain(styles.noTick);
