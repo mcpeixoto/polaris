@@ -397,6 +397,10 @@ const UNSERVED_PROPERTIES: ReadonlySet<string> = new Set<IssuePropertyKind>([
   'priority',
   'project',
   'labels',
+  'estimate',
+  'due',
+  'cycle',
+  'milestone',
 ]);
 
 /**
@@ -421,7 +425,14 @@ function SubIssueRow({ child, onRemove }: { child: Child; onRemove: () => void }
   const assigneeName = child.assigneeName ?? 'Unassigned';
 
   const items: MenuNode[] = issueRowMenuItems(
-    { count: 1, editable: true, canSetStatus: true, identifier: child.identifier },
+    {
+      count: 1,
+      editable: true,
+      canSetStatus: true,
+      identifier: child.identifier,
+      estimates: false,
+      cycles: false,
+    },
     {
       pick: (kind) => {
         context.close();

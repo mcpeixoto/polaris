@@ -40,13 +40,14 @@ import {
 import { PlusGlyph, ProjectGlyph, UnassignedGlyph } from '~/features/issue/glyphs';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
 import { report, updateIssue, updateIssues } from '~/features/issue/mutations';
-import { issueRowMenuItems } from '~/features/issue/rowMenu';
+import { issueRowMenuItems, type IssuePropertyKind } from '~/features/issue/rowMenu';
 import { TitleField } from '~/views/IssueDetail';
 import { LabelPicker } from '~/features/labels/LabelPicker';
 import { labelViewPath, userViewPath } from '~/features/labels/labelView';
 import { applyLabel, removeLabel } from '~/features/labels/mutations';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { exact, when } from '~/features/time';
+import { useContextMenuHandoff } from '~/hooks/useContextMenuHandoff';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import type { StateCategory, Store, UUID } from '~/store';
@@ -108,6 +109,8 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
   /** Where the pane's own context menu opens: a one-pixel box at the pointer. */
   const contextAnchor = useRef<HTMLDivElement>(null);
   const [contextAt, setContextAt] = useState<{ x: number; y: number } | null>(null);
+  const [contextOpen, setContextOpen] = useState(false);
+  const contextHandoff = useContextMenuHandoff();
   /**
    * Which decision is waiting on a priority.
    *
@@ -166,6 +169,7 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
       onContextMenu={(event) => {
         event.preventDefault();
         setContextAt({ x: event.clientX, y: event.clientY });
+        setContextOpen(true);
       }}
     >
       <div className={styles.body}>
@@ -449,17 +453,25 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
       {contextAt === null ? null : (
         <>
           {/* A one-pixel element at the pointer. Not `hidden`: `Menu` measures its trigger to
-              place itself, and a hidden element has no box. The issue list does the same. */}
+              place itself, and a hidden element has no box. The issue list does the same.
+              The point outlives the menu for a property hand-off so the picker hangs where
+              the right-click landed rather than on the fact row's registered trigger. */}
           <div
             ref={contextAnchor}
             className={styles.contextAnchor}
             style={{ top: contextAt.y, left: contextAt.x }}
           />
           <Menu
-            open
-            onClose={() => setContextAt(null)}
+            open={contextOpen}
+            onClose={() => {
+              setContextOpen(false);
+              if (contextHandoff.consume()) return;
+              setContextAt(null);
+            }}
             trigger={contextAnchor}
             label={`Actions for ${issue.identifier}`}
+            keysPresentation="kbd"
+            density="compact"
             items={[
               ...issueRowMenuItems(
                 {
@@ -467,17 +479,29 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
                   editable: true,
                   canSetStatus: true,
                   identifier: issue.identifier,
+                  estimates: false,
+                  cycles: false,
                   ...(issue.assigneeName === null ? null : { assigneeName: issue.assigneeName }),
                   labels: issue.labels,
                 },
                 {
-                  pick: (kind) => {
-                    setContextAt(null);
-                    if (kind === 'status') status.show();
-                    else if (kind === 'assignee') assignee.show();
-                    else if (kind === 'priority') rowPriority.show();
-                    else if (kind === 'project') project.show();
-                    else labels.show();
+                  pick: (kind: IssuePropertyKind) => {
+                    const trigger =
+                      kind === 'status'
+                        ? status
+                        : kind === 'assignee'
+                          ? assignee
+                          : kind === 'priority'
+                            ? rowPriority
+                            : kind === 'project'
+                              ? project
+                              : kind === 'labels'
+                                ? labels
+                                : null;
+                    if (trigger === null) return;
+                    contextHandoff.begin();
+                    setContextOpen(false);
+                    trigger.showFrom(contextAnchor.current);
                   },
                 },
                 // The list's chords, and they do fire here: `Triage` mounts `IssueList`
@@ -497,6 +521,7 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
                 label: 'Accept',
                 keys: '1',
                 onSelect: () => {
+                  setContextOpen(false);
                   setContextAt(null);
                   accept();
                 },
@@ -506,6 +531,7 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
                 label: 'Mark as duplicate',
                 keys: '2',
                 onSelect: () => {
+                  setContextOpen(false);
                   setContextAt(null);
                   pickDuplicate();
                 },
@@ -515,6 +541,7 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
                 label: 'Decline',
                 keys: '3',
                 onSelect: () => {
+                  setContextOpen(false);
                   setContextAt(null);
                   decline();
                 },
@@ -524,6 +551,7 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
                 label: 'Snooze',
                 keys: 'h',
                 onSelect: () => {
+                  setContextOpen(false);
                   setContextAt(null);
                   snooze.show();
                 },
