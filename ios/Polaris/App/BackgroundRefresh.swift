@@ -21,9 +21,24 @@ enum BackgroundRefresh {
 
     private static let log = Logger(subsystem: "com.peixotolabs.polaris", category: "background")
 
-    /// Registers the handler. Has to happen before the app finishes launching, which is why
-    /// `PolarisApp.init` calls it rather than a view's `.task`.
-    static func register(model: AppModel) {
+    /// The model the registered handler reads. Updated when the user connects or changes
+    /// server — `BGTaskScheduler.register` may only succeed once per identifier per process.
+    @MainActor
+    private static var currentModel: AppModel?
+
+    /// Once per process. `OSAllocatedUnfairLock` owns the bool so Swift 6 does not see a bare
+    /// mutable global; `BGTaskScheduler.register` itself also refuses a second call.
+    private static let didRegister = OSAllocatedUnfairLock(initialState: false)
+
+    /// Registers the handler once. Has to happen before the app finishes launching, which is
+    /// why `PolarisApp.init` calls it rather than a view's `.task`.
+    static func register() {
+        let already = didRegister.withLock { registered -> Bool in
+            if registered { return true }
+            registered = true
+            return false
+        }
+        guard !already else { return }
         let registered = BGTaskScheduler.shared.register(forTaskWithIdentifier: identifier, using: nil) { task in
             guard task is BGAppRefreshTask else {
                 task.setTaskCompleted(success: false)
@@ -34,7 +49,7 @@ enum BackgroundRefresh {
             schedule()
             let handle = TaskHandle(task)
             let work = Task { @MainActor in
-                let count = await model.unreadCountForBadge()
+                let count = await currentModel?.unreadCountForBadge()
                 if let count { await AppBadge.set(count) }
                 handle.complete(success: count != nil)
                 log.info("background refresh finished: unread=\(count.map(String.init) ?? "unknown", privacy: .public)")
@@ -47,6 +62,18 @@ enum BackgroundRefresh {
         if !registered {
             log.error("background refresh registration refused for \(identifier, privacy: .public)")
         }
+    }
+
+    /// Point the registered handler at a new model after connect / change-server.
+    @MainActor
+    static func attach(model: AppModel) {
+        currentModel = model
+        register()
+    }
+
+    @MainActor
+    static func detach() {
+        currentModel = nil
     }
 
     /// Asks for the next wake-up. Called on every move to the background; a request that is

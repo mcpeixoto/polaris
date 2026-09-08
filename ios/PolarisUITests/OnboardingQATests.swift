@@ -1,6 +1,7 @@
 import XCTest
 
-/// QA coverage for onboarding and authentication: welcome, sign-up, sign-in, create-workspace.
+/// QA coverage for onboarding and authentication: connect, welcome, sign-up, sign-in,
+/// create-workspace.
 ///
 /// These began as adversarial tests written to pin down defects, and most of them failed on
 /// first run. The defects they found are fixed, so they now stand as regression guards: each
@@ -11,6 +12,10 @@ import XCTest
 /// only by pointing the app at production. `-polaris-signed-out` and `-polaris-no-workspace`
 /// close that gap, and the whole file moved off the hosted backend as a result. Nothing here
 /// touches a real server, so the suite is safe to run anywhere, including CI.
+///
+/// Fixtures settle a local environment without the connect UI (the harness is not a first-run
+/// product path). `-polaris-force-connect` is how the connect screens are covered under
+/// fixtures. Account-CTA tests keep the default fixture settlement and start on Welcome.
 ///
 /// The fixture client refuses any password but `correct-horse`, with the same sentence the
 /// server sends: `incorrect email or password`.
@@ -31,6 +36,10 @@ final class OnboardingQATests: XCTestCase {
     /// the only route to `CreateWorkspaceView`.
     private static let noWorkspace = ["-polaris-fixtures", "-polaris-no-workspace"]
 
+    /// Force the connect flow under fixtures so the first-run screens are reachable without a
+    /// real server.
+    private static let forceConnect = ["-polaris-fixtures", "-polaris-signed-out", "-polaris-force-connect"]
+
     private func launch(_ arguments: [String] = OnboardingQATests.signedOut) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = arguments
@@ -42,6 +51,75 @@ final class OnboardingQATests: XCTestCase {
         "-UIPreferredContentSizeCategoryName",
         "UICTContentSizeCategoryAccessibilityXXXL",
     ]
+
+    // MARK: - Connect
+
+    /// No persisted server and force-connect → the welcome connect step, not account CTAs.
+    func testConnectWelcomeAppearsBeforeAccountCTAs() {
+        let app = launch(Self.forceConnect)
+
+        XCTAssertTrue(
+            app.buttons["Continue"].waitForExistence(timeout: 30),
+            "REGRESSION: cold start with no server should show connect welcome, not account CTAs"
+        )
+        XCTAssertFalse(
+            app.buttons["Create an account"].exists,
+            "REGRESSION: account CTAs must not appear before a server is chosen"
+        )
+    }
+
+    /// Cloud one-tap lands on the existing welcome account CTAs.
+    func testConnectCloudReachesAccountWelcome() {
+        let app = launch(Self.forceConnect)
+
+        let continueButton = app.buttons["Continue"]
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 30))
+        continueButton.tap()
+
+        let cloud = app.buttons["Polaris Cloud"]
+        XCTAssertTrue(cloud.waitForExistence(timeout: 10))
+        cloud.tap()
+
+        XCTAssertTrue(
+            app.buttons["Create an account"].waitForExistence(timeout: 30),
+            "REGRESSION: choosing Polaris Cloud should persist an origin and show account CTAs"
+        )
+        XCTAssertTrue(app.buttons["I already have an account"].exists)
+    }
+
+    /// Own-server path validates empty input and accepts a typed host; Back returns to choose.
+    func testConnectOwnServerValidatesAndBacksOut() {
+        let app = launch(Self.forceConnect)
+
+        XCTAssertTrue(app.buttons["Continue"].waitForExistence(timeout: 30))
+        app.buttons["Continue"].tap()
+        XCTAssertTrue(app.buttons["Use your own server"].waitForExistence(timeout: 10))
+        app.buttons["Use your own server"].tap()
+
+        let connect = app.buttons["Connect"]
+        XCTAssertTrue(connect.waitForExistence(timeout: 10))
+        // Empty address keeps Connect disabled.
+        XCTAssertFalse(connect.isEnabled, "REGRESSION: Connect must stay disabled on an empty address")
+
+        let field = app.textFields["Server address"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        field.typeText("not a url!!!")
+        if connect.isEnabled {
+            connect.tap()
+        }
+        // Invalid input should leave us on the address step (Connect still visible).
+        XCTAssertTrue(
+            app.buttons["Connect"].exists,
+            "REGRESSION: a bad address must not leave the address step"
+        )
+
+        app.buttons["Back"].tap()
+        XCTAssertTrue(
+            app.buttons["Polaris Cloud"].waitForExistence(timeout: 10),
+            "REGRESSION: Back from address should return to Cloud vs own server"
+        )
+    }
 
     // MARK: - Welcome
 

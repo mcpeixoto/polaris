@@ -53,8 +53,9 @@ public struct PolarisEnvironment: Sendable, Hashable {
         syncHubURL: URL(string: "ws://localhost:8089/sync")!
     )
 
+    /// Keep equal to `ServerPreference.hostedCloudOrigin` / web `HOSTED_CLOUD_ORIGIN`.
     public static let hosted = PolarisEnvironment(
-        apiBaseURL: URL(string: "https://polaris.peixotolabs.com")!,
+        apiBaseURL: ServerPreference.hostedCloudOrigin,
         allowsDevSession: false
     )
 }

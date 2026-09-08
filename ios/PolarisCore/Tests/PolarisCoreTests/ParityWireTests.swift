@@ -323,6 +323,10 @@ struct ParityInputTests {
         #expect(PolarisEnvironment.localDevelopment.syncSocketURL.absoluteString == "ws://localhost:8088/sync")
         let odd = PolarisEnvironment(apiBaseURL: URL(string: "https://polaris.example:8443/base?x=1")!, allowsDevSession: false)
         #expect(odd.syncSocketURL.absoluteString == "wss://polaris.example:8443/sync")
+        // A persisted HTTPS self-host derives wss the same way — no separate syncHubURL.
+        let selfHost = PolarisEnvironment.from(persistedOrigin: URL(string: "https://issues.acme.com")!)
+        #expect(selfHost.syncSocketURL.absoluteString == "wss://issues.acme.com/sync")
+        #expect(selfHost.syncHubURL == nil)
     }
 
     @Test("the filter AST spells clauses the way the grammar does")

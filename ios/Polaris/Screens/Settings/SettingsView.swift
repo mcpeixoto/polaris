@@ -5,7 +5,9 @@ import PolarisCore
 struct SettingsView: View {
     let viewer: Viewer
     @Environment(AppModel.self) private var model
+    @Environment(AppSession.self) private var session
     @State private var isConfirmingSignOut = false
+    @State private var isConfirmingChangeServer = false
     @State private var switchError: PolarisError?
     /// The account as this screen shows it. Seeded from the viewer and written by the profile
     /// screen on save, so a renamed reader sees the new name here at once rather than after
@@ -102,6 +104,23 @@ struct SettingsView: View {
             }
 
             Section {
+                row("Server", model.displayHost)
+                Button {
+                    isConfirmingChangeServer = true
+                } label: {
+                    Text("Change server")
+                        .font(PolarisText.body)
+                        .foregroundStyle(Theme.textPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("settings.changeServer")
+            } header: {
+                header(String(localized: "Connection"))
+            }
+
+            Section {
                 Button {
                     isConfirmingSignOut = true
                 } label: {
@@ -141,6 +160,20 @@ struct SettingsView: View {
             Button(role: .cancel) {} label: { Text("Cancel") }
         } message: {
             Text("Your work stays on the server. You'll need your password to sign back in.")
+        }
+        .confirmationDialog(
+            Text("Change server?"),
+            isPresented: $isConfirmingChangeServer,
+            titleVisibility: .visible
+        ) {
+            Button(role: .destructive) {
+                Task { await session.changeServer() }
+            } label: {
+                Text("Change server")
+            }
+            Button(role: .cancel) {} label: { Text("Cancel") }
+        } message: {
+            Text("You'll be signed out of \(model.displayHost) and asked where to connect next.")
         }
     }
 

@@ -121,6 +121,11 @@ This is the difference between 50 stars and 5,000. Budget real time for it.
 
 Also ship: `deploy/Caddyfile`, a Helm chart (community-maintainable), and a one-liner installer script that just wraps the compose steps for people who want one.
 
+Native installable clients (desktop and iOS) offer **Polaris Cloud** or a typed self-hosted
+origin on first run — they do not silently hardwire one or the other. The web app stays
+same-origin and has no connect screen. See `ios/README.md` and
+`docs/03-architecture/07-desktop-apps.md`.
+
 ## Upgrades (self-host)
 
 The upgrade path is a support surface — treat it as a feature.

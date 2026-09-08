@@ -257,8 +257,17 @@ struct BootOrderTests {
         await model.start()
 
         // `.signedOut(nil)`, not `.signedOut(someError)`: nobody failed to sign in here, and
-        // an error on a screen the reader has not acted on yet is noise.
+        // an error on a screen the reader has not acted on yet is noise. The connect UI sits
+        // *before* this phase — once an origin is known, a cold start with no session lands
+        // on the account CTAs.
         #expect(model.phase == .signedOut(nil))
+    }
+
+    @Test("a custom HTTPS origin derives the sync socket behind the proxy")
+    func customOriginSyncSocket() {
+        let env = PolarisEnvironment.from(persistedOrigin: URL(string: "https://polaris.internal")!)
+        #expect(LivePolarisClient(environment: env).syncSocketURL().absoluteString
+            == "wss://polaris.internal/sync")
     }
 
     /// An account that exists but belongs to no workspace is what every first registration
