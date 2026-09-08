@@ -28,13 +28,30 @@ cd ios/PolarisCore && swift test
 
 ## Talking to a backend
 
-A Debug build points at `http://localhost:8088` — a `make dev` stack on the same machine —
-and signs in through `POST /auth/dev-session`, so the app opens straight into the seed
-workspace with no login form. A Release build points at `https://polaris.peixotolabs.com`.
+First launch (Debug or Release) shows **connect**: welcome → Polaris Cloud or your own
+server → then the existing account welcome (Create account / Sign in). The chosen origin is
+stored in `UserDefaults` under `polaris.apiBaseURL`. Settings shows the current host and a
+**Change server** escape hatch that clears it and returns to connect.
 
-Pass `-polaris-hosted` as a launch argument to force the hosted backend from a Debug build.
-It is a launch argument rather than a build flag on purpose: a build flag would make the two
-paths different binaries, and the one that ships would be the one never run.
+Polaris Cloud is `https://polaris.peixotolabs.com` (same string as the desktop
+`HOSTED_CLOUD_ORIGIN`). A self-hosted address is normalised like desktop (`https://`
+assumed); plain `http://` is accepted only for loopback. HTTPS self-host is the supported
+path in v1 — arbitrary LAN HTTP needs broader ATS than today's localhost-only exception.
+
+Launch arguments for developers (and UI tests):
+
+| Argument | Effect |
+|---|---|
+| *(none, no persisted URL)* | Connect UI |
+| After Cloud / typed server | Persisted origin; sync derives `wss://…/sync` unless overridden |
+| `-polaris-hosted` | Force hosted Cloud without a pick |
+| `-polaris-server <url>` | Settle that origin for this launch without writing UserDefaults |
+| `-polaris-sync-hub <ws-url>` | Point the sync socket at a hub other than the API origin |
+| `-polaris-fixtures` | In-memory client; settles local development without connect (test harness) |
+| `-polaris-force-connect` | Show connect even under fixtures |
+
+`allowsDevSession` (Debug auto-login via `POST /auth/dev-session`) is enabled only for
+loopback origins, so Cloud and customer self-hosts never get it.
 
 **The dev session only works in the Simulator.** The server requires the request to be
 loopback — both the `Host` header and the TCP peer — and a physical device over the LAN is

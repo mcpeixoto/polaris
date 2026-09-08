@@ -3,69 +3,33 @@ import PolarisCore
 
 @main
 struct PolarisApp: App {
-    @State private var model: AppModel
+    @State private var session = AppSession()
 
     init() {
-        let model = AppModel(
-            environment: .current,
-            api: LaunchOptions.usesFixtures
-                ? FixturePolarisClient(
-                    signedIn: !LaunchOptions.startsSignedOut,
-                    hasWorkspace: !LaunchOptions.startsWithoutWorkspace
-                )
-                : nil,
-            // The fixture app gets an in-memory cache: a UI test run must not leave a real one on
-            // disk for the next run to hydrate from, which would make every test depend on the
-            // order the previous ones happened to finish in.
-            cache: LaunchOptions.usesFixtures
-                ? InMemoryIssueCache()
-                : FileIssueCache(),
-            // No socket under fixtures. The fixture client's socket address is a real
-            // `ws://localhost`, and a UI test that dials it depends on what else is running.
-            socketConnector: LaunchOptions.usesFixtures ? nil : URLSessionSyncConnector()
-        )
-        _model = State(initialValue: model)
         // Before the app finishes launching, which is what BGTaskScheduler requires of a
         // registration. Skipped under fixtures with the rest of the badge machinery.
         if !LaunchOptions.usesFixtures {
-            BackgroundRefresh.register(model: model)
+            BackgroundRefresh.register()
         }
     }
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environment(model)
-                .task { await model.start() }
+            Group {
+                if let model = session.model {
+                    RootView()
+                        .environment(model)
+                        .environment(session)
+                        .task(id: ObjectIdentifier(model)) { await model.start() }
+                } else {
+                    ConnectServerView { origin in
+                        session.connect(to: origin)
+                    }
+                }
+            }
         }
     }
 }
-
-extension PolarisEnvironment {
-    /// A debug build talks to a `make dev` stack on the same machine; a release build talks to
-    /// the hosted instance. `-polaris-hosted` forces the hosted one from the scheme, so the
-    /// production path can be exercised from Xcode without editing code.
-    ///
-    /// This is a launch argument rather than a build flag on purpose: a build flag would make
-    /// the two paths different binaries, and the one that ships would be the one never run.
-    static var current: PolarisEnvironment {
-        let base: PolarisEnvironment
-        if LaunchOptions.forcesHosted {
-            base = .hosted
-        } else {
-            #if DEBUG
-            base = .localDevelopment
-            #else
-            base = .hosted
-            #endif
-        }
-        guard let hub = LaunchOptions.syncHubURL else { return base }
-        return PolarisEnvironment(
-            apiBaseURL: base.apiBaseURL, allowsDevSession: base.allowsDevSession, syncHubURL: hub
-        )
-    }
-}
-
 
 /// Launch-argument switches.
 ///
@@ -94,9 +58,25 @@ enum LaunchOptions {
     /// registration lands in and the only way to reach CreateWorkspaceView.
     static var startsWithoutWorkspace: Bool { arguments.contains("-polaris-no-workspace") }
 
-    /// Forces the hosted backend from a Debug build, so the production path can be exercised
-    /// without editing code.
+    /// Forces the hosted backend, so the production path can be exercised without a pick
+    /// and without editing code.
     static var forcesHosted: Bool { arguments.contains("-polaris-hosted") }
+
+    /// Forces the connect UI even under fixtures, so Onboarding QA can cover the first-run
+    /// screens without a real network.
+    static var forceConnect: Bool { arguments.contains("-polaris-force-connect") }
+
+    /// `-polaris-server https://example.com` settles the origin from the scheme without
+    /// writing UserDefaults — for developers and UI tests that need a known host.
+    static var serverURL: URL? {
+        guard let index = arguments.firstIndex(of: "-polaris-server"),
+              arguments.indices.contains(index + 1)
+        else { return nil }
+        if case .success(let url) = ServerPreference.normaliseServerURL(arguments[index + 1]) {
+            return url
+        }
+        return URL(string: arguments[index + 1])
+    }
 
     /// `-polaris-sync-hub ws://localhost:8091/sync` points the socket at a hub other than the
     /// environment's. A `make dev` stack reuses whatever already owns :8089, which can be a

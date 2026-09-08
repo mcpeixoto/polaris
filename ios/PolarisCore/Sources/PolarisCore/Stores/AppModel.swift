@@ -55,6 +55,9 @@ public final class AppModel {
     /// The host this build talks to, for screens that show an address to the reader.
     public var displayHost: String { environment.displayHost }
 
+    /// The configured API origin, for Settings and change-server.
+    public var apiBaseURL: URL { environment.apiBaseURL }
+
     /// The signed-in user, when there is one.
     public var currentUser: User? {
         if case .ready(let viewer) = phase { return viewer.user }
