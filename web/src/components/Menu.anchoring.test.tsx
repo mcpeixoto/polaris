@@ -182,4 +182,39 @@ describe('Menu anchoring', () => {
     // rather than at -572 where the keystroke would have looked like it did nothing.
     expect(surfaceStyle().top).toBe('8px');
   });
+
+  it('pulls itself down when only its first rows are above the top edge', async () => {
+    const user = userEvent.setup();
+    render(<Picker />);
+    const trigger = screen.getByRole('button', { name: 'Status' });
+
+    // The expensive half of this bug: the trigger is just above the fold, so most of the
+    // menu is on screen and only the rows at the top of it are not. It looks present, it
+    // satisfies "is the menu visible", and the row somebody wants cannot be clicked.
+    vi.spyOn(trigger, 'getBoundingClientRect').mockImplementation(
+      () => ({ top: -88, bottom: -60, left: 40, right: 140, width: 100, height: 28 }) as DOMRect,
+    );
+
+    const clipped = {
+      top: -60,
+      bottom: 215,
+      left: 40,
+      right: 240,
+      width: 200,
+      height: 275,
+    } as DOMRect;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.querySelector('[role="menu"]') === null
+        ? ({ top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0 } as DOMRect)
+        : clipped;
+    });
+
+    await user.click(trigger);
+
+    // Moved down by the 68px that puts its first row at the margin, not left at -60 with
+    // the top of the list unreachable.
+    expect(surfaceStyle().top).toBe('8px');
+  });
 });

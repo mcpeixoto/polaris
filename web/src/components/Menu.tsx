@@ -222,19 +222,16 @@ function anchorPointFor(rect: DOMRect, placement: MenuPlacement): Point {
 }
 
 /**
- * Whether the surface missed the viewport completely, rather than merely overhanging it.
+ * Whether the surface runs off the top or the bottom of the window.
  *
- * A zero-height rect at the origin — which is every rect in jsdom — is inside by this
- * definition, and that is the intent: the rescue below is for a surface drawn against a
- * trigger that has scrolled out of the document's view, not for one sitting near an edge.
+ * The height test is what keeps this honest in a test environment: jsdom answers every
+ * `getBoundingClientRect` with zeros, and a zero-height box at the origin is "above the
+ * margin" by any arithmetic — so without it every menu in every test would be nudged by
+ * the margin and the assertions would be measuring the rescue rather than the placement.
+ * A surface that has been laid out has a height.
  */
-function fullyOutside(rect: DOMRect): boolean {
-  return (
-    rect.bottom < 0 ||
-    rect.top > window.innerHeight ||
-    rect.right < 0 ||
-    rect.left > window.innerWidth
-  );
+function clippedVertically(rect: DOMRect): boolean {
+  return rect.height > 0 && (rect.top < 0 || rect.bottom > window.innerHeight);
 }
 
 /**
@@ -545,28 +542,24 @@ export function Menu({
     }
     settledRef.current = true;
     /*
-     * The main axis first, and only when the surface missed the viewport altogether.
+     * The vertical rescue, before the cross-axis shift below.
      *
-     * The flip answers "which side of the trigger", and the cross-axis shift below answers
-     * "how far along that side" — both of which assume the trigger is somewhere a reader can
-     * see. A trigger does not have to be. Open a picker from the keyboard on an issue whose
-     * rail has been scrolled past — `S` on a long comment thread — and the anchor's rect is
-     * hundreds of pixels above the viewport, so the menu is not clipped by an edge, it is
-     * entirely outside one. It rendered where nobody could see or click it, and the only
-     * clue was a keyboard shortcut that appeared to do nothing.
+     * The flip answers "which side of the trigger" and assumes the trigger is somewhere a
+     * reader can see. A trigger does not have to be: open a picker from the keyboard on an
+     * issue whose rail has been scrolled past — `S` on a long comment thread — and the
+     * anchor sits above the top of the window, so the menu is drawn across that edge or
+     * beyond it entirely.
      *
-     * The test is deliberately "wholly outside" rather than "not perfectly inside": a menu
-     * that overlaps an edge is already the flip's business, and nudging every surface that
-     * merely touches the margin would move menus that were placed correctly.
+     * The flip cannot fix it, because flipping to the other side of an anchor that is
+     * off screen only moves the menu further off. What made this expensive to find is that
+     * the failure is partial: enough of the menu hangs below the edge to look present and
+     * to satisfy "is it visible", while the row somebody wants is above the fold and cannot
+     * be reached or clicked. A picker that is half there reads as a picker that is there.
      */
-    if (fullyOutside(rect)) {
-      const rescue = isBeside(placementUsed) ? horizontalShift(rect) : verticalShift(rect);
+    if (clippedVertically(rect)) {
+      const rescue = verticalShift(rect);
       if (rescue !== 0) {
-        setPoint(
-          isBeside(placementUsed)
-            ? { top: point.top, left: point.left + rescue }
-            : { top: point.top + rescue, left: point.left },
-        );
+        setPoint({ top: point.top + rescue, left: point.left });
         return;
       }
     }
