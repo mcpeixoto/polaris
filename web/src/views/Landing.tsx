@@ -294,8 +294,8 @@ export function Landing() {
             </h2>
             <p className={styles.sectionLead}>
               The same app in its own window, with the shortcuts the browser otherwise keeps for
-              itself — <Kbd keys="mod+k" /> among them. Every build is on the releases page, which
-              always holds the newest one.
+              itself — <Kbd keys="mod+k" /> among them. Every button here downloads the newest
+              build. <a href={RELEASES}>Release notes and older versions</a> are on GitHub.
             </p>
           </div>
           <ul className={styles.downloadGrid} role="list">
@@ -316,14 +316,13 @@ export function Landing() {
                 {platform.builds.map((build, order) => (
                   <div key={build.label} className={styles.downloadBuild}>
                     <a
-                      href={RELEASES}
+                      href={build.url}
                       // Filled once per card, and only on the card for this machine: two
                       // solid buttons side by side is two primaries, which is none.
                       className={
                         platform.os === guessedOS && order === 0 ? styles.cta : styles.ctaGhost
                       }
-                      // Every button on this band goes to the same page, so the visible text
-                      // alone ("Intel", "Installer") would be five links reading as five
+                      // The visible text alone ("Intel", "Installer") would read as five
                       // unrelated words in a screen reader's link list.
                       aria-label={`Download Polaris for ${platform.name}, ${build.label}`}
                     >

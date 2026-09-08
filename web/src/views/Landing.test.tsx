@@ -147,13 +147,27 @@ describe('Landing', () => {
   /**
    * The desktop builds have been published on GitHub for months and nothing on this page
    * pointed at them, so installing Polaris meant already knowing where a project keeps its
-   * release artifacts. These four are what a stylesheet cannot guarantee: every platform is
-   * reachable, the visitor's own leads, the links survive a release (they go to
-   * `…/releases/latest`, never to a versioned file name), and the unsigned builds say so
-   * before the operating system does.
+   * release artifacts. These are what a stylesheet cannot guarantee: every platform is
+   * reachable, the visitor's own leads, each button goes to the file itself rather than to
+   * a page listing fifteen of them, no link carries a version that a release would make
+   * stale, and the unsigned builds say so before the operating system does.
    */
   describe('the desktop downloads', () => {
     const LATEST = 'https://github.com/mcpeixoto/polaris/releases/latest';
+
+    /**
+     * The stable asset names, which are a contract with `.github/workflows/desktop.yml`:
+     * it uploads a copy of each installer under exactly these names, and
+     * `scripts/lint-release.sh` fails if it stops. Renaming one here without renaming it
+     * there produces a band of dead buttons that nothing else notices.
+     */
+    const DIRECT: Record<string, string> = {
+      'Download Polaris for macOS, Apple Silicon': `${LATEST}/download/Polaris-mac-arm64.dmg`,
+      'Download Polaris for macOS, Intel': `${LATEST}/download/Polaris-mac-x64.dmg`,
+      'Download Polaris for Windows, Installer': `${LATEST}/download/Polaris-Setup.exe`,
+      'Download Polaris for Linux, AppImage': `${LATEST}/download/Polaris-linux-x86_64.AppImage`,
+      'Download Polaris for Linux, Debian / Ubuntu': `${LATEST}/download/polaris-amd64.deb`,
+    };
 
     /** Renders with a stubbed user agent, because jsdom's own is whatever CI runs on. */
     function renderOn(hint: { userAgent: string; platform: string }) {
@@ -172,17 +186,32 @@ describe('Landing', () => {
     const WINDOWS = { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', platform: 'Win32' };
     const LINUX = { userAgent: 'Mozilla/5.0 (X11; Linux x86_64)', platform: 'Linux x86_64' };
 
-    it('offers every platform, and both Mac architectures', () => {
+    it('offers every platform, and both Mac architectures, as direct downloads', () => {
       renderOn(WINDOWS);
-      for (const name of [
-        'Download Polaris for macOS, Apple Silicon',
-        'Download Polaris for macOS, Intel',
-        'Download Polaris for Windows, Installer',
-        'Download Polaris for Linux, AppImage',
-        'Download Polaris for Linux, Debian / Ubuntu',
-      ]) {
-        expect(screen.getByRole('link', { name }).getAttribute('href'), name).toBe(LATEST);
+      for (const [name, href] of Object.entries(DIRECT)) {
+        expect(screen.getByRole('link', { name }).getAttribute('href'), name).toBe(href);
       }
+    });
+
+    /**
+     * The failure this guards is silent and delayed. A version in one of these URLs keeps
+     * working until the next release, then serves an old build or 404s — and the release
+     * that broke it is green, because nothing downstream reads these strings.
+     */
+    it('links no file by a name that a release would make stale', () => {
+      renderOn(MAC);
+      for (const link of screen.getAllByRole('link', { name: /^Download Polaris for/ })) {
+        const href = link.getAttribute('href') ?? '';
+        expect(href.startsWith(`${LATEST}/download/`), href).toBe(true);
+        expect(/\d+\.\d+\.\d+/.test(href), href).toBe(false);
+      }
+    });
+
+    it('still offers the releases page, for notes and older versions', () => {
+      renderOn(MAC);
+      expect(
+        screen.getByRole('link', { name: 'Release notes and older versions' }).getAttribute('href'),
+      ).toBe(LATEST);
     });
 
     it('leads with the machine the visitor is on, without dropping the others', () => {

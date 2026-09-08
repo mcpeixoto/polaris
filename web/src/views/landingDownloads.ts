@@ -1,22 +1,23 @@
 /**
  * The desktop builds the marketing page offers, and which one a visitor's machine wants.
  *
- * ## Why every link is the releases page rather than a file
+ * ## Why the links are what they are
  *
- * electron-builder stamps the version into every asset name — `Polaris-0.9.0-mac-arm64.dmg`,
- * `Polaris-Setup-0.9.0.exe` — so there is no stable URL to a build. GitHub's
- * `/releases/latest/download/<name>` redirect needs that exact name, which means writing a
- * version into this file that goes stale on the next release with nothing failing: the
- * button keeps working and hands out an old app, or 404s, and neither says so.
+ * electron-builder stamps the version into every asset name — `Polaris-0.9.0-mac-arm64.dmg`
+ * — so those names cannot be written down here: they go stale on the next release and
+ * nothing fails, the button simply 404s or hands out an old app. Reading the real name from
+ * api.github.com at runtime is the other way, and it is unavailable: web/nginx.conf serves
+ * this page under `connect-src 'self' ws: wss:`, so the request is blocked in production
+ * while working fine in dev — a feature that only breaks where nobody is looking.
  *
- * Reading the real name from api.github.com at runtime is the other way, and it is not
- * available. web/nginx.conf serves this page under `connect-src 'self' ws: wss:`, so the
- * request is blocked in production while working fine in dev — a feature that only breaks
- * where nobody is looking.
+ * So the release workflow publishes a second copy of each installer under a name with no
+ * version in it, and these link to those. `/releases/latest/download/<name>` resolves to the
+ * newest release for as long as the project exists, and `scripts/lint-release.sh` fails the
+ * build if the workflow stops producing them.
  *
- * So each build links to `…/releases/latest`, which is correct for as long as the project
- * exists, and names the file to look for once the page opens, with the version left out
- * because that is exactly the part this file cannot know.
+ * The URLs are the contract. Renaming one here without renaming it in
+ * `.github/workflows/desktop.yml` produces a page of dead buttons, which is why the lint
+ * names the same five strings.
  *
  * ## Signing
  *
@@ -27,14 +28,19 @@
 
 export const RELEASES = 'https://github.com/mcpeixoto/polaris/releases/latest';
 
+/** Where a stable-named asset lives. The name must match the one desktop.yml uploads. */
+const file = (name: string) => `${RELEASES}/download/${name}`;
+
 export type DownloadOS = 'mac' | 'windows' | 'linux' | 'unknown';
 
 /** One downloadable file: what it is for, and what it is called on the releases page. */
 export interface DownloadBuild {
   /** Button text. Reads as the choice being made, not as a file format. */
   readonly label: string;
-  /** Which machine this one is for, and the file name to click. */
+  /** Which machine this one is for, and the file name it arrives as. */
   readonly detail: string;
+  /** A permanent link to the file itself, not to a page listing it. */
+  readonly url: string;
 }
 
 export interface DownloadPlatform {
@@ -55,8 +61,16 @@ export const DOWNLOADS: readonly DownloadPlatform[] = [
     os: 'mac',
     name: 'macOS',
     builds: [
-      { label: 'Apple Silicon', detail: 'M1 and later · Polaris-…-mac-arm64.dmg' },
-      { label: 'Intel', detail: 'Macs from 2020 and earlier · Polaris-…-mac-x64.dmg' },
+      {
+        label: 'Apple Silicon',
+        detail: 'M1 and later · Polaris-…-mac-arm64.dmg',
+        url: file('Polaris-mac-arm64.dmg'),
+      },
+      {
+        label: 'Intel',
+        detail: 'Macs from 2020 and earlier · Polaris-…-mac-x64.dmg',
+        url: file('Polaris-mac-x64.dmg'),
+      },
     ],
     caution:
       'The Mac build is not signed yet, so macOS will say it cannot check it for malware. Open Applications, right-click Polaris, choose Open, then Open again. Once, on the first run.',
@@ -64,7 +78,13 @@ export const DOWNLOADS: readonly DownloadPlatform[] = [
   {
     os: 'windows',
     name: 'Windows',
-    builds: [{ label: 'Installer', detail: '64-bit · Polaris-Setup-….exe' }],
+    builds: [
+      {
+        label: 'Installer',
+        detail: '64-bit · Polaris-Setup-….exe',
+        url: file('Polaris-Setup.exe'),
+      },
+    ],
     caution:
       'The Windows build is not signed yet, so SmartScreen shows a blue box saying it protected your PC. Click More info, then Run anyway.',
   },
@@ -72,8 +92,16 @@ export const DOWNLOADS: readonly DownloadPlatform[] = [
     os: 'linux',
     name: 'Linux',
     builds: [
-      { label: 'AppImage', detail: 'Runs anywhere · Polaris-…-linux-x86_64.AppImage' },
-      { label: 'Debian / Ubuntu', detail: 'apt install ./… · polaris_…_amd64.deb' },
+      {
+        label: 'AppImage',
+        detail: 'Runs anywhere · Polaris-…-linux-x86_64.AppImage',
+        url: file('Polaris-linux-x86_64.AppImage'),
+      },
+      {
+        label: 'Debian / Ubuntu',
+        detail: 'apt install ./… · polaris_…_amd64.deb',
+        url: file('polaris-amd64.deb'),
+      },
     ],
     caution:
       'Nothing to click past here. Mark the AppImage executable and run it, or install the .deb.',

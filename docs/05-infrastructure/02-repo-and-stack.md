@@ -122,7 +122,7 @@ generate:
 |---|---|---|
 | `polaris-api`, `polaris-sync`, `polaris-worker` | Go static builds, `CGO_ENABLED=0` | Docker images, distroless base |
 | `web/dist` | Vite | Baked into `web` nginx image **and** into the Electron app |
-| `Polaris.dmg`, `Polaris Setup.exe` | electron-builder | GitHub Releases (auto-update feed) |
+| `Polaris-<version>-mac-<arch>.dmg`, `Polaris-Setup-<version>.exe`, `.AppImage`, `.deb` | electron-builder | GitHub Releases (auto-update feed), plus version-less copies for permanent download links |
 | `@polaris/sdk` | tsup | npm |
 
 The **same `web/dist`** goes into both the nginx image and the Electron bundle, built once per release so the desktop app can never drift from the web app.
