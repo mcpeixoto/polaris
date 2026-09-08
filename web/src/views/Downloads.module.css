@@ -121,7 +121,7 @@
   outline: 2px solid var(--accent);
   outline-offset: 4px;
 }
-@media (max-width: 800px) {
+@media (max-width: 720px) {
   .grid {
     grid-template-columns: 1fr;
   }
