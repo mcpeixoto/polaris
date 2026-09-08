@@ -860,8 +860,10 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
    * override for the same reason.
    */
   const openForSelection = useCallback((kind: IssuePropertyKind) => {
+    const picker = pickers.current[kind as keyof typeof pickers.current];
+    if (picker === undefined) return;
     setOrigin(null);
-    pickers.current[kind].show();
+    picker.show();
   }, []);
 
   const [peekOpen, setPeekOpen] = useState(false);

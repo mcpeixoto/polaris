@@ -21,6 +21,10 @@ audit of one dialog turned up, because every rule below is a generalisation of o
   `PriorityIcon` and `Avatar` on the equivalent triggers.
 - A `.form :global(input)` rule intended for the title, silently restyling every other
   input in the subtree, including a date field and every form-template answer.
+- A native `<input type="date">` in the create-issue property row, while every other
+  surface (list, detail, peek) already used `DueDatePicker` — so the composer could not
+  offer relatives, clear with one click, or share the product's date grammar. The composer
+  now mounts the same picker; do not reintroduce a one-off date control on a property pill.
 
 None of these is a taste dispute. Each is a screen contradicting either another screen or
 its own stated intent. The rules below are the agreement that prevents that.
