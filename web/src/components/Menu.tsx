@@ -222,6 +222,19 @@ function anchorPointFor(rect: DOMRect, placement: MenuPlacement): Point {
 }
 
 /**
+ * Whether the surface runs off the top or the bottom of the window.
+ *
+ * The height test is what keeps this honest in a test environment: jsdom answers every
+ * `getBoundingClientRect` with zeros, and a zero-height box at the origin is "above the
+ * margin" by any arithmetic — so without it every menu in every test would be nudged by
+ * the margin and the assertions would be measuring the rescue rather than the placement.
+ * A surface that has been laid out has a height.
+ */
+function clippedVertically(rect: DOMRect): boolean {
+  return rect.height > 0 && (rect.top < 0 || rect.bottom > window.innerHeight);
+}
+
+/**
  * The flip is decided from the menu's *rendered* rect, after the gap and the translate in
  * the stylesheet have been applied — the same bargain Tooltip makes. Recomputing the
  * geometry here would mean this file knowing the offsets the CSS owns, and the two drifting
@@ -509,7 +522,10 @@ export function Menu({
   useLayoutEffect(() => {
     if (!open) return;
     const anchor = trigger.current;
-    if (anchor === null) return;
+    // `isConnected`, not just `null`: a menu can hang off a row's glyph, and a detached node
+    // still answers `getBoundingClientRect()` — with zeros, which would put the menu in the
+    // top-left corner rather than leaving it where it was.
+    if (anchor === null || !anchor.isConnected) return;
     setPoint(anchorPointFor(anchor.getBoundingClientRect(), placementUsed));
   }, [open, trigger, placementUsed]);
 
@@ -525,6 +541,28 @@ export function Menu({
       return;
     }
     settledRef.current = true;
+    /*
+     * The vertical rescue, before the cross-axis shift below.
+     *
+     * The flip answers "which side of the trigger" and assumes the trigger is somewhere a
+     * reader can see. A trigger does not have to be: open a picker from the keyboard on an
+     * issue whose rail has been scrolled past — `S` on a long comment thread — and the
+     * anchor sits above the top of the window, so the menu is drawn across that edge or
+     * beyond it entirely.
+     *
+     * The flip cannot fix it, because flipping to the other side of an anchor that is
+     * off screen only moves the menu further off. What made this expensive to find is that
+     * the failure is partial: enough of the menu hangs below the edge to look present and
+     * to satisfy "is it visible", while the row somebody wants is above the fold and cannot
+     * be reached or clicked. A picker that is half there reads as a picker that is there.
+     */
+    if (clippedVertically(rect)) {
+      const rescue = verticalShift(rect);
+      if (rescue !== 0) {
+        setPoint({ top: point.top + rescue, left: point.left });
+        return;
+      }
+    }
     // The cross axis, whichever one that is: a menu under its trigger is pushed back on
     // screen sideways, and a submenu beside its row is pushed back up or down.
     if (isBeside(placementUsed)) {
@@ -552,7 +590,10 @@ export function Menu({
     if (!open) return;
     const reanchor = () => {
       const anchor = trigger.current;
-      if (anchor === null) return;
+      // A row-anchored menu outlives its row: scroll far enough and the virtualiser recycles
+      // the glyph the menu is hanging off. Keep the last measured point rather than
+      // remeasuring a node that is no longer in the document and reads as all zeros.
+      if (anchor === null || !anchor.isConnected) return;
       settledRef.current = false;
       setPoint(anchorPointFor(anchor.getBoundingClientRect(), placementUsed));
     };

@@ -1,10 +1,12 @@
 /**
- * The convert dialog: cadence and a first due date, then the write.
+ * The cadence dialog: cadence and a due date, then the write.
  *
- * Three places open this — an issue's ⋯, a team template, and nothing else. Team settings
- * has its own inline form because that screen is already a settings form and a second modal
- * on top of it is a dialog for a dialog. The composer asks the same two questions inline
- * as well, because making a new issue recurring is a property of the create, not a convert.
+ * It opens to convert an issue and, since the rail's Repeats row became a control, to edit
+ * the schedule it names — the same two questions either way, so the difference is two
+ * strings rather than a second dialog. Team settings still has its own inline form because
+ * that screen is already a settings form and a second modal on top of it is a dialog for a
+ * dialog. The composer asks the same two questions inline as well, because making a new
+ * issue recurring is a property of the create, not a convert.
  */
 
 import { useEffect, useState } from 'react';
@@ -27,6 +29,16 @@ export interface RecurringDialogProps {
   description?: string | undefined;
   /** The issue's own due date, when converting one that already has a day. */
   initialDueDate?: string | undefined;
+  /**
+   * The cadence to open on. Defaults to weekly, which is right for a schedule that does not
+   * exist yet and wrong for one that does: editing a monthly schedule used to propose weekly
+   * and call it the current value.
+   */
+  initialCadence?: RecurringCadence | undefined;
+  /** The verb on the primary button. Defaults to the convert case. */
+  confirmLabel?: string | undefined;
+  /** What the date field is called. See RecurringFields. */
+  dueLabel?: string | undefined;
   timezone: string;
   busy?: boolean | undefined;
   error?: string | null | undefined;
@@ -39,20 +51,23 @@ export function RecurringDialog({
   title,
   description,
   initialDueDate,
+  initialCadence,
+  confirmLabel = 'Make recurring',
+  dueLabel,
   timezone,
   busy = false,
   error,
   onClose,
   onConfirm,
 }: RecurringDialogProps) {
-  const [cadence, setCadence] = useState<RecurringCadence>('weekly');
+  const [cadence, setCadence] = useState<RecurringCadence>(initialCadence ?? 'weekly');
   const [firstDueDate, setFirstDueDate] = useState(initialDueDate ?? today(timezone));
 
   useEffect(() => {
     if (!open) return;
-    setCadence('weekly');
+    setCadence(initialCadence ?? 'weekly');
     setFirstDueDate(initialDueDate ?? today(timezone));
-  }, [open, initialDueDate, timezone]);
+  }, [open, initialCadence, initialDueDate, timezone]);
 
   return (
     <Modal
@@ -74,7 +89,7 @@ export function RecurringDialog({
             disabled={firstDueDate === ''}
             onClick={() => onConfirm({ cadence, firstDueDate })}
           >
-            Make recurring
+            {confirmLabel}
           </Button>
         </>
       }
@@ -82,6 +97,7 @@ export function RecurringDialog({
       <RecurringFields
         cadence={cadence}
         firstDueDate={firstDueDate}
+        dueLabel={dueLabel}
         onCadence={setCadence}
         onFirstDueDate={setFirstDueDate}
       />

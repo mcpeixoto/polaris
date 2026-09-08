@@ -52,6 +52,10 @@ import {
 } from '~/components';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
 import { updateIssues, type IssueFields } from '~/features/issue/mutations';
+import type { IssuePropertyKind } from '~/features/issue/rowMenu';
+import { LabelPicker } from '~/features/labels/LabelPicker';
+import { applyLabel, removeLabel } from '~/features/labels/mutations';
+import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { browserTimezone } from '~/features/locale';
 import { exact } from '~/features/time';
 import { notificationGlyph } from '~/features/inbox/glyphs';
@@ -92,6 +96,7 @@ import {
   snoozeNotification,
 } from '~/features/inbox/mutations';
 import { offerUndo } from '~/features/undo/UndoToast';
+import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useSelection } from '~/hooks/useSelection';
 import { useViewerId } from '~/hooks/useViewer';
 import type { NotificationType, StateCategory, Store, UUID } from '~/store';
@@ -131,6 +136,7 @@ interface RowIssue {
   readonly stateId: UUID;
   readonly assigneeId: UUID | null;
   readonly priority: number;
+  readonly projectId: UUID | null;
 }
 
 interface InboxAnswer {
@@ -179,7 +185,7 @@ export function Inbox() {
   const anchor = useRef<HTMLElement | null>(null);
   const [snoozeFor, setSnoozeFor] = useState<UUID | null>(null);
   const [contextFor, setContextFor] = useState<Row | null>(null);
-  const [picker, setPicker] = useState<'status' | 'assignee' | 'priority' | null>(null);
+  const [picker, setPicker] = useState<IssuePropertyKind | null>(null);
   const [tab, setTab] = useState<InboxTab>(DEFAULT_INBOX_TAB);
   const [kinds, setKinds] = useState<ReadonlySet<InboxKind>>(() => new Set());
   const [filterOpen, setFilterOpen] = useState(false);
@@ -282,6 +288,7 @@ export function Inbox() {
                     stateId: issue.stateId,
                     assigneeId: issue.assigneeId ?? null,
                     priority: issue.priority,
+                    projectId: issue.projectId ?? null,
                   },
             haystack: [
               actorName,
@@ -401,6 +408,22 @@ export function Inbox() {
     setContextFor(null);
     returnToList();
   }, [returnToList]);
+
+  /*
+   * What the row's label picker ticks, read live rather than carried on the row.
+   *
+   * The rows' own query does not subscribe to `issueLabel`, and adding it there would rebuild
+   * every row in the inbox each time anybody anywhere applied a label. This asks the one
+   * question the open menu needs, about the one issue it is about.
+   */
+  const contextLabelIds = useLiveQuery(
+    (store) => {
+      const issueId = contextFor?.issue?.id;
+      return issueId === undefined ? [] : [...store.labelIdsFor(issueId)];
+    },
+    ['issueLabel'],
+    [contextFor?.issue?.id ?? ''],
+  );
 
   const updateIssue = (fields: IssueFields) => {
     const issueId = contextFor?.issue?.id;
@@ -1150,6 +1173,32 @@ export function Inbox() {
         value={contextFor?.issue?.priority}
         onSelect={(priority) => updateIssue({ priority })}
       />
+      <ProjectPicker
+        open={picker === 'project' && contextFor?.issue != null}
+        onClose={closePicker}
+        trigger={anchor}
+        teamIds={contextFor?.issue === null ? [] : [contextFor?.issue?.teamId ?? '']}
+        value={contextFor?.issue?.projectId}
+        onSelect={(projectId) => updateIssue({ projectId })}
+      />
+      {/* The only one of the five that is not a single `updateIssues`: a label is its own
+          row, so the menu stays open and each choice is a write of its own. It therefore
+          cannot go through `updateIssue` above, which closes the menu as it writes. */}
+      <LabelPicker
+        open={picker === 'labels' && contextFor?.issue != null}
+        onClose={closePicker}
+        trigger={anchor}
+        teamId={contextFor?.issue?.teamId ?? null}
+        value={contextLabelIds}
+        onApply={(labelId, displaced) => {
+          const issueId = contextFor?.issue?.id;
+          if (issueId !== undefined) applyLabel(engine, issueId, labelId, displaced).catch(report);
+        }}
+        onRemove={(labelId) => {
+          const issueId = contextFor?.issue?.id;
+          if (issueId !== undefined) removeLabel(engine, issueId, labelId).catch(report);
+        }}
+      />
     </div>
   );
 }
@@ -1185,7 +1234,7 @@ function contextItems(
     toggleRead: () => void;
     snooze: () => void;
     dismiss: () => void;
-    pick: (kind: 'status' | 'assignee' | 'priority') => void;
+    pick: (kind: IssuePropertyKind) => void;
   },
 ): MenuNode[] {
   if (row === null) return [];
@@ -1205,9 +1254,19 @@ function contextItems(
     ...items,
     { kind: 'separator' },
     { kind: 'heading', label: row.issueIdentifier ?? 'Issue' },
-    { id: 'status', label: 'Change status', onSelect: () => commands.pick('status') },
-    { id: 'assignee', label: 'Assign to', onSelect: () => commands.pick('assignee') },
-    { id: 'priority', label: 'Set priority', onSelect: () => commands.pick('priority') },
+    // The caps are this screen's own: `InboxDetail` registers all five in the `list`
+    // context the inbox mounts, and the right-clicked row is the cursor row — `place` runs
+    // before the menu opens — so each of them acts on the issue this menu is about.
+    { id: 'status', label: 'Change status', keys: 's', onSelect: () => commands.pick('status') },
+    { id: 'assignee', label: 'Assign to', keys: 'a', onSelect: () => commands.pick('assignee') },
+    { id: 'priority', label: 'Set priority', keys: 'p', onSelect: () => commands.pick('priority') },
+    {
+      id: 'project',
+      label: 'Set project',
+      keys: 'shift+p',
+      onSelect: () => commands.pick('project'),
+    },
+    { id: 'labels', label: 'Add label', keys: 'l', onSelect: () => commands.pick('labels') },
   ];
 }
 

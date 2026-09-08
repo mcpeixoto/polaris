@@ -41,6 +41,20 @@ interface AppliedLabel {
 export interface LabelListProps {
   issueId: UUID;
   className?: string | undefined;
+  /**
+   * Turns the run into a control that opens the issue's label picker.
+   *
+   * Absent — in a peek, a preview, anywhere with no picker behind it — the chips stay links
+   * to their label views, which is what they have always been. Supplied, every chip and the
+   * "+2" become buttons instead, and the navigation they gave up moves to the row's context
+   * menu. Handed the element it was pressed on, because that is what the menu anchors to.
+   *
+   * One picker for the whole run and not one per chip: `LabelPicker` is multi-select over
+   * the issue's entire set, so pressing any chip opens the same menu with the same ticks.
+   */
+  onOpenPicker?: ((element: HTMLElement) => void) | undefined;
+  /** True while the picker this run opened is the one showing. */
+  pickerOpen?: boolean | undefined;
 }
 
 /**
@@ -61,7 +75,7 @@ const GAP_PX = 4;
  */
 const MORE_WIDTH_PX = 32;
 
-export function LabelList({ issueId, className }: LabelListProps) {
+export function LabelList({ issueId, className, onOpenPicker, pickerOpen }: LabelListProps) {
   const labels = useLiveQuery(
     (store) => labelsOn(store, issueId),
     ['issueLabel', 'label'],
@@ -109,29 +123,82 @@ export function LabelList({ issueId, className }: LabelListProps) {
           key={label.id}
           className={[styles.item, at < visible ? null : styles.measured].filter(Boolean).join(' ')}
         >
-          {/* Compact, and a link rather than a span: clicking a label is how you open its
-              view, and the row's own click is stopped so this does not also open the issue. */}
-          <Link
-            to={labelViewPath(label.id)}
-            onClick={(event) => event.stopPropagation()}
-            className={styles.link}
-          >
-            <LabelChip compact name={label.name} color={label.color} groupName={label.groupName} />
-          </Link>
+          {onOpenPicker === undefined ? (
+            /* Compact, and a link rather than a span: clicking a label is how you open its
+               view, and the row's own click is stopped so this does not also open the
+               issue. */
+            <Link
+              to={labelViewPath(label.id)}
+              onClick={(event) => event.stopPropagation()}
+              className={styles.link}
+            >
+              <LabelChip
+                compact
+                name={label.name}
+                color={label.color}
+                groupName={label.groupName}
+              />
+            </Link>
+          ) : (
+            /* `tabIndex={-1}` because on a row this sits inside a `role="option"` that
+               navigates by `aria-activedescendant`, and a tab stop inside an option breaks
+               that roving model. The chord and the context menu are the keyboard routes. */
+            <button
+              type="button"
+              className={styles.trigger}
+              aria-haspopup="menu"
+              aria-expanded={pickerOpen === true}
+              tabIndex={-1}
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenPicker(event.currentTarget);
+              }}
+            >
+              <LabelChip
+                compact
+                name={label.name}
+                color={label.color}
+                groupName={label.groupName}
+              />
+            </button>
+          )}
         </li>
       ))}
       {hidden.length === 0 ? null : (
         <li className={styles.item}>
           {/* "+2" on its own is meaningless read aloud, so the count carries the names it
-              stands for. role="img" is what makes a span's own label announced at all. */}
-          <span
-            className={styles.more}
-            role="img"
-            aria-label={`${hidden.length} more: ${hidden.map(fullName).join(', ')}`}
-            title={hidden.map(fullName).join(', ')}
-          >
-            +{hidden.length}
-          </span>
+              stands for. role="img" is what makes a span's own label announced at all — and
+              a button carries its own name, so the role goes when the trigger arrives.
+
+              It is a trigger for the same reason the chips are, only more so: the labels a
+              "+2" stands for are drawn `visibility: hidden` and have no pointer route at
+              all, so without this they are the one part of an issue a mouse cannot reach. */}
+          {onOpenPicker === undefined ? (
+            <span
+              className={styles.more}
+              role="img"
+              aria-label={`${hidden.length} more: ${hidden.map(fullName).join(', ')}`}
+              title={hidden.map(fullName).join(', ')}
+            >
+              +{hidden.length}
+            </span>
+          ) : (
+            <button
+              type="button"
+              className={[styles.trigger, styles.more].join(' ')}
+              aria-label={`${hidden.length} more: ${hidden.map(fullName).join(', ')}`}
+              title={hidden.map(fullName).join(', ')}
+              aria-haspopup="menu"
+              aria-expanded={pickerOpen === true}
+              tabIndex={-1}
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenPicker(event.currentTarget);
+              }}
+            >
+              +{hidden.length}
+            </button>
+          )}
         </li>
       )}
     </ul>

@@ -18,10 +18,11 @@
  * kind of reply, and inventing one would be a second conversation nobody reads.
  */
 
-import { useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
+import { useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 
 import { useEngine } from '~/app/context';
+import { useActions } from '~/app/keymap';
 import {
   Avatar,
   Button,
@@ -30,13 +31,20 @@ import {
   LabelChip,
   PriorityIcon,
   priorityLabel,
+  PropertyTrigger,
   StateIcon,
   Textarea,
 } from '~/components';
 import composer from '~/features/issue/CommentEditor.module.css';
-import { postComment, report } from '~/features/issue/mutations';
+import { ProjectGlyph, TagGlyph, UnassignedGlyph } from '~/features/issue/glyphs';
+import { postComment, report, updateIssue } from '~/features/issue/mutations';
+import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
+import { LabelPicker } from '~/features/labels/LabelPicker';
+import { applyLabel, removeLabel } from '~/features/labels/mutations';
 import { Markdown } from '~/features/markdown/Markdown';
+import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewerId } from '~/hooks/useViewer';
 import type { StateCategory, Store, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
@@ -50,10 +58,100 @@ export interface InboxDetailProps {
 
 export function InboxDetail({ issueId, unread }: InboxDetailProps) {
   const navigate = useNavigate();
+  const engine = useEngine();
+  const viewerId = useViewerId();
   const issue = useLiveQuery(
     (store) => (issueId === null ? null : readDetail(store, issueId)),
     ['issue', 'team', 'user', 'workflowState', 'label', 'issueLabel', 'project'],
     [issueId ?? ''],
+  );
+
+  const status = useMenuTrigger();
+  const assignee = useMenuTrigger();
+  const priority = useMenuTrigger();
+  const project = useMenuTrigger();
+  const labels = useMenuTrigger();
+
+  // The registry captures an action's `run` once, at registration, so the five below call
+  // through a ref that this render rewrites rather than closing over this render's `show`.
+  // The same arrangement the issue screen's rail uses, and for the same reason.
+  const commands = useRef<PaneCommands>({
+    pickStatus: () => {},
+    pickAssignee: () => {},
+    pickPriority: () => {},
+    pickProject: () => {},
+    pickLabels: () => {},
+  });
+  commands.current.pickStatus = status.show;
+  commands.current.pickAssignee = assignee.show;
+  commands.current.pickPriority = priority.show;
+  commands.current.pickProject = project.show;
+  commands.current.pickLabels = labels.show;
+
+  /*
+   * The five property chords, in the inbox's own `list` context.
+   *
+   * `Inbox` binds J K ↓ ↑ ⏎ U E H ⌫ ⇧⌫ ⌥U ⇧E ] [ X ⇧↓ ⇧↑ ⌘A Escape ⌘F there and nothing
+   * else mounts a `list` context on this route, so S, A, P, ⇧P and L are free and are the
+   * same five letters they are on every other surface that shows an issue.
+   *
+   * There is deliberately **no estimate row and no ⇧E**: ⇧E is `inbox.markAllRead`, and a
+   * property whose only affordance was a pointer would be the one such property in the
+   * product. The issue page still estimates, one ⏎ away.
+   *
+   * Guarded on the selection rather than registered conditionally, because the pane is
+   * mounted for the whole life of the screen and an empty cursor is a moment, not a
+   * capability the inbox lacks — the help overlay should still list all five.
+   */
+  useActions(
+    [
+      {
+        id: 'inboxDetail.status',
+        title: 'Change status',
+        keys: ['s'],
+        when: 'list',
+        group: 'Issues',
+        enabled: () => issueId !== null,
+        run: () => commands.current.pickStatus(),
+      },
+      {
+        id: 'inboxDetail.assign',
+        title: 'Assign to…',
+        keys: ['a'],
+        when: 'list',
+        group: 'Issues',
+        enabled: () => issueId !== null,
+        run: () => commands.current.pickAssignee(),
+      },
+      {
+        id: 'inboxDetail.priority',
+        title: 'Set priority',
+        keys: ['p'],
+        when: 'list',
+        group: 'Issues',
+        enabled: () => issueId !== null,
+        run: () => commands.current.pickPriority(),
+      },
+      {
+        id: 'inboxDetail.project',
+        title: 'Set project',
+        keys: ['shift+p'],
+        when: 'list',
+        group: 'Issues',
+        enabled: () => issueId !== null,
+        run: () => commands.current.pickProject(),
+      },
+      {
+        id: 'inboxDetail.labels',
+        title: 'Add label',
+        keys: ['l'],
+        when: 'list',
+        group: 'Issues',
+        enabled: () => issueId !== null,
+        run: () => commands.current.pickLabels(),
+      },
+    ],
+    [],
   );
 
   if (issueId === null) return <EmptyPane unread={unread} />;
@@ -95,47 +193,176 @@ export function InboxDetail({ issueId, unread }: InboxDetailProps) {
 
         <aside className={styles.rail} aria-label="Properties">
           <h3 className={styles.railHeading}>Properties</h3>
+          {/* Every value is the control that changes it. The `dt` beside it already names
+              the property, so the button's accessible name is the value alone — "In
+              Progress", "No project" — and there is no sr-only span to add: a description
+              list supplies for free the half a bare list row has to invent. */}
           <dl className={styles.properties}>
             <Property label="Status">
-              <StateIcon category={issue.stateCategory} color={issue.stateColor} decorative />
+              <PropertyTrigger
+                name={issue.stateName}
+                action="Change status"
+                keys="s"
+                open={status.open}
+                onOpen={status.showFrom}
+                ref={status.props.ref}
+              >
+                <StateIcon category={issue.stateCategory} color={issue.stateColor} decorative />
+              </PropertyTrigger>
               {issue.stateName}
             </Property>
             <Property label="Priority">
-              <PriorityIcon priority={issue.priority} decorative />
+              <PropertyTrigger
+                name={priorityLabel(issue.priority)}
+                action="Set priority"
+                keys="p"
+                open={priority.open}
+                onOpen={priority.showFrom}
+                ref={priority.props.ref}
+              >
+                <PriorityIcon priority={issue.priority} decorative />
+              </PropertyTrigger>
               {priorityLabel(issue.priority)}
             </Property>
             <Property label="Assignee">
-              {issue.assigneeName === null ? (
-                <span className={styles.unset}>No assignee</span>
-              ) : (
-                <>
+              <PropertyTrigger
+                name={issue.assigneeName ?? 'No assignee'}
+                action="Assign to…"
+                keys="a"
+                open={assignee.open}
+                onOpen={assignee.showFrom}
+                ref={assignee.props.ref}
+              >
+                {issue.assigneeName === null ? (
+                  <UnassignedGlyph />
+                ) : (
                   <Avatar
                     name={issue.assigneeName}
                     src={issue.assigneeAvatar}
                     size="xs"
                     decorative
                   />
-                  {issue.assigneeName}
-                </>
+                )}
+              </PropertyTrigger>
+              {issue.assigneeName === null ? (
+                <span className={styles.unset}>No assignee</span>
+              ) : (
+                issue.assigneeName
               )}
             </Property>
-            {issue.projectName === null ? null : (
-              <Property label="Project">{issue.projectName}</Property>
-            )}
-            {issue.labels.length === 0 ? null : (
-              <Property label="Labels">
+            {/* Project and Labels are drawn whether or not they are set. Hiding an empty row
+                hid the only way to fill it, which made "file this into a project" the one
+                edit that needed the issue page. */}
+            <Property label="Project">
+              <PropertyTrigger
+                name={issue.projectName ?? 'No project'}
+                action="Set project"
+                keys="shift+p"
+                open={project.open}
+                onOpen={project.showFrom}
+                ref={project.props.ref}
+              >
+                <ProjectGlyph />
+              </PropertyTrigger>
+              {issue.projectName === null ? (
+                <span className={styles.unset}>No project</span>
+              ) : (
+                issue.projectName
+              )}
+            </Property>
+            <Property label="Labels">
+              <PropertyTrigger
+                name={labelSummary(issue.labels)}
+                action="Add label"
+                keys="l"
+                open={labels.open}
+                onOpen={labels.showFrom}
+                ref={labels.props.ref}
+              >
+                <TagGlyph />
+              </PropertyTrigger>
+              {issue.labels.length === 0 ? (
+                <span className={styles.unset}>No labels</span>
+              ) : (
                 <span className={styles.labels}>
                   {issue.labels.map((label) => (
                     <LabelChip key={label.id} compact name={label.name} color={label.color} />
                   ))}
                 </span>
-              </Property>
-            )}
+              )}
+            </Property>
           </dl>
         </aside>
       </div>
+
+      {/* A second set of pickers, deliberately: the inbox list mounts its own row-anchored
+          set for the right-click path, and both act on the same issue — the context handler
+          moves the cursor first, so the right-clicked row is the cursor row is this pane's
+          issue. Collapsing them means rewriting the list's `handingOver` / `returnToList`
+          hand-off, which is a larger change than either menu is worth. Worth doing; not
+          worth doing here. */}
+      <StatusPicker
+        open={status.open}
+        onClose={status.hide}
+        trigger={status.ref}
+        teamId={issue.teamId}
+        value={issue.stateId}
+        placement="bottom-end"
+        onSelect={(stateId) => updateIssue(engine, issue.id, { stateId }, viewerId).catch(report)}
+      />
+      <AssigneePicker
+        open={assignee.open}
+        onClose={assignee.hide}
+        trigger={assignee.ref}
+        value={issue.assigneeId}
+        placement="bottom-end"
+        onSelect={(assigneeId) => updateIssue(engine, issue.id, { assigneeId }).catch(report)}
+      />
+      <PriorityPicker
+        open={priority.open}
+        onClose={priority.hide}
+        trigger={priority.ref}
+        value={issue.priority}
+        placement="bottom-end"
+        onSelect={(level) => updateIssue(engine, issue.id, { priority: level }).catch(report)}
+      />
+      <ProjectPicker
+        open={project.open}
+        onClose={project.hide}
+        trigger={project.ref}
+        teamIds={[issue.teamId]}
+        value={issue.projectId}
+        placement="bottom-end"
+        onSelect={(projectId) => updateIssue(engine, issue.id, { projectId }).catch(report)}
+      />
+      <LabelPicker
+        open={labels.open}
+        onClose={labels.hide}
+        trigger={labels.ref}
+        teamId={issue.teamId}
+        value={issue.labelIds}
+        placement="bottom-end"
+        onApply={(labelId, displaced) =>
+          applyLabel(engine, issue.id, labelId, displaced).catch(report)
+        }
+        onRemove={(labelId) => removeLabel(engine, issue.id, labelId).catch(report)}
+      />
     </article>
   );
+}
+
+/** What the registered chords call, rewritten on every render. See `commands` above. */
+interface PaneCommands {
+  pickStatus: () => void;
+  pickAssignee: () => void;
+  pickPriority: () => void;
+  pickProject: () => void;
+  pickLabels: () => void;
+}
+
+/** The labels as one accessible name, because that is the value the trigger stands for. */
+function labelSummary(labels: readonly { name: string }[]): string {
+  return labels.length === 0 ? 'No labels' : labels.map((label) => label.name).join(', ');
 }
 
 /**
@@ -276,16 +503,24 @@ function Property({ label, children }: { label: string; children: ReactNode }) {
 }
 
 interface DetailIssue {
+  readonly id: UUID;
+  readonly teamId: UUID;
   readonly identifier: string;
   readonly title: string;
   readonly description: string;
+  readonly stateId: UUID;
   readonly stateName: string;
   readonly stateCategory: StateCategory;
   readonly stateColor: string | undefined;
   readonly priority: number;
+  readonly assigneeId: UUID | null;
   readonly assigneeName: string | null;
   readonly assigneeAvatar: string | null;
+  readonly projectId: UUID | null;
   readonly projectName: string | null;
+  /** Every label on the issue, which is what the picker ticks against. */
+  readonly labelIds: readonly UUID[];
+  /** The ones the rail draws: no groups, nothing archived, in name order. */
   readonly labels: readonly { id: UUID; name: string; color: string }[];
 }
 
@@ -303,17 +538,23 @@ function readDetail(store: Store, id: UUID): DetailIssue | null {
   labels.sort((a, b) => a.name.localeCompare(b.name));
 
   return {
+    id: found.id,
+    teamId: found.teamId,
     identifier: store.identifierOf(found),
     title: found.title,
     description: found.description,
+    stateId: found.stateId,
     stateName: state?.name ?? 'No status',
     stateCategory: state?.category ?? 'backlog',
     stateColor: state?.color,
     priority: found.priority,
+    assigneeId: found.assigneeId ?? null,
     assigneeName: assignee?.displayName ?? null,
     assigneeAvatar: assignee?.avatarUrl ?? null,
+    projectId: found.projectId ?? null,
     projectName:
       found.projectId === undefined ? null : (store.projects.get(found.projectId)?.name ?? null),
+    labelIds: [...store.labelIdsFor(found.id)],
     labels,
   };
 }

@@ -268,13 +268,13 @@ describe('IssueList', () => {
   it('draws every optional property on a row by default', () => {
     renderList();
 
-    expect(screen.getAllByRole('img', { name: 'Unassigned' })).toHaveLength(3);
+    expect(screen.getAllByRole('button', { name: 'Unassigned' })).toHaveLength(3);
   });
 
   it('drops a property from every row when the display options leave it out', () => {
     renderList('?show=priority');
 
-    expect(screen.queryAllByRole('img', { name: 'Unassigned' })).toHaveLength(0);
+    expect(screen.queryAllByRole('button', { name: 'Unassigned' })).toHaveLength(0);
     // The rows themselves are untouched: this is a column being turned off, not a filter.
     expect(screen.getAllByRole('option')).toHaveLength(3);
   });

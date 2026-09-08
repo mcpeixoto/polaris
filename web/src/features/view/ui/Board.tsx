@@ -44,10 +44,20 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 
 import { useEngine } from '~/app/context';
 import { useActions } from '~/app/keymap';
-import { Avatar, EmptyState, IconButton, Menu, PriorityIcon, StateIcon } from '~/components';
+import {
+  Avatar,
+  EmptyState,
+  IconButton,
+  Menu,
+  PriorityIcon,
+  priorityLabel,
+  PropertyTrigger,
+  StateIcon,
+} from '~/components';
 import { issueEstimateLabel } from '~/features/estimate';
 import { createUrlForGroup } from '~/features/issue/create-url';
 import { reorderIssue, report, updateIssues, type IssueFields } from '~/features/issue/mutations';
+import type { IssuePropertyKind } from '~/features/issue/rowMenu';
 import { LabelList } from '~/features/labels/LabelList';
 import { getPrefs, personName, subscribePrefs } from '~/features/prefs/prefs';
 import { isOverdue, whenDay } from '~/features/time';
@@ -82,6 +92,25 @@ export interface BoardProps {
   onExtend(id: UUID): void;
   onToggleGroup?: ((key: string) => void) | undefined;
   onContextMenu?: ((id: UUID, rowIndex: number, x: number, y: number) => void) | undefined;
+  /**
+   * A property glyph on a card was pressed: open that picker, anchored to that element.
+   *
+   * The board owns no pickers, for the same reason it owns no context menu — the screen has
+   * one of each and hundreds of cards, and a picker per card is hundreds of live queries to
+   * serve the one that is open. So a press is reported upwards with everything the screen
+   * needs: which property, which issue, where the cursor should land, and what to hang the
+   * menu off.
+   */
+  onProperty?:
+    ((kind: IssuePropertyKind, id: UUID, index: number, element: HTMLElement) => void) | undefined;
+  /**
+   * Which card a picker is currently open against, if any.
+   *
+   * Resolved per card into a bare kind before it reaches one, so a memoised card that is not
+   * the origin compares `null` against `null` and does not re-render when a menu opens
+   * somewhere else on the board.
+   */
+  openProperty?: { readonly kind: IssuePropertyKind; readonly id: UUID } | null | undefined;
   /**
    * Opens the composer seeded for one column — what the column `+` runs.
    *
@@ -202,6 +231,8 @@ export function Board({
   onExtend,
   onToggleGroup,
   onContextMenu,
+  onProperty,
+  openProperty,
   onRegisterScrollTo,
   className,
 }: BoardProps) {
@@ -535,6 +566,8 @@ export function Board({
             onExtend={onExtend}
             onToggleGroup={onToggleGroup}
             onContextMenu={onContextMenu}
+            onProperty={onProperty}
+            openProperty={openProperty ?? null}
             onDragStartCard={onDragStartCard}
             onDragEndCard={onDragEndCard}
             onDragOverColumn={setOver}
@@ -570,6 +603,9 @@ interface BoardColumnProps {
   onDragEndCard(): void;
   onToggleGroup: ((key: string) => void) | undefined;
   onContextMenu: ((id: UUID, rowIndex: number, x: number, y: number) => void) | undefined;
+  onProperty:
+    ((kind: IssuePropertyKind, id: UUID, index: number, element: HTMLElement) => void) | undefined;
+  openProperty: { readonly kind: IssuePropertyKind; readonly id: UUID } | null;
   onCreateInColumn: ((url: string) => void) | undefined;
   onDragOverColumn(key: string): void;
   onDropCard(group: ViewGroup, id: UUID, at: number | undefined): void;
@@ -603,6 +639,8 @@ function BoardColumn({
   onExtend,
   onToggleGroup,
   onContextMenu,
+  onProperty,
+  openProperty,
   onCreateInColumn,
   onDragStartCard,
   onDragEndCard,
@@ -843,6 +881,8 @@ function BoardColumn({
                       onDragStart={onDragStartCard}
                       onDragEnd={onDragEndCard}
                       onContextMenu={onContextMenu}
+                      onProperty={onProperty}
+                      openProperty={openProperty?.id === id ? openProperty.kind : null}
                     />
                   </div>
                 );
@@ -956,6 +996,10 @@ interface BoardCardProps {
   onDragStart(id: UUID): void;
   onDragEnd(): void;
   onContextMenu: ((id: UUID, index: number, x: number, y: number) => void) | undefined;
+  onProperty:
+    ((kind: IssuePropertyKind, id: UUID, index: number, element: HTMLElement) => void) | undefined;
+  /** The property whose picker is open against *this* card, and null for every other one. */
+  openProperty: IssuePropertyKind | null;
 }
 
 /** What a card draws, resolved once so the card itself renders from plain data. */
@@ -1003,6 +1047,8 @@ const BoardCard = memo(function BoardCard({
   onDragStart,
   onDragEnd,
   onContextMenu,
+  onProperty,
+  openProperty,
 }: BoardCardProps) {
   // The name-format preference, subscribed to exactly as the list's row does. The board read
   // `displayName` directly, so toggling "full names" changed the list and left the board and
@@ -1035,6 +1081,9 @@ const BoardCard = memo(function BoardCard({
       ]
         .filter(Boolean)
         .join(' ')}
+      /* Still draggable with buttons on it: a press on a nested button starts the card's
+         drag exactly as a press on the card does, and the button's click fires only when the
+         pointer never moved — so the two gestures do not compete for the same press. */
       draggable={draggable}
       onDragStart={(event) => {
         event.dataTransfer.effectAllowed = 'move';
@@ -1063,15 +1112,42 @@ const BoardCard = memo(function BoardCard({
       <div className={styles.top}>
         <span className={styles.identifier}>{issue.identifier}</span>
         <span className={styles.spacer} />
-        {!properties.has('assignee') ? null : issue.assigneeName === null ? (
-          <span className={styles.unassigned} aria-label="Unassigned" role="img" />
+        {/* The unassigned card had nothing at all a pointer could press, and the assigned one
+            had a bare Avatar — less than the list row beside it, which at least linked to the
+            person. Both are the same trigger now, so an unassigned card is the one a pointer
+            can actually fix. */}
+        {!properties.has('assignee') ? null : onProperty === undefined ? (
+          issue.assigneeName === null ? (
+            <span className={styles.unassigned} aria-label="Unassigned" role="img" />
+          ) : (
+            <Avatar
+              name={issue.assigneeName}
+              src={issue.assigneeAvatar}
+              size="xs"
+              colorKey={issue.assigneeId ?? issue.assigneeName}
+            />
+          )
         ) : (
-          <Avatar
-            name={issue.assigneeName}
-            src={issue.assigneeAvatar}
-            size="xs"
-            colorKey={issue.assigneeId ?? issue.assigneeName}
-          />
+          <PropertyTrigger
+            roving
+            name={issue.assigneeName ?? 'Unassigned'}
+            action="Assign to…"
+            keys="a"
+            open={openProperty === 'assignee'}
+            onOpen={(element) => onProperty('assignee', id, index, element)}
+          >
+            {issue.assigneeName === null ? (
+              <span className={styles.unassigned} aria-hidden="true" />
+            ) : (
+              <Avatar
+                name={issue.assigneeName}
+                src={issue.assigneeAvatar}
+                size="xs"
+                colorKey={issue.assigneeId ?? issue.assigneeName}
+                decorative
+              />
+            )}
+          </PropertyTrigger>
         )}
       </div>
 
@@ -1081,22 +1157,53 @@ const BoardCard = memo(function BoardCard({
           a 14px glyph — because the list row draws the same facts the same way, and a reader
           who has learned one should not have to learn the other. */}
       <div className={styles.meta}>
-        {properties.has('priority') ? (
+        {/*
+         * Priority is a trigger here and stays inert on a list row, and the asymmetry is the
+         * card having room rather than the row being unfinished: the row shares its 16px
+         * leading box with the hover checkbox that fades in over the glyph, so a control
+         * there is one no pointer can reach. A card has a meta row and nothing competing for
+         * the slot.
+         */}
+        {!properties.has('priority') ? null : onProperty === undefined ? (
           <span className={styles.glyphPill}>
             <PriorityIcon priority={issue.priority} decorative />
           </span>
-        ) : null}
+        ) : (
+          <PropertyTrigger
+            roving
+            name={priorityLabel(issue.priority)}
+            action="Set priority"
+            keys="p"
+            open={openProperty === 'priority'}
+            onOpen={(element) => onProperty('priority', id, index, element)}
+          >
+            <PriorityIcon priority={issue.priority} decorative />
+          </PropertyTrigger>
+        )}
         {/* The status is on the card even on a status board, where the column already says
             it. It is not one of the optional properties: a card that dropped it would stop
             being readable the moment somebody grouped by assignee, and a card whose contents
             depend on the grouping is one people cannot learn to read. */}
-        <span className={styles.glyphPill}>
-          <StateIcon
-            category={issue.stateCategory}
-            color={issue.stateColor}
-            label={issue.stateName}
-          />
-        </span>
+        {onProperty === undefined ? (
+          <span className={styles.glyphPill}>
+            <StateIcon
+              category={issue.stateCategory}
+              color={issue.stateColor}
+              label={issue.stateName}
+            />
+          </span>
+        ) : (
+          <PropertyTrigger
+            roving
+            name={issue.stateName}
+            action="Change status"
+            keys="s"
+            open={openProperty === 'status'}
+            onOpen={(element) => onProperty('status', id, index, element)}
+          >
+            <StateIcon category={issue.stateCategory} color={issue.stateColor} decorative />
+          </PropertyTrigger>
+        )}
         {properties.has('project') && issue.projectName !== null ? (
           <span className={styles.pill}>
             {issue.projectIcon === null ? (
@@ -1131,7 +1238,18 @@ const BoardCard = memo(function BoardCard({
             {issue.overdue ? <span className={styles.srOnly}> overdue</span> : null}
           </span>
         ) : null}
-        {properties.has('labels') ? <LabelList issueId={id} className={styles.labels} /> : null}
+        {properties.has('labels') ? (
+          <LabelList
+            issueId={id}
+            className={styles.labels}
+            {...(onProperty === undefined
+              ? {}
+              : {
+                  onOpenPicker: (element: HTMLElement) => onProperty('labels', id, index, element),
+                  pickerOpen: openProperty === 'labels',
+                })}
+          />
+        ) : null}
       </div>
     </div>
   );
