@@ -1,0 +1,51 @@
+/*
+ * Motion for the connect welcome and the Cloud / own-server choice.
+ *
+ * AuthLayout already staggers the card; these rules only cover the step-local content that
+ * swaps without leaving the layout. Durations are motion tokens so the collapse in
+ * tokens.css reaches them; the @media block below is belt-and-braces for anything that
+ * still resolves to a visible transition under prefers-reduced-motion.
+ */
+
+.welcomeBody,
+.choiceStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.welcomeLead {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+  animation: connectRise var(--duration-fast) var(--ease-out) backwards;
+}
+
+.welcomeAction {
+  animation: connectRise var(--duration-fast) var(--ease-out) calc(var(--duration-instant) * 0.6)
+    backwards;
+}
+
+.choiceStack > * {
+  animation: connectRise var(--duration-fast) var(--ease-out) backwards;
+}
+
+.choiceStack > *:nth-child(2) {
+  animation-delay: calc(var(--duration-instant) * 0.6);
+}
+
+@keyframes connectRise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcomeLead,
+  .welcomeAction,
+  .choiceStack > * {
+    animation: none;
+  }
+}

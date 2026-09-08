@@ -1,8 +1,9 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { setDesktopServerUrl } from '~/platform/runtime';
+import { HOSTED_CLOUD_ORIGIN } from '~/sync/hostedOrigin';
 
 import { ConnectServer } from './ConnectServer';
 
@@ -13,10 +14,54 @@ import { ConnectServer } from './ConnectServer';
  */
 vi.mock('~/platform/runtime', () => ({ setDesktopServerUrl: vi.fn() }));
 
+/** Walk welcome → choose → address so address-form tests stay on the step they exercise. */
+async function openAddressStep(user: ReturnType<typeof userEvent.setup>) {
+  render(<ConnectServer />);
+  await user.click(screen.getByRole('button', { name: 'Continue' }));
+  await user.click(screen.getByRole('button', { name: 'Use your own server' }));
+  expect(screen.getByLabelText('Server address')).toBeTruthy();
+}
+
 describe('ConnectServer', () => {
-  it('reports a bad address on the field, and saves nothing', async () => {
+  beforeEach(() => {
+    vi.mocked(setDesktopServerUrl).mockReset();
+  });
+
+  it('opens on the welcome, then the Cloud / own-server choice', async () => {
     const user = userEvent.setup();
     render(<ConnectServer />);
+
+    expect(screen.getByRole('heading', { name: 'Hi. This is Polaris.' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(screen.getByRole('button', { name: 'Polaris Cloud' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Use your own server' })).toBeTruthy();
+    expect(screen.queryByLabelText('Server address')).toBeNull();
+  });
+
+  it('saves the hosted origin when Polaris Cloud is chosen', async () => {
+    const user = userEvent.setup();
+    render(<ConnectServer />);
+
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Polaris Cloud' }));
+
+    expect(vi.mocked(setDesktopServerUrl)).toHaveBeenCalledWith(HOSTED_CLOUD_ORIGIN);
+  });
+
+  it('returns from the address step to the choice', async () => {
+    const user = userEvent.setup();
+    await openAddressStep(user);
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(screen.getByRole('button', { name: 'Polaris Cloud' })).toBeTruthy();
+    expect(screen.queryByLabelText('Server address')).toBeNull();
+  });
+
+  it('reports a bad address on the field, and saves nothing', async () => {
+    const user = userEvent.setup();
+    await openAddressStep(user);
 
     const field = screen.getByLabelText('Server address');
     await user.type(field, 'not a server');
@@ -31,7 +76,7 @@ describe('ConnectServer', () => {
 
   it('says what is missing rather than sitting behind a disabled button', async () => {
     const user = userEvent.setup();
-    render(<ConnectServer />);
+    await openAddressStep(user);
 
     const submit = screen.getByRole('button', { name: 'Connect' });
     expect((submit as HTMLButtonElement).disabled).toBe(false);
@@ -44,7 +89,7 @@ describe('ConnectServer', () => {
 
   it('takes the message away on the next keystroke, so the next submit can announce again', async () => {
     const user = userEvent.setup();
-    render(<ConnectServer />);
+    await openAddressStep(user);
 
     await user.click(screen.getByRole('button', { name: 'Connect' }));
     await screen.findByRole('alert');
@@ -70,7 +115,7 @@ describe('ConnectServer', () => {
       ok: false,
       reason: 'Already connected to https://polaris.acme.com.',
     });
-    render(<ConnectServer />);
+    await openAddressStep(user);
 
     await user.type(screen.getByLabelText('Server address'), 'polaris.acme.com');
     await user.click(screen.getByRole('button', { name: 'Connect' }));
