@@ -124,6 +124,21 @@ done
 grep -q 'gh release upload' "$desktop" \
   || note "$desktop uploads no extra assets, so no permanent download URL exists"
 
+# The distribution step must be told which build this run made.
+#
+# Without BUILD_NUMBER the script falls back to "newest build in the list", and App Store
+# Connect does not list a build the moment altool finishes — so on v0.10.0 it distributed
+# v0.9.0's build, printed "marketing version 0.10.0, build 7", and exited zero.
+grep -q 'BUILD_NUMBER' "$ios" \
+  || note "$ios does not pass BUILD_NUMBER to the distribution step, so it cannot tell this run's build from the last release's"
+
+# And the verifier must ask App Store Connect, not the job that just ran.
+if [ -f "$rel" ] && ! grep -q 'appstoreconnect.apple.com' "$rel"; then
+  note "$rel takes the iOS job's word that a build reached testers"
+  echo "      That has been wrong twice: a build in no group, and the previous release's"
+  echo "      build distributed instead of this one. Both times the job was green."
+fi
+
 # Every secret a workflow reads must be written down, with what breaks without it.
 #
 # This is the drift that costs a release day: a workflow grows a `secrets.NEW_THING`, the

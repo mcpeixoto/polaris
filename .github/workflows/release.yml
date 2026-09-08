@@ -149,10 +149,15 @@ jobs:
           fi
           [ "$(jq -r .env <<<"$got")" = production ] || { echo "::error::Not configured as production."; exit 1; }
 
-      # This asserts the iOS job succeeded, and that is only meaningful because the job now
-      # ends by assigning the build to a beta group. It did not before: `v0.9.0` passed this
-      # very check while its build sat in App Store Connect belonging to no group, which
-      # means visible to nobody. The verifier was reading the job's word for it.
+      # This asserts the iOS job succeeded, which is necessary and has twice not been
+      # sufficient. v0.9.0 passed it with a build belonging to no group; v0.10.0 passed it
+      # with the *previous release's* build distributed instead of its own, because the
+      # script took the newest build in the list and App Store Connect had not yet listed
+      # the one just uploaded. Both times the job was green and the release had not shipped.
+      #
+      # So the job's word is checked first, and then App Store Connect is asked directly,
+      # below. A verifier that only reads job conclusions verifies nothing a job can lie
+      # about.
       - name: A build reached testers
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -163,6 +168,54 @@ jobs:
             echo "::error::The iOS release run concluded '$c'. No build reached TestFlight. See docs/05-infrastructure/12-release-secrets.md."
             exit 1
           fi
+
+      # The check that would have caught both failures: is there a build carrying THIS tag's
+      # version, and can anybody actually install it?
+      - name: The TestFlight build for this tag is installable
+        env:
+          ASC_KEY: ${{ secrets.APPLE_API_KEY_PATH }}
+          ASC_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          ASC_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          WANT: ${{ steps.t.outputs.tag }}
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check pyjwt cryptography \
+            || python3 -m pip install --quiet --disable-pip-version-check --break-system-packages pyjwt cryptography
+          python3 - <<'PY'
+          import os, sys, time, json, urllib.request, jwt
+          want = os.environ["WANT"].lstrip("v")
+          now = int(time.time())
+          tok = jwt.encode({"iss": os.environ["ASC_ISSUER"], "iat": now, "exp": now + 600,
+                            "aud": "appstoreconnect-v1"}, os.environ["ASC_KEY"],
+                           algorithm="ES256",
+                           headers={"kid": os.environ["ASC_KEY_ID"], "typ": "JWT"})
+          def get(p):
+              r = urllib.request.Request("https://api.appstoreconnect.apple.com/v1/" + p,
+                                         headers={"Authorization": "Bearer " + tok})
+              return json.load(urllib.request.urlopen(r))
+          app = get("apps?filter[bundleId]=com.peixotolabs.polaris")["data"][0]["id"]
+          r = get(f"builds?filter[app]={app}&limit=20&sort=-uploadedDate"
+                  "&include=preReleaseVersion,betaGroups")
+          inc = {i["id"]: i for i in r.get("included", [])}
+          for d in r["data"]:
+              pv = d["relationships"]["preReleaseVersion"]["data"]
+              ver = inc[pv["id"]]["attributes"]["version"] if pv and pv["id"] in inc else ""
+              if ver != want:
+                  continue
+              groups = [inc[g["id"]]["attributes"]["name"]
+                        for g in (d["relationships"]["betaGroups"]["data"] or [])
+                        if g["id"] in inc]
+              num, state = d["attributes"]["version"], d["attributes"]["processingState"]
+              if not groups:
+                  print(f"::error::Build {num} is version {want} and {state}, but belongs to "
+                        f"no beta group — invisible in the TestFlight app to every tester.")
+                  sys.exit(1)
+              print(f"build {num} ({state}) available to: {', '.join(groups)}")
+              sys.exit(0)
+          print(f"::error::No TestFlight build for version {want}. The upload job was green, "
+                f"so it uploaded something else or nothing.")
+          sys.exit(1)
+          PY
 
       - name: Summary
         if: always()
