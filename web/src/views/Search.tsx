@@ -82,6 +82,7 @@ import {
   type IssuePropertyKind,
   type IssueRowMenuChords,
 } from '~/features/issue/rowMenu';
+import { useContextMenuHandoff } from '~/hooks/useContextMenuHandoff';
 import { LabelPicker } from '~/features/labels/LabelPicker';
 import { applyLabel, removeLabel } from '~/features/labels/mutations';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
@@ -443,7 +444,7 @@ export function Search() {
    * another menu about the same row. Without this the handover would take the pointer
    * anchor off the screen in the same tick the picker asked to hang from it.
    */
-  const handingOver = useRef(false);
+  const contextHandoff = useContextMenuHandoff();
 
   const engine = useEngine();
   const viewerId = useViewerId();
@@ -453,9 +454,18 @@ export function Search() {
     // The cursor moves to the row the picker is about, so that the key caps drawn on the
     // triggers stay true: `S` acts on the cursor row, and this is what makes the row you
     // pointed at the cursor row.
+    const trigger = (
+      {
+        status,
+        assignee,
+        priority,
+        project,
+        labels: labelMenu,
+      } as Partial<Record<IssuePropertyKind, typeof status>>
+    )[kind];
+    if (trigger === undefined) return;
     setCursorKey(key);
     setPropertyFor(key);
-    const trigger = { status, assignee, priority, project, labels: labelMenu }[kind];
     trigger.showFrom(element);
   };
 
@@ -873,15 +883,14 @@ export function Search() {
             open={menuOpen}
             onClose={() => {
               setMenuOpen(false);
-              if (handingOver.current) {
-                handingOver.current = false;
-                return;
-              }
+              if (contextHandoff.consume()) return;
               setContextAt(null);
               listRef.current?.focus();
             }}
             trigger={contextAnchor}
             label={target === null ? 'Issue' : target.identifier}
+            keysPresentation="kbd"
+            density="compact"
             /*
              * The shared item list, minus the destructive end of it.
              *
@@ -901,10 +910,13 @@ export function Search() {
                 canSetStatus: target?.editable ?? false,
                 identifier: target?.identifier,
                 assigneeName: target?.assigneeName ?? undefined,
+                // Search mounts the five property pickers only; omit the rest.
+                estimates: false,
+                cycles: false,
               },
               {
                 pick: (kind) => {
-                  handingOver.current = true;
+                  contextHandoff.begin();
                   if (target !== null) openPicker(kind, target.key, contextAnchor.current);
                 },
                 open: () => {

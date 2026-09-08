@@ -15,6 +15,8 @@ const ONE: IssueRowMenuTarget = {
   editable: true,
   canSetStatus: true,
   identifier: 'ENG-402',
+  estimates: true,
+  cycles: true,
 };
 
 function items(nodes: readonly MenuNode[]): MenuItem[] {
@@ -25,15 +27,56 @@ function byId(nodes: readonly MenuNode[], id: string): MenuItem | undefined {
   return items(nodes).find((item) => item.id === id);
 }
 
+function propertyIds(nodes: readonly MenuNode[]): string[] {
+  const ids: string[] = [];
+  for (const node of nodes) {
+    if (node.kind === 'separator') break;
+    if (node.kind === undefined) ids.push(node.id);
+  }
+  return ids;
+}
+
 describe('issueRowMenuItems', () => {
-  it('offers the five properties in the same order whatever the surface', () => {
+  it('offers the properties in Linear density order with icons', () => {
     const nodes = issueRowMenuItems(ONE, { pick: vi.fn() });
 
-    expect(
-      items(nodes)
-        .slice(0, 5)
-        .map((item) => item.id),
-    ).toEqual(['status', 'assignee', 'priority', 'project', 'labels']);
+    expect(propertyIds(nodes)).toEqual([
+      'status',
+      'assignee',
+      'priority',
+      'estimate',
+      'due',
+      'cycle',
+      'project',
+      'labels',
+    ]);
+    for (const id of propertyIds(nodes)) {
+      expect(byId(nodes, id)?.icon).toBeTruthy();
+    }
+  });
+
+  it('omits estimate, cycle and milestone when the target does not support them', () => {
+    const nodes = issueRowMenuItems(
+      { ...ONE, estimates: false, cycles: false, milestone: false },
+      { pick: vi.fn() },
+    );
+
+    expect(propertyIds(nodes)).toEqual([
+      'status',
+      'assignee',
+      'priority',
+      'due',
+      'project',
+      'labels',
+    ]);
+  });
+
+  it('offers milestone only when the surface opts in', () => {
+    const withMilestone = issueRowMenuItems({ ...ONE, milestone: true }, { pick: vi.fn() });
+    expect(propertyIds(withMilestone)).toContain('milestone');
+
+    const without = issueRowMenuItems(ONE, { pick: vi.fn() });
+    expect(propertyIds(without)).not.toContain('milestone');
   });
 
   it('draws no key cap for a property the caller did not claim a chord for', () => {
@@ -57,7 +100,7 @@ describe('issueRowMenuItems', () => {
     // A search result whose issue is not in the replica: there is no local row to patch, so
     // the write would return silently. Better disabled than a no-op that looks like success.
     const nodes = issueRowMenuItems(
-      { count: 1, editable: false, canSetStatus: true },
+      { count: 1, editable: false, canSetStatus: true, estimates: false, cycles: false },
       { pick: vi.fn(), open: vi.fn(), copyLink: vi.fn() },
     );
 
@@ -69,7 +112,7 @@ describe('issueRowMenuItems', () => {
 
   it('disables only status when a selection spans two workflows', () => {
     const nodes = issueRowMenuItems(
-      { count: 4, editable: true, canSetStatus: false },
+      { count: 4, editable: true, canSetStatus: false, estimates: false, cycles: false },
       { pick: vi.fn() },
     );
 
@@ -89,7 +132,7 @@ describe('issueRowMenuItems', () => {
     expect(byId(single, 'delete')?.danger).toBe(true);
 
     const many = issueRowMenuItems(
-      { count: 3, editable: true, canSetStatus: true },
+      { count: 3, editable: true, canSetStatus: true, estimates: false, cycles: false },
       { pick: vi.fn(), askDelete: vi.fn() },
     );
     expect(byId(many, 'delete')?.label).toBe('Delete 3 issues');
@@ -134,18 +177,70 @@ describe('issueRowMenuItems', () => {
     expect(byId(nodes, 'go-assignee')).toBeUndefined();
   });
 
+  it('folds copy link and copy id into a Copy submenu', () => {
+    const copyLink = vi.fn();
+    const copyIdentifier = vi.fn();
+    const nodes = issueRowMenuItems(ONE, {
+      pick: vi.fn(),
+      copyLink,
+      copyIdentifier,
+    });
+
+    const copy = nodes.find(
+      (node): node is MenuSubmenu => node.kind === 'submenu' && node.id === 'copy',
+    );
+    expect(copy).toBeTruthy();
+    const children = items(copy?.items ?? []);
+    expect(children.map((item) => item.id)).toEqual(['copy-link', 'copy-id']);
+    children[0]?.onSelect();
+    children[1]?.onSelect();
+    expect(copyLink).toHaveBeenCalled();
+    expect(copyIdentifier).toHaveBeenCalled();
+  });
+
+  it('offers subscribe, favorite and open in peek when the surface supplies them', () => {
+    const toggleSubscribe = vi.fn();
+    const toggleFavorite = vi.fn();
+    const openInPeek = vi.fn();
+    const nodes = issueRowMenuItems(
+      { ...ONE, subscribed: true, favorited: false },
+      {
+        pick: vi.fn(),
+        open: vi.fn(),
+        openInPeek,
+        toggleSubscribe,
+        toggleFavorite,
+      },
+      { subscribe: 'shift+s' },
+    );
+
+    expect(byId(nodes, 'subscribe')?.label).toBe('Unsubscribe');
+    expect(byId(nodes, 'subscribe')?.keys).toBe('shift+s');
+    expect(byId(nodes, 'favorite')?.label).toBe('Add to favourites');
+    byId(nodes, 'open-peek')?.onSelect();
+    byId(nodes, 'subscribe')?.onSelect();
+    byId(nodes, 'favorite')?.onSelect();
+    expect(openInPeek).toHaveBeenCalled();
+    expect(toggleSubscribe).toHaveBeenCalled();
+    expect(toggleFavorite).toHaveBeenCalled();
+  });
+
   it('routes every property through one pick call', () => {
     const pick = vi.fn();
-    const nodes = issueRowMenuItems(ONE, { pick });
+    const nodes = issueRowMenuItems({ ...ONE, milestone: true }, { pick });
 
-    for (const item of items(nodes).slice(0, 5)) item.onSelect();
+    for (const id of propertyIds(nodes)) byId(nodes, id)?.onSelect();
 
     expect(pick.mock.calls.map(([kind]) => kind)).toEqual([
       'status',
       'assignee',
       'priority',
+      'estimate',
+      'due',
+      'cycle',
       'project',
       'labels',
+      'milestone',
     ]);
   });
 });

@@ -72,6 +72,7 @@ import {
   type ReorderTarget,
 } from '~/features/issue/mutations';
 import { issueRowMenuItems, type IssuePropertyKind } from '~/features/issue/rowMenu';
+import { useContextMenuHandoff } from '~/hooks/useContextMenuHandoff';
 import { RESTORE_WINDOW_DAYS, restoreIssue } from '~/features/trash/mutations';
 import { offerUndo } from '~/features/undo/UndoToast';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
@@ -819,20 +820,37 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
   const [contextOpen, setContextOpen] = useState(false);
   /** The row the menu is about, and where it is, so a hand-off can move the cursor to it. */
   const [contextRow, setContextRow] = useState<{ id: UUID; rowIndex: number } | null>(null);
-  /** Set for the one render in which the menu is closing *into* a picker. See `closeContext`. */
-  const contextHandoff = useRef(false);
+  const contextHandoff = useContextMenuHandoff();
   const contextAnchor = useRef<HTMLDivElement>(null);
 
   /**
-   * The five pickers a property can name, reached through a ref.
+   * The pickers a property can name, reached through a ref.
    *
    * The same bargain `commands` makes below and for the same reason: a trigger object is
    * rebuilt every time its menu opens, so a callback that closed over one would be rebuilt
    * with it — and these two callbacks are handed to every row on screen, which would undo the
    * memoisation the whole list depends on.
    */
-  const pickers = useRef({ status, assignee, priority, project, labels: labelMenu });
-  pickers.current = { status, assignee, priority, project, labels: labelMenu };
+  const pickers = useRef({
+    status,
+    assignee,
+    priority,
+    project,
+    labels: labelMenu,
+    estimate,
+    due,
+    cycle,
+  });
+  pickers.current = {
+    status,
+    assignee,
+    priority,
+    project,
+    labels: labelMenu,
+    estimate,
+    due,
+    cycle,
+  };
 
   /**
    * Open a picker for the selection: the toolbar's route, and every shortcut's.
@@ -1328,14 +1346,20 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
    * the only one with an assignee to name.
    */
   const contextIssue = useMemo(() => {
-    const empty = { assigneeId: null, assigneeName: null, labels: [] } as {
-      assigneeId: UUID | null;
-      assigneeName: string | null;
-      labels: readonly { id: string; name: string }[];
+    const empty = {
+      assigneeId: null as UUID | null,
+      assigneeName: null as string | null,
+      labels: [] as readonly { id: string; name: string }[],
+      identifier: undefined as string | undefined,
+      subscribed: false,
+      favorited: false,
+      estimates: false,
+      cycles: false,
     };
     if (contextRow === null) return empty;
     const issue = engine.store.get('issue', contextRow.id);
     if (issue === undefined) return empty;
+    const team = engine.store.get('team', issue.teamId);
     const assignee =
       issue.assigneeId === undefined ? undefined : engine.store.get('user', issue.assigneeId);
     const labels: { id: string; name: string }[] = [];
@@ -1344,12 +1368,20 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
       if (label === undefined || label.isGroup) continue;
       labels.push({ id: label.id, name: label.name });
     }
+    const identifier = team === undefined ? issue.id : `${team.key}-${String(issue.number)}`;
     return {
       assigneeId: assignee?.id ?? null,
       assigneeName: assignee === undefined ? null : personName(assignee),
       labels,
+      identifier,
+      subscribed:
+        viewerId !== null && engine.store.subscriberIdsFor(contextRow.id).has(viewerId),
+      favorited:
+        viewerId !== null && isFavorite(engine.store, viewerId, 'issue', contextRow.id),
+      estimates: team !== undefined && estimatesEnabled(team),
+      cycles: team?.cyclesEnabled === true,
     };
-  }, [contextRow, engine]);
+  }, [contextRow, engine, viewerId]);
 
   // Reported after the commit rather than from the resolver, so a parent's own state update
   // is never queued during this component's render.
@@ -1871,9 +1903,11 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
    */
   const openFrom = useCallback(
     (kind: IssuePropertyKind, id: UUID, rowIndex: number, element: HTMLElement | null) => {
+      const picker = pickers.current[kind as keyof typeof pickers.current];
+      if (picker === undefined) return;
       onFocusRow(id, rowIndex);
       setOrigin({ kind, id });
-      pickers.current[kind].showFrom(element);
+      picker.showFrom(element);
     },
     [onFocusRow],
   );
@@ -1892,8 +1926,7 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
   }, []);
 
   const closeContext = useCallback(() => {
-    const handoff = contextHandoff.current;
-    contextHandoff.current = false;
+    const handoff = contextHandoff.consume();
     setContextOpen(false);
     // A hand-off keeps the anchor — the picker is about to hang off it — and keeps its hands
     // off the focus: the frame below would land after the picker has focused its first item
@@ -1903,17 +1936,19 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
     // After the menu's own restore, not instead of it: it hands focus back to the anchor,
     // which is about to be unmounted, so the list takes it in the following frame.
     requestAnimationFrame(() => scrollRef.current?.focus());
-  }, []);
+  }, [contextHandoff]);
 
   /** A context-menu property item: close the menu, and open the picker where the menu was. */
   const handOffContext = useCallback(
     (kind: IssuePropertyKind) => {
       if (contextRow === null) return;
-      contextHandoff.current = true;
+      // Milestone has no list picker yet; omit unsupported rather than no-op.
+      if (kind === 'milestone') return;
+      contextHandoff.begin();
       setContextOpen(false);
       openFrom(kind, contextRow.id, contextRow.rowIndex, contextAnchor.current);
     },
-    [contextRow, openFrom],
+    [contextRow, openFrom, contextHandoff],
   );
 
   if (scope.heading === null) {
@@ -2450,6 +2485,8 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
         onClose={closeContext}
         trigger={contextAnchor}
         label={targets.length === 1 ? 'Issue actions' : `Actions for ${issueCount(targets.length)}`}
+        keysPresentation="kbd"
+        density="compact"
         /*
          * The same builder the inbox, the search results and the relations panel draw from,
          * so the words and the order are one thing rather than four.
@@ -2466,6 +2503,11 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
             count: targets.length,
             editable: canAct,
             canSetStatus,
+            identifier: contextIssue.identifier,
+            estimates: contextIssue.estimates || estimatesPossible,
+            cycles: contextIssue.cycles,
+            subscribed: contextIssue.subscribed,
+            favorited: contextIssue.favorited,
             ...(contextIssue.assigneeName === null
               ? {}
               : { assigneeName: contextIssue.assigneeName }),
@@ -2473,6 +2515,14 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
           },
           {
             pick: (kind) => handOffContext(kind),
+            open: () => {
+              closeContext();
+              commands.current.open();
+            },
+            openInPeek: () => {
+              closeContext();
+              if (!commands.current.peekOpen()) commands.current.pressPeek();
+            },
             copyLink: () => {
               closeContext();
               commands.current.copyIssueLink();
@@ -2493,12 +2543,31 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
               closeContext();
               void navigate(labelViewPath(labelId as UUID));
             },
+            toggleSubscribe: () => {
+              closeContext();
+              commands.current.toggleSubscribe();
+            },
+            toggleFavorite: () => {
+              if (viewerId === null || contextRow === null) return;
+              closeContext();
+              toggleFavorite(engine, viewerId, 'issue', contextRow.id).catch(report);
+            },
             askDelete: () => {
               closeContext();
               commands.current.askDelete();
             },
           },
-          { status: 's', assignee: 'a', priority: 'p', labels: 'l' },
+          {
+            status: 's',
+            assignee: 'a',
+            priority: 'p',
+            project: 'shift+p',
+            cycle: 'shift+c',
+            labels: 'l',
+            estimate: 'shift+e',
+            due: 'shift+d',
+            subscribe: 'shift+s',
+          },
         )}
       />
 
