@@ -509,7 +509,10 @@ export function Menu({
   useLayoutEffect(() => {
     if (!open) return;
     const anchor = trigger.current;
-    if (anchor === null) return;
+    // `isConnected`, not just `null`: a menu can hang off a row's glyph, and a detached node
+    // still answers `getBoundingClientRect()` — with zeros, which would put the menu in the
+    // top-left corner rather than leaving it where it was.
+    if (anchor === null || !anchor.isConnected) return;
     setPoint(anchorPointFor(anchor.getBoundingClientRect(), placementUsed));
   }, [open, trigger, placementUsed]);
 
@@ -552,7 +555,10 @@ export function Menu({
     if (!open) return;
     const reanchor = () => {
       const anchor = trigger.current;
-      if (anchor === null) return;
+      // A row-anchored menu outlives its row: scroll far enough and the virtualiser recycles
+      // the glyph the menu is hanging off. Keep the last measured point rather than
+      // remeasuring a node that is no longer in the document and reads as all zeros.
+      if (anchor === null || !anchor.isConnected) return;
       settledRef.current = false;
       setPoint(anchorPointFor(anchor.getBoundingClientRect(), placementUsed));
     };
