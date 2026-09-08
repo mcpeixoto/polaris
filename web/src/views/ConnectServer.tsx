@@ -1,10 +1,10 @@
 /**
- * First run in the desktop app: which Polaris server is yours?
+ * First run in the desktop app: welcome, then Polaris Cloud or a typed self-hosted origin.
  *
  * The web client never sees this screen and never should — it was served by its own API, so
- * the question is already answered. The desktop app is the case where it is not: Polaris is
- * self-hosted, the same download has to work against anybody's server, and an address
- * compiled into the binary would mean a build per customer.
+ * the question is already answered. The desktop app is the case where it is not: the same
+ * download has to work against Cloud or anybody's server, and an address compiled into the
+ * binary would mean a build per customer.
  *
  * It comes before sign-in because it has to. There is nowhere to send credentials until
  * somebody says where the server is.
@@ -30,7 +30,12 @@ import { useRef, useState, type FormEvent } from 'react';
 import { Button, Input } from '~/components';
 import { setDesktopServerUrl } from '~/platform/runtime';
 import { normaliseServerUrl } from '~/sync/endpoint';
+import { HOSTED_CLOUD_ORIGIN } from '~/sync/hostedOrigin';
 import { AuthError, AuthForm, AuthLayout, authSubmitClass } from './AuthLayout';
+
+import styles from './ConnectServer.module.css';
+
+type Step = 'welcome' | 'choose' | 'address';
 
 export interface ConnectServerProps {
   /**
@@ -41,30 +46,14 @@ export interface ConnectServerProps {
 }
 
 export function ConnectServer({ current }: ConnectServerProps) {
+  const [step, setStep] = useState<Step>('welcome');
   const [address, setAddress] = useState(current ?? '');
   const [invalid, setInvalid] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const addressRef = useRef<HTMLInputElement>(null);
 
-  const onSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    if (busy) return;
-
-    if (address.trim() === '') {
-      setInvalid('Enter the address your administrator gave you.');
-      addressRef.current?.focus();
-      return;
-    }
-
-    const origin = normaliseServerUrl(address);
-    if (origin === null) {
-      setInvalid('That does not look like a web address. Try something like polaris.acme.com.');
-      addressRef.current?.focus();
-      return;
-    }
-    setInvalid(null);
-
+  const connectToOrigin = (origin: string) => {
     // No reachability check before saving, and that is deliberate. A probe here would need
     // its own timeout, its own error vocabulary and its own retry, and it would still be
     // wrong for the person setting the app up on a laptop that is not on the VPN yet. The
@@ -89,12 +78,94 @@ export function ConnectServer({ current }: ConnectServerProps) {
     });
   };
 
+  const onCloud = () => {
+    if (busy) return;
+    connectToOrigin(HOSTED_CLOUD_ORIGIN);
+  };
+
+  const onSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    if (busy) return;
+
+    if (address.trim() === '') {
+      setInvalid('Enter the address your administrator gave you.');
+      addressRef.current?.focus();
+      return;
+    }
+
+    const origin = normaliseServerUrl(address);
+    if (origin === null) {
+      setInvalid('That does not look like a web address. Try something like polaris.acme.com.');
+      addressRef.current?.focus();
+      return;
+    }
+    setInvalid(null);
+    connectToOrigin(origin);
+  };
+
+  if (step === 'welcome') {
+    return (
+      <AuthLayout title="Hi. This is Polaris.">
+        <div className={styles.welcomeBody}>
+          <p className={styles.welcomeLead}>
+            Issue tracking without the wait — keyboard-first, local-first, for software teams.
+          </p>
+          <Button
+            type="button"
+            variant="primary"
+            fullWidth
+            className={`${authSubmitClass} ${styles.welcomeAction}`}
+            onClick={() => setStep('choose')}
+          >
+            Continue
+          </Button>
+        </div>
+      </AuthLayout>
+    );
+  }
+
+  if (step === 'choose') {
+    return (
+      <AuthLayout
+        title="Where should Polaris connect?"
+        subtitle="Polaris Cloud is hosted for you. Or point this app at a server you run."
+      >
+        <div className={styles.choiceStack}>
+          <AuthError message={error} />
+          <Button
+            type="button"
+            variant="primary"
+            fullWidth
+            loading={busy}
+            className={authSubmitClass}
+            onClick={onCloud}
+          >
+            Polaris Cloud
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            fullWidth
+            disabled={busy}
+            className={authSubmitClass}
+            onClick={() => {
+              setError(null);
+              setStep('address');
+            }}
+          >
+            Use your own server
+          </Button>
+        </div>
+      </AuthLayout>
+    );
+  }
+
   return (
     <AuthLayout
-      title="Connect to your Polaris"
-      subtitle="Polaris is self-hosted, so it needs the address of your team's server. Your administrator will have it."
+      title="Connect to your server"
+      subtitle="Enter the address your administrator gave you."
     >
-      <AuthForm onSubmit={onSubmit}>
+      <AuthForm onSubmit={onSubmit} step="address">
         <AuthError message={error} />
 
         <Input
@@ -128,6 +199,19 @@ export function ConnectServer({ current }: ConnectServerProps) {
           className={authSubmitClass}
         >
           Connect
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          fullWidth
+          disabled={busy}
+          onClick={() => {
+            setInvalid(null);
+            setError(null);
+            setStep('choose');
+          }}
+        >
+          Back
         </Button>
       </AuthForm>
     </AuthLayout>

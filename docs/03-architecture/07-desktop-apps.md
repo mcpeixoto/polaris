@@ -55,23 +55,27 @@ only, because in development the renderer is a dev server and everything works.
 
 ## Which server?
 
-Polaris is self-hosted, so there is no address that could be compiled in — the same download
-has to work against anybody's server, and baking one in would mean a build per customer.
+On first run the desktop app offers **Polaris Cloud** (the EU-hosted origin
+`https://polaris.peixotolabs.com`) or **Use your own server** (a typed origin). The same
+download covers both channels; baking a single address into the binary would mean a build
+per customer for self-hosters, and would hide Cloud as a choice.
 
-The shell stores an origin in `settings.json` beside the app's own data, and hands it to the
-renderer as a launch argument. A launch argument rather than IPC because the client needs it
-*synchronously*: the sync engine builds its first URL during module evaluation, and an async
-lookup would mean wrapping the entire application in a loading state to answer a question
-that was settled before the window opened.
+The shell stores the chosen origin in `settings.json` beside the app's own data, and hands
+it to the renderer as a launch argument. A launch argument rather than IPC because the
+client needs it *synchronously*: the sync engine builds its first URL during module
+evaluation, and an async lookup would mean wrapping the entire application in a loading
+state to answer a question that was settled before the window opened.
 
 `web/src/sync/endpoint.ts` is the one place that turns a path into a URL. On the web it
 returns the path unchanged and the behaviour is exactly what it always was; on the desktop
 it prefixes the configured origin and switches `fetch` to `credentials: 'include'`, because
-a desktop app is cross-origin to its server by construction.
+a desktop app is cross-origin to its server by construction. The hosted Cloud constant lives
+in `web/src/sync/hostedOrigin.ts` so ConnectServer and its tests share one string.
 
 Changing the server recreates the window rather than reloading it, and the client clears its
 replica first. A local database is a copy of *one workspace on one server*: carrying it
-across would leave issues the new server will never send a revoke for.
+across would leave issues the new server will never send a revoke for. The Electron menu's
+"Change Server…" clears the stored origin and returns to the connect flow.
 
 ## What signing needs
 
