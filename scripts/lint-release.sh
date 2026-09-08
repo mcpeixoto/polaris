@@ -107,6 +107,23 @@ if ! grep -q 'distribute-build.py' "$ios"; then
   echo "      An unassigned build is invisible to testers, and the upload job stays green."
 fi
 
+# Each release must carry a copy of every installer under a name with no version in it.
+#
+# Those are the only permanent links that exist. GitHub's /releases/latest/download/<name>
+# redirect needs an exact filename, and every other asset is called Polaris-0.9.0-…, so
+# without these the landing page can offer nothing but "here is a page with fifteen files
+# on it" — which is what it did, and what somebody had to point out.
+#
+# Dropping the step breaks every download button on the site at the *next* release, not this
+# one, and nothing else goes red.
+for stable in Polaris-mac-arm64.dmg Polaris-mac-x64.dmg Polaris-Setup.exe \
+              Polaris-linux-x86_64.AppImage polaris-amd64.deb; do
+  grep -qF "$stable" "$desktop" \
+    || note "$desktop never publishes a stable-named copy called $stable"
+done
+grep -q 'gh release upload' "$desktop" \
+  || note "$desktop uploads no extra assets, so no permanent download URL exists"
+
 # Every secret a workflow reads must be written down, with what breaks without it.
 #
 # This is the drift that costs a release day: a workflow grows a `secrets.NEW_THING`, the

@@ -206,6 +206,68 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
 
+      # A permanent URL to each installer.
+      #
+      # electron-builder stamps the version into every asset name, so
+      # `Polaris-0.9.0-mac-arm64.dmg` is the only name a release has and there is no link
+      # that keeps working. The landing page could therefore only point at the releases
+      # page, which hands somebody who wanted the app a list of fifteen files.
+      #
+      # GitHub's `/releases/latest/download/<name>` redirect needs an exact filename, so the
+      # fix is a second copy of each installer under a name with no version in it. These are
+      # additional assets, never replacements: release.yml still asserts that some asset
+      # carries the tag's version, which is what proves the build took its version from the
+      # tag.
+      #
+      # They must stay out of `latest*.yml`, and this step cannot put them there — it copies
+      # files and uploads them, and never regenerates a manifest. That matters more than it
+      # looks: electron-updater picks a macOS update by substring from the manifest's `files`
+      # list, preferring URLs containing "arm64" on Apple Silicon and excluding them
+      # everywhere else. An extra file inside that list could hand every Mac the wrong build,
+      # silently, forever. An extra file merely *on the release* is invisible to it. That is
+      # also why the .zip files — the ones macOS actually updates from — get no alias here.
+      - name: Publish stable-named copies of the installers
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        shell: bash
+        working-directory: desktop/release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          # Exactly one match, or fail. A zero-match would publish a release whose stable
+          # link 404s — and the landing page points at that link, so the first person to
+          # notice would be a user. A two-match would pick arbitrarily between them.
+          copy() {
+            local matches=( $1 )
+            if [ ${#matches[@]} -ne 1 ]; then
+              echo "::error::Expected exactly one file matching '$1' in desktop/release, found ${#matches[@]}: ${matches[*]:-none}"
+              ls -1
+              exit 1
+            fi
+            cp "${matches[0]}" "$2"
+            gh release upload "$GITHUB_REF_NAME" "$2" --clobber
+            echo "$2  <-  ${matches[0]}"
+          }
+
+          # Globs end in the real extension so the .blockmap siblings never match. The
+          # Windows installer is globbed loosely because its name on disk carries spaces
+          # ("Polaris Setup 0.9.0.exe") while the uploaded asset does not.
+          case "${{ matrix.name }}" in
+            macOS)
+              copy '*-mac-arm64.dmg'      Polaris-mac-arm64.dmg
+              copy '*-mac-x64.dmg'        Polaris-mac-x64.dmg
+              ;;
+            Windows)
+              copy '*Setup*.exe'          Polaris-Setup.exe
+              ;;
+            Linux)
+              copy '*.AppImage'           Polaris-linux-x86_64.AppImage
+              copy '*.deb'                polaris-amd64.deb
+              ;;
+          esac
+
       # The step that separates "it compiled" from "it is an application".
       #
       # An Electron shell fails in a way a build cannot see: the main process is ESM, half
@@ -278,7 +340,12 @@ jobs:
           assets=$(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')
           echo "$assets"
           missing=()
-          for want in '\.dmg$' '\.exe$' '\.AppImage$' '^latest\.yml$' '^latest-mac\.yml$' '^latest-linux\.yml$'; do
+          # The versioned artefacts, the update manifests, and the stable aliases the
+          # website links to. A release missing an alias is one where every download button
+          # on the landing page 404s.
+          for want in '\.dmg$' '\.exe$' '\.AppImage$' '^latest\.yml$' '^latest-mac\.yml$' '^latest-linux\.yml$' \
+                      '^Polaris-mac-arm64\.dmg$' '^Polaris-mac-x64\.dmg$' '^Polaris-Setup\.exe$' \
+                      '^Polaris-linux-x86_64\.AppImage$' '^polaris-amd64\.deb$'; do
             grep -qE "$want" <<<"$assets" || missing+=("$want")
           done
           if [ ${#missing[@]} -ne 0 ]; then
