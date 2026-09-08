@@ -111,10 +111,13 @@ import { CreateCustomerRequestModal } from '~/features/customers/CreateCustomerR
 import { browserTimezone } from '~/features/locale';
 import { RecurringDialog } from '~/features/recurring/RecurringDialog';
 import {
+  archiveRecurringIssue,
   CADENCE_LABELS,
   createRecurringIssue,
   propertiesOfIssue,
+  updateRecurringIssue,
 } from '~/features/recurring/mutations';
+import { MilestonePicker } from '~/features/project-milestones/MilestonePicker';
 import { restoreIssue } from '~/features/trash/mutations';
 import { isFavorite, toggleFavorite } from '~/features/view/mutations';
 import { clearIssueSla, setIssueSla } from '~/features/slas/mutations';
@@ -228,9 +231,12 @@ export function IssueDetail() {
             ? null
             : (() => {
                 const rec = store.recurringIssues.get(found.recurringIssueId);
+                // The id as well as the two values on screen: both writers this row now
+                // reaches — edit the cadence, stop the schedule — name the schedule, not
+                // the issue that happens to point at it.
                 return rec === undefined
                   ? null
-                  : { cadence: rec.cadence, nextDueDate: rec.nextDueDate };
+                  : { id: rec.id, cadence: rec.cadence, nextDueDate: rec.nextDueDate };
               })(),
         labelIds: [...store.labelIdsFor(found.id)],
         labels: [...store.labelIdsFor(found.id)].flatMap((id) => {
@@ -239,6 +245,7 @@ export function IssueDetail() {
             ? []
             : [{ id: label.id, name: label.name, color: label.color }];
         }),
+        milestoneId: found.projectMilestoneId ?? null,
         milestoneName:
           found.projectMilestoneId === undefined
             ? null
@@ -311,6 +318,7 @@ export function IssueDetail() {
   // form, not a list the arrow keys walk. Every other trigger here opens a `Menu`.
   const due = useMenuTrigger('dialog');
   const project = useMenuTrigger();
+  const milestone = useMenuTrigger();
   const cycle = useMenuTrigger();
   const labels = useMenuTrigger();
   // The header's "…": the actions that are not worth a button of their own.
@@ -334,6 +342,7 @@ export function IssueDetail() {
     pickAssignee: () => {},
     pickPriority: () => {},
     pickProject: () => {},
+    pickMilestone: () => {},
     pickCycle: () => {},
     pickEstimate: () => {},
     pickDue: () => {},
@@ -343,6 +352,8 @@ export function IssueDetail() {
     focusTitle: () => {},
     askDelete: () => {},
     makeRecurring: () => {},
+    editRecurring: () => {},
+    stopRecurring: () => {},
     submitComment: () => {},
     copyGitBranch: () => {},
     copyModelUuid: () => {},
@@ -354,9 +365,12 @@ export function IssueDetail() {
   // Whether the confirmation is up. Held here rather than inside a component of its own so
   // that the command-menu entry and the button open the same one.
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [converting, setConverting] = useState(false);
-  const [convertingBusy, setConvertingBusy] = useState(false);
-  const [convertingError, setConvertingError] = useState<string | null>(null);
+  // One dialog for both halves of a cadence: convert asks the same two questions edit does,
+  // and a second copy of it would be a second place for the two to drift apart.
+  const [recurringMode, setRecurringMode] = useState<'convert' | 'edit' | null>(null);
+  const [recurringBusy, setRecurringBusy] = useState(false);
+  const [recurringError, setRecurringError] = useState<string | null>(null);
+  const [stoppingRecurring, setStoppingRecurring] = useState(false);
   const [requestOpen, setRequestOpen] = useState(false);
 
   useKeyContext('detail');
@@ -395,6 +409,29 @@ export function IssueDetail() {
         group: 'Issues',
         run: () => commands.current.pickProject(),
       },
+      /*
+       * Registered only where the issue is in a project, on the `issueDetail.estimate`
+       * precedent above: a milestone is a marker *inside* a project, so with no project
+       * there is nothing for the key to open and the rail draws no row either. The key
+       * follows the control it opens.
+       *
+       * `Shift+M` is the binding 19-clients-sync-preferences.md has promised for milestone
+       * since it was written; nothing had ever bound it. It does not collide with the `m b`
+       * / `m x` / `m r` relation sequences here — Shift is part of a letter's chord identity
+       * (`chordId` in keys/matcher.ts), so `shift+m` and `m` are two prefixes, not one.
+       */
+      ...(issue !== null && issue.projectId !== null
+        ? [
+            {
+              id: 'issueDetail.milestone',
+              title: 'Set milestone',
+              keys: ['shift+m'],
+              when: 'detail' as const,
+              group: 'Issues',
+              run: () => commands.current.pickMilestone(),
+            },
+          ]
+        : []),
       {
         id: 'issueDetail.cycle',
         title: 'Set cycle',
@@ -530,12 +567,36 @@ export function IssueDetail() {
         enabled: () => titleRef.current?.editing() === true,
         run: () => titleRef.current?.revert(),
       },
+      /*
+       * The three schedule actions, none of them bound.
+       *
+       * No document names a chord for any of them, and this codebase has twice declined to
+       * invent one rather than spend a letter on a guess (`relations.tsx`, and
+       * `makeRecurring` here since it was written). Unbound is not unreachable: the command
+       * menu takes a sentence, which is the right amount of deliberation for a schedule that
+       * belongs to the whole team. The help sheet lists bound actions only, so it stays
+       * quiet about all three, which is honest.
+       */
       {
         id: 'issueDetail.makeRecurring',
         title: 'Convert into recurring issue',
         when: 'detail',
         group: 'Issues',
         run: () => commands.current.makeRecurring(),
+      },
+      {
+        id: 'issueDetail.editRecurring',
+        title: 'Edit recurring schedule',
+        when: 'detail',
+        group: 'Issues',
+        run: () => commands.current.editRecurring(),
+      },
+      {
+        id: 'issueDetail.stopRecurring',
+        title: 'Stop repeating',
+        when: 'detail',
+        group: 'Issues',
+        run: () => commands.current.stopRecurring(),
       },
       {
         id: 'issueDetail.comment',
@@ -599,7 +660,7 @@ export function IssueDetail() {
           ]
         : []),
     ],
-    [commentSubmit, viewer, viewerId, issue?.estimatesEnabled],
+    [commentSubmit, viewer, viewerId, issue?.estimatesEnabled, issue?.projectId],
   );
 
   if (issue === null) {
@@ -633,6 +694,9 @@ export function IssueDetail() {
   commands.current.pickAssignee = assignee.show;
   commands.current.pickPriority = priority.show;
   commands.current.pickProject = project.show;
+  commands.current.pickMilestone = () => {
+    if (issue.projectId !== null) milestone.show();
+  };
   commands.current.pickCycle = cycle.show;
   commands.current.pickEstimate = () => {
     if (issue.estimatesEnabled) estimate.show();
@@ -674,8 +738,17 @@ export function IssueDetail() {
   };
   commands.current.makeRecurring = () => {
     if (issue.recurring !== null) return;
-    setConvertingError(null);
-    setConverting(true);
+    setRecurringError(null);
+    setRecurringMode('convert');
+  };
+  commands.current.editRecurring = () => {
+    if (issue.recurring === null) return;
+    setRecurringError(null);
+    setRecurringMode('edit');
+  };
+  commands.current.stopRecurring = () => {
+    if (issue.recurring === null) return;
+    setStoppingRecurring(true);
   };
 
   /**
@@ -783,6 +856,8 @@ export function IssueDetail() {
         items={moreItems(issue, viewerId, viewer?.role ?? null, {
           toggleSubscribe: () => commands.current.toggleSubscribe(),
           makeRecurring: () => commands.current.makeRecurring(),
+          editRecurring: () => commands.current.editRecurring(),
+          stopRecurring: () => commands.current.stopRecurring(),
           addRequest: () => setRequestOpen(true),
           copyModelUuid: () => commands.current.copyModelUuid(),
           askDelete: () => commands.current.askDelete(),
@@ -800,23 +875,59 @@ export function IssueDetail() {
       />
 
       <RecurringDialog
-        open={converting}
-        title={`Make ${issue.identifier} recurring`}
-        description="This issue becomes the first occurrence. Later ones are minted from a snapshot of it, not from a live template."
-        initialDueDate={issue.dueDate ?? undefined}
+        open={recurringMode !== null}
+        title={
+          recurringMode === 'edit'
+            ? `Edit ${issue.identifier}'s schedule`
+            : `Make ${issue.identifier} recurring`
+        }
+        description={
+          recurringMode === 'edit'
+            ? 'Changes the cadence and the day the next occurrence is due. Occurrences already created keep the dates they were given.'
+            : 'This issue becomes the first occurrence. Later ones are minted from a snapshot of it, not from a live template.'
+        }
+        initialDueDate={
+          recurringMode === 'edit' ? issue.recurring?.nextDueDate : (issue.dueDate ?? undefined)
+        }
+        initialCadence={recurringMode === 'edit' ? issue.recurring?.cadence : undefined}
+        confirmLabel={recurringMode === 'edit' ? 'Save schedule' : 'Make recurring'}
+        dueLabel={recurringMode === 'edit' ? 'Next due' : undefined}
         timezone={issue.timezone}
-        busy={convertingBusy}
-        error={convertingError}
+        busy={recurringBusy}
+        error={recurringError}
         onClose={() => {
-          if (convertingBusy) return;
-          setConverting(false);
-          setConvertingError(null);
+          if (recurringBusy) return;
+          setRecurringMode(null);
+          setRecurringError(null);
         }}
         onConfirm={(draft) => {
+          const schedule = issue.recurring;
+          if (recurringMode === 'edit') {
+            if (schedule === null) return;
+            setRecurringBusy(true);
+            setRecurringError(null);
+            updateRecurringIssue(engine, schedule.id, {
+              cadence: draft.cadence,
+              nextDueDate: draft.firstDueDate,
+            })
+              .then(() => {
+                setRecurringBusy(false);
+                setRecurringMode(null);
+              })
+              .catch((failure: unknown) => {
+                setRecurringBusy(false);
+                setRecurringError(
+                  failure instanceof ApiError
+                    ? failure.message
+                    : 'This schedule could not be changed.',
+                );
+              });
+            return;
+          }
           const found = engine.store.issues.get(issue.id);
           if (found === undefined) return;
-          setConvertingBusy(true);
-          setConvertingError(null);
+          setRecurringBusy(true);
+          setRecurringError(null);
           createRecurringIssue(engine, {
             teamId: found.teamId,
             title: found.title,
@@ -827,18 +938,37 @@ export function IssueDetail() {
             sourceIssueId: found.id,
           })
             .then(() => {
-              setConvertingBusy(false);
-              setConverting(false);
+              setRecurringBusy(false);
+              setRecurringMode(null);
             })
             .catch((failure: unknown) => {
-              setConvertingBusy(false);
-              setConvertingError(
+              setRecurringBusy(false);
+              setRecurringError(
                 failure instanceof ApiError
                   ? failure.message
                   : 'This issue could not be made recurring.',
               );
             });
         }}
+      />
+
+      {/* The consequence names the team on purpose. A schedule is a `recurringIssue` row on
+          the team — it is listed in that team's settings, and `ArchiveRecurringIssue` emits
+          its change at team scope — so stopping it stops it for everybody, which is not what
+          a control sitting on one issue looks like it does. */}
+      <ConfirmDialog
+        open={stoppingRecurring}
+        title={`Stop repeating ${issue.identifier}?`}
+        consequence={`${issue.teamName} stops getting this issue on its schedule, for everybody. The occurrences already created, this one included, keep their dates and stay exactly as they are.`}
+        confirmLabel="Stop repeating"
+        destructive
+        onConfirm={() => {
+          const schedule = issue.recurring;
+          setStoppingRecurring(false);
+          if (schedule === null) return;
+          archiveRecurringIssue(engine, schedule.id).catch(report);
+        }}
+        onClose={() => setStoppingRecurring(false)}
       />
 
       {requestOpen && (
@@ -1137,28 +1267,56 @@ export function IssueDetail() {
           </div>
 
           {/* Gated on the issue being in a project, because a milestone is a marker *inside*
-              one: with no project there is nothing for the row to name. Read-only, like
-              Repeats below it, and wearing the value class rather than the trigger class so
-              the rail does not offer an affordance that opens nothing. */}
+              one: with no project there is nothing for the row to name, and the server
+              refuses a milestone that crosses projects.
+
+              This row used to be read-only, and the note here used to argue that showing a
+              trigger would be promising a control that opens nothing. That was true of the
+              row and false of the product: `projectMilestoneId` and `clearMilestone` have
+              been on `UpdateIssueInput` all along, so a milestone could be set by the
+              importer, by the agent tools and by nothing a person could reach. It opens a
+              picker now, and the chord the shortcut reference has promised since it was
+              written finally does something. */}
           {issue.projectId === null ? null : (
             <div className={styles.property}>
-              <span className={styles.srOnly}>Milestone</span>
-              <span className={styles.propertyValue}>
-                <MilestoneGlyph width="14" height="14" className={styles.valueGlyph} />
-                {issue.milestoneName ?? <span className={styles.unset}>No milestone</span>}
+              <span className={styles.srOnly} id={`${issue.id}-milestone-label`}>
+                Milestone
               </span>
+              {/* The picker has no filter box, so the tooltip is where the chord can be
+                  taught — `filterHint` is a row of a filter this list is better without. */}
+              <Tooltip label="Set milestone" keys="shift+m" describe={false}>
+                <Button
+                  {...milestone.props}
+                  variant="ghost"
+                  fullWidth
+                  className={styles.propertyTrigger}
+                  aria-describedby={`${issue.id}-milestone-label`}
+                  icon={<MilestoneGlyph width="14" height="14" />}
+                >
+                  {issue.milestoneName ?? <span className={styles.unset}>No milestone</span>}
+                </Button>
+              </Tooltip>
             </div>
           )}
 
           {issue.recurring === null ? null : (
             <div className={styles.property}>
-              <span className={styles.srOnly}>Repeats</span>
-              {/* Not `propertyTrigger`: this opens nothing, and trigger styling on a
-                  non-interactive element is the row promising a control it does not have.
-                  The date goes through `whenDay`/`exact` like every other date on the page —
-                  it was printing the raw ISO day the store holds. */}
-              <span className={styles.propertyValue}>
-                <RepeatGlyph width="14" height="14" className={styles.valueGlyph} />
+              <span className={styles.srOnly} id={`${issue.id}-repeats-label`}>
+                Repeats
+              </span>
+              {/* It opens the cadence dialog. The date goes through `whenDay`/`exact` like
+                  every other date on the page — it was printing the raw ISO day the store
+                  holds. `time` inside a button is fine: it is text with a machine-readable
+                  day, not a second control. */}
+              <Button
+                variant="ghost"
+                fullWidth
+                className={styles.propertyTrigger}
+                aria-haspopup="dialog"
+                aria-describedby={`${issue.id}-repeats-label`}
+                icon={<RepeatGlyph width="14" height="14" />}
+                onClick={() => commands.current.editRecurring()}
+              >
                 <span>
                   {CADENCE_LABELS[issue.recurring.cadence]} · next{' '}
                   <time
@@ -1168,7 +1326,7 @@ export function IssueDetail() {
                     {whenDay(issue.recurring.nextDueDate, issue.timezone)}
                   </time>
                 </span>
-              </span>
+              </Button>
             </div>
           )}
 
@@ -1214,6 +1372,17 @@ export function IssueDetail() {
         value={issue.projectId}
         placement="bottom-end"
         onSelect={(projectId) => updateIssue(engine, issue.id, { projectId }).catch(report)}
+      />
+      <MilestonePicker
+        open={milestone.open}
+        onClose={milestone.hide}
+        trigger={milestone.ref}
+        projectId={issue.projectId}
+        value={issue.milestoneId}
+        placement="bottom-end"
+        onSelect={(projectMilestoneId) =>
+          updateIssueProperties(engine, issue.id, { projectMilestoneId }).catch(report)
+        }
       />
       <CyclePicker
         open={cycle.open}
@@ -1279,6 +1448,8 @@ function moreItems(
   run: {
     toggleSubscribe(): void;
     makeRecurring(): void;
+    editRecurring(): void;
+    stopRecurring(): void;
     addRequest(): void;
     copyModelUuid(): void;
     askDelete(): void;
@@ -1296,6 +1467,8 @@ function moreItems(
             onSelect: run.toggleSubscribe,
           },
         ]),
+    // Never both halves: an issue is on a schedule or it is not, and a menu offering to make
+    // a recurring issue recurring is a menu that has not read the issue.
     ...(issue.recurring === null
       ? [
           {
@@ -1305,7 +1478,21 @@ function moreItems(
             onSelect: run.makeRecurring,
           },
         ]
-      : []),
+      : [
+          {
+            id: 'recurring-edit',
+            label: 'Edit schedule',
+            icon: <RepeatGlyph />,
+            onSelect: run.editRecurring,
+          },
+          {
+            id: 'recurring-stop',
+            label: 'Stop repeating',
+            icon: <RepeatGlyph />,
+            danger: true,
+            onSelect: run.stopRecurring,
+          },
+        ]),
     ...(role !== null && role !== 'guest'
       ? [
           {
@@ -1327,6 +1514,7 @@ interface DetailCommands {
   pickAssignee(): void;
   pickPriority(): void;
   pickProject(): void;
+  pickMilestone(): void;
   pickCycle(): void;
   pickEstimate(): void;
   pickDue(): void;
@@ -1336,6 +1524,8 @@ interface DetailCommands {
   focusTitle(): void;
   askDelete(): void;
   makeRecurring(): void;
+  editRecurring(): void;
+  stopRecurring(): void;
   submitComment(): void;
   copyGitBranch(): void;
   copyModelUuid(): void;

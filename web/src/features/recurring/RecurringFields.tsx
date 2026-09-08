@@ -21,6 +21,12 @@ import styles from './RecurringFields.module.css';
 export interface RecurringFieldsProps {
   cadence: RecurringCadence;
   firstDueDate: string;
+  /**
+   * What the day means here. It is the first occurrence when a schedule is being written and
+   * the next one when an existing schedule is being edited, and calling the second "First
+   * due" invites the reader to think they are re-dating an occurrence that already exists.
+   */
+  dueLabel?: string | undefined;
   onCadence: (cadence: RecurringCadence) => void;
   onFirstDueDate: (day: string) => void;
 }
@@ -28,6 +34,7 @@ export interface RecurringFieldsProps {
 export function RecurringFields({
   cadence,
   firstDueDate,
+  dueLabel = 'First due',
   onCadence,
   onFirstDueDate,
 }: RecurringFieldsProps) {
@@ -45,7 +52,7 @@ export function RecurringFields({
         ))}
       </Select>
       <Input
-        label="First due"
+        label={dueLabel}
         type="date"
         value={firstDueDate}
         onChange={(event) => onFirstDueDate(event.target.value)}
