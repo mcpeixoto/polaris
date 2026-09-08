@@ -1,4 +1,4 @@
-import type { MouseEvent, ReactNode } from 'react';
+import type { MouseEvent, ReactNode, Ref } from 'react';
 
 import { IconButton } from './IconButton';
 import styles from './PropertyTrigger.module.css';
@@ -38,6 +38,18 @@ export interface PropertyTriggerProps {
   roving?: boolean | undefined;
   /** Handed the button element, because that is what the menu anchors to. */
   onOpen: (element: HTMLElement) => void;
+  /**
+   * The registered trigger, for a surface that has exactly one row.
+   *
+   * A pointer click carries its own element and needs nothing here. A *keystroke* does not:
+   * `useMenuTrigger.show()` clears the override and falls back to the element the trigger
+   * registered, and a picker with no anchor at all skips positioning entirely and opens in
+   * the window corner with no focus to return to. So a single-issue surface — the inbox
+   * pane, the triage pane — passes `trigger.props.ref` here and its chords land on the
+   * control they belong to. A list passes nothing: its keyboard path is anchored elsewhere,
+   * and hundreds of rows cannot all claim one ref.
+   */
+  ref?: Ref<HTMLButtonElement> | undefined;
   /** The glyph. Drawn inside an `aria-hidden` slot, so pass the decorative variant. */
   children: ReactNode;
 }
@@ -65,10 +77,12 @@ export function PropertyTrigger({
   disabled,
   roving,
   onOpen,
+  ref,
   children,
 }: PropertyTriggerProps) {
   return (
     <IconButton
+      ref={ref}
       aria-label={name}
       tooltip={action}
       keys={keys}

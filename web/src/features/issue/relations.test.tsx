@@ -14,6 +14,7 @@ import {
   type OptimisticPatch,
   type RelationType,
   type Team,
+  type User,
   type WorkflowState,
 } from '~/store';
 import { ApiError } from '~/sync/api';
@@ -74,6 +75,23 @@ function state(id: string, name: string, category: WorkflowState['category']): W
     position: 'V',
     isDefault: category === 'unstarted',
     isSystem: false,
+    createdAt: AT,
+    updatedAt: AT,
+  };
+}
+
+/** Somebody to assign a child to. Both names are the same, so the `fullNames` pref cannot
+    change what a query in these tests is looking for. */
+function person(id: string, displayName: string): User {
+  return {
+    id,
+    workspaceId: WORKSPACE,
+    name: displayName,
+    displayName,
+    timezone: 'Europe/Lisbon',
+    role: 'member',
+    status: 'active',
+    kind: 'human',
     createdAt: AT,
     updatedAt: AT,
   };
@@ -225,7 +243,9 @@ describe('SubIssues', () => {
       'ENG-3Map the columns',
       'ENG-2Parse the CSV',
     ]);
-    expect(screen.getAllByRole('img', { name: 'Todo' })).toHaveLength(2);
+    // The status is a button rather than a glyph now, and each one names the child it belongs
+    // to: two rows both announced as "Todo" would not say which one a menu is about to change.
+    expect(screen.getAllByRole('button', { name: /^Todo on ENG-/ })).toHaveLength(2);
   });
 
   it('names the child a team the parent is not in, and says nothing when they match', () => {
@@ -328,7 +348,79 @@ describe('SubIssues', () => {
     // the panel must not invent a row with an undefined identifier in it.
     expect(store.childIssueIdsFor('nobody').size).toBe(0);
     expect(screen.queryAllByRole('link')).toHaveLength(0);
-    expect(screen.getByText('Nothing underneath this one yet.')).toBeTruthy();
+    expect(screen.getByText('Nothing underneath this one yet')).toBeTruthy();
+  });
+
+  it('offers a way in from the empty state, not only the glyph in the header', async () => {
+    const { user } = renderPanel();
+
+    // Two buttons say "Add sub-issue" while the panel is empty, and they are told apart by
+    // the chord: the header's is an icon named exactly that, and this one draws
+    // `Cmd/Ctrl+Shift+O` beside the words. The chord is real on this screen — `SubIssues`
+    // registers it itself — which is why it is drawn rather than described.
+    await user.click(screen.getByRole('button', { name: /^Add sub-issue .+/ }));
+
+    expect(screen.getByRole('textbox', { name: 'Sub-issue title' })).toBeTruthy();
+  });
+
+  it('changes the status of the child that was clicked, not of the parent', async () => {
+    const { user, mutate } = renderPanel([
+      ['issue', issue('c-2', 2, 'Parse the CSV', { parentId: PARENT })],
+    ]);
+
+    await user.click(screen.getByRole('button', { name: 'Todo on ENG-2' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Done' }));
+
+    // The parent is on `s-todo` as well, so a write aimed at the wrong id would look right on
+    // screen and change the issue the reader is standing on.
+    expect(variablesOf(mutate)).toMatchObject({ input: { id: 'c-2', stateId: 's-done' } });
+  });
+
+  it('assigns the child that was clicked', async () => {
+    const { user, mutate } = renderPanel([
+      ['user', person('u-ada', 'Ada Lovelace')],
+      ['issue', issue('c-2', 2, 'Parse the CSV', { parentId: PARENT })],
+    ]);
+
+    await user.click(screen.getByRole('button', { name: 'Unassigned on ENG-2' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Ada Lovelace' }));
+
+    expect(variablesOf(mutate)).toMatchObject({ input: { id: 'c-2', assigneeId: 'u-ada' } });
+  });
+
+  it('draws no key cap on a child row’s triggers, because S and A act on the parent', () => {
+    renderPanel([['issue', issue('c-2', 2, 'Parse the CSV', { parentId: PARENT })]]);
+
+    // The one assertion in this file that guards a promise rather than a behaviour. `S` and
+    // `A` are registered in the `detail` context and change the status and assignee of the
+    // issue being *viewed*; a cap drawn on a child's trigger would say they act on the child.
+    for (const name of ['Todo on ENG-2', 'Unassigned on ENG-2']) {
+      const trigger = screen.getByRole('button', { name });
+      act(() => trigger.focus());
+      const tip = screen.getByRole('tooltip');
+      expect(tip.querySelector('kbd')).toBeNull();
+      act(() => trigger.blur());
+    }
+  });
+
+  it('routes the row menu’s Remove through the confirm rather than detaching on the click', async () => {
+    const { user, onDetach } = renderPanel([
+      ['issue', issue('c-2', 2, 'Parse the CSV', { parentId: PARENT })],
+    ]);
+
+    await user.pointer({
+      keys: '[MouseRight]',
+      target: screen.getByRole('link', { name: 'ENG-2 Parse the CSV' }),
+    });
+    await user.click(screen.getByRole('menuitem', { name: 'Remove from this issue' }));
+
+    // "Remove" is the word people read as "delete", and the menu is the one place it is read
+    // without a row and a cross beside it — so it goes through the same dialog the button does.
+    expect(onDetach).not.toHaveBeenCalled();
+    expect(screen.getByText(/stays exactly as it is/)).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Remove ENG-2' }));
+    expect(onDetach).toHaveBeenCalledWith('c-2');
   });
 });
 
@@ -453,6 +545,52 @@ describe('Relations', () => {
     expect(screen.getByText('An issue you cannot see')).toBeTruthy();
     expect(screen.getByText('in Platform')).toBeTruthy();
     expect(screen.queryAllByRole('link')).toHaveLength(0);
+  });
+
+  it('leaves the row it cannot resolve inert: nothing to open, nothing to right-click', async () => {
+    const { user } = renderPanel([
+      [
+        'issueRelation',
+        relation('r-1', HERE, 'issue-invisible', 'blocks', { relatedTeamId: PLAT }),
+      ],
+    ]);
+
+    // There is no id to write to, no team whose workflow to offer and no state to tick, so
+    // the row offers neither a picker nor a menu. Its one control is the unlink button, which
+    // works from either end because a relation is identified by its own id.
+    const row = screen.getByText('An issue you cannot see').closest('li');
+    // One control on the row, and it is the unlink button — no status trigger beside it.
+    expect(row?.querySelectorAll('button')).toHaveLength(1);
+    expect(
+      screen.getByRole('button', { name: 'Remove the blocking link to an issue you cannot see' }),
+    ).toBeTruthy();
+
+    await user.pointer({ keys: '[MouseRight]', target: row as HTMLElement });
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('offers the blocker’s own team’s statuses, not the ones on the relation row', async () => {
+    const shipping: WorkflowState = {
+      ...state('s-shipping', 'Shipping', 'started'),
+      teamId: PLAT,
+    };
+    const { user, mutate } = renderPanel([
+      ['workflowState', shipping],
+      // The issue has moved to Platform since the link was written, which is exactly the case
+      // the two team columns disagree in.
+      ['issue', issue(THERE, 2, 'Fix the flake', { teamId: PLAT })],
+      ['issueRelation', relation('r-1', THERE, HERE, 'blocks')],
+    ]);
+
+    await user.click(screen.getByRole('button', { name: 'Todo on PLAT-2' }));
+
+    // `relation.teamId` is Engineering here. Handing that to the picker offers a workflow the
+    // issue is not in — statuses that would be refused after the row had already moved.
+    expect(screen.getByRole('menuitem', { name: 'Shipping' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Done' })).toBeNull();
+
+    await user.click(screen.getByRole('menuitem', { name: 'Shipping' }));
+    expect(variablesOf(mutate)).toMatchObject({ input: { id: THERE, stateId: 's-shipping' } });
   });
 
   it('removes a link the reader cannot see the other end of', async () => {

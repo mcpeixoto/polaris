@@ -32,14 +32,20 @@ import {
   LabelChip,
   PriorityIcon,
   priorityLabel,
+  PropertyTrigger,
   StateIcon,
   Tooltip,
   Menu,
 } from '~/components';
-import { PriorityPicker } from '~/features/issue/pickers';
+import { PlusGlyph, ProjectGlyph, UnassignedGlyph } from '~/features/issue/glyphs';
+import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
 import { report, updateIssue, updateIssues } from '~/features/issue/mutations';
+import { issueRowMenuItems } from '~/features/issue/rowMenu';
 import { TitleField } from '~/views/IssueDetail';
+import { LabelPicker } from '~/features/labels/LabelPicker';
 import { labelViewPath, userViewPath } from '~/features/labels/labelView';
+import { applyLabel, removeLabel } from '~/features/labels/mutations';
+import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { exact, when } from '~/features/time';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -72,6 +78,36 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
   const duplicate = useMenuTrigger();
   const snooze = useMenuTrigger();
   const priority = useMenuTrigger();
+
+  /*
+   * The property pickers the facts list opens, and the chords that open them.
+   *
+   * **This pane registers no actions at all.** `views/Triage` mounts `IssueList` beside it,
+   * and that list registers `S`, `A`, `P`, `⇧P` and `L` unguarded in the `list` context.
+   * `KeymapRegistry.register` refuses a second binding on a key an unguarded action already
+   * holds — it would throw inside the effect that mounts this pane and take the whole screen
+   * down — so the caps below are the *list's* chords, drawn here because they land on this
+   * issue: the list reports its cursor on every commit, `Triage` stores it, and the issue
+   * this pane shows is that cursor. A cap is a promise about what a key does to the thing you
+   * are looking at, and that promise is kept by the list rather than by this component.
+   */
+  const status = useMenuTrigger();
+  const assignee = useMenuTrigger();
+  /**
+   * The Priority *row*'s picker, and not the guard's above.
+   *
+   * Two instances on purpose. `priority` is the blocked-decision guard: it opens because a
+   * team refuses to let work leave triage unpriced, and choosing a value finishes the
+   * sentence the reviewer started — accept, decline or merge. This one only sets a priority.
+   * Merging them would mean either a row edit that silently accepts the issue, or a guard
+   * that stops half way and makes somebody press Accept twice.
+   */
+  const rowPriority = useMenuTrigger();
+  const project = useMenuTrigger();
+  const labels = useMenuTrigger();
+  /** Where the pane's own context menu opens: a one-pixel box at the pointer. */
+  const contextAnchor = useRef<HTMLDivElement>(null);
+  const [contextAt, setContextAt] = useState<{ x: number; y: number } | null>(null);
   /**
    * Which decision is waiting on a priority.
    *
@@ -124,7 +160,14 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
   const pickDuplicate = () => guarded('duplicate', () => duplicate.show());
 
   return (
-    <section className={styles.pane} aria-label={`Triage ${issue.identifier}`}>
+    <section
+      className={styles.pane}
+      aria-label={`Triage ${issue.identifier}`}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        setContextAt({ x: event.clientX, y: event.clientY });
+      }}
+    >
       <div className={styles.body}>
         <header className={styles.header}>
           <Link className={styles.identifier} to={`/issue/${issue.identifier}`}>
@@ -141,18 +184,40 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
           />
         </header>
 
+        {/* The glyph is the control and the words stay what they were — a link where there
+            was one. A triage reviewer navigates from this pane as much as they edit from it,
+            and a dense list row has to choose between the two; this one has the width for
+            both. */}
         <dl className={styles.facts}>
           <div className={styles.fact}>
             <dt>Status</dt>
             <dd>
-              <StateIcon category={issue.stateCategory} color={issue.stateColor} decorative />
+              <PropertyTrigger
+                name={issue.stateName}
+                action="Change status"
+                keys="s"
+                open={status.open}
+                onOpen={status.showFrom}
+                ref={status.props.ref}
+              >
+                <StateIcon category={issue.stateCategory} color={issue.stateColor} decorative />
+              </PropertyTrigger>
               {issue.stateName}
             </dd>
           </div>
           <div className={styles.fact}>
             <dt>Priority</dt>
             <dd>
-              <PriorityIcon priority={issue.priority} decorative />
+              <PropertyTrigger
+                name={priorityLabel(issue.priority)}
+                action="Set priority"
+                keys="p"
+                open={rowPriority.open}
+                onOpen={rowPriority.showFrom}
+                ref={rowPriority.props.ref}
+              >
+                <PriorityIcon priority={issue.priority} decorative />
+              </PropertyTrigger>
               {priorityLabel(issue.priority)}
             </dd>
           </div>
@@ -169,28 +234,60 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
               )}
             </dd>
           </div>
-          {issue.assigneeName === null || issue.assigneeId === null ? null : (
-            <div className={styles.fact}>
-              <dt>Assignee</dt>
-              <dd>
-                <Link className={styles.entityLink} to={userViewPath(issue.assigneeId)}>
+          {/* Assignee, Project and the label strip are drawn whether or not they are set.
+              Hiding an empty row hid the only way to fill it, and "give this to somebody" is
+              the commonest thing a reviewer does that is not one of the four decisions. */}
+          <div className={styles.fact}>
+            <dt>Assignee</dt>
+            <dd>
+              <PropertyTrigger
+                name={issue.assigneeName ?? 'Unassigned'}
+                action="Assign to…"
+                keys="a"
+                open={assignee.open}
+                onOpen={assignee.showFrom}
+                ref={assignee.props.ref}
+              >
+                {issue.assigneeName === null ? (
+                  <UnassignedGlyph />
+                ) : (
                   <Avatar
                     name={issue.assigneeName}
                     src={issue.assigneeAvatar}
                     size="xs"
                     decorative
                   />
+                )}
+              </PropertyTrigger>
+              {issue.assigneeName === null || issue.assigneeId === null ? (
+                <span className={styles.unset}>Unassigned</span>
+              ) : (
+                <Link className={styles.entityLink} to={userViewPath(issue.assigneeId)}>
                   {issue.assigneeName}
                 </Link>
-              </dd>
-            </div>
-          )}
-          {issue.projectName === null ? null : (
-            <div className={styles.fact}>
-              <dt>Project</dt>
-              <dd>{issue.projectName}</dd>
-            </div>
-          )}
+              )}
+            </dd>
+          </div>
+          <div className={styles.fact}>
+            <dt>Project</dt>
+            <dd>
+              <PropertyTrigger
+                name={issue.projectName ?? 'No project'}
+                action="Set project"
+                keys="shift+p"
+                open={project.open}
+                onOpen={project.showFrom}
+                ref={project.props.ref}
+              >
+                <ProjectGlyph />
+              </PropertyTrigger>
+              {issue.projectName === null ? (
+                <span className={styles.unset}>No project</span>
+              ) : (
+                issue.projectName
+              )}
+            </dd>
+          </div>
           <div className={styles.fact}>
             <dt>Filed</dt>
             <dd>
@@ -201,15 +298,26 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
           </div>
         </dl>
 
-        {issue.labels.length === 0 ? null : (
-          <div className={styles.labels}>
-            {issue.labels.map((label) => (
-              <Link key={label.id} className={styles.entityLink} to={labelViewPath(label.id)}>
-                <LabelChip compact name={label.name} color={label.color} />
-              </Link>
-            ))}
-          </div>
-        )}
+        {/* Every chip keeps its link to the label's view, and the picker is a sixth control
+            at the end of the strip rather than the chips themselves becoming buttons. */}
+        <div className={styles.labels}>
+          {issue.labels.map((label) => (
+            <Link key={label.id} className={styles.entityLink} to={labelViewPath(label.id)}>
+              <LabelChip compact name={label.name} color={label.color} />
+            </Link>
+          ))}
+          {issue.labels.length === 0 ? <span className={styles.unset}>No labels</span> : null}
+          <PropertyTrigger
+            name={labelSummary(issue.labels)}
+            action="Add label"
+            keys="l"
+            open={labels.open}
+            onOpen={labels.showFrom}
+            ref={labels.props.ref}
+          >
+            <PlusGlyph />
+          </PropertyTrigger>
+        </div>
 
         {/* The whole description, untruncated. Triage is where somebody reads a bug report
             written by a person who is not in the team and decides whether it is real — a
@@ -293,8 +401,145 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
             .catch(report);
         }}
       />
+
+      <StatusPicker
+        open={status.open}
+        onClose={status.hide}
+        trigger={status.ref}
+        teamId={issue.teamId}
+        value={issue.stateId}
+        onSelect={(stateId) => updateIssue(engine, issueId, { stateId }).catch(report)}
+      />
+      <AssigneePicker
+        open={assignee.open}
+        onClose={assignee.hide}
+        trigger={assignee.ref}
+        value={issue.assigneeId}
+        onSelect={(assigneeId) => updateIssue(engine, issueId, { assigneeId }).catch(report)}
+      />
+      {/* The row's own priority, which sets the value and stops. The queue does not move: a
+          reviewer pricing an issue has not decided anything about it yet. */}
+      <PriorityPicker
+        open={rowPriority.open}
+        onClose={rowPriority.hide}
+        trigger={rowPriority.ref}
+        value={issue.priority}
+        onSelect={(value) => updateIssue(engine, issueId, { priority: value }).catch(report)}
+      />
+      <ProjectPicker
+        open={project.open}
+        onClose={project.hide}
+        trigger={project.ref}
+        teamIds={[issue.teamId]}
+        value={issue.projectId}
+        onSelect={(projectId) => updateIssue(engine, issueId, { projectId }).catch(report)}
+      />
+      <LabelPicker
+        open={labels.open}
+        onClose={labels.hide}
+        trigger={labels.ref}
+        teamId={issue.teamId}
+        value={issue.labelIds}
+        onApply={(labelId, displaced) =>
+          applyLabel(engine, issueId, labelId, displaced).catch(report)
+        }
+        onRemove={(labelId) => removeLabel(engine, issueId, labelId).catch(report)}
+      />
+
+      {contextAt === null ? null : (
+        <>
+          {/* A one-pixel element at the pointer. Not `hidden`: `Menu` measures its trigger to
+              place itself, and a hidden element has no box. The issue list does the same. */}
+          <div
+            ref={contextAnchor}
+            className={styles.contextAnchor}
+            style={{ top: contextAt.y, left: contextAt.x }}
+          />
+          <Menu
+            open
+            onClose={() => setContextAt(null)}
+            trigger={contextAnchor}
+            label={`Actions for ${issue.identifier}`}
+            items={[
+              ...issueRowMenuItems(
+                {
+                  count: 1,
+                  editable: true,
+                  canSetStatus: true,
+                  identifier: issue.identifier,
+                  ...(issue.assigneeName === null ? null : { assigneeName: issue.assigneeName }),
+                  labels: issue.labels,
+                },
+                {
+                  pick: (kind) => {
+                    setContextAt(null);
+                    if (kind === 'status') status.show();
+                    else if (kind === 'assignee') assignee.show();
+                    else if (kind === 'priority') rowPriority.show();
+                    else if (kind === 'project') project.show();
+                    else labels.show();
+                  },
+                },
+                // The list's chords, and they do fire here: `Triage` mounts `IssueList`
+                // beside this pane and its cursor is the issue this menu is about.
+                { status: 's', assignee: 'a', priority: 'p', project: 'shift+p', labels: 'l' },
+              ),
+              { kind: 'separator' },
+              /*
+               * The four decisions, and each goes through `guarded` rather than straight to
+               * the mutation — a team that refuses to let work leave triage unpriced must
+               * refuse it here too, or the menu becomes the way around the rule the buttons
+               * enforce. `1` / `2` / `3` / `H` are `IssueList`'s triage bindings, live on
+               * this screen because `available` asks whether the list is in triage.
+               */
+              {
+                id: 'accept',
+                label: 'Accept',
+                keys: '1',
+                onSelect: () => {
+                  setContextAt(null);
+                  accept();
+                },
+              },
+              {
+                id: 'duplicate',
+                label: 'Mark as duplicate',
+                keys: '2',
+                onSelect: () => {
+                  setContextAt(null);
+                  pickDuplicate();
+                },
+              },
+              {
+                id: 'decline',
+                label: 'Decline',
+                keys: '3',
+                onSelect: () => {
+                  setContextAt(null);
+                  decline();
+                },
+              },
+              {
+                id: 'snooze',
+                label: 'Snooze',
+                keys: 'h',
+                onSelect: () => {
+                  setContextAt(null);
+                  snooze.show();
+                },
+              },
+            ]}
+          />
+        </>
+      )}
     </section>
   );
+}
+
+
+/** The labels as one accessible name, because that is the value the trigger stands for. */
+function labelSummary(labels: readonly { name: string }[]): string {
+  return labels.length === 0 ? 'No labels' : labels.map((label) => label.name).join(', ');
 }
 
 interface TriageIssue {
@@ -302,6 +547,7 @@ interface TriageIssue {
   readonly identifier: string;
   readonly title: string;
   readonly description: string;
+  readonly stateId: UUID;
   readonly stateName: string;
   readonly stateCategory: StateCategory;
   readonly stateColor: string | undefined;
@@ -311,7 +557,11 @@ interface TriageIssue {
   readonly assigneeId: UUID | null;
   readonly assigneeName: string | null;
   readonly assigneeAvatar: string | null;
+  readonly projectId: UUID | null;
   readonly projectName: string | null;
+  /** Every label on the issue, which is what the picker ticks against. */
+  readonly labelIds: readonly UUID[];
+  /** The ones the strip draws: no groups, nothing archived, in name order. */
   readonly labels: readonly { id: UUID; name: string; color: string }[];
   readonly createdAt: string;
 }
@@ -335,6 +585,7 @@ function readTriageIssue(store: Store, id: UUID): TriageIssue | null {
     identifier: store.identifierOf(found),
     title: found.title,
     description: found.description.trim(),
+    stateId: found.stateId,
     stateName: state?.name ?? 'No status',
     stateCategory: state?.category ?? 'triage',
     stateColor: state?.color,
@@ -344,8 +595,10 @@ function readTriageIssue(store: Store, id: UUID): TriageIssue | null {
     assigneeId: found.assigneeId ?? null,
     assigneeName: assignee?.displayName ?? null,
     assigneeAvatar: assignee?.avatarUrl ?? null,
+    projectId: found.projectId ?? null,
     projectName:
       found.projectId === undefined ? null : (store.projects.get(found.projectId)?.name ?? null),
+    labelIds: [...store.labelIdsFor(found.id)],
     labels,
     createdAt: found.createdAt,
   };
