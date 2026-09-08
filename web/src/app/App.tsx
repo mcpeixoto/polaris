@@ -349,13 +349,29 @@ export function App() {
  *
  * Authenticated `/` still honours Preferences (first team, My Issues, Inbox, Drafts).
  * `/welcome` is the way to look at the poster while signed in, without signing out.
+ *
+ * Exported for its test, which covers the auth paths below without booting a workspace.
  */
-function SignedInShell() {
+export function SignedInShell() {
   const { pathname } = useLocation();
   // The shell's own claim on the tab, which is the bare product name. Screens that know what
   // they are call the hook again with something more specific; this is what they fall back to
   // so that leaving a named screen does not leave its name in the tab strip behind it.
   useDocumentTitle([]);
+  /*
+    The address the session was created at, which is not an address the product has.
+
+    Signing in does not navigate: the signed-out catch-all leaves the URL alone on purpose,
+    so a deep link like /team/ENG survives the form, and social sign-in comes back to
+    /signin because that is the redirect URI registered with the provider. Both leave the
+    browser sitting on an auth path the moment the session appears, and the catch-all at the
+    bottom of this shell answered that with "Nothing in this workspace answers to /signin" —
+    a 404 as the first thing seen after a sign-in that worked.
+
+    Replaced rather than pushed, so Back leads to wherever the person came from rather than
+    to the same dead end.
+  */
+  if (pathname === '/signin' || pathname === '/signup') return <Navigate to="/" replace />;
   if (pathname === '/welcome') return <Landing />;
   if (pathname === '/downloads') return <Downloads />;
   /*
