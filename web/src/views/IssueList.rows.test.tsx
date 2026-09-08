@@ -322,8 +322,8 @@ describe('the pointer', () => {
     });
 
     const menu = await screen.findByRole('menu', { name: 'Issue actions' });
-    expect(within(menu).getByRole('menuitem', { name: 'Copy link' })).toBeTruthy();
-    expect(within(menu).getByRole('menuitem', { name: 'Delete issue' })).toBeTruthy();
+    expect(within(menu).getByRole('menuitem', { name: /^Copy$/ })).toBeTruthy();
+    expect(within(menu).getByRole('menuitem', { name: /^Delete / })).toBeTruthy();
   });
 });
 

@@ -266,8 +266,8 @@ describe('a search result', () => {
     // delete recoverable on the issue list and unrecoverable here.
     expect(screen.getByRole('menuitem', { name: /^Status…/ })).toBeTruthy();
     expect(screen.getByRole('menuitem', { name: /^Open issue/ })).toBeTruthy();
-    expect(screen.getByRole('menuitem', { name: /^Copy link/ })).toBeTruthy();
-    expect(screen.getByRole('menuitem', { name: /^Copy issue ID/ })).toBeTruthy();
+    // Copy is a submenu of link + ID, matching the shared builder.
+    expect(screen.getByRole('menuitem', { name: /^Copy$/ })).toBeTruthy();
     expect(screen.queryByRole('menuitem', { name: /Delete/ })).toBeNull();
     expect(screen.queryByRole('menuitem', { name: /Archive/ })).toBeNull();
   });

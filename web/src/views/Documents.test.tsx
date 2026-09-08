@@ -187,7 +187,13 @@ describe('Documents', () => {
     });
 
     const menu = screen.getByRole('menu', { name: 'Options for Onboarding' });
-    for (const label of ['Open document', 'Copy link', 'Archive document', 'Delete document']) {
+    for (const label of [
+      'Open document',
+      'Copy link',
+      'Add to favourites',
+      'Archive document',
+      'Delete document',
+    ]) {
       expect(within(menu).getByRole('menuitem', { name: label })).toBeTruthy();
     }
   });
