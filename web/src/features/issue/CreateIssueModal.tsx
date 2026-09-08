@@ -77,6 +77,7 @@ import {
 } from '~/store';
 import { ApiError } from '~/sync/api';
 import { createIssue } from './mutations';
+import { DueDatePicker, DueDateValue } from './properties';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { templateDefaults, type TemplateDefaults } from '~/features/templates/mutations';
 import { placeholderSpans, unwrapPlaceholders } from '~/features/templates/placeholder';
