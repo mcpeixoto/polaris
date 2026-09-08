@@ -385,13 +385,25 @@ jobs:
       # front of it. Everything else here would still be green. So this launches the artefact
       # and asserts that React mounted something.
       #
-      # Not on Linux: the runner cannot give Chromium a working sandbox without
-      # --no-sandbox, and a smoke test that disables the sandbox is asserting the wrong
-      # thing. macOS and Windows are the platforms the product ships anyway.
+      - name: Prepare Linux sandbox and display
+        if: ${{ matrix.name == 'Linux' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libasound2t64
+          # Ubuntu's AppArmor policy restricts unprivileged user namespaces. Use
+          # Chromium's setuid sandbox on this ephemeral runner instead.
+          sudo chown root:root desktop/release/linux-unpacked/chrome-sandbox
+          sudo chmod 4755 desktop/release/linux-unpacked/chrome-sandbox
+
       - name: Smoke-test the packaged app
-        if: ${{ matrix.name != 'Linux' }}
         working-directory: desktop
-        run: node scripts/smoke.mjs
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            xvfb-run -a node scripts/smoke.mjs
+          else
+            node scripts/smoke.mjs
+          fi
 
       - name: Upload artefacts
         uses: actions/upload-artifact@v4
@@ -461,6 +473,19 @@ jobs:
             echo "::error::$GITHUB_REF_NAME is missing: ${missing[*]}. Not publishing a partial release — a user who downloads it gets an app that cannot update itself."
             exit 1
           fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate every installer and updater target
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python -m pip install 'PyYAML==6.0.3'
+          gh release view "$GITHUB_REF_NAME" --json assets > /tmp/desktop-release.json
+          gh release download "$GITHUB_REF_NAME" --pattern 'latest*.yml' --dir /tmp/desktop-manifests
+          python scripts/verify-desktop-release.py "$GITHUB_REF_NAME" /tmp/desktop-release.json /tmp/desktop-manifests
 
       - name: Publish
         env:

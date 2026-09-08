@@ -1004,6 +1004,17 @@ export function AppShell({
       : []),
     { kind: 'separator' as const },
     {
+      id: 'workspace-website',
+      label: 'Polaris website',
+      onSelect: () => void navigate('/welcome'),
+    },
+    {
+      id: 'workspace-downloads',
+      label: 'Downloads',
+      onSelect: () => void navigate('/downloads'),
+    },
+    { kind: 'separator' as const },
+    {
       id: 'workspace-logout',
       label: 'Log out',
       danger: true,

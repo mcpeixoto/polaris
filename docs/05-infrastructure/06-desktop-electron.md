@@ -66,7 +66,7 @@ wss://polaris.example.com/sync      → sync
 
 Rejected alternative: loading the web app remotely (`loadURL('https://…')`). It sounds simpler and means the desktop app is broken whenever the box is down, has a blank-window cold start, and inherits browser cache semantics for the shell itself. The whole point of a local-first product is that the UI works before the network does.
 
-**Version skew** is the cost of bundling: a desktop app can be older than the server. Handle it explicitly — the API returns a `X-Polaris-Min-Client` header; below it, the app shows a blocking "update required" screen and triggers the updater. The `clientSchema` mechanism in the sync protocol already forces re-bootstrap on incompatible data shapes.
+**Version skew** is the cost of bundling: a desktop app can be older than the server. A minimum-client header and blocking update screen remain a proposed compatibility mechanism, not an implemented guarantee. The `clientSchema` mechanism in the sync protocol already forces re-bootstrap on incompatible data shapes.
 
 ## The runtime shim
 
@@ -150,11 +150,10 @@ macOS actually updates from — deliberately get no alias.
 
 | Concern | Decision |
 |---|---|
-| Channels | `latest` and `beta`; the app reads the channel from preferences |
+| Channel | Latest published stable GitHub release |
 | Cadence | Check on launch, every 4 h, on resume and on window focus when stale |
 | Restart | A downloaded build is offered as a dismissable row in the app, and installs on quit if it is ignored |
-| Forced updates | Only when `X-Polaris-Min-Client` demands it |
-| Disable | Honour an enterprise policy file — `AutoUpdateDisabled` via `defaults`/plist and MDM |
+| Linux formats | AppImage uses the in-app updater; DEB users install the newer package manually |
 | Delta updates | Windows NSIS supports differential; macOS ships full DMG/ZIP |
 
 ## Code signing — the part that always slips
@@ -206,12 +205,43 @@ The same asymmetry exists in the Linux AppImage and is fixed the same way. It do
 
 ## Testing
 
-- Playwright drives the packaged Electron build (`_electron.launch`), not just the web bundle.
-- Smoke matrix per release: macOS arm64, macOS x64, Windows x64 — install, launch, sign in, create an issue, go offline, edit, reconnect, verify sync, receive a notification, follow a deep link, apply an update.
+- `desktop/scripts/smoke.mjs` launches the packaged binary and inspects its renderer through Chrome DevTools Protocol.
+- CI launches the packaged app on each runner’s native architecture: macOS, Windows x64 and Linux x86-64. Linux uses Xvfb and Chromium’s setuid sandbox; the sandbox stays enabled.
+- Installation, signing, offline editing, reconnection, notifications, deep links and applying a real update still require platform acceptance checks; a successful launch is not proof of those flows.
 - Keep a Windows VM or a CI runner for this; "it works on my Mac" is how the Windows build stays broken for a month.
 
 ## Deliberately not in scope
 
-- **Linux** — matches the source product; browser only.
-- **Mobile** — the PWA covers the documented mobile workflows (inbox triage, quick create, search). Native apps are two XL items; revisit after web + desktop are solid.
+- **Linux ARM64** — not currently built. Linux x86-64 ships as AppImage and DEB.
+- **Mobile distribution** — maintained separately; see `ios/README.md` for the existing iOS app.
 - **Menu-bar mini-app / global quick-capture** — attractive, but it is a separate window lifecycle and its own bug surface. After 1.0.
+
+
+## Download page and maintenance
+
+`/downloads` is public and also reachable from the workspace menu. The landing page at
+`/welcome` has a prominent download button and remains accessible after sign-in.
+The page reads the latest stable GitHub release, uses its actual asset URLs and labels
+macOS Apple Silicon / Intel, the combined Windows installer, and Linux x86-64 formats.
+An unavailable asset is not offered as a download. GitHub Releases remains reachable
+if discovery is unavailable or rate-limited. Both renderer CSPs allow `api.github.com`.
+
+All platforms bundle `web/dist` from the tagged source and frozen lockfile. A new web
+interface reaches installed apps through a desktop release; it does not hot-load the
+website. Keep the existing tag-driven workflow so production and installers track the
+same release. Weekly Dependabot PRs group compatible Electron/builder/updater updates;
+major changes remain separate review work.
+
+Before publication, `scripts/verify-desktop-release.py` requires all five advertised
+installers, both macOS updater ZIPs and all three updater manifests. It checks versions,
+referenced assets, file sizes and checksum presence. It does not prove binary signatures
+or successful update installation. Its regression tests run in CI.
+
+Windows signing remains unconfigured: `win.signtoolOptions.publisherName` verifies
+Peixoto Labs signatures, but `win.azureSignOptions` still needs the real endpoint,
+account and certificate profile plus provider credentials. Do not disable signature
+verification to make unsigned releases update. macOS certificates and notarization
+must likewise be verified on the distributed artifact, not inferred from configuration.
+
+For a dated review of the existing published release, see
+[desktop release audit](13-desktop-release-audit.md).

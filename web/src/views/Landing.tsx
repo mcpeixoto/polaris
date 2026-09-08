@@ -37,6 +37,7 @@
 
 import { Fragment, type CSSProperties } from 'react';
 import { Link } from 'react-router';
+import { isSignedIn } from '~/sync/api';
 
 import {
   Avatar,
@@ -100,6 +101,7 @@ function at(index: number): CSSProperties {
 }
 
 export function Landing() {
+  const signedIn = isSignedIn();
   const page = useReveal<HTMLDivElement>();
   const scrolled = useScrolled();
   const active = useSectionSpy(NAV_IDS);
@@ -126,7 +128,7 @@ export function Landing() {
 
       <header className={styles.nav} ref={menu.ref} data-open={menu.open ? '' : undefined}>
         <div className={styles.navInner}>
-          <Link to="/" className={styles.brand} aria-label="Polaris — home">
+          <Link to="/welcome" className={styles.brand} aria-label="Polaris — home">
             <Logo />
           </Link>
           {/* `aria-current="true"` and not `page`: these are five places on one page, and
@@ -158,11 +160,11 @@ export function Landing() {
             <a href={SOURCE} className={`${styles.navQuiet} ${styles.navSource}`}>
               GitHub
             </a>
-            <Link to="/signin" className={styles.navQuiet}>
-              Sign in
+            <Link to={signedIn ? '/' : '/signin'} className={styles.navQuiet}>
+              {signedIn ? 'Open workspace' : 'Sign in'}
             </Link>
-            <Link to="/signup" className={styles.cta}>
-              Get started
+            <Link to="/downloads" className={styles.cta}>
+              Download Polaris
             </Link>
             <button
               type="button"
@@ -205,6 +207,9 @@ export function Landing() {
               </a>
             ))}
           </nav>
+          <Link to="/downloads" className={styles.cta} onClick={() => menu.setOpen(false)}>
+            Download Polaris
+          </Link>
           {/* Outside the nav landmark above, which is the five sections of this page —
               neither the download nor the repository is one of them. */}
           <a
@@ -251,11 +256,14 @@ export function Landing() {
             of <Kbd keys="mod+k" />.
           </p>
           <div className={styles.heroCtas} data-reveal="" style={at(4)}>
+            <Link to="/downloads" className={`${styles.cta} ${styles.downloadCta}`}>
+              Download Polaris <span aria-hidden="true">↓</span>
+            </Link>
             <Link to="/signup" className={styles.cta}>
               Get started
             </Link>
-            <Link to="/signin" className={styles.ctaGhost}>
-              Sign in
+            <Link to={signedIn ? '/' : '/signin'} className={styles.ctaGhost}>
+              {signedIn ? 'Open workspace' : 'Sign in'}
             </Link>
             <a href="#download" className={styles.ctaGhost}>
               {mine === undefined ? 'Download' : `Download for ${mine.name}`}
@@ -551,8 +559,8 @@ export function Landing() {
             <Link to="/signup" className={styles.cta}>
               Get started
             </Link>
-            <Link to="/signin" className={styles.ctaGhost}>
-              Sign in
+            <Link to={signedIn ? '/' : '/signin'} className={styles.ctaGhost}>
+              {signedIn ? 'Open workspace' : 'Sign in'}
             </Link>
             <a href={SELF_HOST_DOC} className={styles.ctaGhost}>
               Self-hosting notes
@@ -565,7 +573,7 @@ export function Landing() {
       </main>
 
       <footer className={styles.footer}>
-        <Link to="/" className={styles.brand} aria-label="Polaris — home">
+        <Link to="/welcome" className={styles.brand} aria-label="Polaris — home">
           <Logo size="md" />
         </Link>
         <p>Keyboard-first issue tracking. Local replica. AGPL-3.0.</p>
