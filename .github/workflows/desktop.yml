@@ -271,7 +271,14 @@ jobs:
 
           # -iname, and both arch directories. release/mac-arm64 and release/mac are what
           # electron-builder writes and what desktop/scripts/smoke.mjs already looks for.
-          mapfile -t apps < <(find desktop/release -maxdepth 2 -iname 'polaris.app' -type d)
+          #
+          # Read into the array by hand rather than with mapfile: macOS runners ship bash
+          # 3.2, where mapfile does not exist, and the step died on `command not found`
+          # after the build had already signed and notarised correctly.
+          apps=()
+          while IFS= read -r found; do
+            apps+=("$found")
+          done < <(find desktop/release -maxdepth 2 -iname 'polaris.app' -type d)
           if [ ${#apps[@]} -eq 0 ]; then
             echo "::error::No .app under desktop/release to verify. Contents:"
             ls -la desktop/release || true
