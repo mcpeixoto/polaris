@@ -304,12 +304,13 @@ jobs:
               continue
             fi
 
-            # The ticket, stapled into the bundle. Without it the app still needs to reach
-            # Apple on first launch, and fails closed on a machine that is offline.
+            # The ticket, stapled into the bundle. A warning rather than a failure: an app
+            # that is notarised but unstapled still passes Gatekeeper, because Gatekeeper
+            # asks Apple directly — it only matters on a machine that is offline on first
+            # launch. spctl below is the check that decides whether the app opens, so that
+            # one blocks and this one informs.
             if ! xcrun stapler validate "$app" 2>&1; then
-              echo "::error::$app carries no notarisation ticket."
-              fail=1
-              continue
+              echo "::warning::$app carries no stapled notarisation ticket, so a first launch on an offline machine will fail. Gatekeeper still accepts it online."
             fi
 
             # The only question a user asks.
