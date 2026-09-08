@@ -26,13 +26,19 @@ enum BackgroundRefresh {
     @MainActor
     private static var currentModel: AppModel?
 
-    private static var didRegister = false
+    /// Once per process. `OSAllocatedUnfairLock` owns the bool so Swift 6 does not see a bare
+    /// mutable global; `BGTaskScheduler.register` itself also refuses a second call.
+    private static let didRegister = OSAllocatedUnfairLock(initialState: false)
 
     /// Registers the handler once. Has to happen before the app finishes launching, which is
     /// why `PolarisApp.init` calls it rather than a view's `.task`.
     static func register() {
-        guard !didRegister else { return }
-        didRegister = true
+        let already = didRegister.withLock { registered -> Bool in
+            if registered { return true }
+            registered = true
+            return false
+        }
+        guard !already else { return }
         let registered = BGTaskScheduler.shared.register(forTaskWithIdentifier: identifier, using: nil) { task in
             guard task is BGAppRefreshTask else {
                 task.setTaskCompleted(success: false)
