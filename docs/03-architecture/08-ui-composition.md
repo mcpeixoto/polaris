@@ -126,6 +126,16 @@ forbidden is mixing the two treatments inside one group.
 `display: none` or `visibility: hidden`, and never drop the label element to "clean up"
 markup. A dense surface drops the visible label; it never drops the name.
 
+**Standing exception: `PropertyPill` and `srOnly` on the create-issue composer.** The
+composer property row is Linear-dense: each pill's accessible name is the property
+(`name` / `describe` on `PropertyPill`, or an `srOnly` span on a static chip such as
+milestone), while the visible text is the value — or the property word again when unset
+("Cycle", "Due date"). That contradicts the "three or more sibling fields all get visible
+labels" rule above on purpose: a tertiary label beside every glyph would double the row and
+break the density the rest of the product's property chrome already teaches. Do not copy
+this pattern into settings forms or dialogs whose fields *are* the content; there `Field`
+labels lead.
+
 ## Forms and dialogs
 
 - Fields go in a grid with equal columns, not a wrapping flex row with a character-width
