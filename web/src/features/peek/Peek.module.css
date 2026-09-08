@@ -118,8 +118,10 @@
   min-width: 0;
 }
 
-/* The rail row: 28px, a 14px glyph and the value at 13px/500. Not a trigger — nothing
-   here opens a picker, so there is no hover wash to promise one. */
+/* The rail row: 28px, a 14px glyph and the value at 13px/500. A trigger now — every one of
+   these opens a picker, so it wears the hover wash that promises one. `--bg-hover` and not
+   the `--bg-selected` a list row's glyph uses: nothing washes Peek's panel underneath, so the
+   first step up is visible here where on a hovered row it would not be. */
 .fact dd {
   display: flex;
   align-items: center;
@@ -136,8 +138,54 @@
   white-space: nowrap;
 }
 
+/*
+ * A cell whose whole box is the button. The padding moves inwards to `.factTrigger`, so the
+ * pressable area is the row rather than a control inset inside it with a dead strip around
+ * the edge.
+ */
+.fact dd.factCell {
+  padding-inline: 0;
+}
+
+.factTrigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  min-height: var(--control-height-md);
+  padding-inline: var(--space-2);
+  border: none;
+  border-radius: var(--radius-md);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.factTrigger:hover {
+  background-color: var(--bg-hover);
+}
+
+.factTrigger:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+/* Open is a state the pointer has usually already left — the menu is over the panel, not
+   over the row — so the row holds the wash itself or Peek stops saying what the menu is
+   about. */
+.factTrigger[aria-expanded='true'] {
+  background-color: var(--bg-hover);
+}
+
 /* Labels wrap: a row of chips is not a value that truncates. */
-.fact dd.factWrap {
+.fact dd.factWrap,
+.fact dd.factCell.factWrap .factTrigger {
   flex-wrap: wrap;
   padding-block: var(--space-1);
   white-space: normal;

@@ -36,6 +36,37 @@
 }
 
 /*
+ * A chip that opens the picker instead of navigating.
+ *
+ * Stripped back to the link's own footprint rather than styled as a button: the chip inside
+ * already carries every pixel of the affordance, and a border or a padding around it would
+ * make one label on a row wider than the same label on the card beside it. The open state is
+ * drawn by the chip's own ring below, because when the menu is showing the pointer is on the
+ * menu and the row has stopped saying which chip it came from.
+ */
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.trigger:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.trigger[aria-expanded='true'] {
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--border-focus);
+}
+
+/*
  * A chip that did not fit.
  *
  * Still rendered, and that is the whole trick: the run has to know how wide a chip is in

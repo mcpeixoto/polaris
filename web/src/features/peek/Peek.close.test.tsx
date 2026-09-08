@@ -16,6 +16,7 @@ import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 
 import { EngineProvider } from '~/app/context';
+import { KeymapProvider } from '~/app/keymap';
 import { Store, type Change, type Entity } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
 
@@ -110,9 +111,13 @@ function renderPeek(onClose?: () => void) {
   const engine = { store: seeded(), mutate: vi.fn() } as unknown as SyncEngine;
   render(
     <MemoryRouter>
-      <EngineProvider engine={engine} status={{ phase: 'idle' }}>
-        <Peek open issueId={ISSUE} onClose={onClose} />
-      </EngineProvider>
+      {/* Peek's rail draws the chord that does the same thing from the keyboard, and a
+          key cap has to be able to ask the registry how to spell itself on this platform. */}
+      <KeymapProvider>
+        <EngineProvider engine={engine} status={{ phase: 'idle' }}>
+          <Peek open issueId={ISSUE} onClose={onClose} />
+        </EngineProvider>
+      </KeymapProvider>
     </MemoryRouter>,
   );
   return userEvent.setup();

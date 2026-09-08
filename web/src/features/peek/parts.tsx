@@ -13,9 +13,9 @@
  * it is gated on `present` and a shell that owned the hook could not hand that fact back.
  */
 
-import type { ReactNode } from 'react';
+import { useId, type ReactNode, type Ref } from 'react';
 
-import { IconButton } from '~/components';
+import { IconButton, Tooltip } from '~/components';
 import { CrossGlyph } from '~/features/issue/glyphs';
 
 import styles from './Peek.module.css';
@@ -54,20 +54,92 @@ export function PeekHeader({
 /**
  * One rail row. The label is for the accessibility tree, as it is on the issue screen: on
  * screen the glyph and the value are the row.
+ *
+ * With `onOpen` the value becomes the control that changes it, which is the split the issue
+ * screen's own rail makes: the button is *named* by the value — "In Progress", "Ada
+ * Lovelace" — and *described* by the property, so a reader hears "In Progress, Status" and
+ * not "Status, Status". The hidden `<dt>` was already carrying exactly that word, so it is
+ * pointed at rather than duplicated into an `aria-label` that would then have two places to
+ * drift from.
+ *
+ * These stay in the tab order, unlike the triggers on a list row: Peek is a panel, not a
+ * `role="option"` navigating by `aria-activedescendant`, so an ordinary focusable control is
+ * exactly right here.
  */
 export function Fact({
   label,
   wrap = false,
+  action,
+  keys,
+  open,
+  popup = 'menu',
+  onOpen,
+  triggerRef,
   children,
 }: {
   label: string;
   wrap?: boolean;
+  /** The verb, drawn in the tooltip: "Change status". Its absence leaves the row inert. */
+  action?: string | undefined;
+  /** The chord that does the same thing. See the caveat where Peek passes these. */
+  keys?: string | undefined;
+  /** True while the menu this row opened is the one showing. */
+  open?: boolean | undefined;
+  /**
+   * What opens, as `aria-haspopup` spells it.
+   *
+   * The due-date panel is a dialogue holding a text field, and a trigger promising a menu
+   * tells a reader to expect a list the arrow keys walk. Same distinction `useMenuTrigger`
+   * makes, for the same reason.
+   */
+  popup?: 'menu' | 'dialog' | undefined;
+  /** Handed the button, because that is what the menu anchors to. */
+  onOpen?: ((element: HTMLElement) => void) | undefined;
+  /**
+   * The button, for a caller that has to anchor a menu to it without a press.
+   *
+   * Peek's context menu is the case: choosing "Status…" there has to open the picker on the
+   * status row, and a menu anchored at the pointer instead would have to survive its own
+   * anchor being unmounted. A row that is always mounted is the simpler answer.
+   */
+  triggerRef?: Ref<HTMLButtonElement> | undefined;
   children: ReactNode;
 }) {
+  const id = useId();
+
+  if (onOpen === undefined || action === undefined) {
+    return (
+      <div className={styles.fact}>
+        <dt className={styles.srOnly}>{label}</dt>
+        <dd className={wrap ? styles.factWrap : undefined}>{children}</dd>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.fact}>
-      <dt className={styles.srOnly}>{label}</dt>
-      <dd className={wrap ? styles.factWrap : undefined}>{children}</dd>
+      <dt className={styles.srOnly} id={id}>
+        {label}
+      </dt>
+      {/* The cell gives up its padding to the button, which takes over the row's whole box —
+          a control inset inside its row would leave a strip along the edge that looks
+          pressable and is not. */}
+      <dd className={[styles.factCell, wrap ? styles.factWrap : null].filter(Boolean).join(' ')}>
+        {/* `describe={false}`: the description slot is the property's name, above. */}
+        <Tooltip label={action} keys={keys} describe={false}>
+          <button
+            ref={triggerRef}
+            type="button"
+            className={styles.factTrigger}
+            aria-describedby={id}
+            aria-haspopup={popup}
+            aria-expanded={open === true}
+            onClick={(event) => onOpen(event.currentTarget)}
+          >
+            {children}
+          </button>
+        </Tooltip>
+      </dd>
     </div>
   );
 }
