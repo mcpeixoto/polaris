@@ -554,6 +554,8 @@ function SubIssueRow({ child, onRemove }: { child: Child; onRemove: () => void }
             onClose={context.close}
             trigger={context.anchorRef}
             label={`Actions for ${child.identifier}`}
+            keysPresentation="kbd"
+            density="compact"
             items={items}
           />
         </>

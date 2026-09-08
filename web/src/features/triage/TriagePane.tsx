@@ -408,7 +408,10 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
 
       <StatusPicker
         open={status.open}
-        onClose={status.hide}
+        onClose={() => {
+          status.hide();
+          setContextAt(null);
+        }}
         trigger={status.ref}
         teamId={issue.teamId}
         value={issue.stateId}
@@ -416,7 +419,10 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
       />
       <AssigneePicker
         open={assignee.open}
-        onClose={assignee.hide}
+        onClose={() => {
+          assignee.hide();
+          setContextAt(null);
+        }}
         trigger={assignee.ref}
         value={issue.assigneeId}
         onSelect={(assigneeId) => updateIssue(engine, issueId, { assigneeId }).catch(report)}
@@ -425,14 +431,20 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
           reviewer pricing an issue has not decided anything about it yet. */}
       <PriorityPicker
         open={rowPriority.open}
-        onClose={rowPriority.hide}
+        onClose={() => {
+          rowPriority.hide();
+          setContextAt(null);
+        }}
         trigger={rowPriority.ref}
         value={issue.priority}
         onSelect={(value) => updateIssue(engine, issueId, { priority: value }).catch(report)}
       />
       <ProjectPicker
         open={project.open}
-        onClose={project.hide}
+        onClose={() => {
+          project.hide();
+          setContextAt(null);
+        }}
         trigger={project.ref}
         teamIds={[issue.teamId]}
         value={issue.projectId}
@@ -440,7 +452,10 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
       />
       <LabelPicker
         open={labels.open}
-        onClose={labels.hide}
+        onClose={() => {
+          labels.hide();
+          setContextAt(null);
+        }}
         trigger={labels.ref}
         teamId={issue.teamId}
         value={issue.labelIds}
