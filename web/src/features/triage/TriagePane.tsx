@@ -536,7 +536,6 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
   );
 }
 
-
 /** The labels as one accessible name, because that is the value the trigger stands for. */
 function labelSummary(labels: readonly { name: string }[]): string {
   return labels.length === 0 ? 'No labels' : labels.map((label) => label.name).join(', ');

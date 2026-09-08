@@ -29,13 +29,11 @@ describe('issueRowMenuItems', () => {
   it('offers the five properties in the same order whatever the surface', () => {
     const nodes = issueRowMenuItems(ONE, { pick: vi.fn() });
 
-    expect(items(nodes).slice(0, 5).map((item) => item.id)).toEqual([
-      'status',
-      'assignee',
-      'priority',
-      'project',
-      'labels',
-    ]);
+    expect(
+      items(nodes)
+        .slice(0, 5)
+        .map((item) => item.id),
+    ).toEqual(['status', 'assignee', 'priority', 'project', 'labels']);
   });
 
   it('draws no key cap for a property the caller did not claim a chord for', () => {

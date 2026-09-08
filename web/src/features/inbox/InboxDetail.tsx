@@ -18,13 +18,7 @@
  * kind of reply, and inventing one would be a second conversation nobody reads.
  */
 
-import {
-  useRef,
-  useState,
-  type FormEvent,
-  type KeyboardEvent,
-  type ReactNode,
-} from 'react';
+import { useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 
 import { useEngine } from '~/app/context';
@@ -366,7 +360,6 @@ interface PaneCommands {
   pickLabels: () => void;
 }
 
-
 /** The labels as one accessible name, because that is the value the trigger stands for. */
 function labelSummary(labels: readonly { name: string }[]): string {
   return labels.length === 0 ? 'No labels' : labels.map((label) => label.name).join(', ');
@@ -500,19 +493,11 @@ function Reply({ issueId, identifier }: { issueId: UUID; identifier: string }) {
   );
 }
 
-function Property({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
+function Property({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className={styles.property}>
       <dt className={styles.propertyLabel}>{label}</dt>
-      <dd className={styles.propertyValue}>
-        {children}
-      </dd>
+      <dd className={styles.propertyValue}>{children}</dd>
     </div>
   );
 }

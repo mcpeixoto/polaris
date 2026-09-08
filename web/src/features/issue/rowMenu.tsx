@@ -83,8 +83,7 @@ export function issueRowMenuItems(
       id: property.kind,
       label: property.label,
       ...(chord === undefined ? {} : { keys: chord }),
-      disabled:
-        !target.editable || (property.kind === 'status' ? !target.canSetStatus : false),
+      disabled: !target.editable || (property.kind === 'status' ? !target.canSetStatus : false),
       onSelect: () => commands.pick(property.kind),
     });
   }
