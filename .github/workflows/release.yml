@@ -125,7 +125,13 @@ jobs:
           for f in Polaris-mac-arm64.dmg Polaris-mac-x64.dmg Polaris-Setup.exe \
                    Polaris-linux-x86_64.AppImage polaris-amd64.deb; do
             url="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/$f"
-            code=$(curl -sSIL -o /dev/null -w '%{http_code}' --retry 3 --retry-delay 5 "$url" || echo 000)
+            # Generous, because the asset being present and the download path serving it
+            # are minutes apart. On v0.10.0 the AppImage alias answered 500 for several
+            # minutes after upload — on every path, including its own API
+            # browser_download_url — then 200 with no intervention. A short retry here
+            # would fail a release that was fine.
+            code=$(curl -sSIL -o /dev/null -w '%{http_code}' \
+                     --retry 10 --retry-delay 20 --retry-all-errors "$url" || echo 000)
             echo "$code  $f"
             [ "$code" = 200 ] || fail=1
           done
