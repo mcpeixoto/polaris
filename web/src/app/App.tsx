@@ -134,6 +134,7 @@ const LabelSettings = lazy(async () => ({
   default: (await import('~/features/labels/LabelSettings')).LabelSettings,
 }));
 const LabelView = lazy(async () => ({ default: (await import('~/views/LabelView')).LabelView }));
+const Downloads = lazy(async () => ({ default: (await import('~/views/Downloads')).Downloads }));
 const Landing = lazy(async () => ({ default: (await import('~/views/Landing')).Landing }));
 const McpSettings = lazy(async () => ({
   default: (await import('~/views/McpSettings')).McpSettings,
@@ -274,6 +275,7 @@ export function App() {
                   SignedInShell. Anonymous `/` is the marketing surface; authenticated `/`
                   is still the first team's issue list. */}
                 <Route path="/welcome" element={<Landing />} />
+                <Route path="/downloads" element={<Downloads />} />
                 {/* Declared before the catch-all, which renders the sign-in form: without
                   this route /pricing showed a password field to somebody who had asked
                   what it costs. Also routed in SignedInShell — see the note there. */}
@@ -355,6 +357,7 @@ function SignedInShell() {
   // so that leaving a named screen does not leave its name in the tab strip behind it.
   useDocumentTitle([]);
   if (pathname === '/welcome') return <Landing />;
+  if (pathname === '/downloads') return <Downloads />;
   /*
     Pricing is routed for signed-in people too, and outside AppShell for the same reason
     /welcome is: it is a public page, and the sidebar behind it would belong to a workspace

@@ -109,6 +109,20 @@ jobs:
           v="${TAG#v}"
           grep -q "$v" <<<"$names" || { echo "::error::No asset carries version $v — the build did not take its version from the tag."; exit 1; }
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate every installer and updater target
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.t.outputs.tag }}
+        run: |
+          python -m pip install 'PyYAML==6.0.3'
+          gh release view "$TAG" --json assets > /tmp/desktop-release.json
+          gh release download "$TAG" --pattern 'latest*.yml' --dir /tmp/desktop-manifests
+          python scripts/verify-desktop-release.py "$TAG" /tmp/desktop-release.json /tmp/desktop-manifests
+
       # An asset existing and its URL resolving are different claims, and the second is the
       # one anybody depends on. These are the links the landing page, the README and any
       # support reply point at; if the redirect does not resolve, every one of them is a 404

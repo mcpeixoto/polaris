@@ -5,7 +5,7 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ["v*"]
+    tags: ['v*']
   pull_request:
 
 # Superseded pull request runs are cancelled; runs on main are not.
@@ -40,13 +40,13 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U polaris"
           --health-interval 3s --health-timeout 3s --health-retries 20
-        ports: ["5432:5432"]
+        ports: ['5432:5432']
       valkey:
         image: valkey/valkey:8.0-alpine
         options: >-
           --health-cmd "valkey-cli ping"
           --health-interval 3s --health-timeout 3s --health-retries 20
-        ports: ["6379:6379"]
+        ports: ['6379:6379']
     env:
       DATABASE_URL: postgres://polaris:polaris@localhost:5432/polaris_test?sslmode=disable
       VALKEY_URL: redis://localhost:6379/0
@@ -88,13 +88,13 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U polaris"
           --health-interval 3s --health-timeout 3s --health-retries 20
-        ports: ["5432:5432"]
+        ports: ['5432:5432']
       valkey:
         image: valkey/valkey:8.0-alpine
         options: >-
           --health-cmd "valkey-cli ping"
           --health-interval 3s --health-timeout 3s --health-retries 20
-        ports: ["6379:6379"]
+        ports: ['6379:6379']
     env:
       DATABASE_URL: postgres://polaris:polaris@localhost:5432/polaris_test?sslmode=disable
       VALKEY_URL: redis://localhost:6379/0
@@ -231,7 +231,7 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U polaris"
           --health-interval 3s --health-timeout 3s --health-retries 20
-        ports: ["5432:5432"]
+        ports: ['5432:5432']
     env:
       DATABASE_URL: postgres://polaris:polaris@localhost:5432/polaris?sslmode=disable
       POLARIS_ENV: development
@@ -256,7 +256,7 @@ jobs:
       # POLARIS_ENV=development would otherwise mint a loopback session for
       # whoever owns the oldest workspace. The suite drives the sign-in form
       # and invitation links; auto-login hides both.
-      POLARIS_DEV_AUTOLOGIN: "0"
+      POLARIS_DEV_AUTOLOGIN: '0'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -344,6 +344,13 @@ jobs:
       # A release tag that builds packages nobody can download. Six tags left their
       # GitHub release as a draft, which also made electron-updater see no update at all.
       - run: bash scripts/lint-release.sh
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test desktop release validation
+        run: |
+          python -m pip install 'PyYAML==6.0.3'
+          python scripts/test-desktop-release.py
       # A workflow step reading an environment variable nothing gives it. Only shows up
       # when the workflow runs, which for a release workflow means on the release.
       - run: bash scripts/lint-workflow-vars.sh
