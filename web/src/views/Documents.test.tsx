@@ -190,9 +190,8 @@ describe('Documents', () => {
     for (const label of [
       'Open document',
       'Copy link',
-      'Add to favourites',
       'Archive document',
-      'Delete document',
+      'Delete Onboarding',
     ]) {
       expect(within(menu).getByRole('menuitem', { name: label })).toBeTruthy();
     }
@@ -203,7 +202,7 @@ describe('Documents', () => {
     const { user } = mount(seeded(), mutate, { phase: 'idle' });
 
     await user.pointer({ keys: '[MouseRight]', target: screen.getByText('Onboarding') });
-    await user.click(screen.getByRole('menuitem', { name: 'Delete document' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Delete Onboarding' }));
 
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText(/Onboarding/)).toBeTruthy();

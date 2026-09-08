@@ -192,11 +192,13 @@ export function Documents() {
           setFailure(null);
           setConfirming({ kind: 'archive', id: row.id, title: row.title });
         },
+        archiveLabel: 'Archive document',
         askDelete: () => {
           closeMenus();
           setFailure(null);
           setConfirming({ kind: 'delete', id: row.id, title: row.title });
         },
+        deleteLabel: 'Delete document',
       },
     );
   };
