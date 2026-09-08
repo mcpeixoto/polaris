@@ -68,6 +68,36 @@ for path in sorted(pathlib.Path('.github/workflows').glob('*.yml')):
                 print(f"      but neither the step, the job nor the runner defines it.")
                 fail = 1
 
+# macOS runners ship bash 3.2, from 2007, because bash 4 is GPLv3 and Apple will not
+# ship it. Every builtin below exists on the Linux runners and on any modern machine a
+# step is tested on, and is a `command not found` on macOS — at the end of a build that
+# has already signed and notarised correctly, which is where this was found.
+BASH4 = {
+    "mapfile": "read into the array with `while IFS= read -r x; do arr+=(\"$x\"); done < <(...)`",
+    "readarray": "same as mapfile; not in bash 3.2",
+    "declare -A": "associative arrays do not exist in bash 3.2",
+    "${!": "indirect/name references are unreliable in bash 3.2",
+}
+
+for path in sorted(pathlib.Path('.github/workflows').glob('*.yml')):
+    text = path.read_text()
+    # Only where a macOS runner is possible. The Linux and Windows runners have bash 5.
+    if "macos" not in text:
+        continue
+    doc = yaml.safe_load(text)
+    for job_name, job in (doc.get('jobs') or {}).items():
+        for step in job.get('steps') or []:
+            # Comments are stripped first: the fix for this very check explains in prose
+            # why mapfile is not used, and a substring match flagged the explanation.
+            run = "\n".join(line for line in (step.get('run') or "").splitlines()
+                            if not line.lstrip().startswith("#"))
+            for bad, advice in BASH4.items():
+                if bad in run:
+                    name = step.get('name', '<unnamed>')
+                    print(f"FAIL: {path}: job `{job_name}`, step `{name}` uses `{bad}`")
+                    print(f"      macOS runners have bash 3.2. {advice}")
+                    fail = 1
+
 if not fail:
     print("workflow shell variables: ok")
 sys.exit(fail)
