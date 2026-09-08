@@ -479,6 +479,8 @@ export function Templates() {
             }}
             trigger={menuTriggerRef}
             label={menuRow === null ? 'Template options' : `Options for ${menuRow.name}`}
+            keysPresentation="kbd"
+            density="compact"
             items={menuRow === null ? [] : itemsFor(menuRow)}
           />
 
@@ -488,6 +490,8 @@ export function Templates() {
             onClose={contextMenu.close}
             trigger={contextMenu.anchorRef}
             label={contextRow === null ? 'Template options' : `Options for ${contextRow.name}`}
+            keysPresentation="kbd"
+            density="compact"
             items={contextRow === null ? [] : itemsFor(contextRow)}
           />
 

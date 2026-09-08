@@ -267,6 +267,19 @@
 }
 
 /*
+ * Dense command menus (context menus, sidebar ⋯). The ladder's md step is 28px — the same
+ * height Input and Select ship as — so a context menu reads as one product with the rest of
+ * the chrome rather than as a taller floating list of the same words.
+ */
+.compact .item {
+  height: var(--control-height-md);
+}
+
+.compact .list {
+  max-height: calc(var(--control-height-md) * 12);
+}
+
+/*
  * One highlight, two focus models. Without a filter the active item really is focused and
  * this is what the ring would otherwise be drawn on; with a filter the focus is in the text
  * box and this wash is the *only* thing saying which item Enter will choose. It has to read
@@ -297,10 +310,13 @@
 }
 
 /*
- * The tick column is always present, even when nothing in the menu is selected. It sits at
- * the trailing edge, after the hint, so a row reads glyph, value, shortcut, chosen — and
- * reserving it means the hints sit on one edge whatever the current value is, so changing
- * a status does not slide the column sideways under the pointer.
+ * The tick column is always present when any item is selected. It sits at the trailing
+ * edge, after the hint, so a row reads glyph, value, shortcut, chosen — and reserving it
+ * means the hints sit on one edge whatever the current value is, so changing a status does
+ * not slide the column sideways under the pointer.
+ *
+ * Command menus (no `selected` anywhere) collapse it via `.noTick` so the trailing edge is
+ * the hint or the chevron, not an empty 16px gutter.
  */
 .tick {
   display: flex;
@@ -315,6 +331,10 @@
 .tick svg {
   width: var(--space-4);
   height: var(--space-4);
+}
+
+.item.noTick {
+  /* Nothing — the tick node is omitted. Class kept so callers/tests can name the state. */
 }
 
 .icon {

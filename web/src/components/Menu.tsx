@@ -20,6 +20,7 @@ import { usePresence } from '~/hooks/usePresence';
 import { formatKeySpec } from '../keys';
 
 import { horizontalShift, verticalShift } from './anchor';
+import { ChevronGlyph } from './glyphs';
 import { Kbd } from './Kbd';
 import { useOptionalKeyContext } from './keyContext';
 import styles from './Menu.module.css';
@@ -137,6 +138,16 @@ export interface MenuProps {
    * nothing and must fall through to the page, and in a submenu it means "go back".
    */
   nested?: boolean | undefined;
+  /**
+   * How shortcut hints are drawn. Pickers keep quiet text (`text`); context menus that teach
+   * chords pass `kbd` so the caps match the rest of the product's raised surfaces.
+   */
+  keysPresentation?: 'text' | 'kbd' | undefined;
+  /**
+   * Row height. `compact` is `--control-height-md` (28px) — Linear-dense command menus —
+   * while pickers stay on the default 32px ladder step.
+   */
+  density?: 'default' | 'compact' | undefined;
   className?: string | undefined;
 }
 
@@ -393,6 +404,8 @@ export function Menu({
   onFilterChange,
   emptyLabel = 'No matches',
   nested = false,
+  keysPresentation = 'text',
+  density = 'default',
   className,
 }: MenuProps) {
   const baseId = useId();
@@ -808,6 +821,10 @@ export function Menu({
 
   const style: CSSProperties = point === null ? {} : { top: point.top, left: point.left };
   const activeDomId = activeId === null ? undefined : domIdFor(activeId);
+  // Command menus never mark a current value, so the tick column is only width spent on
+  // nothing. Collapse it when no row asks for it — including nested submenus that inherit
+  // the parent's nodes rather than inventing their own selection.
+  const showTick = items.some((node) => isItem(node) && node.selected === true);
 
   /**
    * The pointer landing on a row.
@@ -838,6 +855,7 @@ export function Menu({
       styles.item,
       active ? styles.active : null,
       !submenu && row.danger === true ? styles.danger : null,
+      !showTick ? styles.noTick : null,
     ]
       .filter(Boolean)
       .join(' ');
@@ -875,37 +893,37 @@ export function Menu({
         <span className={styles.label}>{row.label}</span>
         {submenu ? (
           <span className={styles.chevron} aria-hidden="true">
-            <svg viewBox="0 0 16 16" width="16" height="16" fill="none">
-              <path
-                d="m6.5 4 4 4-4 4"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <ChevronGlyph />
           </span>
         ) : row.keys === undefined ? (
           row.hint === undefined ? null : (
             <span className={styles.hint}>{row.hint}</span>
           )
         ) : (
-          <span className={styles.hint}>{formatKeySpec(row.keys)}</span>
+          <span className={styles.hint}>
+            {keysPresentation === 'kbd' ? (
+              <Kbd keys={row.keys} surface="raised" />
+            ) : (
+              formatKeySpec(row.keys)
+            )}
+          </span>
         )}
         {/* Last, at the trailing edge, where the eye lands after reading the value. */}
-        <span className={styles.tick} aria-hidden="true">
-          {selected ? (
-            <svg viewBox="0 0 16 16" width="16" height="16" fill="none">
-              <path
-                d="M3.5 8.25 6.5 11l6-6.5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          ) : null}
-        </span>
+        {showTick ? (
+          <span className={styles.tick} aria-hidden="true">
+            {selected ? (
+              <svg viewBox="0 0 16 16" width="16" height="16" fill="none">
+                <path
+                  d="M3.5 8.25 6.5 11l6-6.5"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            ) : null}
+          </span>
+        ) : null}
       </div>
     );
   };
@@ -924,7 +942,12 @@ export function Menu({
       >
         <div
           ref={panelRef}
-          className={[styles.panel, styles[`origin-${placementUsed}`], className]
+          className={[
+            styles.panel,
+            styles[`origin-${placementUsed}`],
+            density === 'compact' ? styles.compact : null,
+            className,
+          ]
             .filter(Boolean)
             .join(' ')}
           {...exitProps}
@@ -1011,6 +1034,8 @@ export function Menu({
           label={searchTextOf(openSubmenuNode)}
           placement="right-start"
           nested
+          keysPresentation={keysPresentation}
+          density={density}
         />
       )}
     </MenuNestingContext.Provider>,

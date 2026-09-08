@@ -15,9 +15,35 @@
  * those differences as a prop and be worse than the copies it replaced.
  */
 
-import type { MenuNode } from '~/components';
+import type { ReactNode } from 'react';
 
-export type IssuePropertyKind = 'status' | 'assignee' | 'priority' | 'project' | 'labels';
+import { PriorityIcon, StateIcon, type MenuNode } from '~/components';
+
+import {
+  BellGlyph,
+  CalendarGlyph,
+  CopyGlyph,
+  CycleGlyph,
+  EstimateGlyph,
+  LinkGlyph,
+  MilestoneGlyph,
+  ProjectGlyph,
+  StarGlyph,
+  TagGlyph,
+  TrashGlyph,
+  UnassignedGlyph,
+} from './glyphs';
+
+export type IssuePropertyKind =
+  | 'status'
+  | 'assignee'
+  | 'priority'
+  | 'estimate'
+  | 'due'
+  | 'cycle'
+  | 'project'
+  | 'labels'
+  | 'milestone';
 
 export interface IssueRowMenuTarget {
   /** How many issues the menu acts on. 1 for a single row. */
@@ -39,15 +65,34 @@ export interface IssueRowMenuTarget {
   readonly assigneeName?: string | undefined;
   /** The row's labels, for the navigation the chips gave up when they became pickers. */
   readonly labels?: readonly { readonly id: string; readonly name: string }[] | undefined;
+  /**
+   * Whether estimate is a real property on these rows. Teams that do not estimate omit the
+   * row rather than offering a control that writes a value nothing will read.
+   */
+  readonly estimates?: boolean | undefined;
+  /** Whether any of the rows belong to a team that runs cycles. */
+  readonly cycles?: boolean | undefined;
+  /**
+   * Whether a milestone picker can apply. Opt-in: a milestone is a marker inside a project,
+   * and most list surfaces have no picker for it yet.
+   */
+  readonly milestone?: boolean | undefined;
+  /** Whether the single row is already on the viewer's watch list. */
+  readonly subscribed?: boolean | undefined;
+  /** Whether the single row is already in the viewer's favourites. */
+  readonly favorited?: boolean | undefined;
 }
 
 export interface IssueRowMenuCommands {
   pick(kind: IssuePropertyKind): void;
   open?(): void;
+  openInPeek?(): void;
   copyLink?(): void;
   copyIdentifier?(): void;
   goToAssignee?(): void;
   goToLabel?(labelId: string): void;
+  toggleSubscribe?(): void;
+  toggleFavorite?(): void;
   askDelete?(): void;
 }
 
@@ -60,14 +105,64 @@ export interface IssueRowMenuCommands {
  * promise about what a keystroke does to the thing you are pointing at; this is how the
  * builder avoids making one it cannot keep.
  */
-export type IssueRowMenuChords = Readonly<Partial<Record<IssuePropertyKind, string>>>;
+export type IssueRowMenuChords = Readonly<Partial<Record<IssuePropertyKind | 'subscribe', string>>>;
 
-const PROPERTIES: readonly { kind: IssuePropertyKind; label: string }[] = [
-  { kind: 'status', label: 'Status…' },
-  { kind: 'assignee', label: 'Assignee…' },
-  { kind: 'priority', label: 'Priority…' },
-  { kind: 'project', label: 'Project…' },
-  { kind: 'labels', label: 'Labels…' },
+interface PropertySpec {
+  readonly kind: IssuePropertyKind;
+  readonly label: string;
+  readonly icon: ReactNode;
+  readonly when?: (target: IssueRowMenuTarget) => boolean;
+}
+
+const PROPERTIES: readonly PropertySpec[] = [
+  {
+    kind: 'status',
+    label: 'Status…',
+    icon: <StateIcon category="backlog" decorative />,
+  },
+  {
+    kind: 'assignee',
+    label: 'Assignee…',
+    icon: <UnassignedGlyph />,
+  },
+  {
+    kind: 'priority',
+    label: 'Priority…',
+    icon: <PriorityIcon priority={0} decorative />,
+  },
+  {
+    kind: 'estimate',
+    label: 'Estimate…',
+    icon: <EstimateGlyph />,
+    when: (target) => target.estimates !== false,
+  },
+  {
+    kind: 'due',
+    label: 'Due date…',
+    icon: <CalendarGlyph />,
+  },
+  {
+    kind: 'cycle',
+    label: 'Cycle…',
+    icon: <CycleGlyph />,
+    when: (target) => target.cycles !== false,
+  },
+  {
+    kind: 'project',
+    label: 'Project…',
+    icon: <ProjectGlyph />,
+  },
+  {
+    kind: 'labels',
+    label: 'Labels…',
+    icon: <TagGlyph />,
+  },
+  {
+    kind: 'milestone',
+    label: 'Milestone…',
+    icon: <MilestoneGlyph />,
+    when: (target) => target.milestone === true,
+  },
 ];
 
 export function issueRowMenuItems(
@@ -78,10 +173,12 @@ export function issueRowMenuItems(
   const items: MenuNode[] = [];
 
   for (const property of PROPERTIES) {
+    if (property.when !== undefined && !property.when(target)) continue;
     const chord = chords[property.kind];
     items.push({
       id: property.kind,
       label: property.label,
+      icon: property.icon,
       ...(chord === undefined ? {} : { keys: chord }),
       disabled: !target.editable || (property.kind === 'status' ? !target.canSetStatus : false),
       onSelect: () => commands.pick(property.kind),
@@ -130,25 +227,77 @@ export function issueRowMenuItems(
     items.push({ kind: 'separator' }, ...navigation);
   }
 
-  const clipboard: MenuNode[] = [];
+  const issueActions: MenuNode[] = [];
   if (commands.open !== undefined) {
     const open = commands.open;
-    clipboard.push({ id: 'open', label: 'Open issue', onSelect: () => open() });
+    issueActions.push({ id: 'open', label: 'Open issue', onSelect: () => open() });
   }
+  if (commands.openInPeek !== undefined) {
+    const openInPeek = commands.openInPeek;
+    issueActions.push({
+      id: 'open-peek',
+      label: 'Open in peek',
+      onSelect: () => openInPeek(),
+    });
+  }
+
+  const copyChildren: MenuNode[] = [];
   if (commands.copyLink !== undefined) {
     const copyLink = commands.copyLink;
-    clipboard.push({ id: 'copy-link', label: 'Copy link', onSelect: () => copyLink() });
+    copyChildren.push({
+      id: 'copy-link',
+      label: 'Copy link',
+      icon: <LinkGlyph />,
+      onSelect: () => copyLink(),
+    });
   }
   if (commands.copyIdentifier !== undefined) {
     const copyIdentifier = commands.copyIdentifier;
-    clipboard.push({
+    copyChildren.push({
       id: 'copy-id',
       label: 'Copy issue ID',
+      icon: <CopyGlyph />,
       onSelect: () => copyIdentifier(),
     });
   }
-  if (clipboard.length > 0) {
-    items.push({ kind: 'separator' }, ...clipboard);
+  if (copyChildren.length === 1 && copyChildren[0] !== undefined) {
+    issueActions.push(copyChildren[0]);
+  } else if (copyChildren.length > 1) {
+    issueActions.push({
+      kind: 'submenu',
+      id: 'copy',
+      label: 'Copy',
+      icon: <CopyGlyph />,
+      items: copyChildren,
+    });
+  }
+
+  if (commands.toggleSubscribe !== undefined && target.count === 1) {
+    const toggleSubscribe = commands.toggleSubscribe;
+    const subscribed = target.subscribed === true;
+    issueActions.push({
+      id: 'subscribe',
+      label: subscribed ? 'Unsubscribe' : 'Subscribe',
+      icon: <BellGlyph />,
+      ...(chords.subscribe === undefined ? {} : { keys: chords.subscribe }),
+      disabled: !target.editable,
+      onSelect: () => toggleSubscribe(),
+    });
+  }
+  if (commands.toggleFavorite !== undefined && target.count === 1) {
+    const toggleFavorite = commands.toggleFavorite;
+    const favorited = target.favorited === true;
+    issueActions.push({
+      id: 'favorite',
+      label: favorited ? 'Remove from favourites' : 'Add to favourites',
+      icon: <StarGlyph on={favorited} />,
+      disabled: !target.editable,
+      onSelect: () => toggleFavorite(),
+    });
+  }
+
+  if (issueActions.length > 0) {
+    items.push({ kind: 'separator' }, ...issueActions);
   }
 
   if (commands.askDelete !== undefined) {
@@ -161,6 +310,7 @@ export function issueRowMenuItems(
           target.count === 1
             ? `Delete ${target.identifier ?? 'issue'}`
             : `Delete ${String(target.count)} issues`,
+        icon: <TrashGlyph />,
         danger: true,
         disabled: !target.editable,
         onSelect: () => askDelete(),

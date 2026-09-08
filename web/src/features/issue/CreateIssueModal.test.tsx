@@ -486,17 +486,20 @@ describe('CreateIssueModal', () => {
 describe('CreateIssueModal pills', () => {
   /**
    * A due date is set on a minority of issues, so it waits in the overflow rather than
-   * standing in every composer — and once asked for, it is a date field the create sends.
+   * standing in every composer — and once asked for, the shared DueDatePicker writes it.
    */
   it('keeps the due date in the overflow until asked for, then files it', async () => {
     const { user } = renderComposer();
-    expect(screen.queryByLabelText('Due date')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'No due date' })).toBeNull();
 
     await user.click(screen.getByRole('button', { name: 'More properties' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Due date' }));
 
-    const due = screen.getByLabelText('Due date') as HTMLInputElement;
-    fireEvent.change(due, { target: { value: '2026-03-04' } });
+    // Reveal opens the shared DueDatePicker immediately.
+    const date = await screen.findByLabelText('Or a date');
+    fireEvent.change(date, { target: { value: '2026-03-04' } });
+    await user.click(screen.getByRole('button', { name: 'Set' }));
+
     await user.type(screen.getByLabelText('Title'), 'Dated');
     await user.click(screen.getByRole('button', { name: 'Create issue' }));
 

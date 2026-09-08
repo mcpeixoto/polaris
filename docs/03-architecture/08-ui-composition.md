@@ -21,6 +21,10 @@ audit of one dialog turned up, because every rule below is a generalisation of o
   `PriorityIcon` and `Avatar` on the equivalent triggers.
 - A `.form :global(input)` rule intended for the title, silently restyling every other
   input in the subtree, including a date field and every form-template answer.
+- A native `<input type="date">` in the create-issue property row, while every other
+  surface (list, detail, peek) already used `DueDatePicker` — so the composer could not
+  offer relatives, clear with one click, or share the product's date grammar. The composer
+  now mounts the same picker; do not reintroduce a one-off date control on a property pill.
 
 None of these is a taste dispute. Each is a screen contradicting either another screen or
 its own stated intent. The rules below are the agreement that prevents that.
@@ -125,6 +129,16 @@ forbidden is mixing the two treatments inside one group.
 **`hideLabel` still renders the label to the accessibility tree.** Never reach for
 `display: none` or `visibility: hidden`, and never drop the label element to "clean up"
 markup. A dense surface drops the visible label; it never drops the name.
+
+**Standing exception: `PropertyPill` and `srOnly` on the create-issue composer.** The
+composer property row is Linear-dense: each pill's accessible name is the property
+(`name` / `describe` on `PropertyPill`, or an `srOnly` span on a static chip such as
+milestone), while the visible text is the value — or the property word again when unset
+("Cycle", "Due date"). That contradicts the "three or more sibling fields all get visible
+labels" rule above on purpose: a tertiary label beside every glyph would double the row and
+break the density the rest of the product's property chrome already teaches. Do not copy
+this pattern into settings forms or dialogs whose fields *are* the content; there `Field`
+labels lead.
 
 ## Forms and dialogs
 

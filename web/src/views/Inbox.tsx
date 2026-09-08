@@ -52,7 +52,8 @@ import {
 } from '~/components';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
 import { updateIssues, type IssueFields } from '~/features/issue/mutations';
-import type { IssuePropertyKind } from '~/features/issue/rowMenu';
+import { issueRowMenuItems, type IssuePropertyKind } from '~/features/issue/rowMenu';
+import { useContextMenuHandoff } from '~/hooks/useContextMenuHandoff';
 import { LabelPicker } from '~/features/labels/LabelPicker';
 import { applyLabel, removeLabel } from '~/features/labels/mutations';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
@@ -401,7 +402,7 @@ export function Inbox() {
    * another menu about the same row. Without this the handover would clear the row the
    * picker was about in the same tick it was chosen, and the picker would open on nothing.
    */
-  const handingOver = useRef(false);
+  const contextHandoff = useContextMenuHandoff();
 
   const closePicker = useCallback(() => {
     setPicker(null);
@@ -1119,15 +1120,14 @@ export function Inbox() {
       <Menu
         open={contextFor !== null && picker === null}
         onClose={() => {
-          if (handingOver.current) {
-            handingOver.current = false;
-            return;
-          }
+          if (contextHandoff.consume()) return;
           setContextFor(null);
           returnToList();
         }}
         trigger={anchor}
         label="Notification"
+        keysPresentation="kbd"
+        density="compact"
         items={contextItems(contextFor, {
           open: () => open(contextFor ?? undefined),
           toggleRead: () => {
@@ -1142,7 +1142,7 @@ export function Inbox() {
             if (contextFor !== null) dismiss([contextFor.id]);
           },
           pick: (kind) => {
-            handingOver.current = true;
+            contextHandoff.begin();
             setPicker(kind);
           },
         })}
@@ -1226,6 +1226,9 @@ function rowNode(id: UUID): HTMLElement | null {
  * pointer-only set of behaviours. The issue properties are the half the spec names
  * explicitly ("including issue property updates") and are offered only for a notification
  * that is about an issue: a Pulse digest or a project update has no status to change.
+ *
+ * Property wording comes from `issueRowMenuItems` so the inbox does not fork "Change status"
+ * against every other surface's "Status…".
  */
 function contextItems(
   row: Row | null,
@@ -1254,19 +1257,25 @@ function contextItems(
     ...items,
     { kind: 'separator' },
     { kind: 'heading', label: row.issueIdentifier ?? 'Issue' },
-    // The caps are this screen's own: `InboxDetail` registers all five in the `list`
-    // context the inbox mounts, and the right-clicked row is the cursor row — `place` runs
-    // before the menu opens — so each of them acts on the issue this menu is about.
-    { id: 'status', label: 'Change status', keys: 's', onSelect: () => commands.pick('status') },
-    { id: 'assignee', label: 'Assign to', keys: 'a', onSelect: () => commands.pick('assignee') },
-    { id: 'priority', label: 'Set priority', keys: 'p', onSelect: () => commands.pick('priority') },
-    {
-      id: 'project',
-      label: 'Set project',
-      keys: 'shift+p',
-      onSelect: () => commands.pick('project'),
-    },
-    { id: 'labels', label: 'Add label', keys: 'l', onSelect: () => commands.pick('labels') },
+    ...issueRowMenuItems(
+      {
+        count: 1,
+        editable: true,
+        canSetStatus: true,
+        identifier: row.issueIdentifier ?? undefined,
+        // Inbox mounts the five property pickers; omit the rest.
+        estimates: false,
+        cycles: false,
+      },
+      { pick: commands.pick },
+      {
+        status: 's',
+        assignee: 'a',
+        priority: 'p',
+        project: 'shift+p',
+        labels: 'l',
+      },
+    ),
   ];
 }
 

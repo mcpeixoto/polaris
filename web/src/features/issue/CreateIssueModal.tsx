@@ -77,6 +77,7 @@ import {
 } from '~/store';
 import { ApiError } from '~/sync/api';
 import { createIssue } from './mutations';
+import { DueDatePicker, DueDateValue } from './properties';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { templateDefaults, type TemplateDefaults } from '~/features/templates/mutations';
 import { placeholderSpans, unwrapPlaceholders } from '~/features/templates/placeholder';
@@ -177,7 +178,6 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
   const formId = useId();
   const titleRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
-  const dueRef = useRef<HTMLInputElement>(null);
   const local = isBlankSeed(seed) ? readIssueComposerDraft() : null;
   /**
    * Whether this sitting owns the single local composer slot.
@@ -360,6 +360,7 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
   const projectMenu = useMenuTrigger();
   const cycleMenu = useMenuTrigger();
   const labelMenu = useMenuTrigger();
+  const dueMenu = useMenuTrigger('dialog');
 
   const formFields = useLiveQuery(
     (store) => (formTemplate === null ? [] : fieldsForFormTemplate(store, formTemplate.id)),
@@ -569,22 +570,11 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
       case 'repeat':
         repeatMenu.show();
         return;
-      case 'due': {
-        const input = dueRef.current;
-        if (input === null) return;
-        input.focus();
-        // The native calendar, where the browser offers one. It is only allowed on a user
-        // gesture, and a reveal from the overflow menu is one; where it is not, or the
-        // browser has no picker, the focused field is enough.
-        try {
-          (input as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
-        } catch {
-          /* no picker, or no gesture to hang it on */
-        }
+      case 'due':
+        dueMenu.show();
         return;
-      }
     }
-  }, [pendingOpen, templateMenu, formTemplateMenu, repeatMenu]);
+  }, [pendingOpen, templateMenu, formTemplateMenu, repeatMenu, dueMenu]);
 
   /**
    * `Alt+C`: the composer with the template menu already up.
@@ -1058,12 +1048,15 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
             group: 'Issues',
             hidden: true,
             run: () => {
-              if (!leaving) reveal('due');
+              if (!leaving) {
+                reveal('due');
+                dueMenu.show();
+              }
             },
           },
         ]
       : [],
-    [open],
+    [open, dueMenu],
   );
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -1437,7 +1430,6 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
                   ))}
             </PropertyPill>
 
-            {/* Glyph only until it holds a cycle, as the list rows draw it. */}
             {teamRunsCycles ? (
               <PropertyPill
                 {...cycleMenu.props}
@@ -1445,9 +1437,8 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
                 describe={`${formId}-cycle`}
                 empty={cycleName === null ? 'No cycle' : undefined}
                 icon={<CycleGlyph />}
-                className={cycleName === null ? styles.glyphOnly : undefined}
               >
-                {cycleName ?? ''}
+                {cycleName ?? 'Cycle'}
               </PropertyPill>
             ) : null}
 
@@ -1490,24 +1481,40 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
             ) : null}
 
             {/*
-              A native date field wearing the pill: the platform's calendar is better than
-              anything drawn here, and inside a dialog that already traps focus it needs no
-              popover of its own. With a cadence set the same day is the first of the series.
+              Same DueDatePicker the list and detail use — not a native date field. The
+              platform calendar used to stand in here because the dialog already traps
+              focus; the shared picker keeps relatives, SLA notes and the product's own
+              date grammar in one place.
             */}
             {showDue ? (
-              <label className={styles.datePill}>
-                <span className={styles.pillGlyph} aria-hidden="true">
-                  <CalendarGlyph />
-                </span>
-                <span className={styles.srOnly}>{cadence === null ? 'Due date' : 'First due'}</span>
-                <input
-                  ref={dueRef}
-                  type="date"
-                  className={styles.dateInput}
-                  value={cadence === null ? dueDate : resolvedDueDate}
-                  onChange={(event) => setDueDate(event.target.value)}
+              <>
+                <PropertyPill
+                  {...dueMenu.props}
+                  name={cadence === null ? 'Due date' : 'First due'}
+                  describe={`${formId}-due`}
+                  empty={dueDate === '' ? 'No due date' : undefined}
+                  icon={<CalendarGlyph />}
+                >
+                  {dueDate === '' ? (
+                    cadence === null ? (
+                      'Due date'
+                    ) : (
+                      'First due'
+                    )
+                  ) : (
+                    <DueDateValue value={dueDate} timezone={teamTimezone} source="manual" />
+                  )}
+                </PropertyPill>
+                <DueDatePicker
+                  open={dueMenu.open}
+                  onClose={dueMenu.hide}
+                  trigger={dueMenu.ref}
+                  value={dueDate === '' ? null : dueDate}
+                  source="manual"
+                  timezone={teamTimezone}
+                  onSelect={(value) => setDueDate(value ?? '')}
                 />
-              </label>
+              </>
             ) : null}
 
             {milestoneName === null ? null : (

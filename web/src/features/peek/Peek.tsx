@@ -41,14 +41,21 @@ import { CyclePicker } from '~/features/cycles/CyclePicker';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
 import { DueDatePicker, DueDateValue, EstimatePicker } from '~/features/issue/properties';
-import { report, updateIssue, updateIssueProperties } from '~/features/issue/mutations';
+import {
+  report,
+  updateIssue,
+  updateIssueProperties,
+  setSubscribed,
+} from '~/features/issue/mutations';
 import { issueRowMenuItems, type IssuePropertyKind } from '~/features/issue/rowMenu';
+import { isFavorite, toggleFavorite } from '~/features/view/mutations';
 import { exact, when } from '~/features/time';
 import { useContextMenu } from '~/hooks/useContextMenu';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { usePresence } from '~/hooks/usePresence';
 import { useViewerId } from '~/hooks/useViewer';
+import { copyText } from '~/features/github/copy';
 import type { DateOnly, DueDateSource, StateCategory, Store, UUID } from '~/store';
 import { Fact, glanceDescription, PeekHeader } from './parts';
 import styles from './Peek.module.css';
@@ -93,7 +100,7 @@ const CHORDS = {
   priority: 'p',
   assignee: 'a',
   estimate: 'shift+e',
-  dueDate: 'shift+d',
+  due: 'shift+d',
   cycle: 'shift+c',
   project: 'shift+p',
   labels: 'l',
@@ -108,7 +115,17 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
 
   const issue = useLiveQuery(
     (store) => (!present || issueId === null ? null : readPeek(store, issueId)),
-    ['issue', 'team', 'user', 'workflowState', 'label', 'issueLabel', 'cycle', 'project'],
+    [
+      'issue',
+      'team',
+      'user',
+      'workflowState',
+      'label',
+      'issueLabel',
+      'cycle',
+      'project',
+      'favorite',
+    ],
     [present, issueId ?? ''],
   );
 
@@ -153,10 +170,22 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
   const pickFromMenu = useCallback(
     (kind: IssuePropertyKind) => {
       const anchor = factRefs.current[kind] ?? null;
-      const trigger = { status, priority, assignee, project, labels }[kind];
+      const trigger = (
+        {
+          status,
+          priority,
+          assignee,
+          project,
+          labels,
+          estimate,
+          due,
+          cycle,
+        } as Partial<Record<IssuePropertyKind, typeof status>>
+      )[kind];
+      if (trigger === undefined) return;
       trigger.showFrom(anchor);
     },
-    [status, priority, assignee, project, labels],
+    [status, priority, assignee, project, labels, estimate, due, cycle],
   );
 
   if (!present) return null;
@@ -276,7 +305,7 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
         <Fact
           label="Due date"
           action="Set due date"
-          keys={CHORDS.dueDate}
+          keys={CHORDS.due}
           popup="dialog"
           open={due.open}
           onOpen={(element) => due.showFrom(element)}
@@ -443,6 +472,8 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
             onClose={context.close}
             trigger={context.anchorRef}
             label="Issue actions"
+            keysPresentation="kbd"
+            density="compact"
             /*
              * The navigation the assignee link and the label chips gave up when they became
              * pickers. Without it there is no pointer route from this panel to a person's
@@ -455,11 +486,21 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
                 editable: true,
                 canSetStatus: true,
                 identifier: issue.identifier,
+                estimates: issue.estimates,
+                cycles: true,
+                subscribed:
+                  viewerId !== null && engine.store.subscriberIdsFor(issueId).has(viewerId),
+                favorited:
+                  viewerId !== null && isFavorite(engine.store, viewerId, 'issue', issueId),
                 ...(issue.assigneeName === null ? {} : { assigneeName: issue.assigneeName }),
                 labels: issue.labels,
               },
               {
                 pick: pickFromMenu,
+                open: () => void navigate(`/issue/${issue.identifier}`),
+                copyLink: () =>
+                  void copyText(`${window.location.origin}/issue/${issue.identifier}`),
+                copyIdentifier: () => void copyText(issue.identifier),
                 ...(issue.assigneeId === null
                   ? {}
                   : {
@@ -469,6 +510,19 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
                     }),
                 goToLabel: (labelId) => {
                   void navigate(labelViewPath(labelId as UUID));
+                },
+                toggleSubscribe: () => {
+                  if (viewerId === null) return;
+                  const subscribed = engine.store.subscriberIdsFor(issueId).has(viewerId);
+                  setSubscribed(engine, {
+                    issueId,
+                    userId: viewerId,
+                    subscribed: !subscribed,
+                  }).catch(report);
+                },
+                toggleFavorite: () => {
+                  if (viewerId === null) return;
+                  toggleFavorite(engine, viewerId, 'issue', issueId).catch(report);
                 },
               },
               CHORDS,

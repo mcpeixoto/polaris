@@ -38,7 +38,7 @@ import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 
-import { DotsGlyph, PlusGlyph } from '~/features/issue/glyphs';
+import { DotsGlyph, PencilGlyph, PlusGlyph, TrashGlyph } from '~/features/issue/glyphs';
 import { MilestoneGlyph } from '~/features/projects/glyphs';
 
 import { listProjectMilestones, type MilestoneRow } from './helpers';
@@ -240,8 +240,19 @@ function MilestoneReadout({ row, onEdit, onRemove }: ReadoutProps) {
   const progress = total === 0 ? 'No issues yet' : `${percent}% · ${row.done} of ${total} issues`;
 
   const items: MenuNode[] = [
-    { id: 'edit', label: 'Edit milestone', onSelect: onEdit },
-    { id: 'remove', label: 'Remove milestone', danger: true, onSelect: onRemove },
+    {
+      id: 'edit',
+      label: 'Edit milestone',
+      icon: <PencilGlyph />,
+      onSelect: onEdit,
+    },
+    {
+      id: 'remove',
+      label: 'Remove milestone',
+      icon: <TrashGlyph />,
+      danger: true,
+      onSelect: onRemove,
+    },
   ];
 
   return (
@@ -277,6 +288,8 @@ function MilestoneReadout({ row, onEdit, onRemove }: ReadoutProps) {
           trigger={menu.ref}
           label={`Actions for ${milestone.name}`}
           placement="bottom-end"
+          keysPresentation="kbd"
+          density="compact"
           items={items}
         />
       </div>

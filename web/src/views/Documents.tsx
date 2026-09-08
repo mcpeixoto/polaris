@@ -41,8 +41,12 @@ import { archiveDocument, deleteDocument } from '~/features/documents/mutations'
 import { copyText } from '~/features/github/copy';
 import { EntityLoading, useStoreSettled } from '~/features/entity-gate/EntityGate';
 import { DotsGlyph } from '~/features/issue/glyphs';
+import { report } from '~/features/issue/mutations';
 import { exact, when } from '~/features/time';
+import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
 import { useContextMenu } from '~/hooks/useContextMenu';
+import { isFavorite, toggleFavorite } from '~/features/view/mutations';
+import { useViewerId } from '~/hooks/useViewer';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { listRowDomId, useListCursor } from '~/hooks/useListCursor';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
@@ -84,6 +88,7 @@ const PREFERENCE_KEY = 'documents';
 export function Documents() {
   const navigate = useNavigate();
   const engine = useEngine();
+  const viewerId = useViewerId();
   const { teamKey, projectId } = useParams<{ teamKey?: string; projectId?: string }>();
   const { registry, context } = useKeymap();
   const settled = useStoreSettled();
@@ -160,44 +165,42 @@ export function Documents() {
     contextMenu.close();
   };
 
-  const itemsFor = (row: DocumentRow): MenuNode[] => [
-    {
-      id: 'open',
-      label: 'Open document',
-      onSelect: () => {
-        closeMenus();
-        void navigate(`/document/${row.id}`);
+  const itemsFor = (row: DocumentRow): MenuNode[] => {
+    const favorited = viewerId !== null && isFavorite(engine.store, viewerId, 'document', row.id);
+    return entityRowMenuItems(
+      { noun: 'document', name: row.title, favorited },
+      {
+        open: () => {
+          closeMenus();
+          void navigate(`/document/${row.id}`);
+        },
+        copyLink: () => {
+          closeMenus();
+          void copyText(`${window.location.origin}/document/${row.id}`);
+        },
+        ...(viewerId === null
+          ? {}
+          : {
+              toggleFavorite: () => {
+                closeMenus();
+                toggleFavorite(engine, viewerId, 'document', row.id).catch(report);
+              },
+            }),
+        archive: () => {
+          closeMenus();
+          setFailure(null);
+          setConfirming({ kind: 'archive', id: row.id, title: row.title });
+        },
+        archiveLabel: 'Archive document',
+        askDelete: () => {
+          closeMenus();
+          setFailure(null);
+          setConfirming({ kind: 'delete', id: row.id, title: row.title });
+        },
+        deleteLabel: 'Delete document',
       },
-    },
-    {
-      id: 'copy-link',
-      label: 'Copy link',
-      onSelect: () => {
-        closeMenus();
-        void copyText(`${window.location.origin}/document/${row.id}`);
-      },
-    },
-    { kind: 'separator' as const },
-    {
-      id: 'archive',
-      label: 'Archive document',
-      onSelect: () => {
-        closeMenus();
-        setFailure(null);
-        setConfirming({ kind: 'archive', id: row.id, title: row.title });
-      },
-    },
-    {
-      id: 'delete',
-      label: 'Delete document',
-      danger: true,
-      onSelect: () => {
-        closeMenus();
-        setFailure(null);
-        setConfirming({ kind: 'delete', id: row.id, title: row.title });
-      },
-    },
-  ];
+    );
+  };
 
   const confirmRemoval = () => {
     if (confirming === null) return;
@@ -356,6 +359,8 @@ export function Documents() {
         onClose={closeMenus}
         trigger={rowMenuTrigger}
         label={menuRow === null ? 'Document options' : `Options for ${menuRow.title}`}
+        keysPresentation="kbd"
+        density="compact"
         items={menuRow === null ? [] : itemsFor(menuRow)}
       />
 
@@ -365,6 +370,8 @@ export function Documents() {
         onClose={contextMenu.close}
         trigger={contextMenu.anchorRef}
         label={contextRow === null ? 'Document options' : `Options for ${contextRow.title}`}
+        keysPresentation="kbd"
+        density="compact"
         items={contextRow === null ? [] : itemsFor(contextRow)}
       />
 

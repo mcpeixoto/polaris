@@ -370,6 +370,8 @@ export function Dashboards() {
         }}
         trigger={menuTriggerRef}
         label={menuRow === null ? 'Dashboard options' : `Options for ${menuRow.name}`}
+        keysPresentation="kbd"
+        density="compact"
         items={menuRow === null ? [] : itemsFor(menuRow)}
       />
 
@@ -379,6 +381,8 @@ export function Dashboards() {
         onClose={contextMenu.close}
         trigger={contextMenu.anchorRef}
         label={contextRow === null ? 'Dashboard options' : `Options for ${contextRow.name}`}
+        keysPresentation="kbd"
+        density="compact"
         items={contextRow === null ? [] : itemsFor(contextRow)}
       />
 
