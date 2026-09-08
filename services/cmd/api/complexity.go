@@ -71,11 +71,20 @@ func (complexityBudget) MutateOperationContext(
 		// Carries a code, not only a sentence. A client that has to string-match "exceeds
 		// the limit" to tell a query it must split from a query it must fix is a client that
 		// breaks when the wording improves.
+		//
+		// QUERY_TOO_COMPLEX and not RATELIMITED, which is what this used to send. The two
+		// refusals read the same on the wire and mean opposite things: a spent budget refills,
+		// and a query over the ceiling does not — it is refused on the first attempt and on
+		// every attempt after it. Every client in the repo mapped RATELIMITED to "too many
+		// requests, try again shortly", so the iOS inbox spent a release telling people to
+		// retry a query that could never be served. There is deliberately no retryAfter here:
+		// there is no time at which this succeeds, and offering a number would be a lie the
+		// client would faithfully count down.
 		return &gqlerror.Error{
 			Message: "this query is too expensive to run — ask for fewer rows, fewer nested " +
 				"lists, or pass explicit pagination limits",
 			Extensions: map[string]any{
-				"code":       string(platform.CodeRateLimited),
+				"code":       string(platform.CodeQueryTooComplex),
 				"complexity": points,
 				"limit":      complexity.MaxPoints,
 			},

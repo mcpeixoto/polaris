@@ -18,8 +18,17 @@ const (
 	CodeUnauthorized ErrorCode = "UNAUTHENTICATED"
 	CodeConflict     ErrorCode = "CONFLICT"
 	CodeRateLimited  ErrorCode = "RATELIMITED"
-	CodeEntitlement  ErrorCode = "PLAN_LIMIT"
-	CodeInternal     ErrorCode = "INTERNAL"
+	// CodeQueryTooComplex is one operation priced over the published per-query ceiling.
+	//
+	// Split out of CodeRateLimited, because the two say opposite things to a client.
+	// "You have spent your budget" is temporary and the answer is to wait; "this single
+	// query is too big to run" is permanent and waiting changes nothing. Sharing one code
+	// meant the iOS inbox — refused on every attempt for asking for 100 notifications at
+	// once — told its user "Too many requests. Try again shortly." forever, inviting a
+	// retry that could not ever succeed.
+	CodeQueryTooComplex ErrorCode = "QUERY_TOO_COMPLEX"
+	CodeEntitlement     ErrorCode = "PLAN_LIMIT"
+	CodeInternal        ErrorCode = "INTERNAL"
 )
 
 // Error is the one error type that crosses a package boundary in this codebase.

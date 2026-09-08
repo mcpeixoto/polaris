@@ -295,6 +295,7 @@ public actor LivePolarisClient: PolarisAPI {
             let extensions = first["extensions"] as? [String: Any]
             throw mapGraphQLError(code: extensions?["code"] as? String,
                                   field: extensions?["field"] as? String,
+                                  retryAfter: seconds(extensions?["retryAfter"]),
                                   message: message)
         }
         guard let payload = root["data"] as? [String: Any] else { throw PolarisError.badResponse }
@@ -313,14 +314,35 @@ public actor LivePolarisClient: PolarisAPI {
         }
     }
 
-    private func mapGraphQLError(code: String?, field: String?, message: String) -> PolarisError {
+    private func mapGraphQLError(
+        code: String?, field: String?, retryAfter: TimeInterval?, message: String
+    ) -> PolarisError {
         switch code {
         case "UNAUTHORIZED", "UNAUTHENTICATED": .unauthorized(message)
         case "FORBIDDEN": .forbidden
         case "NOT_FOUND": .notFound
         case "VALIDATION": .validation(message: message, field: field)
-        case "RATELIMITED": .rateLimited(retryAfter: nil)
+        case "RATELIMITED": .rateLimited(retryAfter: retryAfter)
+        // Arrives inside an HTTP 200 — gqlgen only maps a code to a non-200 status for codes
+        // registered with it, and this one is not — so the 429 branch in `send` never sees it
+        // and this is the only place it can be recognised.
+        case "QUERY_TOO_COMPLEX": .queryTooComplex
         default: .server(status: 200, message: message)
+        }
+    }
+
+    /// `extensions.retryAfter`, in whole seconds, however JSONSerialization typed it.
+    ///
+    /// It arrives as an NSNumber and could be bridged as Int or Double depending on how the
+    /// server wrote it, so both are read. Passing nil where the server sent a number is what
+    /// turned "try again in 30s" into "try again shortly" — a sentence that tells somebody to
+    /// guess.
+    private func seconds(_ raw: Any?) -> TimeInterval? {
+        switch raw {
+        case let n as Int: TimeInterval(n)
+        case let n as Double: n
+        case let n as NSNumber: n.doubleValue
+        default: nil
         }
     }
 

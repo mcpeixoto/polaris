@@ -209,12 +209,15 @@ public enum MyIssuesScope: String, Sendable, Hashable, CaseIterable, Codable {
 public extension PolarisAPI {
     /// The overwhelmingly common inbox call. A default on the protocol rather than on the
     /// method, because a protocol requirement cannot carry default arguments.
+    ///
+    /// The page size comes from `PageSize` and not from a literal here — see that file for the
+    /// cliff at 74 this call spent a release on the wrong side of.
     func notifications() async throws -> [PolarisNotification] {
-        try await notifications(includeRead: true, includeSnoozed: false, first: 100)
+        try await notifications(includeRead: true, includeSnoozed: false, first: PageSize.inbox)
     }
 
     func search(query: String) async throws -> SearchResults {
-        try await search(query: query, teamId: nil, first: 40)
+        try await search(query: query, teamId: nil, first: PageSize.search)
     }
 
     /// A client that cannot answer offers nothing, which is what the web client concludes

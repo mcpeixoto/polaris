@@ -178,4 +178,4 @@ Seed data matters more than usual here: a realistic workspace (3 teams, 2k issue
 - **Every entity carries** `created_at`, `updated_at`, `archived_at`, `workspace_id`.
 - **Soft delete** (`deleted_at`) for anything with a 30-day recovery window; hard delete only via a purge job.
 - **No `SELECT *`** in generated queries — column drift breaks sync payload shapes silently.
-- **Errors** are typed domain errors mapped once to GraphQL extensions codes (`RATELIMITED`, `FORBIDDEN`, `NOT_FOUND`, `VALIDATION`).
+- **Errors** are typed domain errors mapped once to GraphQL extensions codes (`RATELIMITED`, `QUERY_TOO_COMPLEX`, `FORBIDDEN`, `NOT_FOUND`, `VALIDATION`).

@@ -153,18 +153,33 @@ enum GraphQLDocuments {
     query Labels { labels { id name color teamId parentId isGroup } }
     """
 
+    /// The projects list. Deliberately a THINNER selection than `project` below, which is the
+    /// only pair in this file that differs — so it is worth saying why.
+    ///
+    /// `Query.projects` takes no pagination argument, so it is charged the default page of 50,
+    /// and `teams` is an unpaginated list inside it: fifty projects times fifty team links is a
+    /// 2,500× multiplier on everything selected under `team`. With `milestones` beside it the
+    /// whole query scored 10,245 points against a 10,000-point ceiling and was refused outright
+    /// — the list screen simply never loaded.
+    ///
+    /// So this selects what the list actually draws. `description`, `priority` and `leadId` have
+    /// no reader anywhere in the app; `milestones` is read only by the detail header, which
+    /// fetches `project` a moment later anyway and shows its milestones then. Each scalar under
+    /// `team` costs 250 points, so that block is narrowed to the four fields
+    /// `ProjectDetailView` and `projects(forTeam:)` read.
     static let projects = """
     query Projects {
       projects {
-        id name summary description icon color priority leadId startDate targetDate
+        id name summary icon color startDate targetDate
         status { id name color category }
         lead { id name displayName avatarUrl email }
-        teams { team { id key name icon color triageEnabled cyclesEnabled } }
-        milestones { id name targetDate }
+        teams { team { id key name color } }
       }
     }
     """
 
+    /// One project, in full. Not a list, so nothing here is multiplied and it can afford the
+    /// fields `projects` above drops.
     static let project = """
     query ProjectById($id: UUID!) {
       project(id: $id) {

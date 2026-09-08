@@ -46,6 +46,13 @@ func statusFor(code platform.ErrorCode) int {
 		return http.StatusConflict
 	case platform.CodeRateLimited:
 		return http.StatusTooManyRequests
+	case platform.CodeQueryTooComplex:
+		// 400, not 429. Nothing about this refusal is about time: the same request will be
+		// refused identically an hour from now, and answering 429 would put a Retry-After on
+		// a wait that cannot help. The GraphQL endpoint never routes through here — the
+		// ceiling is enforced inside gqlgen, see cmd/api/complexity.go — but a code with no
+		// status is a code that becomes a 500 the first time another surface raises it.
+		return http.StatusBadRequest
 	case platform.CodeEntitlement:
 		return http.StatusPaymentRequired
 	default:

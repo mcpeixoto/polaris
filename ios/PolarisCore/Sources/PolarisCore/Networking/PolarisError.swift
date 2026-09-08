@@ -14,6 +14,13 @@ public enum PolarisError: Error, Equatable, Sendable {
     case forbidden
     case notFound
     case rateLimited(retryAfter: TimeInterval?)
+    /// The server priced one operation over its per-query complexity ceiling and refused it.
+    ///
+    /// Separate from `rateLimited`, which it used to arrive as. A rate limit passes; this does
+    /// not — the same document with the same variables is refused every time, so the copy must
+    /// not invite a retry and `isRetryable` must not offer a button. Nothing the person holding
+    /// the phone can do reaches it either: the fix is a smaller query in a later build.
+    case queryTooComplex
     case validation(message: String, field: String?)
     case server(status: Int, message: String?)
     case decoding(String)
@@ -37,6 +44,8 @@ public enum PolarisError: Error, Equatable, Sendable {
             } else {
                 "Too many requests. Try again shortly."
             }
+        case .queryTooComplex:
+            "This version of the app asked for more than the server will send. Updating should fix it."
         case .validation(let message, _):
             message
         case .server(_, let message):
@@ -53,7 +62,8 @@ public enum PolarisError: Error, Equatable, Sendable {
     public var isRetryable: Bool {
         switch self {
         case .offline, .timedOut, .rateLimited, .server: true
-        case .unauthorized, .forbidden, .notFound, .validation, .decoding, .badResponse: false
+        case .unauthorized, .forbidden, .notFound, .queryTooComplex, .validation, .decoding,
+             .badResponse: false
         }
     }
 
