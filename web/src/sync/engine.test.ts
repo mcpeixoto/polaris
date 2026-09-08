@@ -130,6 +130,26 @@ describe('draining the outbox', () => {
     expect(outbox.size).toBe(0);
     expect(gql).toHaveBeenCalledTimes(2);
   });
+
+  it('rolls a query over the complexity ceiling back rather than queueing behind it', async () => {
+    // QUERY_TOO_COMPLEX used to be spelled RATELIMITED, which put it in the branch above:
+    // held, retried five times, then discarded. Nothing about waiting helps — the ceiling is
+    // fixed, so the hundredth attempt is priced exactly like the first — and the op the user
+    // is waiting on sits behind four pointless round trips before being dropped anyway.
+    const { engine, outbox } = engineWithOutbox();
+    await queue(outbox, 'Too much at once');
+    await queue(outbox, 'Behind it');
+
+    gql.mockRejectedValueOnce(
+      new ApiError('QUERY_TOO_COMPLEX', 'this query is too expensive to run'),
+    );
+    gql.mockResolvedValue({});
+
+    await engine.drainOutbox();
+
+    expect(outbox.size).toBe(0);
+    expect(gql).toHaveBeenCalledTimes(2);
+  });
 });
 
 /**

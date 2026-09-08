@@ -145,8 +145,11 @@ function operationName(document: string): string {
  *
  * A rate limit or a server fault says nothing about the mutation — the same op sent a
  * minute later may well be accepted — so discarding it would throw away work over a blip.
- * Everything else (validation, permission, conflict, plan limit) is a decision about this
- * op specifically, and repeating it would only produce the same refusal.
+ * Everything else (validation, permission, conflict, plan limit, a query over the complexity
+ * ceiling) is a decision about this op specifically, and repeating it would only produce the
+ * same refusal. QUERY_TOO_COMPLEX belongs to that second group and not to the first, however
+ * much its old spelling — RATELIMITED — suggested otherwise: the ceiling is fixed, so the
+ * hundredth attempt is priced exactly like the first.
  */
 function isRetriable(err: unknown): boolean {
   return err instanceof ApiError && (err.code === 'RATELIMITED' || err.code === 'INTERNAL');
