@@ -123,6 +123,37 @@ jobs:
           gh release download "$TAG" --pattern 'latest*.yml' --dir /tmp/desktop-manifests
           python scripts/verify-desktop-release.py "$TAG" /tmp/desktop-release.json /tmp/desktop-manifests
 
+      # An asset existing and its URL resolving are different claims, and the second is the
+      # one anybody depends on. These are the links the landing page, the README and any
+      # support reply point at; if the redirect does not resolve, every one of them is a 404
+      # and the release page still looks perfectly fine.
+      #
+      # Only meaningful after the draft is cleared — /releases/latest/ does not resolve to a
+      # draft — which is why this runs here, after the Desktop workflow has completed.
+      - name: The permanent download links resolve
+        env:
+          TAG: ${{ steps.t.outputs.tag }}
+        run: |
+          set -euo pipefail
+          fail=0
+          for f in Polaris-mac-arm64.dmg Polaris-mac-x64.dmg Polaris-Setup.exe \
+                   Polaris-linux-x86_64.AppImage polaris-amd64.deb; do
+            url="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/$f"
+            # Generous, because the asset being present and the download path serving it
+            # are minutes apart. On v0.10.0 the AppImage alias answered 500 for several
+            # minutes after upload — on every path, including its own API
+            # browser_download_url — then 200 with no intervention. A short retry here
+            # would fail a release that was fine.
+            code=$(curl -sSIL -o /dev/null -w '%{http_code}' \
+                     --retry 10 --retry-delay 20 --retry-all-errors "$url" || echo 000)
+            echo "$code  $f"
+            [ "$code" = 200 ] || fail=1
+          done
+          if [ $fail -ne 0 ]; then
+            echo "::error::A permanent download link does not resolve. Every download button on the landing page points at these."
+            exit 1
+          fi
+
       - name: Production is serving this commit
         env:
           URL: ${{ secrets.DEPLOY_BASE_URL || 'https://polaris.peixotolabs.com' }}
@@ -138,7 +169,16 @@ jobs:
           fi
           [ "$(jq -r .env <<<"$got")" = production ] || { echo "::error::Not configured as production."; exit 1; }
 
-      - name: A build reached TestFlight
+      # This asserts the iOS job succeeded, which is necessary and has twice not been
+      # sufficient. v0.9.0 passed it with a build belonging to no group; v0.10.0 passed it
+      # with the *previous release's* build distributed instead of its own, because the
+      # script took the newest build in the list and App Store Connect had not yet listed
+      # the one just uploaded. Both times the job was green and the release had not shipped.
+      #
+      # So the job's word is checked first, and then App Store Connect is asked directly,
+      # below. A verifier that only reads job conclusions verifies nothing a job can lie
+      # about.
+      - name: A build reached testers
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -148,6 +188,54 @@ jobs:
             echo "::error::The iOS release run concluded '$c'. No build reached TestFlight. See docs/05-infrastructure/12-release-secrets.md."
             exit 1
           fi
+
+      # The check that would have caught both failures: is there a build carrying THIS tag's
+      # version, and can anybody actually install it?
+      - name: The TestFlight build for this tag is installable
+        env:
+          ASC_KEY: ${{ secrets.APPLE_API_KEY_PATH }}
+          ASC_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          ASC_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          WANT: ${{ steps.t.outputs.tag }}
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check pyjwt cryptography \
+            || python3 -m pip install --quiet --disable-pip-version-check --break-system-packages pyjwt cryptography
+          python3 - <<'PY'
+          import os, sys, time, json, urllib.request, jwt
+          want = os.environ["WANT"].lstrip("v")
+          now = int(time.time())
+          tok = jwt.encode({"iss": os.environ["ASC_ISSUER"], "iat": now, "exp": now + 600,
+                            "aud": "appstoreconnect-v1"}, os.environ["ASC_KEY"],
+                           algorithm="ES256",
+                           headers={"kid": os.environ["ASC_KEY_ID"], "typ": "JWT"})
+          def get(p):
+              r = urllib.request.Request("https://api.appstoreconnect.apple.com/v1/" + p,
+                                         headers={"Authorization": "Bearer " + tok})
+              return json.load(urllib.request.urlopen(r))
+          app = get("apps?filter[bundleId]=com.peixotolabs.polaris")["data"][0]["id"]
+          r = get(f"builds?filter[app]={app}&limit=20&sort=-uploadedDate"
+                  "&include=preReleaseVersion,betaGroups")
+          inc = {i["id"]: i for i in r.get("included", [])}
+          for d in r["data"]:
+              pv = d["relationships"]["preReleaseVersion"]["data"]
+              ver = inc[pv["id"]]["attributes"]["version"] if pv and pv["id"] in inc else ""
+              if ver != want:
+                  continue
+              groups = [inc[g["id"]]["attributes"]["name"]
+                        for g in (d["relationships"]["betaGroups"]["data"] or [])
+                        if g["id"] in inc]
+              num, state = d["attributes"]["version"], d["attributes"]["processingState"]
+              if not groups:
+                  print(f"::error::Build {num} is version {want} and {state}, but belongs to "
+                        f"no beta group — invisible in the TestFlight app to every tester.")
+                  sys.exit(1)
+              print(f"build {num} ({state}) available to: {', '.join(groups)}")
+              sys.exit(0)
+          print(f"::error::No TestFlight build for version {want}. The upload job was green, "
+                f"so it uploaded something else or nothing.")
+          sys.exit(1)
+          PY
 
       - name: Summary
         if: always()
