@@ -139,6 +139,18 @@ if [ -f "$rel" ] && ! grep -q 'appstoreconnect.apple.com' "$rel"; then
   echo "      build distributed instead of this one. Both times the job was green."
 fi
 
+# The distribution script must select its build, not take whichever is newest.
+#
+# `builds[0]` was the original rule and it shipped the wrong build to testers twice, most
+# recently handing v0.12.0's testers the v0.11.1 build. It is a one-word regression with no
+# other symptom: the job stays green and the log reads plausibly.
+if [ -f ios/scripts/distribute-build.py ]; then
+  grep -q 'builds\[0\]' ios/scripts/distribute-build.py \
+    && note "ios/scripts/distribute-build.py takes the newest build rather than the one this run built"
+  grep -q 'want_build' ios/scripts/distribute-build.py \
+    || note "ios/scripts/distribute-build.py does not match the build by number"
+fi
+
 # Every secret a workflow reads must be written down, with what breaks without it.
 #
 # This is the drift that costs a release day: a workflow grows a `secrets.NEW_THING`, the
