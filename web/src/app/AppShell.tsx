@@ -2083,7 +2083,7 @@ function useNavRowMenu(userId: UUID | null): NavRowMenu {
       ? []
       : [
           {
-            id: 'favourite',
+            id: 'favorite',
             label: favourited.has(`${kind}:${id}`) ? 'Remove from favourites' : 'Add to favourites',
             onSelect: () => {
               menu.close();
@@ -2198,6 +2198,8 @@ function useNavRowMenu(userId: UUID | null): NavRowMenu {
           trigger={menu.anchorRef}
           label={target === null ? 'Row actions' : `${labelOf(target)} actions`}
           placement="bottom-start"
+          keysPresentation="kbd"
+          density="compact"
           items={items()}
         />
       </>

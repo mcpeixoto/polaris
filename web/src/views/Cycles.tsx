@@ -58,6 +58,11 @@ import { readCollapsed } from '~/features/view/collapse';
 import { useContextMenu } from '~/hooks/useContextMenu';
 import { useListCursor, listRowDomId } from '~/hooks/useListCursor';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useViewerId } from '~/hooks/useViewer';
+import { copyText } from '~/features/github/copy';
+import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
+import { isFavorite, toggleFavorite } from '~/features/view/mutations';
+import { report } from '~/features/issue/mutations';
 import type { Cycle, Store, Team, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import styles from './Cycles.module.css';
@@ -114,6 +119,7 @@ const PREFERENCE_KEY = 'cycles';
 export function Cycles() {
   const navigate = useNavigate();
   const engine = useEngine();
+  const viewerId = useViewerId();
   const { teamKey = '' } = useParams<{ teamKey: string }>();
   const now = useNow();
 
@@ -263,31 +269,62 @@ export function Cycles() {
   };
 
   /** One menu, whichever way it was opened: the ⋯ button and the right-click agree. */
-  const itemsFor = (cycle: Cycle): MenuNode[] => [
-    { id: 'open', label: 'Open cycle', icon: <CycleGlyph />, onSelect: () => go(cycle.id) },
-    { id: 'edit', label: 'Edit cycle', icon: <PencilGlyph />, onSelect: () => openEdit(cycle) },
-    {
-      id: 'subscribe',
-      label: 'Subscribe to cycle calendar',
-      icon: <CalendarGlyph />,
-      onSelect: () => {
-        closeMenu();
-        contextMenu.close();
-        setCalendarOpen(true);
+  const itemsFor = (cycle: Cycle): MenuNode[] => {
+    const favorited =
+      viewerId !== null && isFavorite(engine.store, viewerId, 'cycle', cycle.id);
+    const base = entityRowMenuItems(
+      { noun: 'cycle', favorited },
+      {
+        open: () => go(cycle.id),
+        openIcon: <CycleGlyph />,
+        copyLink: () => {
+          closeMenu();
+          contextMenu.close();
+          void copyText(`${window.location.origin}/cycle/${cycle.id}`);
+        },
+        ...(viewerId === null
+          ? {}
+          : {
+              toggleFavorite: () => {
+                closeMenu();
+                contextMenu.close();
+                toggleFavorite(engine, viewerId, 'cycle', cycle.id).catch(report);
+              },
+            }),
       },
-    },
-    ...(!inherited && phaseOf(cycle, now) === 'Upcoming' && isNextUpcoming(cycle, allCycles, now)
-      ? [
-          {
-            id: 'start-today',
-            label: 'Start cycle today',
-            icon: <NextCycleGlyph />,
-            danger: true,
-            onSelect: () => askStart(cycle),
-          },
-        ]
-      : []),
-  ];
+    );
+    return [
+      ...base,
+      { kind: 'separator' },
+      {
+        id: 'edit',
+        label: 'Edit cycle',
+        icon: <PencilGlyph />,
+        onSelect: () => openEdit(cycle),
+      },
+      {
+        id: 'subscribe',
+        label: 'Subscribe to cycle calendar',
+        icon: <CalendarGlyph />,
+        onSelect: () => {
+          closeMenu();
+          contextMenu.close();
+          setCalendarOpen(true);
+        },
+      },
+      ...(!inherited && phaseOf(cycle, now) === 'Upcoming' && isNextUpcoming(cycle, allCycles, now)
+        ? [
+            {
+              id: 'start-today',
+              label: 'Start cycle today',
+              icon: <NextCycleGlyph />,
+              danger: true,
+              onSelect: () => askStart(cycle),
+            } as const,
+          ]
+        : []),
+    ];
+  };
 
   return (
     <div className={styles.screen}>
@@ -463,6 +500,8 @@ export function Cycles() {
         onClose={closeMenu}
         trigger={menuTriggerRef}
         label="Cycle options"
+        keysPresentation="kbd"
+        density="compact"
         items={menuCycle === null ? [] : itemsFor(menuCycle)}
       />
 
@@ -472,6 +511,8 @@ export function Cycles() {
         onClose={contextMenu.close}
         trigger={contextMenu.anchorRef}
         label={contextCycle === null ? 'Cycle options' : `Options for ${contextCycle.name}`}
+        keysPresentation="kbd"
+        density="compact"
         items={contextCycle === null ? [] : itemsFor(contextCycle)}
       />
 
