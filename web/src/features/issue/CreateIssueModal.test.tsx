@@ -495,7 +495,7 @@ describe('CreateIssueModal pills', () => {
     await user.click(screen.getByRole('button', { name: 'More properties' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Due date' }));
 
-    await user.click(screen.getByRole('button', { name: 'No due date' }));
+    // Reveal opens the shared DueDatePicker immediately.
     const date = await screen.findByLabelText('Or a date');
     fireEvent.change(date, { target: { value: '2026-03-04' } });
     await user.click(screen.getByRole('button', { name: 'Set' }));
