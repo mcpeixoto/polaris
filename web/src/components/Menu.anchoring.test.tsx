@@ -146,4 +146,40 @@ describe('Menu anchoring', () => {
 
     expect(surfaceStyle().top).toBe('328px');
   });
+
+  it('pulls itself back on screen when the trigger has been scrolled out of view', async () => {
+    const user = userEvent.setup();
+    render(<Picker />);
+    const trigger = screen.getByRole('button', { name: 'Status' });
+
+    // The rail of an issue with a long comment thread, scrolled past: the trigger is six
+    // hundred pixels above the top of the window, so the menu is placed there too.
+    vi.spyOn(trigger, 'getBoundingClientRect').mockImplementation(
+      () => ({ top: -600, bottom: -572, left: 40, right: 140, width: 100, height: 28 }) as DOMRect,
+    );
+
+    // What the surface reports once it has been drawn at that point. It is not clipped by an
+    // edge — it is wholly above the viewport, which is the case the flip cannot answer.
+    const offscreen = {
+      top: -572,
+      bottom: -297,
+      left: 40,
+      right: 240,
+      width: 200,
+      height: 275,
+    } as DOMRect;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.querySelector('[role="menu"]') === null
+        ? ({ top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0 } as DOMRect)
+        : offscreen;
+    });
+
+    await user.click(trigger);
+
+    // Back inside the window, at the margin every rescued surface is held off the edge by,
+    // rather than at -572 where the keystroke would have looked like it did nothing.
+    expect(surfaceStyle().top).toBe('8px');
+  });
 });

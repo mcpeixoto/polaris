@@ -222,6 +222,22 @@ function anchorPointFor(rect: DOMRect, placement: MenuPlacement): Point {
 }
 
 /**
+ * Whether the surface missed the viewport completely, rather than merely overhanging it.
+ *
+ * A zero-height rect at the origin — which is every rect in jsdom — is inside by this
+ * definition, and that is the intent: the rescue below is for a surface drawn against a
+ * trigger that has scrolled out of the document's view, not for one sitting near an edge.
+ */
+function fullyOutside(rect: DOMRect): boolean {
+  return (
+    rect.bottom < 0 ||
+    rect.top > window.innerHeight ||
+    rect.right < 0 ||
+    rect.left > window.innerWidth
+  );
+}
+
+/**
  * The flip is decided from the menu's *rendered* rect, after the gap and the translate in
  * the stylesheet have been applied — the same bargain Tooltip makes. Recomputing the
  * geometry here would mean this file knowing the offsets the CSS owns, and the two drifting
@@ -528,6 +544,32 @@ export function Menu({
       return;
     }
     settledRef.current = true;
+    /*
+     * The main axis first, and only when the surface missed the viewport altogether.
+     *
+     * The flip answers "which side of the trigger", and the cross-axis shift below answers
+     * "how far along that side" — both of which assume the trigger is somewhere a reader can
+     * see. A trigger does not have to be. Open a picker from the keyboard on an issue whose
+     * rail has been scrolled past — `S` on a long comment thread — and the anchor's rect is
+     * hundreds of pixels above the viewport, so the menu is not clipped by an edge, it is
+     * entirely outside one. It rendered where nobody could see or click it, and the only
+     * clue was a keyboard shortcut that appeared to do nothing.
+     *
+     * The test is deliberately "wholly outside" rather than "not perfectly inside": a menu
+     * that overlaps an edge is already the flip's business, and nudging every surface that
+     * merely touches the margin would move menus that were placed correctly.
+     */
+    if (fullyOutside(rect)) {
+      const rescue = isBeside(placementUsed) ? horizontalShift(rect) : verticalShift(rect);
+      if (rescue !== 0) {
+        setPoint(
+          isBeside(placementUsed)
+            ? { top: point.top, left: point.left + rescue }
+            : { top: point.top + rescue, left: point.left },
+        );
+        return;
+      }
+    }
     // The cross axis, whichever one that is: a menu under its trigger is pushed back on
     // screen sideways, and a submenu beside its row is pushed back up or down.
     if (isBeside(placementUsed)) {
