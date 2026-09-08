@@ -957,7 +957,7 @@ function contentSecurityPolicy(): string {
     `img-src 'self' data: blob: https: ${serverUrl}`.trimEnd(),
     "font-src 'self' data:",
     "manifest-src 'self'",
-    ['connect-src', "'self'", ...api].join(' '),
+    ['connect-src', "'self'", 'https://api.github.com', ...api].join(' '),
     "worker-src 'self' blob:",
     "media-src 'self' blob:",
     // Nothing in this app frames anything, and nothing may frame it.
