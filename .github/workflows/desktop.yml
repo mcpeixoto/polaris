@@ -206,6 +206,48 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
 
+      # "Package and sign" is a step name, not a result.
+      #
+      # When CSC_LINK is absent it unsets the signing variables and builds anyway — right for
+      # a build that is still useful unsigned, and the reason the mac builds shipped unsigned
+      # for weeks under a step called "sign" while every job stayed green. The releases page
+      # offered them the whole time.
+      #
+      # codesign --verify is the difference between the step having run and the app being
+      # signed. spctl is the stricter question — whether Gatekeeper will actually open it,
+      # which needs notarisation and not merely a signature, and is the thing a user
+      # experiences.
+      - name: Verify the macOS build is signed and notarised
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && matrix.name == 'macOS' }}
+        shell: bash
+        env:
+          HAVE_CERT: ${{ secrets.MAC_CERT_P12 != '' }}
+        run: |
+          set -euo pipefail
+          app=$(find desktop/release -maxdepth 3 -name 'Polaris.app' -print -quit)
+          [ -n "$app" ] || { echo "::error::No Polaris.app under desktop/release to check."; exit 1; }
+
+          if [ "$HAVE_CERT" != true ]; then
+            echo "::warning::MAC_CERT_P12 is not set, so this build is unsigned and Gatekeeper will refuse it. Run \`make release-secrets ARGS=--set\` on a machine with the certificate."
+            exit 0
+          fi
+
+          echo "--- codesign ---"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign -dvv "$app" 2>&1 | grep -E 'Authority|TeamIdentifier|Timestamp' || true
+
+          # A Developer ID signature that is not from Developer ID is the failure worth
+          # naming: a build signed with a development certificate verifies here and is
+          # refused on every machine but this one.
+          codesign -dvv "$app" 2>&1 | grep -q 'Authority=Developer ID Application' \
+            || { echo "::error::Signed, but not with a Developer ID Application certificate. Gatekeeper will refuse it."; exit 1; }
+
+          echo "--- Gatekeeper ---"
+          if ! spctl --assess --type execute --verbose=4 "$app" 2>&1; then
+            echo "::error::Gatekeeper rejects the app. Signed but not notarised — notarisation needs the APPLE_API_* secrets and `notarize: true`, both of which are configured, so read the electron-builder log above for what Apple said."
+            exit 1
+          fi
+
       # A permanent URL to each installer.
       #
       # electron-builder stamps the version into every asset name, so

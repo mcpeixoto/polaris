@@ -198,35 +198,43 @@ fi
 
 # The macOS certificate is deliberately not automated. Exporting it needs the login
 # keychain password, which belongs to a person at a keyboard and to nothing else.
+# The two signing identities, exported from the login keychain.
+#
+# This used to print the commands for somebody to paste. It runs them instead, because the
+# export needs no password on an unlocked login keychain — the ACL on these keys already
+# permits it — so the paste step was ceremony that got skipped, and the builds stayed
+# unsigned for weeks with the release page offering them anyway.
+#
+# The passphrase is generated per run and never printed. It only has to match between the
+# .p12 and the secret, and a value nobody types is a value nobody can get wrong: the two
+# went out of step once already and the failure surfaced as "MAC verification failed" ten
+# minutes into an archive.
+export_identity() {  # $1 = secret name, $2 = password secret name, $3 = human label
+  local p12 pass
+  p12=$(mktemp -t polaris-signing).p12
+  pass=$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')
+
+  # -t identities exports every identity in the keychain, not just one; `security` offers no
+  # way to pick. That is harmless — electron-builder and xcodebuild each select the
+  # certificate they need by type — and it means both secrets carry the same bundle.
+  if ! security export -t identities -f pkcs12 -P "$pass" -o "$p12" -k login.keychain-db >/dev/null 2>&1; then
+    printf '  \033[31m✗\033[0m could not export %s from the login keychain\n' "$3"
+    printf '      Unlock it in Keychain Access and re-run, or export by hand.\n'
+    rm -f "$p12"
+    return 1
+  fi
+
+  base64 -i "$p12" | gh secret set "$1" >/dev/null && echo "  set $1 from the login keychain"
+  gh secret set "$2" --body "$pass" >/dev/null && echo "  set $2"
+  rm -f "$p12"
+}
+
 if ! configured IOS_DIST_P12 && [ -n "$iosid" ]; then
-  cat <<EOT
-
-  IOS_DIST_P12 needs a manual export — the login keychain will ask for your password.
-  Export the *identity*, so the private key goes with the certificate:
-
-    security export -t identities -f pkcs12 -P '<choose-a-passphrase>' \\
-      -o /tmp/polaris-ios-dist.p12 -k login.keychain-db
-    base64 -i /tmp/polaris-ios-dist.p12 | gh secret set IOS_DIST_P12
-    gh secret set IOS_DIST_P12_PASSWORD --body '<the-same-passphrase>'
-    rm /tmp/polaris-ios-dist.p12
-
-  Identity: $iosid
-EOT
+  export_identity IOS_DIST_P12 IOS_DIST_P12_PASSWORD "$iosid" || true
 fi
 
 if ! configured MAC_CERT_P12 && [ -n "$devid" ]; then
-  cat <<EOT
-
-  MAC_CERT_P12 needs a manual export — the login keychain will ask for your password:
-
-    security export -t identities -f pkcs12 -P '<choose-a-passphrase>' \\
-      -o /tmp/polaris-devid.p12 -k login.keychain-db
-    base64 -i /tmp/polaris-devid.p12 | gh secret set MAC_CERT_P12
-    gh secret set MAC_CERT_PASSWORD --body '<the-same-passphrase>'
-    rm /tmp/polaris-devid.p12
-
-  Identity: $devid
-EOT
+  export_identity MAC_CERT_P12 MAC_CERT_PASSWORD "$devid" || true
 fi
 
 printf '\nRe-run without --set to confirm.\n'

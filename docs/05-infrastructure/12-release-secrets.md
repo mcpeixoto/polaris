@@ -75,6 +75,16 @@ willing to click through; they are not something to point an ordinary user at.
 |---|---|---|
 | `MAC_CERT_P12` | A "Developer ID Application" certificate exported as base64 `.p12` | macOS builds unsigned, Gatekeeper-blocked |
 | `MAC_CERT_PASSWORD` | The export passphrase | As above |
+
+`make release-secrets ARGS=--set` exports both Apple identities straight from the login
+keychain and uploads them, generating the passphrase itself. It used to print the commands
+for somebody to paste, which is why the mac builds shipped unsigned for weeks under a step
+called "Package and sign" — the paste step is the one that gets skipped. A generated
+passphrase also removes the failure where the `.p12` and the secret disagree, which surfaces
+ten minutes into a build as `MAC verification failed` and names neither.
+
+The export needs the login keychain unlocked and nothing else: the ACL on these keys already
+permits it, so there is no password prompt.
 | `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` | Azure Trusted Signing. Since June 2023 a Windows code-signing key may not sit on disk, so this is cloud signing against an HSM | Windows installer unsigned |
 
 The Azure three sign nothing on their own: electron-builder only reaches for Trusted
