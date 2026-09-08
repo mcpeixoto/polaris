@@ -20,6 +20,11 @@ import type { EngineStatus, SyncEngine } from '~/sync/engine';
 
 import { Documents } from './Documents';
 
+vi.mock('~/hooks/useViewer', () => ({
+  useViewerId: () => VIEWER,
+  useViewer: () => ({ id: VIEWER, role: 'member', displayName: 'Ada' }),
+}));
+
 const WORKSPACE = 'w1';
 const VIEWER = 'u1';
 const ENG = 't1';
@@ -190,6 +195,7 @@ describe('Documents', () => {
     for (const label of [
       'Open document',
       'Copy link',
+      'Add to favourites',
       'Archive document',
       'Delete document',
     ]) {
