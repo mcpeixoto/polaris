@@ -96,6 +96,7 @@ import {
   type SearchResults,
   type SearchVariables,
 } from '~/features/search/operations';
+import { copyRich, titleAsLink } from '~/features/issue/copy';
 import { clearRecentSearches, readRecentSearches, rememberSearch } from '~/features/search/recent';
 import {
   canShowMore,
@@ -961,6 +962,19 @@ export function Search() {
                 },
                 copyIdentifier: () => {
                   if (target !== null) void copyText(target.identifier);
+                },
+                copyTitle: () => {
+                  if (target !== null) void copyText(target.title);
+                },
+                copyTitleAsLink: () => {
+                  if (target === null) return;
+                  void copyRich(
+                    titleAsLink(
+                      target.identifier,
+                      target.title,
+                      `${window.location.origin}/issue/${target.identifier}`,
+                    ),
+                  );
                 },
               },
               ROW_MENU_CHORDS,

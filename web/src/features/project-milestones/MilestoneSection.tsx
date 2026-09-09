@@ -15,6 +15,12 @@
  * length and a length is not a number anybody can read back to a colleague. Removing one
  * asks first: a milestone carries the issues pinned to it, and until this it was the one
  * destructive act in the product that happened on a single click with no undo behind it.
+ *
+ * The row's commands are built once, in `itemsFor`, and handed to both the ⋯ button and the
+ * right-click menu — two arrays would be two menus that drift apart the first time one of
+ * them gains a row. Order is a milestone's whole meaning on a timeline, so the menu carries
+ * Move up / Move down: `moveProjectMilestone` already speaks the server's
+ * `afterMilestoneId`/`moveToTop`, and dragging a four-row list is a gesture nobody asked for.
  */
 
 import { useRef, useState, type FormEvent } from 'react';
@@ -33,18 +39,27 @@ import {
 } from '~/components';
 import { browserTimezone } from '~/features/locale';
 import { whenDay } from '~/features/time';
+import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
+import { useContextMenu } from '~/hooks/useContextMenu';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 
-import { DotsGlyph, PencilGlyph, PlusGlyph, TrashGlyph } from '~/features/issue/glyphs';
+import {
+  ChevronGlyph,
+  DotsGlyph,
+  PencilGlyph,
+  PlusGlyph,
+  TrashGlyph,
+} from '~/features/issue/glyphs';
 import { MilestoneGlyph } from '~/features/projects/glyphs';
 
 import { listProjectMilestones, type MilestoneRow } from './helpers';
 import {
   createProjectMilestone,
   deleteProjectMilestone,
+  moveProjectMilestone,
   updateProjectMilestone,
 } from './mutations';
 import styles from './MilestoneSection.module.css';
@@ -63,8 +78,13 @@ export function MilestoneSection({ projectId }: MilestoneSectionProps) {
   const [editing, setEditing] = useState<UUID | null>(null);
   const [removing, setRemoving] = useState<MilestoneRow | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
+  const [moveError, setMoveError] = useState<string | null>(null);
   const addDate = useMenuTrigger<HTMLButtonElement>('dialog');
   const nameRef = useRef<HTMLInputElement>(null);
+  // Where the keyboard goes when the right-click menu closes: the row it was opened on.
+  // There is no scroller here to hand it back to — this is a panel, not a list screen.
+  const returnFocusTo = useRef<HTMLElement | null>(null);
+  const contextMenu = useContextMenu<UUID>({ returnFocusTo });
 
   const rows = useLiveQuery(
     (store) => listProjectMilestones(store, projectId),
@@ -106,6 +126,79 @@ export function MilestoneSection({ projectId }: MilestoneSectionProps) {
     }
   };
 
+  /**
+   * One step up or down the list, spelled as the API spells it: land after the row above
+   * the one above, or after the row below. Stepping to the front has no predecessor to name,
+   * which is exactly what `moveToTop` — `afterId` of null — is for.
+   */
+  const move = (row: MilestoneRow, delta: -1 | 1) => {
+    const index = rows.findIndex((candidate) => candidate.milestone.id === row.milestone.id);
+    if (index === -1) return;
+    const anchorAt = delta === -1 ? index - 2 : index + 1;
+    if (delta === -1 ? index === 0 : index === rows.length - 1) return;
+    const afterId = anchorAt < 0 ? null : (rows[anchorAt]?.milestone.id ?? null);
+    setMoveError(null);
+    moveProjectMilestone(engine, row.milestone.id, afterId).catch((failure: unknown) => {
+      setMoveError(failure instanceof ApiError ? failure.message : 'That milestone was not moved.');
+    });
+  };
+
+  /**
+   * The row's commands, built once for the ⋯ button and the right-click menu alike.
+   *
+   * `entityRowMenuItems` draws the destructive tail — the separator and the danger row — so
+   * removing a milestone sits where removing a document or a project sits. The three rows
+   * above it are this surface's own; nothing else in the product reorders by menu.
+   */
+  const itemsFor = (row: MilestoneRow): MenuNode[] => {
+    const index = rows.findIndex((candidate) => candidate.milestone.id === row.milestone.id);
+    return entityRowMenuItems(
+      { noun: 'milestone', name: row.milestone.name },
+      {
+        properties: [
+          {
+            id: 'edit',
+            label: 'Edit milestone',
+            icon: <PencilGlyph />,
+            onSelect: () => {
+              contextMenu.close();
+              setEditing(row.milestone.id);
+            },
+          },
+          {
+            id: 'move-up',
+            label: 'Move up',
+            icon: <ChevronGlyph className={styles.moveUp} />,
+            disabled: index <= 0,
+            onSelect: () => {
+              contextMenu.close();
+              move(row, -1);
+            },
+          },
+          {
+            id: 'move-down',
+            label: 'Move down',
+            icon: <ChevronGlyph className={styles.moveDown} />,
+            disabled: index === -1 || index === rows.length - 1,
+            onSelect: () => {
+              contextMenu.close();
+              move(row, 1);
+            },
+          },
+        ],
+        askDelete: () => {
+          contextMenu.close();
+          setRemoveError(null);
+          setRemoving(row);
+        },
+        deleteLabel: 'Remove milestone',
+        deleteIcon: <TrashGlyph />,
+      },
+    );
+  };
+
+  const contextRow = rows.find((row) => row.milestone.id === contextMenu.id) ?? null;
+
   const confirmRemove = () => {
     if (removing === null) return;
     const { id } = removing.milestone;
@@ -140,18 +233,23 @@ export function MilestoneSection({ projectId }: MilestoneSectionProps) {
       {rows.length === 0 ? null : (
         <ul className={styles.list}>
           {rows.map((row) => (
-            <li key={row.milestone.id} className={styles.row}>
+            <li
+              key={row.milestone.id}
+              className={styles.row}
+              // Focusable only to be focused: the menu hands the keyboard back here, and
+              // Shift+F10 needs somewhere on the row for the browser to aim its event.
+              tabIndex={-1}
+              onContextMenu={(event) => {
+                // The edit form has fields of its own, whose native menu is the right one.
+                if (editing === row.milestone.id) return;
+                returnFocusTo.current = event.currentTarget;
+                contextMenu.openFromEvent(event, row.milestone.id);
+              }}
+            >
               {editing === row.milestone.id ? (
                 <MilestoneEdit row={row} onDone={() => setEditing(null)} />
               ) : (
-                <MilestoneReadout
-                  row={row}
-                  onEdit={() => setEditing(row.milestone.id)}
-                  onRemove={() => {
-                    setRemoveError(null);
-                    setRemoving(row);
-                  }}
-                />
+                <MilestoneReadout row={row} items={itemsFor(row)} />
               )}
             </li>
           ))}
@@ -213,6 +311,24 @@ export function MilestoneSection({ projectId }: MilestoneSectionProps) {
           {removeError}
         </p>
       )}
+      {moveError === null ? null : (
+        <p className={styles.error} role="alert">
+          {moveError}
+        </p>
+      )}
+
+      {contextMenu.at === null ? null : <div {...contextMenu.anchorProps} />}
+      <Menu
+        open={contextMenu.at !== null && contextRow !== null}
+        onClose={contextMenu.close}
+        trigger={contextMenu.anchorRef}
+        label={
+          contextRow === null ? 'Milestone actions' : `Actions for ${contextRow.milestone.name}`
+        }
+        keysPresentation="kbd"
+        density="compact"
+        items={contextRow === null ? [] : itemsFor(contextRow)}
+      />
 
       <ConfirmDialog
         open={removing !== null}
@@ -229,31 +345,15 @@ export function MilestoneSection({ projectId }: MilestoneSectionProps) {
 
 interface ReadoutProps {
   readonly row: MilestoneRow;
-  readonly onEdit: () => void;
-  readonly onRemove: () => void;
+  /** Built by the section, so the ⋯ and the right-click cannot come to disagree. */
+  readonly items: readonly MenuNode[];
 }
 
-function MilestoneReadout({ row, onEdit, onRemove }: ReadoutProps) {
+function MilestoneReadout({ row, items }: ReadoutProps) {
   const menu = useMenuTrigger();
   const { milestone, percent, total } = row;
 
   const progress = total === 0 ? 'No issues yet' : `${percent}% · ${row.done} of ${total} issues`;
-
-  const items: MenuNode[] = [
-    {
-      id: 'edit',
-      label: 'Edit milestone',
-      icon: <PencilGlyph />,
-      onSelect: onEdit,
-    },
-    {
-      id: 'remove',
-      label: 'Remove milestone',
-      icon: <TrashGlyph />,
-      danger: true,
-      onSelect: onRemove,
-    },
-  ];
 
   return (
     <>

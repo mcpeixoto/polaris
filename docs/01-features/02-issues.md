@@ -88,6 +88,65 @@ Field effects on move:
 - Act via `Cmd/Ctrl+K`, right-click contextual menu, or the bulk action toolbar at the bottom.
 - Manual reordering (requires No grouping + Manual ordering): `Option/Alt+Shift+↑/↓` to top/bottom, `Option/Alt+↑/↓` to step. **Manual order is global to the workspace**, not per-user.
 
+## The contextual menu
+
+One item list, drawn wherever an issue is: a list row, a board card, the peek panel, a search
+result, an inbox row, a sub-issue row, and the issue's own header (from the `⋯` button or a
+right-click on it). `.` opens it on the cursor row without a pointer; so do `Shift+F10` and the
+Menu key where the platform has them.
+
+```
+Status…        S   ▸    each of the team's workflow states, the current one ticked
+Priority…      P   ▸    No priority / Urgent / High / Medium / Low
+Assignee…      A   ▸    filterable; "No assignee" leads
+Due date…     ⇧D   ▸    Today / Tomorrow / End of week / Next week / No due date / Custom date…
+Labels…        L   ▸    filterable, multi-select, group-mates displaced with a warning
+Project…      ⇧P   ▸    filterable; "No project" leads
+Estimate…     ⇧E   ▸    the team's scale, "No estimate" first
+Cycle…        ⇧C   ▸    Current / Upcoming / Previous, "No cycle" first
+Milestone…    ⇧M   ▸    only where the issue is in a project
+More properties    ▸    Add link… ⌘⇧U · Rename… E        (issue screen only)
+─────────────
+Open issue · Open in peek                                (list surfaces only)
+Create related     ▸    Issue… · Sub-issue… ⌘⇧O · Parent issue… · Blocked issue… · Blocking issue…
+Mark as            ▸    Parent of… · Sub-issue of… · Related to… (M R) · Blocked by… (M B)
+                        · Blocking… (M X) · Duplicate of…
+Copy               ▸    Copy link ⌘⇧, · Copy issue ID · Copy title · Copy title as link
+                        · Copy git branch name ⌘⇧.
+Make a copy…
+─────────────
+Go to <person>'s issues · Open label <name>
+Subscribe ⇧S · Add to favourites
+─────────────
+Archive <ID> · Delete <ID>
+```
+
+Every property row is a cascade that writes the value outright; "Custom date…" is the one that
+still opens a panel, because a calendar is not a list. A shortcut is drawn only where the
+surface has registered it — see `IssueRowMenuChords` — so the sub-issue rows draw none at all,
+and `M`+`R`/`B`/`X` appear on the issue screen, where they are bound.
+
+With several issues selected, the menu acts on the selection and says so ("Archive 2 issues").
+The one-issue items — Create related, Mark as, Make a copy, Copy title — are dropped there: a
+parent for six issues is not something anybody can mean.
+
+Each "Mark as" entry searches the whole corpus by identifier or title. `Blocked by` writes the
+stored `blocks` row from the other end, and `Duplicate of` also moves this issue to the team's
+reserved Duplicate status. "Create related" opens the composer seeded with the team and project
+and writes the link once the new issue exists.
+
+**Not offered yet:** moving an issue to another team (`Cmd/Ctrl+Shift+M` above) — the API has
+no mutation for it and `UpdateIssueInput` carries no `teamId`, so there is nothing for a menu
+item to call. "Convert to project/template" and "Open in" are out of scope for Polaris.
+
+### Blocked rows
+
+A list row and a board card draw an orange flag after the identifier when an unresolved
+`blocks` relation points at the issue, with the blocker named in words ("Blocked by ENG-4") for
+a pointer and for a screen reader. It disappears when the blocker reaches a completed or
+cancelled status, matching the rule in `03-issue-properties.md` that a resolved pair moves
+under Related.
+
 ## Deleting
 
 - `Cmd/Ctrl+Delete`, contextual menu, or command menu. Acts on the selection, or on the cursor row when nothing is selected, and asks first — naming the issue when there is one and the count when there are several.

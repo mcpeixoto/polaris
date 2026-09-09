@@ -395,8 +395,14 @@ export function SignedInShell() {
 
   return (
     <AppShell
-      renderCreateIssue={({ open, onClose, seed, onFiling }) => (
-        <CreateIssueModal open={open} onClose={onClose} seed={seed} onFiling={onFiling} />
+      renderCreateIssue={({ open, onClose, seed, onFiling, onCreated }) => (
+        <CreateIssueModal
+          open={open}
+          onClose={onClose}
+          seed={seed}
+          onFiling={onFiling}
+          onCreated={onCreated}
+        />
       )}
       renderCreateProject={({ open, onClose }) => (
         <CreateProjectModal open={open} onClose={onClose} />

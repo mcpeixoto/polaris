@@ -161,3 +161,58 @@ describe('useContextMenu, opened without a pointer', () => {
     expect(screen.getByTestId('anchor').textContent).toBe('64,288');
   });
 });
+
+/**
+ * A close that is really an open.
+ *
+ * Choosing an item that opens an inline editor is not the menu going away — it is the menu
+ * handing over. The focus return is scheduled a frame out, so left alone it lands *after*
+ * the editor has taken the keyboard and pulls it straight back to the list. An editor that
+ * commits on blur then commits nothing and closes, which is what "renaming a dashboard from
+ * its menu does nothing" turned out to be.
+ */
+describe('useContextMenu, handing over rather than closing', () => {
+  it('returns focus by default', async () => {
+    render(<Host />);
+    const row = screen.getByRole('button', { name: 'row' });
+    fireEvent.contextMenu(row, { button: 2, buttons: 2, clientX: 10, clientY: 10 });
+
+    await userEvent.click(screen.getByRole('button', { name: 'close' }));
+
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('scroller')));
+  });
+
+  it('leaves focus alone when the caller says it is handing over', async () => {
+    render(<HandoffHost />);
+    const row = screen.getByRole('button', { name: 'row' });
+    fireEvent.contextMenu(row, { button: 2, buttons: 2, clientX: 10, clientY: 10 });
+
+    await userEvent.click(screen.getByRole('button', { name: 'hand over' }));
+    const editor = screen.getByRole('textbox', { name: 'editor' });
+    editor.focus();
+
+    // Two frames: one for the restore that must not happen, one for good measure.
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+
+    expect(document.activeElement).toBe(editor);
+  });
+});
+
+function HandoffHost() {
+  const scroller = useRef<HTMLDivElement>(null);
+  const menu = useContextMenu<string>({ returnFocusTo: scroller });
+  return (
+    <div>
+      <div ref={scroller} tabIndex={-1} data-testid="scroller">
+        <button type="button" onContextMenu={(event) => menu.openFromEvent(event, 'row-1')}>
+          row
+        </button>
+      </div>
+      <button type="button" onClick={() => menu.handOff()}>
+        hand over
+      </button>
+      {menu.at === null ? <input aria-label="editor" /> : null}
+    </div>
+  );
+}

@@ -52,7 +52,19 @@ import {
 } from '~/components';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
 import { updateIssues, type IssueFields } from '~/features/issue/mutations';
+import { copyRich, titleAsLink } from '~/features/issue/copy';
+import { useOptionalCreateIssue } from '~/features/issue/create-context';
+import { copyText } from '~/features/github/copy';
 import { issueRowMenuItems, type IssuePropertyKind } from '~/features/issue/rowMenu';
+import type { IssueRowMenuOptions, MarkAsKind, RelatedKind } from '~/features/issue/rowMenu';
+import {
+  applyIssueMenuValue,
+  copySeedOf,
+  createRelatedIssue,
+  markIssueRelation,
+  toggleIssueLabel,
+} from '~/features/issue/rowMenuActions';
+import { useIssueRowMenuOptions } from '~/features/issue/rowMenuOptions';
 import { useContextMenuHandoff } from '~/hooks/useContextMenuHandoff';
 import { LabelPicker } from '~/features/labels/LabelPicker';
 import { applyLabel, removeLabel } from '~/features/labels/mutations';
@@ -404,11 +416,19 @@ export function Inbox() {
    */
   const contextHandoff = useContextMenuHandoff();
 
+  const createIssue = useOptionalCreateIssue();
+  /* The cascades, about the issue the highlighted notification is about. */
+  const { options: rowMenuOptions, reset: resetRowMenu } = useIssueRowMenuOptions({
+    issueId: contextFor?.issue?.id ?? null,
+    enabled: contextFor !== null,
+  });
+
   const closePicker = useCallback(() => {
     setPicker(null);
     setContextFor(null);
+    resetRowMenu();
     returnToList();
-  }, [returnToList]);
+  }, [returnToList, resetRowMenu]);
 
   /*
    * What the row's label picker ticks, read live rather than carried on the row.
@@ -1136,6 +1156,7 @@ export function Inbox() {
       <Menu
         open={contextFor !== null && picker === null}
         onClose={() => {
+          resetRowMenu();
           if (contextHandoff.consume()) return;
           setContextFor(null);
           returnToList();
@@ -1144,24 +1165,88 @@ export function Inbox() {
         label="Notification"
         keysPresentation="kbd"
         density="compact"
-        items={contextItems(contextFor, {
-          open: () => open(contextFor ?? undefined),
-          toggleRead: () => {
-            if (contextFor !== null) {
-              markNotificationRead(engine, contextFor.id, contextFor.unread).catch(report);
-            }
+        items={contextItems(
+          contextFor,
+          {
+            open: () => open(contextFor ?? undefined),
+            toggleRead: () => {
+              if (contextFor !== null) {
+                markNotificationRead(engine, contextFor.id, contextFor.unread).catch(report);
+              }
+            },
+            snooze: () => {
+              if (contextFor !== null) setSnoozeFor(contextFor.id);
+            },
+            dismiss: () => {
+              if (contextFor !== null) dismiss([contextFor.id]);
+            },
+            pick: (kind) => {
+              contextHandoff.begin();
+              setPicker(kind);
+            },
+            copyLink: () => {
+              const identifier = contextFor?.issueIdentifier;
+              if (identifier !== undefined) {
+                void copyText(`${window.location.origin}/issue/${identifier}`);
+              }
+            },
+            copyIdentifier: () => {
+              if (contextFor?.issueIdentifier !== undefined) {
+                void copyText(contextFor.issueIdentifier);
+              }
+            },
+            copyTitle: () => {
+              if (contextFor?.issueTitle !== undefined) void copyText(contextFor.issueTitle);
+            },
+            copyTitleAsLink: () => {
+              const identifier = contextFor?.issueIdentifier;
+              const title = contextFor?.issueTitle;
+              if (identifier === undefined || title === undefined) return;
+              void copyRich(
+                titleAsLink(identifier, title, `${window.location.origin}/issue/${identifier}`),
+              );
+            },
+            set: (kind, value) => {
+              const issueId = contextFor?.issue?.id;
+              setPicker(null);
+              setContextFor(null);
+              if (issueId !== undefined) {
+                applyIssueMenuValue(engine, [issueId], kind, value, viewerId);
+              }
+            },
+            toggleLabel: (labelId, applied, displaces) => {
+              const issueId = contextFor?.issue?.id;
+              if (issueId === undefined) return;
+              toggleIssueLabel(
+                engine,
+                [issueId],
+                labelId as UUID,
+                applied,
+                displaces as readonly UUID[],
+              );
+            },
+            markAs: (kind, otherId) => {
+              const issueId = contextFor?.issue?.id;
+              if (issueId === undefined) return;
+              setContextFor(null);
+              markIssueRelation(engine, issueId, kind, otherId as UUID, viewerId);
+            },
+            createRelated: (kind) => {
+              const issueId = contextFor?.issue?.id;
+              if (issueId === undefined || createIssue === null) return;
+              setContextFor(null);
+              createRelatedIssue(createIssue, engine, issueId, kind, viewerId);
+            },
+            makeCopy: () => {
+              const issueId = contextFor?.issue?.id;
+              if (issueId === undefined || createIssue === null) return;
+              setContextFor(null);
+              const seed = copySeedOf(engine.store, issueId);
+              if (seed !== null) createIssue.open(seed);
+            },
           },
-          snooze: () => {
-            if (contextFor !== null) setSnoozeFor(contextFor.id);
-          },
-          dismiss: () => {
-            if (contextFor !== null) dismiss([contextFor.id]);
-          },
-          pick: (kind) => {
-            contextHandoff.begin();
-            setPicker(kind);
-          },
-        })}
+          rowMenuOptions,
+        )}
       />
       {/* The issue behind the notification, edited from the inbox — the half of the
           contextual menu the spec names explicitly. The pickers hang off the same row the
@@ -1254,7 +1339,17 @@ function contextItems(
     snooze: () => void;
     dismiss: () => void;
     pick: (kind: IssuePropertyKind) => void;
+    copyLink: () => void;
+    copyIdentifier: () => void;
+    copyTitle: () => void;
+    copyTitleAsLink: () => void;
+    set: (kind: IssuePropertyKind, value: string | number | null) => void;
+    toggleLabel: (labelId: string, applied: boolean, displaces: readonly string[]) => void;
+    markAs: (kind: MarkAsKind, otherId: string) => void;
+    createRelated: (kind: RelatedKind) => void;
+    makeCopy: () => void;
   },
+  options: IssueRowMenuOptions,
 ): MenuNode[] {
   if (row === null) return [];
   const items: MenuNode[] = [
@@ -1283,7 +1378,18 @@ function contextItems(
         estimates: false,
         cycles: false,
       },
-      { pick: commands.pick },
+      {
+        pick: commands.pick,
+        copyLink: commands.copyLink,
+        copyIdentifier: commands.copyIdentifier,
+        copyTitle: commands.copyTitle,
+        copyTitleAsLink: commands.copyTitleAsLink,
+        set: commands.set,
+        toggleLabel: commands.toggleLabel,
+        markAs: commands.markAs,
+        createRelated: commands.createRelated,
+        makeCopy: commands.makeCopy,
+      },
       {
         status: 's',
         assignee: 'a',
@@ -1291,6 +1397,7 @@ function contextItems(
         project: 'shift+p',
         labels: 'l',
       },
+      options,
     ),
   ];
 }

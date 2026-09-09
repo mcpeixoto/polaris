@@ -413,3 +413,72 @@ describe('archiving from the row menu', () => {
     await user.keyboard('{Escape}');
   });
 });
+
+/**
+ * The Copy submenu, and the chord that had nowhere to be discovered.
+ *
+ * `issue.copyGitBranchName` has been registered since the GitHub integration landed, bound to
+ * ⌘⇧. and drawn in exactly no menu — so the only way to reach it was to already know it was
+ * there. It is the first thing many people do with an issue. Copy title is the other half:
+ * pasting an issue into a message wants its name, not its identifier.
+ *
+ * Both are single-row only. "Copy title" over six selected issues has no sensible answer, and
+ * a branch name for six is not a thing.
+ */
+describe('the Copy submenu', () => {
+  it('offers link, id, title, title as link and branch name', async () => {
+    const { user } = renderList();
+
+    const menu = await openContextMenu('Ship the importer');
+    await user.click(within(menu).getByRole('menuitem', { name: 'Copy' }));
+
+    const submenu = await screen.findByRole('menu', { name: 'Copy' });
+    expect(
+      within(submenu)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent ?? ''),
+    ).toEqual([
+      'Copy link',
+      'Copy issue ID',
+      'Copy title',
+      'Copy title as link',
+      expect.stringContaining('Copy git branch name') as unknown as string,
+    ]);
+  });
+
+  it('copies the row’s own title', async () => {
+    const { user } = renderList();
+    // After `renderList`, which calls `userEvent.setup()` — that installs a clipboard stub of
+    // its own, and defining ours first would simply be overwritten. `AskSettings.forms.test`
+    // documents the same trap.
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+
+    const menu = await openContextMenu('Ship the importer');
+    await user.click(within(menu).getByRole('menuitem', { name: 'Copy' }));
+    await user.click(
+      within(await screen.findByRole('menu', { name: 'Copy' })).getByRole('menuitem', {
+        name: 'Copy title',
+      }),
+    );
+
+    expect(writeText).toHaveBeenCalledWith('Ship the importer');
+  });
+
+  it('drops the single-row copies when a selection stands', async () => {
+    const { user } = renderList();
+
+    screen.getByRole('listbox').focus();
+    await user.keyboard('x{ArrowDown}x');
+    fireEvent.contextMenu(screen.getByRole('option', { name: /Ship the importer/ }), {
+      button: 2,
+      buttons: 2,
+      clientX: 120,
+      clientY: 240,
+    });
+
+    const menu = await screen.findByRole('menu', { name: 'Actions for 2 issues' });
+    expect(within(menu).queryByRole('menuitem', { name: 'Copy title' })).toBeNull();
+    expect(within(menu).queryByRole('menuitem', { name: /Copy git branch name/ })).toBeNull();
+  });
+});

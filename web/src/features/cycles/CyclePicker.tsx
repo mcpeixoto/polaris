@@ -95,7 +95,7 @@ interface Ranked {
   readonly window: string;
 }
 
-function rankCycles(store: Store, teamId: UUID | undefined): readonly Ranked[] {
+export function rankCycles(store: Store, teamId: UUID | undefined): readonly Ranked[] {
   const now = Date.now();
   const rows: Ranked[] = [];
   for (const cycle of store.cycles.values()) {

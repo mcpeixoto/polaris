@@ -6,18 +6,29 @@
  * is nothing to query locally and a spinner is the honest first frame. Editing still
  * requires the row to be live.
  *
+ * Each row also carries the product's row menu — a ⋯ button and a right-click rendering one
+ * array, reachable from the keyboard with `.`. Restore is its only row, named for whatever
+ * the tab holds, and it teaches the `#` this screen already registers rather than a second
+ * chord of its own.
+ *
  * The table is a `role="grid"` with a roving tab stop, because the selection is what `#`
  * acts on and the only way to make a selection used to be a mouse click. `aria-selected` on
  * a plain `<tr>` names nothing and announces nothing; inside a grid it is the row's state,
  * and `j`/`k` — registered like every other shortcut in the product — move it.
  */
 
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type RefObject,
+} from 'react';
 import { useNavigate, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Badge, Button, EmptyState, Spinner } from '~/components';
+import { Badge, Button, EmptyState, IconButton, Menu, Spinner, type MenuNode } from '~/components';
 import {
   fetchArchivedCycles,
   fetchArchivedIssues,
@@ -27,8 +38,10 @@ import {
   unarchiveProject,
 } from '~/features/archive/mutations';
 import { EntityLoading, useEntityState } from '~/features/entity-gate/EntityGate';
+import { DotsGlyph } from '~/features/issue/glyphs';
 import { when } from '~/features/time';
 import { fetchDeletedIssues, restoreIssue, type DeletedIssue } from '~/features/trash/mutations';
+import { useContextMenu } from '~/hooks/useContextMenu';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Cycle, Issue, Project, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
@@ -69,6 +82,11 @@ export function Archives() {
   const [restored, setRestored] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const selectedRowRef = useRef<HTMLTableRowElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+  // One ⋯ menu for the grid, anchored to whichever row's button opened it.
+  const [rowMenuId, setRowMenuId] = useState<UUID | null>(null);
+  const [rowMenuOpen, setRowMenuOpen] = useState(false);
+  const rowMenuTrigger = useRef<HTMLButtonElement>(null);
   // Set only by the two movement actions. Selection also follows focus and the mouse, and
   // pulling focus back to the row on those would take it off the Restore button the user
   // just pressed.
@@ -205,6 +223,46 @@ export function Archives() {
     moveTo(at === -1 ? (delta > 0 ? 0 : rowIds.length - 1) : at + delta);
   };
 
+  const contextMenu = useContextMenu<UUID>({
+    onOpen: (id) => setSelected(id),
+    returnFocusTo: tableRef,
+  });
+
+  const closeMenus = () => {
+    setRowMenuOpen(false);
+    setRowMenuId(null);
+    contextMenu.close();
+  };
+
+  /** What a row is called, which is a different column on every tab. */
+  const labelFor = (id: UUID): string => {
+    if (load.phase !== 'ready') return '';
+    const row = load.rows.find((candidate) => candidate.id === id);
+    if (row === undefined) return '';
+    if (tab === 'cycles') return `Cycle ${(row as Cycle).number}`;
+    if (tab === 'projects') return (row as Project).name;
+    return (row as DeletedIssue).identifier;
+  };
+
+  /**
+   * One array for the ⋯ button and the right-click alike.
+   *
+   * Restore is the only row, so `entityRowMenuItems` is not used: nothing archived has a page
+   * that opens, a link that resolves, or an archive/delete left to offer. The chord is the
+   * `#` this screen already registers, copied from the registry rather than invented.
+   */
+  const itemsFor = (id: UUID): MenuNode[] => [
+    {
+      id: 'restore',
+      label: `Restore ${noun(tab)}`,
+      keys: '#',
+      onSelect: () => {
+        closeMenus();
+        void restoreOne(id);
+      },
+    },
+  ];
+
   useKeyContext('list');
 
   useActions(
@@ -253,6 +311,21 @@ export function Archives() {
         group: 'Archives',
         run: () => {
           if (selected !== null) void restoreOne(selected);
+        },
+      },
+      {
+        // The same chord every other list uses for its row menu. The selected row holds the
+        // grid's tab stop and its ref, so that element is what the menu hangs off.
+        id: 'archives.actions',
+        title: 'Show actions for the selected row',
+        keys: ['.'],
+        when: 'list',
+        group: 'Archives',
+        enabled: () => selected !== null,
+        run: () => {
+          const element = selectedRowRef.current;
+          if (selected === null || element === null) return;
+          contextMenu.openOn(element, selected);
         },
       },
     ],
@@ -345,7 +418,7 @@ export function Archives() {
         ) : null}
 
         {load.phase === 'ready' && load.rows.length > 0 ? (
-          <table className={styles.table} role="grid">
+          <table ref={tableRef} className={styles.table} role="grid">
             <caption className={styles.caption}>{caption(tab)}</caption>
             <thead>
               <tr>
@@ -371,6 +444,15 @@ export function Archives() {
                       restoring={restoring === row.id}
                       onSelect={setSelected}
                       onRestore={() => void restoreOne(row.id)}
+                      onContextMenu={(event) => {
+                        contextMenu.openFromEvent(event, row.id);
+                      }}
+                      onMenu={(button) => {
+                        rowMenuTrigger.current = button;
+                        setSelected(row.id);
+                        setRowMenuId(row.id);
+                        setRowMenuOpen(true);
+                      }}
                     />
                   ))
                 : tab === 'cycles'
@@ -387,6 +469,15 @@ export function Archives() {
                         restoring={restoring === row.id}
                         onSelect={setSelected}
                         onRestore={() => void restoreOne(row.id)}
+                        onContextMenu={(event) => {
+                          contextMenu.openFromEvent(event, row.id);
+                        }}
+                        onMenu={(button) => {
+                          rowMenuTrigger.current = button;
+                          setSelected(row.id);
+                          setRowMenuId(row.id);
+                          setRowMenuOpen(true);
+                        }}
                       />
                     ))
                   : (load.rows as readonly Project[]).map((row, index) => (
@@ -402,12 +493,42 @@ export function Archives() {
                         restoring={restoring === row.id}
                         onSelect={setSelected}
                         onRestore={() => void restoreOne(row.id)}
+                        onContextMenu={(event) => {
+                          contextMenu.openFromEvent(event, row.id);
+                        }}
+                        onMenu={(button) => {
+                          rowMenuTrigger.current = button;
+                          setSelected(row.id);
+                          setRowMenuId(row.id);
+                          setRowMenuOpen(true);
+                        }}
                       />
                     ))}
             </tbody>
           </table>
         ) : null}
       </div>
+
+      <Menu
+        open={rowMenuOpen && rowMenuId !== null}
+        onClose={closeMenus}
+        trigger={rowMenuTrigger}
+        label={rowMenuId === null ? 'Row options' : `Options for ${labelFor(rowMenuId)}`}
+        keysPresentation="kbd"
+        density="compact"
+        items={rowMenuId === null ? [] : itemsFor(rowMenuId)}
+      />
+
+      {contextMenu.at === null ? null : <div {...contextMenu.anchorProps} />}
+      <Menu
+        open={contextMenu.at !== null && contextMenu.id !== null}
+        onClose={contextMenu.close}
+        trigger={contextMenu.anchorRef}
+        label={contextMenu.id === null ? 'Row options' : `Options for ${labelFor(contextMenu.id)}`}
+        keysPresentation="kbd"
+        density="compact"
+        items={contextMenu.id === null ? [] : itemsFor(contextMenu.id)}
+      />
     </div>
   );
 }
@@ -423,6 +544,8 @@ function ArchiveRow({
   restoring,
   onSelect,
   onRestore,
+  onContextMenu,
+  onMenu,
 }: {
   id: UUID;
   label: string;
@@ -439,6 +562,9 @@ function ArchiveRow({
   restoring: boolean;
   onSelect: (id: UUID) => void;
   onRestore: () => void;
+  onContextMenu: (event: ReactMouseEvent<HTMLTableRowElement>) => void;
+  /** Hands the ⋯ button back so the shared menu can anchor itself to it. */
+  onMenu: (button: HTMLButtonElement) => void;
 }) {
   return (
     <tr
@@ -450,6 +576,7 @@ function ArchiveRow({
       tabIndex={focusable ? 0 : -1}
       onClick={() => onSelect(id)}
       onFocus={() => onSelect(id)}
+      onContextMenu={onContextMenu}
     >
       <th scope="row" className={styles.issue}>
         <span className={styles.identifier}>{label}</span>
@@ -470,9 +597,31 @@ function ArchiveRow({
         >
           Restore
         </Button>
+        <IconButton
+          aria-label={`Options for ${label}`}
+          size="sm"
+          icon={<DotsGlyph />}
+          onClick={(event) => {
+            event.stopPropagation();
+            onMenu(event.currentTarget);
+          }}
+        />
       </td>
     </tr>
   );
+}
+
+/** What a row on this tab is, in the words a menu row uses. */
+function noun(tab: Tab): string {
+  switch (tab) {
+    case 'cycles':
+      return 'cycle';
+    case 'projects':
+      return 'project';
+    case 'issues':
+    case 'deleted':
+      return 'issue';
+  }
 }
 
 function drop<T extends { id: UUID }>(load: Load<T>, id: UUID): Load<T> {
