@@ -87,7 +87,7 @@ import { updateAge } from '~/features/project-updates/helpers';
 import { isFavorite, toggleFavorite } from '~/features/view/mutations';
 import { readCollapsed, writeCollapsed } from '~/features/view/collapse';
 import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
-import { useContextMenu } from '~/hooks/useContextMenu';
+import { contextMenuPoint, useContextMenu } from '~/hooks/useContextMenu';
 import { useListCursor, listRowDomId, type ListRowProps } from '~/hooks/useListCursor';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
@@ -550,7 +550,8 @@ function Row({
       style={flat ? undefined : ({ '--depth': row.depth } as CSSProperties)}
       onContextMenu={(event) => {
         event.preventDefault();
-        onContextMenu(event.clientX, event.clientY);
+        const point = contextMenuPoint(event);
+        onContextMenu(point.x, point.y);
       }}
     >
       {flat || !row.hasChildren ? (

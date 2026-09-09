@@ -815,8 +815,7 @@ export function Projects() {
                           role="option"
                           className={styles.cardItem}
                           onContextMenu={(event) => {
-                            event.preventDefault();
-                            contextMenu.openAt(event.clientX, event.clientY, row.id);
+                            contextMenu.openFromEvent(event, row.id);
                           }}
                         >
                           <ProjectCard
@@ -876,8 +875,7 @@ export function Projects() {
                       {...cursor.rowProps(row.id)}
                       role="option"
                       onContextMenu={(event) => {
-                        event.preventDefault();
-                        contextMenu.openAt(event.clientX, event.clientY, row.id);
+                        contextMenu.openFromEvent(event, row.id);
                       }}
                     >
                       {rowLink(row)}
@@ -928,8 +926,7 @@ export function Projects() {
                           {...cursor.rowProps(row.id)}
                           role="option"
                           onContextMenu={(event) => {
-                            event.preventDefault();
-                            contextMenu.openAt(event.clientX, event.clientY, row.id);
+                            contextMenu.openFromEvent(event, row.id);
                           }}
                         >
                           {rowLink(row)}

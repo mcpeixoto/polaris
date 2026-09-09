@@ -310,3 +310,47 @@ describe('the row context menu', () => {
     expect(within(menu).queryByRole('menuitem', { name: /^Go to/ })).toBeNull();
   });
 });
+
+/**
+ * Until this existed, every item in the menu above — Delete included — was reachable only
+ * with a pointer. In a product whose whole argument is the keyboard, that is not a gap in
+ * the menu, it is a gap in the product.
+ */
+describe('reaching the row menu without a pointer', () => {
+  it('opens on the cursor row when . is pressed', async () => {
+    const { user } = renderList();
+
+    // The cursor starts on the first row, so this is the row the menu must be about.
+    await user.keyboard('.');
+
+    const menu = await screen.findByRole('menu', { name: 'Issue actions' });
+    // The Delete row names its target, which is the only place the menu says out loud which
+    // issue it is about.
+    expect(within(menu).getByRole('menuitem', { name: 'Delete ENG-1' })).toBeTruthy();
+  });
+
+  it('follows the cursor rather than the first row', async () => {
+    const { user } = renderList();
+
+    await user.keyboard('j.');
+
+    const menu = await screen.findByRole('menu', { name: 'Issue actions' });
+    expect(within(menu).queryByRole('menuitem', { name: 'Delete ENG-1' })).toBeNull();
+  });
+
+  it('opens from the synthesised event a browser sends for Shift+F10', async () => {
+    renderList();
+
+    // No pointer behind it: nothing pressed, and Chrome reports 0,0 for the coordinates.
+    // The menu must still be about the row the event came from.
+    fireEvent.contextMenu(screen.getByRole('option', { name: /Ship the importer/ }), {
+      button: 0,
+      buttons: 0,
+      clientX: 0,
+      clientY: 0,
+    });
+
+    const menu = await screen.findByRole('menu', { name: 'Issue actions' });
+    expect(within(menu).getByRole('menuitem', { name: 'Delete ENG-2' })).toBeTruthy();
+  });
+});

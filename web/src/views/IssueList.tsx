@@ -72,6 +72,7 @@ import {
   type ReorderTarget,
 } from '~/features/issue/mutations';
 import { issueRowMenuItems, type IssuePropertyKind } from '~/features/issue/rowMenu';
+import { contextMenuPoint, contextMenuPointOn } from '~/hooks/useContextMenu';
 import { useContextMenuHandoff } from '~/hooks/useContextMenuHandoff';
 import { RESTORE_WINDOW_DAYS, restoreIssue } from '~/features/trash/mutations';
 import { offerUndo } from '~/features/undo/UndoToast';
@@ -399,6 +400,8 @@ interface ListCommands {
   clearSelection(): void;
   hasSelection(): boolean;
   hasRows(): boolean;
+  /** Open the row menu on the cursor row, without a pointer. */
+  openContextMenu(): void;
   open(): void;
   askArchive(): void;
   askDelete(): void;
@@ -987,6 +990,7 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
     clearSelection: () => {},
     hasSelection: () => false,
     hasRows: () => false,
+    openContextMenu: () => {},
     open: () => {},
     askArchive: () => {},
     askDelete: () => {},
@@ -1067,6 +1071,21 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
     clearSelection: () => selection.clear(),
     hasSelection: () => selection.size > 0,
     hasRows: () => issueRows.length > 0,
+    // The keyboard's way into the row menu. It anchors on the cursor row rather than on a
+    // pointer that was never there, so the menu lands where the user is looking and the
+    // whole of it — Archive, Delete, the property pickers — stops being pointer-only.
+    openContextMenu: () => {
+      if (cursorId === null || cursorRow < 0) return;
+      const row = document.getElementById(rowDomId(cursorGroupKey, cursorId));
+      // A row scrolled out of the virtualiser's window is not in the document, and a menu
+      // pinned to the viewport's corner is worse than none: scroll it back first.
+      if (row === null) {
+        scrollToRow(cursorRow, cursorId);
+        return;
+      }
+      const point = contextMenuPointOn(row);
+      onRowContextMenu(cursorId, cursorRow, point.x, point.y);
+    },
     open: () => {
       if (cursorId === null) return;
       const issue = engine.store.get('issue', cursorId);
@@ -1507,6 +1526,18 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
         hidden: true,
         enabled: () => commands.current.peekOpen(),
         run: () => commands.current.closePeek(),
+      },
+      {
+        // Linear's chord, and the one thing every context menu in the product lacked: a way
+        // in without a pointer. Shift+F10 and the Menu key reach the same menu through the
+        // browser's own synthesised event, but neither is on a laptop keyboard people use.
+        id: 'issueList.actions',
+        title: 'Show actions for the selection',
+        keys: ['.'],
+        when: 'list',
+        group: 'Selection',
+        enabled: () => commands.current.hasRows(),
+        run: () => commands.current.openContextMenu(),
       },
       {
         id: 'issueList.open',
@@ -3417,7 +3448,8 @@ const IssueRow = memo(function IssueRow({
       }}
       onContextMenu={(event) => {
         event.preventDefault();
-        onContextMenu(id, rowIndex, event.clientX, event.clientY);
+        const point = contextMenuPoint(event);
+        onContextMenu(id, rowIndex, point.x, point.y);
       }}
     >
       {/*
