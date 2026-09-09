@@ -2138,8 +2138,10 @@ function useNavRowMenu(userId: UUID | null): NavRowMenu {
           },
         },
         {
+          // 'Delete', not 'Delete folder': it sits under 'Rename' in a menu whose whole
+          // subject is the folder, and the folder kebab 430 lines below says the same word.
           id: 'delete',
-          label: 'Delete folder',
+          label: 'Delete',
           danger: true,
           onSelect: () => {
             menu.close();

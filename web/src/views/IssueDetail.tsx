@@ -125,6 +125,7 @@ import { offerUndo } from '~/features/undo/UndoToast';
 import { exact, when, whenDay } from '~/features/time';
 import { copyText, gitBranchNameFor } from '~/features/github/copy';
 import { clearCommentDraft, readCommentDrafts, writeCommentDraft } from '~/features/drafts/local';
+import { useContextMenu } from '~/hooks/useContextMenu';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewer, useViewerId, useViewerRole } from '~/hooks/useViewer';
@@ -323,6 +324,7 @@ export function IssueDetail() {
   const labels = useMenuTrigger();
   // The header's "…": the actions that are not worth a button of their own.
   const more = useMenuTrigger();
+  const contextMenu = useContextMenu<string>();
 
   const { registry, context } = useKeymap();
 
@@ -776,6 +778,24 @@ export function IssueDetail() {
     void navigate(`/team/${teamKey}`);
   };
 
+  /**
+   * The ⋯ menu and the right-click on the header render this one array, so they cannot drift.
+   *
+   * Unlike the other detail screens this is not `entityRowMenuItems`: an issue's list
+   * counterpart is `issueRowMenuItems`, which is mostly property pickers — status, assignee,
+   * priority, labels — and every one of those is already a control in the rail beside it.
+   */
+  const headerMenuItems = (): MenuNode[] =>
+    moreItems(issue, viewerId, viewer?.role ?? null, {
+      toggleSubscribe: () => commands.current.toggleSubscribe(),
+      makeRecurring: () => commands.current.makeRecurring(),
+      editRecurring: () => commands.current.editRecurring(),
+      stopRecurring: () => commands.current.stopRecurring(),
+      addRequest: () => setRequestOpen(true),
+      copyModelUuid: () => commands.current.copyModelUuid(),
+      askDelete: () => commands.current.askDelete(),
+    });
+
   return (
     <div className={styles.screen}>
       {/* Both the identifier and the title, because either alone answers half of "which
@@ -784,7 +804,17 @@ export function IssueDetail() {
       <h1 className={styles.screenTitle}>
         {issue.identifier} {issue.title}
       </h1>
-      <header className={styles.header}>
+      <header
+        className={styles.header}
+        onContextMenu={(event) => {
+          // A descendant that already answered this right-click owns it: a saved view's
+          // tab sits inside this header and opens a menu of its own, and two menus at once
+          // means neither can be clicked.
+          if (event.defaultPrevented) return;
+          event.preventDefault();
+          contextMenu.openAt(event.clientX, event.clientY, issue.id);
+        }}
+      >
         <nav className={styles.crumbs} aria-label="Breadcrumb">
           {/* A link and not a button: it goes somewhere, so it should be announced as a
               link, open in a new tab on a middle click, and be copyable from a context
@@ -853,15 +883,16 @@ export function IssueDetail() {
         trigger={more.ref}
         label="More actions"
         placement="bottom-end"
-        items={moreItems(issue, viewerId, viewer?.role ?? null, {
-          toggleSubscribe: () => commands.current.toggleSubscribe(),
-          makeRecurring: () => commands.current.makeRecurring(),
-          editRecurring: () => commands.current.editRecurring(),
-          stopRecurring: () => commands.current.stopRecurring(),
-          addRequest: () => setRequestOpen(true),
-          copyModelUuid: () => commands.current.copyModelUuid(),
-          askDelete: () => commands.current.askDelete(),
-        })}
+        items={headerMenuItems()}
+      />
+
+      {contextMenu.at === null ? null : <div {...contextMenu.anchorProps} />}
+      <Menu
+        open={contextMenu.at !== null}
+        onClose={contextMenu.close}
+        trigger={contextMenu.anchorRef}
+        label={`Options for ${issue.identifier}`}
+        items={headerMenuItems()}
       />
 
       <ConfirmDialog

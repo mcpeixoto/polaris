@@ -44,6 +44,7 @@ import {
   SaveIndicator,
   Textarea,
   useSaveState,
+  type MenuNode,
 } from '~/components';
 import { EntityLoading, useEntityState } from '~/features/entity-gate/EntityGate';
 import { CapacityDial } from '~/features/cycles/CapacityDial';
@@ -64,7 +65,13 @@ import { dayIn, withDay } from '~/features/cycles/zone';
 // and a board had each drawn their own, and a shared one is the only way they stay alike.
 import { CalendarGlyph, DotsGlyph, PencilGlyph } from '~/features/issue/glyphs';
 import { useActions, useKeyContext } from '~/app/keymap';
+import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
+import { copyText } from '~/features/github/copy';
+import { report } from '~/features/issue/mutations';
+import { isFavorite, toggleFavorite } from '~/features/view/mutations';
+import { useContextMenu } from '~/hooks/useContextMenu';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useViewerId } from '~/hooks/useViewer';
 import type { Cycle } from '~/store';
 import { ApiError } from '~/sync/api';
 import { IssueList, type IssueListSource } from './IssueList';
@@ -74,10 +81,16 @@ export function CycleDetail() {
   const navigate = useNavigate();
   const engine = useEngine();
   const { cycleId = '' } = useParams<{ cycleId: string }>();
+  const viewerId = useViewerId();
   const [membersOpen, setMembersOpen] = useState(true);
   const now = useNow();
   const cycle = useLiveQuery((store) => store.cycles.get(cycleId) ?? null, ['cycle'], [cycleId]);
   const cycleState = useEntityState(cycle);
+  const favourite = useLiveQuery(
+    (store) => viewerId !== null && isFavorite(store, viewerId, 'cycle', cycleId),
+    ['favorite'],
+    [cycleId, viewerId ?? ''],
+  );
 
   // Read from the clock rather than from the render, so a screen left open across the end
   // of a cycle stops calling it Current and stops offering to move its end date.
@@ -146,6 +159,7 @@ export function CycleDetail() {
   const startTriggerRef = useRef<HTMLButtonElement>(null);
   const endTriggerRef = useRef<HTMLButtonElement>(null);
   const description = useSaveState();
+  const contextMenu = useContextMenu<string>();
 
   const go = (target: Cycle | null) => {
     if (target !== null) void navigate(`/cycle/${target.id}`);
@@ -228,12 +242,88 @@ export function CycleDetail() {
     void updateCycle(engine, cycle.id, field === 'startsAt' ? { startsAt: iso } : { endsAt: iso });
   };
 
+  const closeMenus = () => {
+    setMenuOpen(false);
+    contextMenu.close();
+  };
+
+  /**
+   * One menu, whichever way it was opened: the ⋯ button and the right-click agree, and it is
+   * the list's menu with `Open cycle` dropped — this is the cycle it would have opened.
+   */
+  const menuItems = (): MenuNode[] => [
+    ...entityRowMenuItems(
+      { noun: 'cycle', name: cycle.name, favorited: favourite },
+      {
+        copyLink: () => {
+          closeMenus();
+          void copyText(`${window.location.origin}/cycle/${cycle.id}`);
+        },
+        ...(viewerId === null
+          ? {}
+          : {
+              toggleFavorite: () => {
+                closeMenus();
+                toggleFavorite(engine, viewerId, 'cycle', cycle.id).catch(report);
+              },
+            }),
+      },
+    ),
+    { kind: 'separator' },
+    {
+      id: 'edit',
+      label: 'Edit cycle',
+      icon: <PencilGlyph />,
+      onSelect: () => {
+        closeMenus();
+        setEditOpen(true);
+      },
+    },
+    {
+      id: 'subscribe',
+      label: 'Subscribe to cycle calendar',
+      icon: <CalendarGlyph />,
+      onSelect: () => {
+        closeMenus();
+        setCalendarOpen(true);
+      },
+    },
+    ...(canStartToday
+      ? [
+          {
+            id: 'start-today',
+            label: 'Start cycle today',
+            icon: <NextCycleGlyph />,
+            // Danger, unlike the rest: it completes whatever is running and moves its open
+            // work, and the spec calls that irreversible.
+            danger: true,
+            onSelect: () => {
+              closeMenus();
+              setStartError(null);
+              setConfirmStart(true);
+            },
+          } as const,
+        ]
+      : []),
+  ];
+
   return (
     <div className={styles.screen}>
       <div className={styles.main}>
         {/* Named, because the issue list below draws a header of its own and two unnamed
             banners on one screen are two things a screen reader cannot tell apart. */}
-        <header className={styles.header} aria-label="Cycle">
+        <header
+          className={styles.header}
+          aria-label="Cycle"
+          onContextMenu={(event) => {
+            // A descendant that already answered this right-click owns it: a saved view's
+            // tab sits inside this header and opens a menu of its own, and two menus at once
+            // means neither can be clicked.
+            if (event.defaultPrevented) return;
+            event.preventDefault();
+            contextMenu.openAt(event.clientX, event.clientY, cycle.id);
+          }}
+        >
           {/* The trail is the title here, as it is on an issue: the heading beside it is for
               the accessibility tree and for anything that reads a page by its headings. */}
           <h1 className={styles.screenTitle}>{cycle.name}</h1>
@@ -427,51 +517,25 @@ export function CycleDetail() {
         }}
       />
 
-      {/* The same three commands the list's ⋯ menu offers, because a cycle opened directly
-          is the same cycle and should not have fewer things you can do to it. */}
+      {/* The list's menu, less `Open cycle`: a cycle opened directly is the same cycle and
+          should not have fewer things you can do to it. The ⋯ button and a right-click on the
+          header render the same array, so the two cannot drift apart again. */}
       <Menu
         open={menuOpen}
         onClose={() => setMenuOpen(false)}
         trigger={menuTriggerRef}
         label="Cycle options"
         placement="bottom-end"
-        items={[
-          {
-            id: 'edit',
-            label: 'Edit cycle',
-            icon: <PencilGlyph />,
-            onSelect: () => {
-              setMenuOpen(false);
-              setEditOpen(true);
-            },
-          },
-          {
-            id: 'subscribe',
-            label: 'Subscribe to cycle calendar',
-            icon: <CalendarGlyph />,
-            onSelect: () => {
-              setMenuOpen(false);
-              setCalendarOpen(true);
-            },
-          },
-          ...(canStartToday
-            ? [
-                {
-                  id: 'start-today',
-                  label: 'Start cycle today',
-                  icon: <NextCycleGlyph />,
-                  // Danger, unlike the two above it: it completes whatever is running and
-                  // moves its open work, and the spec calls that irreversible.
-                  danger: true,
-                  onSelect: () => {
-                    setMenuOpen(false);
-                    setStartError(null);
-                    setConfirmStart(true);
-                  },
-                },
-              ]
-            : []),
-        ]}
+        items={menuItems()}
+      />
+
+      {contextMenu.at === null ? null : <div {...contextMenu.anchorProps} />}
+      <Menu
+        open={contextMenu.at !== null}
+        onClose={contextMenu.close}
+        trigger={contextMenu.anchorRef}
+        label={`Options for ${cycle.name}`}
+        items={menuItems()}
       />
 
       <CycleEditModal

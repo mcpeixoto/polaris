@@ -18,7 +18,12 @@ export interface EntityRowMenuTarget {
 }
 
 export interface EntityRowMenuCommands {
-  open(): void;
+  /**
+   * Omitted by the detail screens, which reuse this builder for their own ⋯ and right-click
+   * menus: "Open project" on the project you already have open is a row that goes nowhere.
+   * Every list passes it, so the order below is unchanged for them.
+   */
+  open?(): void;
   copyLink?(): void;
   toggleFavorite?(): void;
   /** Property rows already built by the caller (Status…, Lead…, …). */
@@ -41,14 +46,17 @@ export function entityRowMenuItems(
   target: EntityRowMenuTarget,
   commands: EntityRowMenuCommands,
 ): MenuNode[] {
-  const items: MenuNode[] = [
-    {
+  const items: MenuNode[] = [];
+
+  if (commands.open !== undefined) {
+    const open = commands.open;
+    items.push({
       id: 'open',
       label: commands.openLabel ?? `Open ${target.noun}`,
       ...(commands.openIcon === undefined ? {} : { icon: commands.openIcon }),
-      onSelect: () => commands.open(),
-    },
-  ];
+      onSelect: () => open(),
+    });
+  }
 
   if (commands.copyLink !== undefined) {
     const copyLink = commands.copyLink;
@@ -73,7 +81,9 @@ export function entityRowMenuItems(
 
   const properties = commands.properties ?? [];
   if (properties.length > 0) {
-    items.push({ kind: 'separator' }, ...properties);
+    // The separator only ever divides; a menu that opens with one has nothing above it.
+    if (items.length > 0) items.push({ kind: 'separator' });
+    items.push(...properties);
   }
 
   const destructive: MenuNode[] = [];
@@ -100,7 +110,8 @@ export function entityRowMenuItems(
     });
   }
   if (destructive.length > 0) {
-    items.push({ kind: 'separator' }, ...destructive);
+    if (items.length > 0) items.push({ kind: 'separator' });
+    items.push(...destructive);
   }
 
   return items;
