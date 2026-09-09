@@ -17,9 +17,14 @@
  *
  * Both piles carry the product's row menu — a ⋯ button and a right-click rendering one array,
  * reachable from the keyboard with `.` — built from the shared entity builder: resuming is
- * its Open row and discarding is its Delete row. Discarding from the menu asks first. The
- * row's own Discard button is the shortcut for somebody who has already read the row; a menu
- * entry reached by right-clicking is not, and nothing brings an unsent draft back.
+ * its Open row and discarding is its Delete row.
+ *
+ * Discarding asks first, from the button as well as from the menu. It used to ask only from
+ * the menu, on the reasoning that the row's own Discard button is a shortcut for somebody who
+ * has already read the row. The reason given for the menu asking was that nothing brings an
+ * unsent draft back — and that is just as true of the button. One irreversible action with
+ * two different amounts of care was the part that could not be defended, so both go through
+ * the same dialogue, which names the draft it is about.
  *
  * Waiting is drawn with `EntityLoading`, not with an `EmptyState` titled "Loading drafts".
  * An empty state is an answer, and "there is nothing unsent" is precisely the answer this
@@ -401,7 +406,16 @@ export function Drafts() {
                     {/* Every row can be discarded. A comment draft used to have no control
                         at all, so the one pile on this screen that is definitely unsent was
                         also the one nothing could clear. */}
-                    <Button size="sm" variant="ghost" onClick={() => discardLocal(draft)}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() =>
+                        setConfirming({
+                          id: localKey(draft),
+                          title: labelFor(localKey(draft)),
+                        })
+                      }
+                    >
                       Discard
                     </Button>
                     <IconButton
@@ -495,9 +509,7 @@ export function Drafts() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => {
-                        void discardSaved(draft.id);
-                      }}
+                      onClick={() => setConfirming({ id: draft.id, title: labelFor(draft.id) })}
                     >
                       Discard
                     </Button>
