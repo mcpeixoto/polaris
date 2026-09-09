@@ -32,7 +32,7 @@
  * See `fetchInvites`. Everything odd about this section follows from that one sentence.
  */
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Link, useSearchParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
@@ -42,12 +42,15 @@ import {
   Badge,
   Button,
   EmptyState,
+  IconButton,
   Input,
+  Menu,
   Select,
   SettingsPage,
   SettingsSection,
   Spinner,
   Tooltip,
+  type MenuNode,
 } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { SettingsRow } from '~/components/SettingsSection';
@@ -64,8 +67,10 @@ import {
   revokeInvite,
   type InviteSummary,
 } from '~/features/admin/mutations';
+import { DotsGlyph } from '~/features/issue/glyphs';
 import { setRole, setSuspended } from '~/features/members/mutations';
 import { exact, when } from '~/features/time';
+import { useContextMenu } from '~/hooks/useContextMenu';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId, useViewerRole } from '~/hooks/useViewer';
 import type { UserRole, UUID } from '~/store';
@@ -369,6 +374,36 @@ export function MemberSettings() {
     }
   };
 
+  /**
+   * Changing somebody's authority, from the picker or from the menu.
+   *
+   * One function rather than one per surface: `setRole` is a no-op when the role is already
+   * held, so the menu can mark the current role with a tick and still call this for it.
+   */
+  const changeRole = (member: MemberView, role: UserRole) => {
+    run(setRole(engine, member.id, role));
+  };
+
+  /**
+   * Suspending, and restoring.
+   *
+   * Restoring gives access back and needs no ceremony. Suspending takes it away from somebody
+   * who is very likely using the product right now, so it asks — the same dialog whether the
+   * request came from the row's button or from its menu, because they are the same request.
+   */
+  const changeSuspended = (member: MemberView, suspended: boolean) => {
+    if (suspended && member.protectedBy !== null) {
+      setError(member.protectedBy);
+      return;
+    }
+    if (suspended) {
+      setSuspendError(null);
+      setSuspending(member.id);
+      return;
+    }
+    run(setSuspended(engine, member.id, false));
+  };
+
   const askRemove = (member: MemberView) => {
     if (member.protectedBy !== null) {
       // Refused before the request. The server applies the same rule; this is the half that
@@ -380,6 +415,75 @@ export function MemberSettings() {
     setRemoveError(null);
     setRemoving(member.id);
   };
+
+  /*
+   * The row menu: one menu for the whole table, anchored to whichever ⋯ opened it, and one
+   * more for the right-click. A pair of menus per row would be a pair per person in the
+   * workspace, mounted to serve the one that is open.
+   */
+  const [rowMenuId, setRowMenuId] = useState<UUID | null>(null);
+  const [rowMenuOpen, setRowMenuOpen] = useState(false);
+  const rowMenuTrigger = useRef<HTMLButtonElement>(null);
+  const contextMenu = useContextMenu<UUID>();
+
+  const closeMenus = () => {
+    setRowMenuOpen(false);
+    setRowMenuId(null);
+    contextMenu.close();
+  };
+
+  /**
+   * What can be done to one person, in one place.
+   *
+   * Built once and drawn by both menus, so the ⋯ and the right-click cannot come to disagree
+   * about what this screen offers. Nothing here is new: the three commands are the three
+   * writes the row's own controls already make — `setRole`, `setSuspended`, `removeUser` —
+   * and both of the destructive ones go through the confirmations rather than around them.
+   */
+  const itemsFor = (member: MemberView): MenuNode[] => [
+    {
+      kind: 'submenu',
+      id: 'role',
+      label: 'Change role',
+      items: rolesFor(member.role).map((role) => ({
+        id: `role-${role}`,
+        label: ROLE_LABELS[role],
+        selected: role === member.role,
+        onSelect: () => {
+          closeMenus();
+          changeRole(member, role);
+        },
+      })),
+    },
+    { kind: 'separator' },
+    member.suspended
+      ? {
+          id: 'restore',
+          label: 'Restore access',
+          onSelect: () => {
+            closeMenus();
+            changeSuspended(member, false);
+          },
+        }
+      : {
+          id: 'suspend',
+          label: 'Suspend',
+          danger: true,
+          onSelect: () => {
+            closeMenus();
+            changeSuspended(member, true);
+          },
+        },
+    {
+      id: 'remove',
+      label: `Remove ${firstName(member.name)}`,
+      danger: true,
+      onSelect: () => {
+        closeMenus();
+        askRemove(member);
+      },
+    },
+  ];
 
   const confirmSuspend = async () => {
     if (suspendTarget === null || suspendBusy) return;
@@ -420,6 +524,10 @@ export function MemberSettings() {
   const target = removing === null ? null : (members.find((m) => m.id === removing) ?? null);
   const suspendTarget =
     suspending === null ? null : (members.find((m) => m.id === suspending) ?? null);
+  // Off `shown` rather than `members`: a row filtered out from under an open menu takes the
+  // menu with it, which is the same rule the table's other row state follows.
+  const menuMember = shown.find((member) => member.id === rowMenuId) ?? null;
+  const contextMember = shown.find((member) => member.id === contextMenu.id) ?? null;
   const workspaceName = useLiveQuery(
     (store) => [...store.workspaces.values()][0]?.name ?? 'this workspace',
     ['workspace'],
@@ -620,22 +728,15 @@ export function MemberSettings() {
                   // else. The server refuses it, which is the wrong place to find out.
                   isViewer={viewerId === null || member.id === viewerId}
                   manageable={canAdminister === true}
-                  onRole={(role) => run(setRole(engine, member.id, role))}
-                  onSuspend={(suspended) => {
-                    if (suspended && member.protectedBy !== null) {
-                      setError(member.protectedBy);
-                      return;
-                    }
-                    // Restoring gives access back and needs no ceremony. Suspending takes it
-                    // away from somebody who is very likely using the product right now.
-                    if (suspended) {
-                      setSuspendError(null);
-                      setSuspending(member.id);
-                      return;
-                    }
-                    run(setSuspended(engine, member.id, false));
-                  }}
+                  onRole={(role) => changeRole(member, role)}
+                  onSuspend={(suspended) => changeSuspended(member, suspended)}
                   onRemove={() => askRemove(member)}
+                  onOpenMenu={(button) => {
+                    rowMenuTrigger.current = button;
+                    setRowMenuId(member.id);
+                    setRowMenuOpen(true);
+                  }}
+                  onContextMenu={(event) => contextMenu.openFromEvent(event, member.id)}
                 />
               ))}
             </tbody>
@@ -647,6 +748,27 @@ export function MemberSettings() {
         Deleted issues are recoverable for thirty days — see <Link to="/settings/trash">Trash</Link>
         .
       </p>
+
+      <Menu
+        open={rowMenuOpen && menuMember !== null}
+        onClose={closeMenus}
+        trigger={rowMenuTrigger}
+        label={menuMember === null ? 'Member options' : `Options for ${menuMember.name}`}
+        keysPresentation="kbd"
+        density="compact"
+        items={menuMember === null ? [] : itemsFor(menuMember)}
+      />
+
+      {contextMenu.at === null ? null : <div {...contextMenu.anchorProps} />}
+      <Menu
+        open={contextMenu.at !== null && contextMember !== null}
+        onClose={contextMenu.close}
+        trigger={contextMenu.anchorRef}
+        label={contextMember === null ? 'Member options' : `Options for ${contextMember.name}`}
+        keysPresentation="kbd"
+        density="compact"
+        items={contextMember === null ? [] : itemsFor(contextMember)}
+      />
 
       <InviteDialog
         open={inviting}
@@ -760,13 +882,37 @@ interface MemberRowProps {
   onRole: (role: UserRole) => void;
   onSuspend: (suspended: boolean) => void;
   onRemove: () => void;
+  /** Opens the shared row menu against the ⋯ that was pressed. */
+  onOpenMenu: (button: HTMLButtonElement) => void;
+  onContextMenu: (event: MouseEvent<HTMLTableRowElement>) => void;
 }
 
-function MemberRow({ member, isViewer, manageable, onRole, onSuspend, onRemove }: MemberRowProps) {
+function MemberRow({
+  member,
+  isViewer,
+  manageable,
+  onRole,
+  onSuspend,
+  onRemove,
+  onOpenMenu,
+  onContextMenu,
+}: MemberRowProps) {
   const nameId = useId();
+  /**
+   * Whether this row has anything to act on at all.
+   *
+   * The same question the buttons below already ask. A row with no commands gets no ⋯ and
+   * keeps the browser's own context menu, because a menu offering nothing is worse than the
+   * one the platform was going to show — and every command here is one the server refuses
+   * from a member, or on your own row.
+   */
+  const actionable = manageable && !isViewer;
 
   return (
-    <tr className={member.suspended ? styles.suspendedRow : undefined}>
+    <tr
+      className={member.suspended ? styles.suspendedRow : undefined}
+      {...(actionable ? { onContextMenu } : {})}
+    >
       <th scope="row" className={styles.person}>
         <Avatar
           name={member.name}
@@ -847,7 +993,7 @@ function MemberRow({ member, isViewer, manageable, onRole, onSuspend, onRemove }
        * element list does not yet. See the note in this change's report.
        */}
       <td className={styles.actions}>
-        {isViewer || !manageable ? null : (
+        {!actionable ? null : (
           <>
             {member.suspended ? (
               <Button size="sm" aria-describedby={nameId} onClick={() => onSuspend(false)}>
@@ -866,6 +1012,14 @@ function MemberRow({ member, isViewer, manageable, onRole, onSuspend, onRemove }
             <Button size="sm" variant="danger" aria-describedby={nameId} onClick={onRemove}>
               Remove
             </Button>
+            {/* The same commands as the right-click, drawn from the same array. Named per
+                row, for the reason the buttons beside it are described per row. */}
+            <IconButton
+              aria-label={`Options for ${member.name}`}
+              size="sm"
+              icon={<DotsGlyph />}
+              onClick={(event) => onOpenMenu(event.currentTarget)}
+            />
           </>
         )}
       </td>
