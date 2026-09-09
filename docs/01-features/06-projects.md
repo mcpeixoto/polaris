@@ -64,14 +64,17 @@ carries the same menu a right-click on the header opens. No property pills: ever
 project *is* is stated in the body and edited in the rail, and a header copy of two of them
 was two more places for the same fact to disagree with itself.
 
-**Tab row.** **Overview**, **Issues**, any attached views, **Activity**, and at the trailing
-edge the rail's toggle (`aria-pressed` says whether the rail is open). The fold is remembered
-per reader in `localStorage`, and the document column widens when the rail is away.
+**Tab row.** **Overview**, **Activity**, **Issues**, then any attached views — the two
+sections about the project as a whole before the one about the work inside it, and a saved
+view beside the issues it is a view of. At the trailing edge, the rail's toggle
+(`aria-pressed` says whether the rail is open). The fold is remembered per reader in
+`localStorage`, and the document column widens when the rail is away.
 
 **Document column** (centred, ~720px of measure), top to bottom:
 
 | Part | What it is |
 |---|---|
+| Mark and name | A 32px icon button opening the icon picker, and the name as a rename field at the document's own size. The trail carries both as well — it is on every tab, and it is where a reader coming from the list confirms what they opened — while this pair is the document's title block. The screen's one *named* heading stays the shell's hidden `<h1>`: a `<textarea>` inside a heading gives that heading no name, so a second `<h1>` here would be a nameless one announced beside the real one |
 | Summary | One line, unboxed, saved on blur |
 | Properties | A row of pills — status, priority, lead, members, `start → target`, teams — each opening its own picker. The same values the rail holds, stated where the reader already is |
 | Resources | The project's documents, and `+ Add document`, which opens the shared create-document dialogue seeded with this project |

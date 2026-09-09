@@ -6,16 +6,20 @@
  * summary, the description and an update are prose, and prose set across a 1600px window is
  * not read, it is skimmed twice.
  *
- * It reads top to bottom the way Linear's does. The summary first, because it is the
- * sentence somebody arriving from the list is looking for. Then the properties as a row of
- * pills — the same facts the rail carries, stated where the reader already is, so checking
- * the lead does not mean crossing the screen. Then the resources, the standing answer to
- * "how is it going", the description, and the milestones. Everything that is a property of
- * the project rather than its content is *editable* in the rail; this row is the copy you
- * can also click.
+ * It reads top to bottom the way Linear's does. The mark and the name first, both of them
+ * the controls that change them. Then the summary, the sentence somebody arriving from the
+ * list is looking for. Then the properties as a row of pills — the same facts the rail
+ * carries, stated where the reader already is, so checking the lead does not mean crossing
+ * the screen. Then the resources, the standing answer to "how is it going", the description,
+ * and the milestones.
  *
- * The name is the shell's, in the breadcrumb, which is also where it is renamed. The graph
- * is the rail's, beside the dates it is drawn against.
+ * The trail keeps its own mark and name, and that is not a duplicate by accident: the
+ * breadcrumb is on every tab and is where a reader coming from the list confirms what they
+ * opened, while this pair is the document's own title block. The screen's one *named*
+ * heading is the shell's hidden `<h1>` — a `<textarea>` inside a heading gives that heading
+ * no name, so a second `<h1>` here would be a nameless one announced beside the real one.
+ *
+ * The graph is the rail's, beside the dates it is drawn against.
  *
  * The update *feed* is the activity tab's, not this one's. Both used to draw every update,
  * with different affordances on each copy — edit here, edit and delete there — which made
@@ -42,16 +46,19 @@ import {
   SaveIndicator,
   StateIcon,
   Textarea,
+  TitleField,
   Tooltip,
   useSaveState,
   type MenuNode,
 } from '~/components';
 import { DescriptionEditor } from '~/editor/DescriptionEditor';
+import { EntityIcon } from '~/features/icon/EntityIcon';
+import { IconPicker } from '~/features/icon/IconPicker';
 import { report } from '~/features/issue/mutations';
 import { AssigneePicker, PriorityPicker } from '~/features/issue/pickers';
 import { browserTimezone } from '~/features/locale';
 import { UserPicker } from '~/features/members/UserPicker';
-import { MembersGlyph, NoPersonGlyph, PlusGlyph } from '~/features/projects/glyphs';
+import { MembersGlyph, NoPersonGlyph, PlusGlyph, ProjectGlyph } from '~/features/projects/glyphs';
 import { formatTimeframe } from '~/features/projects/properties';
 import { ProjectStatusPicker } from '~/features/projects/ProjectStatusPicker';
 import { PROJECT_STATUS_ICON } from '~/features/projects/statusCategories';
@@ -92,6 +99,7 @@ export function ProjectOverview() {
   const [postError, setPostError] = useState<string | null>(null);
   const [editingLatest, setEditingLatest] = useState(false);
   const healthMenu = useMenuTrigger();
+  const icon = useMenuTrigger<HTMLButtonElement>('dialog');
 
   // Autosave with nothing to show for it was the state of three detail screens: the summary
   // and the description both write on blur, and a refused write looked exactly like a
@@ -173,6 +181,40 @@ export function ProjectOverview() {
             activity feed for one sentence. */}
         <div className={styles.saveRow}>
           <SaveIndicator state={save.state} />
+        </div>
+        {/* The mark and the name at the top of the document, the size they are on the page
+            rather than the size they are in the trail. Both are the controls that change
+            them: the icon opens the picker, the name is typed in place.
+
+            The trail keeps its own copy of both, and that is deliberate rather than an
+            oversight — the breadcrumb is where a reader coming from the list confirms what
+            they opened, and it is on every tab, while this pair is the document's own
+            heading and only exists here. The screen's one named heading is the shell's
+            `<h1>`: a `<textarea>` inside a heading gives that heading no name at all, so a
+            second one here would be a nameless `<h1>` announced beside the real one. */}
+        <div className={styles.identity}>
+          <button
+            type="button"
+            {...icon.props}
+            className={styles.iconTrigger}
+            aria-label="Change project icon"
+          >
+            <EntityIcon
+              icon={project.icon}
+              color={project.color}
+              fallback={<ProjectGlyph />}
+              size="lg"
+            />
+          </button>
+          <TitleField
+            key={`project-title-body-${project.id}`}
+            subjectId={project.id}
+            value={project.name}
+            label="Project name"
+            size="lg"
+            className={styles.title}
+            onSave={(name) => void save.run(() => updateProject(engine, project.id, { name }))}
+          />
         </div>
         <SummaryField
           key={`summary:${project.summary ?? ''}`}
@@ -306,6 +348,27 @@ export function ProjectOverview() {
             here as well, which put two copies of the same lists on one screen — and the two
             disagreed about whether you could add to them. */}
         <IssueCustomers projectId={project.id} />
+
+        {/* One write per change, the way the breadcrumb's copy does it: a colour chosen on a
+            project whose icon has not moved must not rewrite the icon, and the other way
+            round. Its own action id, because the rail mounts a picker of its own. */}
+        <IconPicker
+          open={icon.open}
+          onClose={icon.hide}
+          trigger={icon.ref}
+          label="Project icon"
+          actionId="projectOverview.closeIconPicker"
+          value={{ icon: project.icon ?? '', color: project.color }}
+          onChange={(next) => {
+            if (next.icon !== (project.icon ?? '')) {
+              updateProject(engine, project.id, { icon: next.icon }).catch(report);
+              return;
+            }
+            if (next.color !== project.color) {
+              updateProject(engine, project.id, { color: next.color }).catch(report);
+            }
+          }}
+        />
       </div>
     </div>
   );

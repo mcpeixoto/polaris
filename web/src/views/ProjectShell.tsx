@@ -245,18 +245,21 @@ export function ProjectShell() {
           </button>
         );
 
-        // One row, one landmark. The attached views sit between Issues and Activity and draw
-        // themselves, because a saved view's tab also drags to reorder and opens a context
-        // menu — behaviour a plain `TabItem` has no way to carry.
+        // One row, one landmark. Overview, Activity, Issues — Linear's order, and an order
+        // with an argument: the two tabs about the project as a whole come before the one
+        // about the work inside it. The attached views draw themselves after Issues, because
+        // a saved view's tab also drags to reorder and opens a context menu — behaviour a
+        // plain `TabItem` has no way to carry — and because a saved view *is* a view of the
+        // issues, so it belongs beside them.
         const tabs: TabItem[] = [
           { id: 'overview', label: 'Overview', to: base, end: true },
+          { id: 'activity', label: 'Activity', to: `${base}/activity` },
           { id: 'issues', label: 'Issues', to: `${base}/issues` },
           {
             id: 'views',
             label: 'Views',
             render: () => <ProjectViewTabs projectId={project.id} base={base} />,
           },
-          { id: 'activity', label: 'Activity', to: `${base}/activity` },
         ];
 
         const closeMenus = () => {
@@ -354,7 +357,13 @@ export function ProjectShell() {
               />
               {/* Beside the name rather than in the trailing group: health is the one fact a
                   reader wants in the same glance as the project. */}
-              <ProjectHealthCell store={engine.store} projectId={project.id} compact />
+              {/* Named, because it is a fact about the project rather than a decoration of
+                  the trail: "how is it going" is the one thing worth reading in the same
+                  glance as the name, and a group with a name is what lets a reader — or a
+                  test — ask for it rather than infer it from where it sits. */}
+              <div className={styles.health} role="group" aria-label="Project health">
+                <ProjectHealthCell store={engine.store} projectId={project.id} compact />
+              </div>
               <div className={styles.headerEnd}>
                 {viewerId === null ? null : (
                   <IconButton

@@ -10,7 +10,7 @@
  * first one sets the health", which is a statement where an instruction belongs.
  */
 
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
@@ -86,7 +86,8 @@ function mount() {
       updatedAt: AT,
     } as Entity),
   ]);
-  const engine = { store, mutate: vi.fn().mockResolvedValue({}) } as unknown as SyncEngine;
+  const mutate = vi.fn().mockResolvedValue({});
+  const engine = { store, mutate } as unknown as SyncEngine;
   render(
     <MemoryRouter initialEntries={[`/project/${PROJECT}`]}>
       <KeymapProvider>
@@ -101,13 +102,15 @@ function mount() {
       </KeymapProvider>
     </MemoryRouter>,
   );
-  return { user: userEvent.setup() };
+  return { user: userEvent.setup(), mutate };
 }
 
 describe('the project overview', () => {
-  it('reads as a document: summary, properties, resources, update, description, milestones', () => {
+  it('reads as a document: mark, name, summary, properties, resources, update, description', () => {
     mount();
 
+    expect(screen.getByRole('button', { name: 'Change project icon' })).toBeTruthy();
+    expect((screen.getByLabelText('Project name') as HTMLTextAreaElement).value).toBe('Launch');
     expect((screen.getByLabelText('Summary') as HTMLInputElement).value).toBe('Ship it');
     expect(screen.getByText('Properties')).toBeTruthy();
     expect(screen.getByText('Resources')).toBeTruthy();
@@ -133,6 +136,37 @@ describe('the project overview', () => {
     await user.click(screen.getByRole('button', { name: /In progress/ }));
 
     expect(await screen.findByRole('menu', { name: 'Project status' })).toBeTruthy();
+  });
+
+  /**
+   * The mark is the control that changes it, here as well as in the trail and in the list.
+   * A project's icon was settable in the create dialog and nowhere a reader was actually
+   * looking, which is the whole reason it is a button in five places now.
+   */
+  it('opens the icon picker from the mark at the top of the document', async () => {
+    const { user } = mount();
+
+    await user.click(screen.getByRole('button', { name: 'Change project icon' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Project icon' })).toBeTruthy();
+  });
+
+  /**
+   * Renaming from the document rather than only from the trail. It saves on blur, the way
+   * every other unboxed field on this screen does — a mutation per keystroke would put a
+   * hundred entries in the activity feed for one rename.
+   */
+  it('renames the project from the title, saving what was typed', async () => {
+    const { user, mutate } = mount();
+
+    const field = screen.getByLabelText('Project name');
+    await user.click(field);
+    await user.type(field, ' day one');
+    await user.tab();
+
+    await waitFor(() => expect(mutate).toHaveBeenCalled());
+    const call = mutate.mock.calls.find((entry) => entry[0]?.optimistic?.[0]?.type === 'project');
+    expect(call?.[0].variables.input.name).toBe('Launch day one');
   });
 
   it('asks for the first update rather than reporting that there is none', () => {

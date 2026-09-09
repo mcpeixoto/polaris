@@ -42,6 +42,49 @@
   min-height: var(--space-4);
 }
 
+/* The mark and the name: the two things the document is *about*, stacked above the summary
+   the way a document's title block is. */
+.identity {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+/* 32px of press target around a 20px glyph — the largest `EntityIcon` draws — on a tinted
+   ground, so the mark reads as a control before it is hovered. It is the one control on
+   this screen a reader is meant to notice without looking for it. */
+.iconTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-8);
+  height: var(--space-8);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary);
+  color: inherit;
+  font-size: var(--font-size-lg);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.iconTrigger:hover {
+  background: var(--bg-hover);
+}
+
+.iconTrigger:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* The rename field at the document's own size. `TitleField`'s `lg` already sets the type;
+   this only takes the width, so the caret lands where the words are. */
+.title {
+  width: 100%;
+}
+
 .summary {
   margin-top: var(--space-2);
   font-size: var(--font-size-lg);

@@ -78,6 +78,14 @@
   max-width: 20rem;
 }
 
+/* The health group: a box only so the cell inside it can be named and found. */
+.health {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  min-width: 0;
+}
+
 /* A favourited project's star is filled and in the accent, the way the issue screen's is. */
 .starOn {
   color: var(--accent-text);

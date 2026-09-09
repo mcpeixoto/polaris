@@ -11,6 +11,18 @@ import type { Page } from '@playwright/test';
 
 import { expect, inviteToWorkspace, signIn, test, uniqueEmail } from './fixtures';
 
+/**
+ * The project header's health, by name rather than by position.
+ *
+ * This used to be `page.locator('h1').locator('..')` — the parent of the screen's heading,
+ * which happened to be the header. The overview now has a title block of its own, so
+ * "whatever sits beside an h1" is a question with more than one answer; the header's health
+ * group carries an accessible name, and that name is what these assertions actually want.
+ */
+function healthBadge(page: Page) {
+  return page.getByRole('group', { name: 'Project health' });
+}
+
 async function newProject(page: Page, name: string): Promise<void> {
   await page.goto('/projects');
   await page.getByRole('button', { name: 'New project' }).first().click();
@@ -38,7 +50,7 @@ test('an author edits their update and the derived health follows', async ({ pag
   await newProject(page, name);
 
   await postUpdate(page, 'On track', 'Kickoff went fine.');
-  const shell = page.locator('h1').locator('..');
+  const shell = healthBadge(page);
   await expect(shell).toContainText('On track');
 
   await page.getByRole('button', { name: 'Edit update' }).click();
@@ -51,7 +63,7 @@ test('an author edits their update and the derived health follows', async ({ pag
   await expect(page.getByText('Vendor pulled out.')).toBeVisible();
 
   await page.reload();
-  await expect(page.locator('h1').locator('..')).toContainText('Off track');
+  await expect(healthBadge(page)).toContainText('Off track');
   await expect(page.getByText('Vendor pulled out.')).toBeVisible();
 
   await page.goto('/projects');
@@ -68,7 +80,7 @@ test('deleting the newest update falls health back to the one before it', async 
 
   await postUpdate(page, 'On track', 'first');
   await postUpdate(page, 'Off track', 'second');
-  const shell = page.locator('h1').locator('..');
+  const shell = healthBadge(page);
   await expect(shell).toContainText('Off track');
 
   await page.getByRole('link', { name: 'Activity' }).click();
@@ -87,7 +99,7 @@ test('deleting the newest update falls health back to the one before it', async 
 
   await page.reload();
   await expect(page.getByRole('listitem')).toHaveCount(1);
-  await expect(page.locator('h1').locator('..')).toContainText('On track');
+  await expect(healthBadge(page)).toContainText('On track');
 });
 
 test("another member's update carries no edit or delete affordance", async ({

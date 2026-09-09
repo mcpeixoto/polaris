@@ -109,7 +109,12 @@ describe('the project header', () => {
     expect(within(header).queryByText('Target date')).toBeNull();
   });
 
-  it('draws the sections in one row, in the order the product has always had them', () => {
+  /**
+   * Overview, then Activity, then Issues — the two sections about the project as a whole
+   * before the one about the work inside it. Attached views draw themselves after Issues,
+   * because a saved view is a view of those issues.
+   */
+  it('draws the sections in one row, the project before the work in it', () => {
     mount();
 
     const tabs = screen.getByRole('navigation', { name: 'Project sections' });
@@ -117,7 +122,7 @@ describe('the project header', () => {
       within(tabs)
         .getAllByRole('link')
         .map((tab) => tab.textContent),
-    ).toEqual(['Overview', 'Issues', 'Activity']);
+    ).toEqual(['Overview', 'Activity', 'Issues']);
   });
 
   it('folds the rail away from the tab row, and remembers that it is folded', async () => {
