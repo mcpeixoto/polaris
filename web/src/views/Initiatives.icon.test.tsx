@@ -96,10 +96,23 @@ function lastInput(mutate: ReturnType<typeof vi.fn>): Record<string, unknown> {
   return call.variables.input;
 }
 
+/**
+ * The icon button in one row.
+ *
+ * Scoped through the row's own link rather than found by a name of its own: every row's
+ * button is called "Change initiative icon", because the fold chevron is the one per-row
+ * control named after its row and two of those would be ambiguous. The row is identified by
+ * the link it is, which is what a reader has as well.
+ */
+function iconButtonOf(name: string): HTMLElement {
+  const link = screen.getByRole('link', { name: new RegExp(name) });
+  return within(link).getByRole('button', { name: 'Change initiative icon' });
+}
+
 describe('Initiative row icon', () => {
   it('opens the icon picker without opening the initiative', async () => {
     const { user } = renderList();
-    await user.click(screen.getByRole('button', { name: 'Change icon for Platform reliability' }));
+    await user.click(iconButtonOf('Platform reliability'));
     expect(screen.getByRole('dialog', { name: 'Initiative icon' })).toBeTruthy();
     expect(screen.queryByText('opened i1')).toBeNull();
     expect(screen.getByText('Platform reliability')).toBeTruthy();
@@ -107,7 +120,7 @@ describe('Initiative row icon', () => {
 
   it('writes the colour against the initiative whose icon was clicked', async () => {
     const { mutate, user } = renderList();
-    await user.click(screen.getByRole('button', { name: 'Change icon for Mobile launch' }));
+    await user.click(iconButtonOf('Mobile launch'));
     const panel = screen.getByRole('dialog', { name: 'Initiative icon' });
     await user.click(within(panel).getByRole('button', { name: 'Green' }));
 

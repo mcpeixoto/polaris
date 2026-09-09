@@ -650,11 +650,20 @@ function Row({
           {/* A button inside the link, which nesting rules forbid for a second link but
               allow here: the icon is a different command from "open this initiative", it is
               the only place the icon can be where somebody would look for it, and the click
-              is stopped before the link ever sees it. */}
+              is stopped before the link ever sees it.
+
+              Named for the kind rather than for the row — "Change initiative icon", the same
+              words the shell's header button uses — where the projects list says "Change icon
+              for {name}". The difference is not drift. The only other per-row button in this
+              list is the fold chevron, which *is* named for its row ("Collapse Company
+              goals"), and a second per-row button carrying the same name would make "the
+              control named after this initiative" ambiguous for anyone walking the list by
+              button. The row's identity is not lost: this button sits inside the link that
+              carries it. */}
           <button
             type="button"
             className={styles.iconButton}
-            aria-label={`Change icon for ${row.name}`}
+            aria-label="Change initiative icon"
             aria-haspopup="dialog"
             onClick={(event) => {
               event.preventDefault();
