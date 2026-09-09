@@ -318,6 +318,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: bash scripts/lint-keymap.sh
+      # A chord drawn in a menu against the chords the keymap actually binds. `MenuItem.keys`
+      # is typed by hand at every call site, so a renamed or removed binding leaves the menu
+      # teaching a key nothing listens for — confident, wrong, and shipped in the interface.
+      - run: node scripts/lint-menu-chords.mjs
       - run: bash scripts/lint-tokens.sh
       # Ten ad hoc breakpoints is not a responsive design, it is ten surfaces each reflowing
       # at a window size none of the others agree with. A media condition cannot reference a
