@@ -282,6 +282,10 @@ export function ProjectShell() {
             <header
               className={styles.header}
               onContextMenu={(event) => {
+                // A descendant that already answered this right-click owns it: a saved view's
+                // tab sits inside this header and opens a menu of its own, and two menus at once
+                // means neither can be clicked.
+                if (event.defaultPrevented) return;
                 event.preventDefault();
                 contextMenu.openAt(event.clientX, event.clientY, project.id);
               }}

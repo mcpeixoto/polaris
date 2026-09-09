@@ -15,6 +15,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { EngineProvider } from '~/app/context';
 import { KeymapProvider } from '~/app/keymap';
+import { EMPTY_FILTER } from '~/filter';
 import { Store, type Change, type Entity, type Project, type ProjectStatus } from '~/store';
 import type { EngineStatus, SyncEngine } from '~/sync/engine';
 
@@ -24,6 +25,7 @@ const WORKSPACE = '01900000-0000-7000-8000-000000000001';
 const PROJECT = '01900000-0000-7000-8000-000000000002';
 const STATUS = '01900000-0000-7000-8000-000000000003';
 const VIEWER = '01900000-0000-7000-8000-000000000004';
+const VIEW = '01900000-0000-7000-8000-000000000005';
 const AT = '2026-01-01T00:00:00.000Z';
 const READY: EngineStatus = { phase: 'ready', connection: 'ready', pending: 0 };
 
@@ -94,6 +96,25 @@ function seeded(): Store {
   return store;
 }
 
+/** The same project, plus one saved view — which draws a tab inside the header. */
+function seededWithView(): Store {
+  const store = seeded();
+  store.applyChanges([
+    upsert(3, 'view', {
+      id: VIEW,
+      workspaceId: WORKSPACE,
+      projectId: PROJECT,
+      name: 'Bugs',
+      filter: EMPTY_FILTER,
+      display: {},
+      position: 'a',
+      createdAt: AT,
+      updatedAt: AT,
+    }),
+  ]);
+  return store;
+}
+
 /** The header itself, reached from the heading it carries rather than from a hashed class. */
 function header(): HTMLElement {
   const found = screen.getByRole('heading', { level: 1, name: 'Launch' }).closest('header');
@@ -134,5 +155,18 @@ describe('ProjectShell context menu', () => {
     const contextual = itemNames(await screen.findByRole('menu', { name: 'Options for Launch' }));
 
     expect(contextual).toEqual(kebab);
+  });
+
+  it('leaves a right-click on a saved view tab to the tab', async () => {
+    // The tabs are drawn inside this header, and the header's handler would otherwise fire
+    // on the way up and stack the project's menu on top of the tab's — two menus at once,
+    // neither of them clickable. It cost an e2e failure the first time.
+    const user = userEvent.setup();
+    renderShell(seededWithView(), READY);
+
+    await user.pointer({ target: screen.getByRole('link', { name: 'Bugs' }), keys: '[MouseRight]' });
+
+    expect(await screen.findByRole('menu', { name: 'View options' })).not.toBeNull();
+    expect(screen.queryByRole('menu', { name: 'Options for Launch' })).toBeNull();
   });
 });
