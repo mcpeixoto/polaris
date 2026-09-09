@@ -161,6 +161,13 @@ export function Dashboards() {
     contextMenu.close();
   };
 
+  /** Shut the menus because an inline editor is taking the keyboard. */
+  const handOffMenus = () => {
+    setMenuOpen(false);
+    setMenuRow(null);
+    contextMenu.handOff();
+  };
+
   const rename = (id: UUID, name: string) => {
     setRenaming(null);
     const trimmed = name.trim();
@@ -226,7 +233,11 @@ export function Dashboards() {
       icon: <PencilGlyph />,
       keys: 'e',
       onSelect: () => {
-        closeMenus();
+        // The rename field takes the keyboard itself, so the menu must not hand it back to
+        // the scroller a frame later. It used to: the field was blurred the instant it
+        // appeared, and `rename` commits and closes on blur — so the editor shut before a
+        // character reached it and the row was left unrenamed.
+        handOffMenus();
         setRenaming(row.id);
       },
     },

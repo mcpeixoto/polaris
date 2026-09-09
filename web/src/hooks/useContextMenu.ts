@@ -129,7 +129,18 @@ export interface ContextMenuApi<Id> {
     },
     id: Id,
   ): void;
+  /** Shuts the menu and hands the keyboard back to `returnFocusTo`. */
   close(): void;
+  /**
+   * Shuts the menu because something else is taking the keyboard — an inline editor, a
+   * dialog — and therefore does *not* restore focus.
+   *
+   * The restore is scheduled a frame out, so left to `close` it lands after the editor has
+   * focus and pulls it straight back to the list. An editor that commits on blur then
+   * commits nothing and closes: renaming a dashboard from its menu did exactly that, and
+   * discarded everything typed into it.
+   */
+  handOff(): void;
   /** Pass to `Menu`'s `trigger`. */
   anchorRef: RefObject<HTMLDivElement | null>;
   /** Spread onto the one-pixel `<div>`, rendered only while `at` is not null. */
@@ -188,6 +199,10 @@ export function useContextMenu<Id = string>(
     requestAnimationFrame(() => latest.current.returnFocusTo?.current?.focus());
   }, []);
 
+  const handOff = useCallback(() => {
+    setState(null);
+  }, []);
+
   return {
     at: state === null ? null : { x: state.x, y: state.y },
     id: state?.id ?? null,
@@ -195,6 +210,7 @@ export function useContextMenu<Id = string>(
     openOn,
     openFromEvent,
     close,
+    handOff,
     anchorRef,
     anchorProps: {
       ref: anchorRef,
