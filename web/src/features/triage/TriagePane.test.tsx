@@ -109,6 +109,47 @@ describe('TriagePane', () => {
   });
 });
 
+/**
+ * The pane's menu had no keyboard way in, and could not simply take `.` in `list`: the queue
+ * beside it already holds that key there and would always win. So the pane pushes `detail`
+ * while the keyboard is inside it, and `.` resolves there first.
+ */
+describe('reaching the pane menu without a pointer', () => {
+  it('opens on the pane issue once the keyboard is inside the pane', async () => {
+    const user = userEvent.setup();
+    renderPane();
+
+    // Focus first: the `detail` context is pushed by focus-within, not by mounting, so that
+    // the queue keeps `.` while the reader is still working the list.
+    await user.click(screen.getByRole('link', { name: 'ENG-1' }));
+    await user.keyboard('.');
+
+    expect(await screen.findByRole('menu', { name: 'Actions for ENG-1' })).toBeTruthy();
+  });
+
+  it('leaves . alone while the keyboard is outside the pane', async () => {
+    const user = userEvent.setup();
+    renderPane();
+
+    await user.keyboard('.');
+
+    // Nothing here claims it, and nothing swallows it either — which is what lets the queue
+    // beside this pane go on answering `.` with its own row menu.
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('is about the issue the pane is showing, not the first in the queue', async () => {
+    const user = userEvent.setup();
+    renderPane({ issueId: SECOND });
+
+    await user.click(screen.getByRole('link', { name: 'ENG-2' }));
+    await user.keyboard('.');
+
+    // The queue still starts at ENG-1; the pane follows the cursor, and so must its menu.
+    expect(await screen.findByRole('menu', { name: 'Actions for ENG-2' })).toBeTruthy();
+  });
+});
+
 function renderPane(
   props: {
     issueId?: string | null;

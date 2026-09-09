@@ -24,6 +24,7 @@ import {
   StateIcon,
 } from '~/components';
 import { useEngine } from '~/app/context';
+import { useActions } from '~/app/keymap';
 import { estimatesEnabled, issueEstimateLabel } from '~/features/estimate';
 import {
   CalendarGlyph,
@@ -187,6 +188,37 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
     },
     [status, priority, assignee, project, labels, estimate, due, cycle],
   );
+
+  /*
+   * `.` opens this panel's own menu, the way it opens the list's.
+   *
+   * Registered in `list` rather than a context of Peek's own, for the reason written at the
+   * top of `CHORDS`: Peek deliberately pushes no context, so its rows can keep drawing the
+   * list's chords. That puts two `.` bindings in one context, which `assertNoConflict`
+   * allows only while both are guarded — and the guards here are mutually exclusive rather
+   * than merely present, because `handle` takes the first candidate that matches and an
+   * overlap would silently hand the chord to whichever registered first. With the panel
+   * open it belongs to the panel: that is the surface the reader is looking at, and it is
+   * the same split Escape already makes between the list's clear-selection and this
+   * panel's close.
+   *
+   * Anchored on the panel, which is what a right-click anywhere in it uses too.
+   */
+  useActions([
+    {
+      id: 'peek.actions',
+      title: 'Show actions for the peeked issue',
+      keys: ['.'],
+      when: 'list',
+      group: 'Issues',
+      enabled: () => open && issueId !== null,
+      run: () => {
+        const element = panelRef.current;
+        if (element === null || issueId === null) return;
+        context.openOn(element, issueId);
+      },
+    },
+  ]);
 
   if (!present) return null;
 

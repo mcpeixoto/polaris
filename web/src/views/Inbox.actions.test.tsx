@@ -131,6 +131,41 @@ describe('Inbox', () => {
   });
 });
 
+/**
+ * The menu above was pointer-only on the platform this is written on: Shift+F10 and the
+ * Menu key open it, and a Mac keyboard has neither. Which row it is about is not in its
+ * label — the label is always "Notification" — so the test reads it off what Mark read
+ * actually marked.
+ */
+describe('reaching the notification menu without a pointer', () => {
+  it('opens on the cursor row when . is pressed', async () => {
+    const user = userEvent.setup();
+    renderInbox();
+    await screen.findByRole('listbox', { name: 'Notifications' });
+
+    // The cursor starts on the newest row, which is the one the menu must be about.
+    await user.keyboard('.');
+    const menu = await screen.findByRole('menu', { name: 'Notification' });
+    await user.click(within(menu).getByRole('menuitem', { name: /^Mark read/ }));
+
+    expect(store.get('notification', FIRST)?.readAt).toBeDefined();
+    expect(store.get('notification', SECOND)?.readAt).toBeUndefined();
+  });
+
+  it('follows the cursor rather than the first row', async () => {
+    const user = userEvent.setup();
+    renderInbox();
+    await screen.findByRole('listbox', { name: 'Notifications' });
+
+    await user.keyboard('j.');
+    const menu = await screen.findByRole('menu', { name: 'Notification' });
+    await user.click(within(menu).getByRole('menuitem', { name: /^Mark read/ }));
+
+    expect(store.get('notification', SECOND)?.readAt).toBeDefined();
+    expect(store.get('notification', FIRST)?.readAt).toBeUndefined();
+  });
+});
+
 function renderInbox() {
   render(
     <MemoryRouter initialEntries={['/inbox']}>

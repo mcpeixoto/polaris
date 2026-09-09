@@ -27,7 +27,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { useKeyContext } from '~/app/keymap';
+import { useActions, useKeyContext } from '~/app/keymap';
 import {
   Button,
   ConfirmDialog,
@@ -207,6 +207,30 @@ export function Cycles() {
     onOpen: (id) => cursor.setCursor(id),
     returnFocusTo: scrollerRef,
   });
+
+  useActions(
+    [
+      {
+        // Linear's chord. Right-click and Shift+F10 already reach this menu; a Mac laptop
+        // has neither, so without this the whole of it — edit, the ICS subscription,
+        // starting the next window — was a pointer-only affordance.
+        id: 'cycles.actions',
+        title: 'Show actions for the cycle',
+        keys: ['.'],
+        when: 'list',
+        group: 'Cycles',
+        enabled: () => cursor.cursorId !== null,
+        run: () => {
+          const id = cursor.cursorId;
+          if (id === null) return;
+          const element = document.getElementById(listRowDomId('cycleList', id));
+          if (element === null) return;
+          contextMenu.openOn(element, id);
+        },
+      },
+    ],
+    [],
+  );
 
   if (teamState === 'loading') {
     return (

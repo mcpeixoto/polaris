@@ -544,6 +544,22 @@ export function Inbox() {
         run: () => open(current),
       },
       {
+        // The row menu without a pointer. Shift+F10 and the Menu key already reach it —
+        // the row's `onContextMenu` anchors on the row rather than on coordinates, so the
+        // browser's synthesised event lands in the right place on its own — but neither
+        // gesture exists on a Mac keyboard, and until this the menu's own items were the
+        // only way to reach half of what it offers.
+        id: 'inbox.actions',
+        title: 'Show actions for the notification',
+        keys: ['.'],
+        when: 'list',
+        group: 'Inbox',
+        enabled: () => current !== undefined,
+        // The same anchoring as the right-click: hung off the cursor row's own node, which
+        // is both where the menu belongs and somewhere focus can go back to.
+        run: () => openOn(current, setContextFor),
+      },
+      {
         id: 'inbox.toggleRead',
         title: 'Mark read or unread',
         keys: ['u', 'e'],

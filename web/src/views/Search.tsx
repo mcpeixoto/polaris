@@ -82,7 +82,7 @@ import {
   type IssuePropertyKind,
   type IssueRowMenuChords,
 } from '~/features/issue/rowMenu';
-import { contextMenuPoint } from '~/hooks/useContextMenu';
+import { contextMenuPoint, contextMenuPointOn } from '~/hooks/useContextMenu';
 import { useContextMenuHandoff } from '~/hooks/useContextMenuHandoff';
 import { LabelPicker } from '~/features/labels/LabelPicker';
 import { applyLabel, removeLabel } from '~/features/labels/mutations';
@@ -250,6 +250,10 @@ interface SearchCommands {
   canEdit(): boolean;
   /** Opens one property picker on the cursor row, anchored to that row's element. */
   pick(kind: IssuePropertyKind): void;
+  /** Whether there is a cursor row for the actions menu to be about. */
+  hasCursor(): boolean;
+  /** Opens the row menu on the cursor row, where a right-click on it would have put it. */
+  openRowMenu(): void;
 }
 
 export function Search() {
@@ -528,6 +532,8 @@ export function Search() {
     canShowMore: () => false,
     canEdit: () => false,
     pick: () => {},
+    hasCursor: () => false,
+    openRowMenu: () => {},
   });
 
   commands.current = {
@@ -561,6 +567,19 @@ export function Search() {
       const row = rows[cursorIndex]?.issue;
       if (row === undefined || row === null || !row.editable) return;
       openPicker(kind, row.key, document.getElementById(rowDomId(row.key)));
+    },
+    hasCursor: () => rows[cursorIndex] !== undefined,
+    openRowMenu: () => {
+      const row = rows[cursorIndex];
+      if (row === undefined) return;
+      const element = document.getElementById(rowDomId(row.key));
+      if (element === null) return;
+      // The same two writes a right-click makes, in the same order: the menu is built from
+      // `propertyFor`, so it has to name the row before the menu is told to open.
+      setCursorKey(row.key);
+      setPropertyFor(row.key);
+      setContextAt(contextMenuPointOn(element));
+      setMenuOpen(true);
     },
   };
 
@@ -642,6 +661,18 @@ export function Search() {
        * unbound — so on those rows the keystroke falls through to whatever global claims
        * it rather than opening a picker whose choice could not be written.
        */
+      {
+        // The row menu without a pointer. Search's rows are `role="option"` inside a
+        // listbox and never focused themselves, so Shift+F10 has nothing to aim at here —
+        // this chord is the only keyboard way into the menu on this screen.
+        id: 'search.actions',
+        title: 'Show actions for the result',
+        keys: ['.'],
+        when: 'list',
+        group: 'Search',
+        enabled: () => commands.current.hasCursor(),
+        run: () => commands.current.openRowMenu(),
+      },
       {
         id: 'search.status',
         title: 'Change status',

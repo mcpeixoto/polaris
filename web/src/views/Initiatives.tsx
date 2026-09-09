@@ -311,6 +311,27 @@ export function Initiatives() {
           setExportNote(exportCapNote(ids.length, cap, 'initiatives'));
         },
       },
+      {
+        // The row menu without a pointer. Shift+F10 and the Menu key already reach it
+        // through the browser's synthesised event, but neither is on a Mac keyboard, and
+        // everything the menu offers — archive, favourite, copy link — was pointer-only.
+        id: 'initiatives.actions',
+        title: 'Show actions for the initiative',
+        keys: ['.'],
+        when: 'list',
+        group: 'Initiatives',
+        enabled: () => cursor.cursorId !== null,
+        run: () => {
+          const path = cursor.cursorId;
+          if (path === null) return;
+          // The cursor is a path, and a path inside a shut parent or a folded group has no
+          // row in the document. Nothing to anchor to is better left alone than opened in
+          // the viewport's corner.
+          const row = document.getElementById(listRowDomId('initiativeList', path));
+          if (row === null) return;
+          contextMenu.openOn(row, path);
+        },
+      },
     ],
     [engine, visible, viewer],
   );

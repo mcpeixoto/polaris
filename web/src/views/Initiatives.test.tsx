@@ -279,3 +279,33 @@ describe('Initiatives list columns', () => {
     }
   });
 });
+
+/**
+ * Every item in the menu above — archive included — was reachable only with a pointer.
+ * Shift+F10 and the Menu key reach it too, and macOS has neither.
+ */
+describe('reaching the initiative menu without a pointer', () => {
+  it('opens on the cursor row when . is pressed', async () => {
+    const user_ = userEvent.setup();
+    renderList(tree());
+
+    screen.getByRole('listbox', { name: 'Initiatives' }).focus();
+    // The cursor starts on the first row, so that is the row the menu must name.
+    await user_.keyboard('.');
+
+    expect(await screen.findByRole('menu', { name: 'Options for Company goals' })).toBeTruthy();
+  });
+
+  it('follows the cursor rather than the first row', async () => {
+    const user_ = userEvent.setup();
+    renderList(tree());
+
+    screen.getByRole('listbox', { name: 'Initiatives' }).focus();
+    await user_.keyboard('j.');
+
+    expect(
+      await screen.findByRole('menu', { name: 'Options for Platform reliability' }),
+    ).toBeTruthy();
+    expect(screen.queryByRole('menu', { name: 'Options for Company goals' })).toBeNull();
+  });
+});

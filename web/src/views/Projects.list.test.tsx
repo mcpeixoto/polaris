@@ -269,3 +269,39 @@ describe('Projects peek', () => {
     expect(await screen.findByRole('complementary', { name: 'Peek Migrate' })).toBeTruthy();
   });
 });
+
+describe('reaching the row menu without a pointer', () => {
+  /*
+    macOS has no Menu key and no Shift+F10, so on the platform this is built on the row menu
+    was reachable only with a right-click. `.` is Linear's chord for it, and it has to act on
+    the cursor row rather than the first one — otherwise the menu is about whatever the list
+    happened to start on and moving the cursor means nothing.
+  */
+  it('opens the menu on the cursor row with the . chord', async () => {
+    const { user } = mount({ url: '/projects?group=none&order=name' });
+
+    await user.keyboard('.');
+
+    expect(await screen.findByRole('menu', { name: 'Options for Launch' })).toBeTruthy();
+  });
+
+  it('follows the cursor rather than opening on the first row', async () => {
+    const { user } = mount({ url: '/projects?group=none&order=name' });
+
+    await user.keyboard('j.');
+
+    expect(await screen.findByRole('menu', { name: 'Options for Migrate' })).toBeTruthy();
+    expect(screen.queryByRole('menu', { name: 'Options for Launch' })).toBeNull();
+  });
+
+  it('opens on the card under the cursor on the board too', async () => {
+    const { user } = mount({ url: '/projects?layout=board' });
+
+    // The board walks its columns in the workspace's status order, so the cursor starts on
+    // Planned's card and one `j` puts it on the one in progress.
+    await user.keyboard('j.');
+
+    expect(await screen.findByRole('menu', { name: 'Options for Launch' })).toBeTruthy();
+    expect(screen.queryByRole('menu', { name: 'Options for Migrate' })).toBeNull();
+  });
+});

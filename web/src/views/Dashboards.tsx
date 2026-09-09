@@ -134,6 +134,23 @@ export function Dashboards() {
         enabled: () => cursor.cursorId !== null,
         run: () => setRenaming(cursor.cursorId),
       },
+      {
+        // Rename has a key of its own; duplicate and delete had none, and the menu holding
+        // them opened only under a pointer. This is the keyboard's way into all three.
+        id: 'dashboards.actions',
+        title: 'Show actions for the dashboard',
+        keys: ['.'],
+        when: 'list',
+        group: 'Dashboards',
+        enabled: () => cursor.cursorId !== null,
+        run: () => {
+          const id = cursor.cursorId;
+          if (id === null) return;
+          const element = document.getElementById(listRowDomId('dashboardList', id));
+          if (element === null) return;
+          contextMenu.openOn(element, id);
+        },
+      },
     ],
     [cursor.cursorId],
   );

@@ -206,3 +206,36 @@ describe('Templates on the settings frame', () => {
     expect(within(engineering).getByText('No templates yet')).toBeTruthy();
   });
 });
+
+describe('reaching the row menu without a pointer', () => {
+  /*
+    The ⋯ button and a right-click both reach the row's menu, and neither is a keyboard.
+    Shift+F10 and the Menu key go through the browser's synthesised event, which macOS does
+    not send at all — so the chord is the only way in on the platform this is built on, and
+    it has to open on the cursor row rather than on whichever row is drawn first.
+  */
+  function seedTwo() {
+    return renderScreen([
+      ['team', team()],
+      ['issueTemplate', template('t-any', 'Anything')],
+      ['issueTemplate', template('t-bug', 'Bug report')],
+    ]);
+  }
+
+  it('opens the menu on the cursor row with the . chord', async () => {
+    const user = seedTwo();
+
+    await user.keyboard('.');
+
+    expect(await screen.findByRole('menu', { name: 'Options for Anything' })).toBeTruthy();
+  });
+
+  it('follows the cursor rather than opening on the first row', async () => {
+    const user = seedTwo();
+
+    await user.keyboard('j.');
+
+    expect(await screen.findByRole('menu', { name: 'Options for Bug report' })).toBeTruthy();
+    expect(screen.queryByRole('menu', { name: 'Options for Anything' })).toBeNull();
+  });
+});
