@@ -20,6 +20,7 @@ import type { ReactNode } from 'react';
 import { PriorityIcon, StateIcon, type MenuNode } from '~/components';
 
 import {
+  ArchiveGlyph,
   BellGlyph,
   CalendarGlyph,
   CopyGlyph,
@@ -93,6 +94,7 @@ export interface IssueRowMenuCommands {
   goToLabel?(labelId: string): void;
   toggleSubscribe?(): void;
   toggleFavorite?(): void;
+  askArchive?(): void;
   askDelete?(): void;
 }
 
@@ -300,22 +302,40 @@ export function issueRowMenuItems(
     items.push({ kind: 'separator' }, ...issueActions);
   }
 
+  const lifecycle: MenuNode[] = [];
+  if (commands.askArchive !== undefined) {
+    const askArchive = commands.askArchive;
+    // Archive is the one people actually want and Delete is the one they can reach, which is
+    // how a list ends up with issues deleted that were only finished. Both surfaces already
+    // had the confirm dialogue and the undo offer behind `askArchive`; only the row was
+    // missing.
+    lifecycle.push({
+      id: 'archive',
+      label:
+        target.count === 1
+          ? `Archive ${target.identifier ?? 'issue'}`
+          : `Archive ${String(target.count)} issues`,
+      icon: <ArchiveGlyph />,
+      disabled: !target.editable,
+      onSelect: () => askArchive(),
+    });
+  }
   if (commands.askDelete !== undefined) {
     const askDelete = commands.askDelete;
-    items.push(
-      { kind: 'separator' },
-      {
-        id: 'delete',
-        label:
-          target.count === 1
-            ? `Delete ${target.identifier ?? 'issue'}`
-            : `Delete ${String(target.count)} issues`,
-        icon: <TrashGlyph />,
-        danger: true,
-        disabled: !target.editable,
-        onSelect: () => askDelete(),
-      },
-    );
+    lifecycle.push({
+      id: 'delete',
+      label:
+        target.count === 1
+          ? `Delete ${target.identifier ?? 'issue'}`
+          : `Delete ${String(target.count)} issues`,
+      icon: <TrashGlyph />,
+      danger: true,
+      disabled: !target.editable,
+      onSelect: () => askDelete(),
+    });
+  }
+  if (lifecycle.length > 0) {
+    items.push({ kind: 'separator' }, ...lifecycle);
   }
 
   return items;

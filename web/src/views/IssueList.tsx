@@ -60,6 +60,7 @@ import {
 import { copyText, gitBranchNameFor } from '~/features/github/copy';
 import { issueIdsForAdhocList } from '~/features/issue/adhocList';
 import { buildCreateURL } from '~/features/issue/create-url';
+import { ArchiveGlyph } from '~/features/issue/glyphs';
 import {
   archiveIssues,
   deleteIssues,
@@ -2583,6 +2584,10 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
               closeContext();
               toggleFavorite(engine, viewerId, 'issue', contextRow.id).catch(report);
             },
+            askArchive: () => {
+              closeContext();
+              commands.current.askArchive();
+            },
             askDelete: () => {
               closeContext();
               commands.current.askDelete();
@@ -4017,19 +4022,6 @@ function canEstimate(store: Store, targets: readonly UUID[]): boolean {
  */
 function issueCount(n: number): string {
   return n === 1 ? '1 issue' : `${n} issues`;
-}
-
-function ArchiveGlyph() {
-  return (
-    <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
-      <path
-        d="M2 4.5h12M3.5 4.5v8a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-8M6 7h4M4 2.5h8"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
 }
 
 /**

@@ -238,6 +238,7 @@ database.
 
 ```bash
 pnpm -r lint
+npx prettier --check "web/src/**/*.{ts,tsx,css}" "web/e2e/**/*.ts" "ee/web/**/*.{ts,tsx,css}"
 pnpm -C web typecheck
 pnpm -C web test --run
 pnpm -C web e2e
@@ -248,6 +249,10 @@ go vet ./... && go test ./... -race
 
 Every colour is a `var(--token)`; every shortcut goes through the keymap registry. The
 discipline lints are gates, not suggestions.
+
+Prettier is one of them. It is a separate CI step rather than part of `pnpm -r lint`, so a
+branch that passes everything above and skips it still fails — which is exactly how it was
+found. Run it before pushing, not after.
 
 ## Ship
 

@@ -354,3 +354,62 @@ describe('reaching the row menu without a pointer', () => {
     expect(within(menu).getByRole('menuitem', { name: 'Delete ENG-2' })).toBeTruthy();
   });
 });
+
+/**
+ * Archive was the one item missing from a menu that already had everything behind it.
+ *
+ * The confirm dialogue, the bulk path and the undo offer were all wired to `askArchive` and
+ * reachable only from the selection toolbar — which appears only once something is selected.
+ * So the ordinary gesture, right-click one row, offered Delete and no way to archive, and
+ * Delete is the one that does not come back. Linear puts Archive in the same menu; so does
+ * this now.
+ */
+describe('archiving from the row menu', () => {
+  it('offers Archive above Delete, naming the row', async () => {
+    const { user } = renderList();
+
+    const menu = await openContextMenu('Ship the importer');
+    const items = within(menu)
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent ?? '');
+
+    const archive = items.findIndex((label) => label.startsWith('Archive'));
+    const remove = items.findIndex((label) => label.startsWith('Delete'));
+    expect(archive).toBeGreaterThan(-1);
+    // Order matters: the recoverable one is read first.
+    expect(archive).toBeLessThan(remove);
+    expect(items[archive]).toBe('Archive ENG-2');
+    await user.keyboard('{Escape}');
+  });
+
+  it('asks before archiving, and sends nothing until it is answered', async () => {
+    const { user, mutate } = renderList();
+
+    const menu = await openContextMenu('Ship the importer');
+    await user.click(within(menu).getByRole('menuitem', { name: 'Archive ENG-2' }));
+
+    // The dialogue is the whole point of `askArchive`: an item that archived on click would
+    // be a single mis-click away from emptying somebody's board.
+    expect(await screen.findByRole('dialog')).toBeTruthy();
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it('pluralises for a selection, as the delete row already does', async () => {
+    const { user } = renderList();
+
+    // Select both rows, then right-click one of them: the menu is about the selection, and
+    // renames itself to say so. The cursor lives on the scroller as an `aria-activedescendant`,
+    // so the keyboard goes there — clicking a row would open the issue instead.
+    screen.getByRole('listbox').focus();
+    await user.keyboard('x{ArrowDown}x');
+
+    fireEvent.contextMenu(screen.getByRole('option', { name: /Ship the importer/ }), {
+      clientX: 120,
+      clientY: 240,
+    });
+    const menu = await screen.findByRole('menu', { name: 'Actions for 2 issues' });
+
+    expect(within(menu).getByRole('menuitem', { name: 'Archive 2 issues' })).toBeTruthy();
+    await user.keyboard('{Escape}');
+  });
+});
