@@ -2244,6 +2244,26 @@ func (r *mutationResolver) SnoozeIssue(ctx context.Context, id uuid.UUID, until 
 	return &generated.IssuePayload{Version: int(version), Issue: &out}, nil
 }
 
+// UnsnoozeIssue is the resolver for the unsnoozeIssue field.
+func (r *mutationResolver) UnsnoozeIssue(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*generated.IssuePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	issue, version, err := idempotent(ctx, r.Svc, p, clientID, opID, map[string]any{"id": id},
+		func(ctx context.Context) (model.Issue, int64, error) {
+			return r.Svc.UnsnoozeIssue(ctx, p, id)
+		})
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateIssue(ctx, p, selectionFor(ctx, "IssuePayload").childOrNone("issue", "Issue"), issue)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.IssuePayload{Version: int(version), Issue: &out}, nil
+}
+
 // CreateLabel is the resolver for the createLabel field.
 func (r *mutationResolver) CreateLabel(ctx context.Context, input generated.CreateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) (*generated.LabelPayload, error) {
 	p, err := principalFrom(ctx)
@@ -3668,6 +3688,9 @@ func (r *mutationResolver) UpdateProjectMilestone(ctx context.Context, input gen
 		Description: input.Description,
 		TargetDate:  toDate(input.TargetDate),
 		ClearTarget: deref(input.ClearTarget),
+
+		AfterMilestoneID: input.AfterMilestoneID,
+		MoveToTop:        deref(input.MoveToTop),
 	}
 	milestone, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
 		func(ctx context.Context) (model.ProjectMilestone, int64, error) {

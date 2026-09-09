@@ -147,6 +147,7 @@ enum FavoriteKind {
   INITIATIVE
   CYCLE
   DOCUMENT
+  DASHBOARD
 }
 
 # ---------------------------------------------------------------- types
@@ -2012,6 +2013,10 @@ input UpdateProjectMilestoneInput {
   description: String
   targetDate: String
   clearTarget: Boolean
+  """Places this milestone directly below the one named, within the same project."""
+  afterMilestoneId: UUID
+  """Places it first instead. Cannot be combined with afterMilestoneId."""
+  moveToTop: Boolean
 }
 
 input CreateProjectStatusInput {
@@ -3799,6 +3804,13 @@ type Mutation {
   """The issue being viewed is the duplicate; canonicalId is the one it duplicates."""
   markIssueDuplicate(id: UUID!, canonicalId: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
   snoozeIssue(id: UUID!, until: Time!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
+  """
+  Drops a snooze and puts the issue back in the triage inbox now.
+
+  Idempotent in the plain sense as well as the `@idempotent` one: unsnoozing an issue that
+  is not snoozed succeeds and changes nothing, so a menu item does not have to know.
+  """
+  unsnoozeIssue(id: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
 
   # ---- labels
 

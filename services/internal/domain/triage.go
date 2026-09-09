@@ -222,6 +222,52 @@ func (s *Service) SnoozeIssue(
 	return out, version, err
 }
 
+// UnsnoozeIssue drops a snooze and puts the row back in the inbox.
+//
+// Unlike SnoozeIssue it does not require the issue to still be in triage: a snooze can
+// outlive the status it was set on — accepting an issue clears it, but a bulk import or a
+// restore can leave one behind — and refusing to clear it would strand the row.
+//
+// Unsnoozing something that is not snoozed is a no-op that returns the issue as it stands,
+// so a "Remove snooze" menu item never has to check first.
+func (s *Service) UnsnoozeIssue(
+	ctx context.Context, p *authz.Principal, id uuid.UUID,
+) (model.Issue, int64, error) {
+	var out model.Issue
+	var version int64
+	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
+		before, err := q.GetIssueForUpdate(ctx, id)
+		if err != nil {
+			if store.IsNotFound(err) {
+				return platform.NotFound("issue")
+			}
+			return platform.Internal(err)
+		}
+		team, err := s.requireTeamAccess(ctx, q, p, before.TeamID, authz.ActionIssueUpdate)
+		if err != nil {
+			return err
+		}
+		if before.SnoozedUntil == nil {
+			out = toIssue(store.AsIssueRow(before), team.Key)
+			return nil
+		}
+
+		row, err := q.SetIssueSnooze(ctx, store.SetIssueSnoozeParams{ID: id})
+		if err != nil {
+			return platform.Internal(err)
+		}
+		out = toIssue(store.AsIssueRow(row), team.Key)
+		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
+			EntityType: "issue", EntityID: id, Op: OpUpsert, TeamID: &before.TeamID,
+			Scope:         authz.TeamScope(before.TeamID, team.Private),
+			Payload:       out,
+			ChangedFields: []string{"snoozedUntil"},
+		})
+		return err
+	})
+	return out, version, err
+}
+
 type destState func(context.Context, *store.Queries, store.Team) (store.WorkflowState, error)
 
 func (s *Service) leaveTriage(

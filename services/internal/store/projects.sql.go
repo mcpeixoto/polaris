@@ -380,6 +380,20 @@ func (q *Queries) CreateProjectStatus(ctx context.Context, arg CreateProjectStat
 	return i, err
 }
 
+const firstProjectMilestoneSortOrder = `-- name: FirstProjectMilestoneSortOrder :one
+SELECT sort_order FROM project_milestone
+WHERE project_id = $1 AND archived_at IS NULL
+ORDER BY sort_order
+LIMIT 1
+`
+
+func (q *Queries) FirstProjectMilestoneSortOrder(ctx context.Context, projectID uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, firstProjectMilestoneSortOrder, projectID)
+	var sort_order string
+	err := row.Scan(&sort_order)
+	return sort_order, err
+}
+
 const getDefaultProjectStatus = `-- name: GetDefaultProjectStatus :one
 SELECT id, workspace_id, name, description, color, category, position, is_default,
        archived_at, created_at, updated_at
@@ -593,6 +607,26 @@ func (q *Queries) GetProjectMilestone(ctx context.Context, id uuid.UUID) (Projec
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getProjectMilestoneSortOrderAfter = `-- name: GetProjectMilestoneSortOrderAfter :one
+SELECT sort_order FROM project_milestone
+WHERE project_id = $1 AND archived_at IS NULL
+  AND sort_order > $2
+ORDER BY sort_order
+LIMIT 1
+`
+
+type GetProjectMilestoneSortOrderAfterParams struct {
+	ProjectID uuid.UUID
+	SortOrder string
+}
+
+func (q *Queries) GetProjectMilestoneSortOrderAfter(ctx context.Context, arg GetProjectMilestoneSortOrderAfterParams) (string, error) {
+	row := q.db.QueryRow(ctx, getProjectMilestoneSortOrderAfter, arg.ProjectID, arg.SortOrder)
+	var sort_order string
+	err := row.Scan(&sort_order)
+	return sort_order, err
 }
 
 const getProjectSortOrderAfter = `-- name: GetProjectSortOrderAfter :one

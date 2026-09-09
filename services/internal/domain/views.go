@@ -1120,7 +1120,8 @@ func favoritePosition(
 func validFavoriteKind(kind string) bool {
 	switch kind {
 	case model.FavoriteView, model.FavoriteTeam, model.FavoriteIssue, model.FavoriteLabel, model.FavoriteFolder,
-		model.FavoriteProject, model.FavoriteInitiative, model.FavoriteCycle, model.FavoriteDocument:
+		model.FavoriteProject, model.FavoriteInitiative, model.FavoriteCycle, model.FavoriteDocument,
+		model.FavoriteDashboard:
 		return true
 	}
 	return false
@@ -1268,6 +1269,22 @@ func favoriteTargetScope(
 			return missingFavoriteTarget(err)
 		}
 		return authz.TeamScope(team.ID, team.Private), true, nil
+
+	case model.FavoriteDashboard:
+		d, err := q.GetDashboard(ctx, targetID)
+		if err != nil {
+			return missingFavoriteTarget(err)
+		}
+		if d.WorkspaceID != workspaceID || d.ArchivedAt != nil || d.DeletedAt != nil {
+			return authz.Scope{}, false, nil
+		}
+		// Personal, team or workspace, exactly as scopeForDashboard decides it for the
+		// dashboard itself — a favourite must not widen what it points at.
+		scope, err := scopeForDashboard(ctx, q, d.TeamID, d.OwnerID)
+		if err != nil {
+			return authz.Scope{}, false, err
+		}
+		return scope, true, nil
 
 	case model.FavoriteFolder:
 		f, err := q.GetFavorite(ctx, targetID)

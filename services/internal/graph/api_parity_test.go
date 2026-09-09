@@ -112,7 +112,7 @@ var notInTheAPI = map[string]string{
 // mutatingPrefixes are the verbs that mark a domain method as a write.
 var mutatingPrefixes = []string{
 	"Create", "Update", "Delete", "Archive", "Set", "Add", "Remove", "Clear",
-	"Suspend", "Resolve", "Accept", "Decline", "Snooze", "Mark", "Revoke", "Invite", "Register", "Login",
+	"Suspend", "Resolve", "Accept", "Decline", "Snooze", "Unsnooze", "Mark", "Revoke", "Invite", "Register", "Login",
 	"Rotate", "Prune", "Ensure", "Refresh", "Purge", "Restore", "Retire", "Unretire", "Move", "Start", "Link", "Merge",
 	"Leave", "Apply", "Sweep", "Send", "Grant",
 }

@@ -309,6 +309,7 @@ type Documents = {
     "\n  \n  mutation DeclineTriageIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    declineTriageIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n": typeof types.DeclineTriageIssueDocument,
     "\n  \n  mutation MarkIssueDuplicate($id: UUID!, $canonicalId: UUID!, $clientId: UUID!, $opId: UUID!) {\n    markIssueDuplicate(id: $id, canonicalId: $canonicalId, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n": typeof types.MarkIssueDuplicateDocument,
     "\n  \n  mutation SnoozeIssue($id: UUID!, $until: Time!, $clientId: UUID!, $opId: UUID!) {\n    snoozeIssue(id: $id, until: $until, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n": typeof types.SnoozeIssueDocument,
+    "\n  \n  mutation UnsnoozeIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    unsnoozeIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n": typeof types.UnsnoozeIssueDocument,
     "\n  \n  mutation CreateWorkflowState($input: CreateWorkflowStateInput!, $clientId: UUID!, $opId: UUID!) {\n    createWorkflowState(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      state {\n        ...StateFields\n      }\n    }\n  }\n": typeof types.CreateWorkflowStateDocument,
     "\n  \n  mutation UpdateWorkflowState($input: UpdateWorkflowStateInput!) {\n    updateWorkflowState(input: $input) {\n      version\n      state {\n        ...StateFields\n      }\n    }\n  }\n": typeof types.UpdateWorkflowStateDocument,
     "\n  mutation ArchiveWorkflowState($id: UUID!, $archived: Boolean!) {\n    archiveWorkflowState(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n": typeof types.ArchiveWorkflowStateDocument,
@@ -622,6 +623,7 @@ const documents: Documents = {
     "\n  \n  mutation DeclineTriageIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    declineTriageIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n": types.DeclineTriageIssueDocument,
     "\n  \n  mutation MarkIssueDuplicate($id: UUID!, $canonicalId: UUID!, $clientId: UUID!, $opId: UUID!) {\n    markIssueDuplicate(id: $id, canonicalId: $canonicalId, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n": types.MarkIssueDuplicateDocument,
     "\n  \n  mutation SnoozeIssue($id: UUID!, $until: Time!, $clientId: UUID!, $opId: UUID!) {\n    snoozeIssue(id: $id, until: $until, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n": types.SnoozeIssueDocument,
+    "\n  \n  mutation UnsnoozeIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    unsnoozeIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n": types.UnsnoozeIssueDocument,
     "\n  \n  mutation CreateWorkflowState($input: CreateWorkflowStateInput!, $clientId: UUID!, $opId: UUID!) {\n    createWorkflowState(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      state {\n        ...StateFields\n      }\n    }\n  }\n": types.CreateWorkflowStateDocument,
     "\n  \n  mutation UpdateWorkflowState($input: UpdateWorkflowStateInput!) {\n    updateWorkflowState(input: $input) {\n      version\n      state {\n        ...StateFields\n      }\n    }\n  }\n": types.UpdateWorkflowStateDocument,
     "\n  mutation ArchiveWorkflowState($id: UUID!, $archived: Boolean!) {\n    archiveWorkflowState(id: $id, archived: $archived) {\n      version\n      id\n    }\n  }\n": types.ArchiveWorkflowStateDocument,
@@ -1834,6 +1836,10 @@ export function graphql(source: "\n  \n  mutation MarkIssueDuplicate($id: UUID!,
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  \n  mutation SnoozeIssue($id: UUID!, $until: Time!, $clientId: UUID!, $opId: UUID!) {\n    snoozeIssue(id: $id, until: $until, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation SnoozeIssue($id: UUID!, $until: Time!, $clientId: UUID!, $opId: UUID!) {\n    snoozeIssue(id: $id, until: $until, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation UnsnoozeIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    unsnoozeIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation UnsnoozeIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {\n    unsnoozeIssue(id: $id, clientId: $clientId, opId: $opId) {\n      version\n      issue {\n        ...IssueFields\n      }\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

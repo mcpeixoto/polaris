@@ -1071,3 +1071,76 @@ func containsFavorite(favs []model.Favorite, id uuid.UUID) bool {
 	}
 	return false
 }
+
+// A dashboard is the fifth surface the kind check grew to accept, and the only one whose
+// scope is not fixed by where it lives: the same table holds personal, team and
+// workspace-wide dashboards, so `favoriteTargetScope` has to ask `scopeForDashboard` rather
+// than assume. The property worth pinning is that a favourite cannot widen what it points
+// at — somebody else's personal dashboard is refused with the same words as a uuid that was
+// never issued, or the refusal is an existence oracle.
+func TestAddFavorite_Dashboard(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	admin := f.Principal()
+
+	shared, _, err := svc.CreateDashboard(ctx, admin, domain.CreateDashboardInput{Name: "Velocity"})
+	if err != nil {
+		t.Fatalf("create the dashboard: %v", err)
+	}
+	mine, _, err := svc.CreateDashboard(ctx, admin, domain.CreateDashboardInput{
+		Name: "My burn-up", Private: true,
+	})
+	if err != nil {
+		t.Fatalf("create the personal dashboard: %v", err)
+	}
+
+	fav, _, err := svc.AddFavorite(ctx, admin, model.FavoriteDashboard, shared.ID, nil)
+	if err != nil {
+		t.Fatalf("favourite the dashboard: %v", err)
+	}
+	favs, err := svc.ListFavorites(ctx, admin)
+	if err != nil {
+		t.Fatalf("list favourites: %v", err)
+	}
+	if !containsFavorite(favs, fav.ID) {
+		t.Fatalf("the dashboard favourite is not in the sidebar: %+v", favs)
+	}
+
+	outsiderID := f.NewUser(t, "dash-outsider", "member", true)
+	outsider := f.PrincipalFor(outsiderID, authz.RoleMember, f.TeamID)
+
+	_, _, hidden := svc.AddFavorite(ctx, outsider, model.FavoriteDashboard, mine.ID, nil)
+	if platform.CodeOf(hidden) != platform.CodeValidation {
+		t.Fatalf("favouriting somebody else's personal dashboard gave %v, want a refusal", hidden)
+	}
+	_, _, absent := svc.AddFavorite(ctx, outsider, model.FavoriteDashboard, uuid.Must(uuid.NewV7()), nil)
+	if platform.CodeOf(absent) != platform.CodeValidation {
+		t.Fatalf("favouriting a dashboard that does not exist gave %v, want a refusal", absent)
+	}
+	if hidden.Error() != absent.Error() {
+		t.Fatalf("an invisible dashboard says %q and a missing one says %q; the difference is the oracle", hidden, absent)
+	}
+
+	// The owner keeps their own personal dashboard, so the refusal above is about who is
+	// asking and not about the kind being rejected outright.
+	personal, _, err := svc.AddFavorite(ctx, admin, model.FavoriteDashboard, mine.ID, nil)
+	if err != nil {
+		t.Fatalf("favourite my own personal dashboard: %v", err)
+	}
+
+	if _, err := svc.ArchiveDashboard(ctx, admin, shared.ID, true); err != nil {
+		t.Fatalf("archive the dashboard: %v", err)
+	}
+	favs, err = svc.ListFavorites(ctx, admin)
+	if err != nil {
+		t.Fatalf("list favourites: %v", err)
+	}
+	if containsFavorite(favs, fav.ID) {
+		t.Fatalf("an archived dashboard still shows in the sidebar")
+	}
+	if !containsFavorite(favs, personal.ID) {
+		t.Fatalf("archiving one dashboard dropped the favourite of another")
+	}
+}

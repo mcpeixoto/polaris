@@ -367,6 +367,19 @@ WHERE project_id = $1 AND archived_at IS NULL
 ORDER BY sort_order DESC
 LIMIT 1;
 
+-- name: FirstProjectMilestoneSortOrder :one
+SELECT sort_order FROM project_milestone
+WHERE project_id = $1 AND archived_at IS NULL
+ORDER BY sort_order
+LIMIT 1;
+
+-- name: GetProjectMilestoneSortOrderAfter :one
+SELECT sort_order FROM project_milestone
+WHERE project_id = sqlc.arg(project_id) AND archived_at IS NULL
+  AND sort_order > sqlc.arg(sort_order)
+ORDER BY sort_order
+LIMIT 1;
+
 -- name: UpdateProjectMilestone :one
 UPDATE project_milestone
 SET name        = COALESCE(sqlc.narg(name), name),

@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/peixotolabs/polaris/services/internal/authz"
 	"github.com/peixotolabs/polaris/services/internal/domain"
 	"github.com/peixotolabs/polaris/services/internal/domain/model"
 	"github.com/peixotolabs/polaris/services/internal/platform"
@@ -404,4 +405,162 @@ func TestArchiveProjectStatus_RefusesWhileProjectsUseIt(t *testing.T) {
 	if _, err := svc.ArchiveProjectStatus(ctx, p, canceled.ID, true); err != nil {
 		t.Fatalf("archiving an unused status: %v", err)
 	}
+}
+
+// Milestones could be created in an order and never moved: `ProjectMilestone.sortOrder` was
+// on the wire but `UpdateProjectMilestoneInput` had nothing to change it with. The input
+// grew `afterMilestoneId`/`moveToTop` rather than a raw `sortOrder`, matching every other
+// reorder in the API — the caller names a neighbour and the server mints the fractional key,
+// so two people dragging at once cannot pick the same key.
+func TestUpdateProjectMilestone_PlacesAMilestoneWhereTheCallerAsked(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	project, _, err := svc.CreateProject(ctx, p, domain.CreateProjectInput{
+		Name: "Apollo", TeamIDs: []uuid.UUID{f.TeamID},
+	})
+	if err != nil {
+		t.Fatalf("create the project: %v", err)
+	}
+
+	names := []string{"Alpha", "Beta", "Gamma"}
+	ids := make(map[string]uuid.UUID, len(names))
+	for _, name := range names {
+		ms, _, err := svc.CreateProjectMilestone(ctx, p, domain.CreateProjectMilestoneInput{
+			ProjectID: project.ID, Name: name,
+		})
+		if err != nil {
+			t.Fatalf("create %s: %v", name, err)
+		}
+		ids[name] = ms.ID
+	}
+	if got := milestoneOrder(t, svc, p, project.ID); !equalStrings(got, names) {
+		t.Fatalf("fresh order is %v, want %v", got, names)
+	}
+
+	// Gamma directly below Alpha.
+	alpha := ids["Alpha"]
+	if _, _, err := svc.UpdateProjectMilestone(ctx, p, domain.UpdateProjectMilestoneInput{
+		ID: ids["Gamma"], AfterMilestoneID: &alpha,
+	}); err != nil {
+		t.Fatalf("move Gamma after Alpha: %v", err)
+	}
+	if got := milestoneOrder(t, svc, p, project.ID); !equalStrings(got, []string{"Alpha", "Gamma", "Beta"}) {
+		t.Fatalf("after afterMilestoneId the order is %v, want [Alpha Gamma Beta]", got)
+	}
+
+	// Beta to the front.
+	if _, _, err := svc.UpdateProjectMilestone(ctx, p, domain.UpdateProjectMilestoneInput{
+		ID: ids["Beta"], MoveToTop: true,
+	}); err != nil {
+		t.Fatalf("move Beta to the top: %v", err)
+	}
+	if got := milestoneOrder(t, svc, p, project.ID); !equalStrings(got, []string{"Beta", "Alpha", "Gamma"}) {
+		t.Fatalf("after moveToTop the order is %v, want [Beta Alpha Gamma]", got)
+	}
+
+	// A rename with no ordering field left the order alone, or the two would be entangled
+	// and every edit would shuffle the list.
+	renamed := "Beta prime"
+	if _, _, err := svc.UpdateProjectMilestone(ctx, p, domain.UpdateProjectMilestoneInput{
+		ID: ids["Beta"], Name: &renamed,
+	}); err != nil {
+		t.Fatalf("rename Beta: %v", err)
+	}
+	if got := milestoneOrder(t, svc, p, project.ID); !equalStrings(got, []string{"Beta prime", "Alpha", "Gamma"}) {
+		t.Fatalf("a rename moved the row: order is %v", got)
+	}
+}
+
+func TestUpdateProjectMilestone_RefusesAnAnchorItCannotHonour(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	one, _, err := svc.CreateProject(ctx, p, domain.CreateProjectInput{
+		Name: "Apollo", TeamIDs: []uuid.UUID{f.TeamID},
+	})
+	if err != nil {
+		t.Fatalf("create the first project: %v", err)
+	}
+	two, _, err := svc.CreateProject(ctx, p, domain.CreateProjectInput{
+		Name: "Gemini", TeamIDs: []uuid.UUID{f.TeamID},
+	})
+	if err != nil {
+		t.Fatalf("create the second project: %v", err)
+	}
+	mine, _, err := svc.CreateProjectMilestone(ctx, p, domain.CreateProjectMilestoneInput{
+		ProjectID: one.ID, Name: "Alpha",
+	})
+	if err != nil {
+		t.Fatalf("create the milestone: %v", err)
+	}
+	theirs, _, err := svc.CreateProjectMilestone(ctx, p, domain.CreateProjectMilestoneInput{
+		ProjectID: two.ID, Name: "Beta",
+	})
+	if err != nil {
+		t.Fatalf("create the other milestone: %v", err)
+	}
+
+	cases := []struct {
+		name string
+		in   domain.UpdateProjectMilestoneInput
+	}{
+		{"after and top at once", domain.UpdateProjectMilestoneInput{
+			ID: mine.ID, AfterMilestoneID: &theirs.ID, MoveToTop: true,
+		}},
+		{"after itself", domain.UpdateProjectMilestoneInput{
+			ID: mine.ID, AfterMilestoneID: &mine.ID,
+		}},
+		{"after a milestone on another project", domain.UpdateProjectMilestoneInput{
+			ID: mine.ID, AfterMilestoneID: &theirs.ID,
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if _, _, err := svc.UpdateProjectMilestone(ctx, p, c.in); platform.CodeOf(err) != platform.CodeValidation {
+				t.Fatalf("gave %v, want a refusal", err)
+			}
+		})
+	}
+
+	// An anchor that was never issued is refused too, rather than silently ignored.
+	absent := uuid.Must(uuid.NewV7())
+	if _, _, err := svc.UpdateProjectMilestone(ctx, p, domain.UpdateProjectMilestoneInput{
+		ID: mine.ID, AfterMilestoneID: &absent,
+	}); platform.CodeOf(err) != platform.CodeValidation {
+		t.Fatalf("an anchor that does not exist gave %v, want a refusal", err)
+	}
+}
+
+func milestoneOrder(
+	t *testing.T, svc *domain.Service, p *authz.Principal, projectID uuid.UUID,
+) []string {
+	t.Helper()
+	rows, err := svc.ListProjectMilestones(context.Background(), p, projectID)
+	if err != nil {
+		t.Fatalf("list milestones: %v", err)
+	}
+	out := make([]string, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, row.Name)
+	}
+	return out
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

@@ -1131,6 +1131,7 @@ type ComplexityRoot struct {
 		SubmitIntegration              func(childComplexity int, input SubmitIntegrationInput) int
 		SuspendUser                    func(childComplexity int, userID uuid.UUID, suspended bool) int
 		UnretireTeam                   func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		UnsnoozeIssue                  func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateAskForm                  func(childComplexity int, input UpdateAskFormInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateAttachment               func(childComplexity int, input UpdateAttachmentInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateComment                  func(childComplexity int, id uuid.UUID, body string, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -2112,6 +2113,7 @@ type MutationResolver interface {
 	DeclineTriageIssue(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*IssuePayload, error)
 	MarkIssueDuplicate(ctx context.Context, id uuid.UUID, canonicalID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*IssuePayload, error)
 	SnoozeIssue(ctx context.Context, id uuid.UUID, until time.Time, clientID *uuid.UUID, opID *uuid.UUID) (*IssuePayload, error)
+	UnsnoozeIssue(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*IssuePayload, error)
 	CreateLabel(ctx context.Context, input CreateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) (*LabelPayload, error)
 	UpdateLabel(ctx context.Context, input UpdateLabelInput, clientID *uuid.UUID, opID *uuid.UUID) (*LabelPayload, error)
 	ArchiveLabel(ctx context.Context, id uuid.UUID, archived bool) (*DeletePayload, error)
@@ -8035,6 +8037,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UnretireTeam(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.unsnoozeIssue":
+		if e.ComplexityRoot.Mutation.UnsnoozeIssue == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_unsnoozeIssue_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UnsnoozeIssue(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
 	case "Mutation.updateAskForm":
 		if e.ComplexityRoot.Mutation.UpdateAskForm == nil {
 			break
@@ -12791,6 +12804,7 @@ enum FavoriteKind {
   INITIATIVE
   CYCLE
   DOCUMENT
+  DASHBOARD
 }
 
 # ---------------------------------------------------------------- types
@@ -14656,6 +14670,10 @@ input UpdateProjectMilestoneInput {
   description: String
   targetDate: String
   clearTarget: Boolean
+  """Places this milestone directly below the one named, within the same project."""
+  afterMilestoneId: UUID
+  """Places it first instead. Cannot be combined with afterMilestoneId."""
+  moveToTop: Boolean
 }
 
 input CreateProjectStatusInput {
@@ -16443,6 +16461,13 @@ type Mutation {
   """The issue being viewed is the duplicate; canonicalId is the one it duplicates."""
   markIssueDuplicate(id: UUID!, canonicalId: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
   snoozeIssue(id: UUID!, until: Time!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
+  """
+  Drops a snooze and puts the issue back in the triage inbox now.
+
+  Idempotent in the plain sense as well as the ` + "`" + `@idempotent` + "`" + ` one: unsnoozing an issue that
+  is not snoozed succeeds and changes nothing, so a menu item does not have to know.
+  """
+  unsnoozeIssue(id: UUID!, clientId: UUID, opId: UUID): IssuePayload! @idempotent
 
   # ---- labels
 
@@ -24367,6 +24392,36 @@ func (ec *executionContext) field_Mutation_suspendUser_args(ctx context.Context,
 }
 
 func (ec *executionContext) field_Mutation_unretireTeam_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "clientId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "opId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["opId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_unsnoozeIssue_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
@@ -46995,6 +47050,63 @@ func (ec *executionContext) fieldContext_Mutation_snoozeIssue(ctx context.Contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_snoozeIssue_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_unsnoozeIssue(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_unsnoozeIssue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UnsnoozeIssue(ctx, fc.Args["id"].(uuid.UUID), fc.Args["clientId"].(*uuid.UUID), fc.Args["opId"].(*uuid.UUID))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Idempotent == nil {
+					var zeroVal *IssuePayload
+					return zeroVal, errors.New("directive idempotent is not implemented")
+				}
+				return ec.Directives.Idempotent(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *IssuePayload) graphql.Marshaler {
+			return ec.marshalNIssuePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐIssuePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_unsnoozeIssue(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_IssuePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_unsnoozeIssue_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -74684,7 +74796,7 @@ func (ec *executionContext) unmarshalInputUpdateProjectMilestoneInput(ctx contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "name", "description", "targetDate", "clearTarget"}
+	fieldsInOrder := [...]string{"id", "name", "description", "targetDate", "clearTarget", "afterMilestoneId", "moveToTop"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -74726,6 +74838,20 @@ func (ec *executionContext) unmarshalInputUpdateProjectMilestoneInput(ctx contex
 				return it, err
 			}
 			it.ClearTarget = data
+		case "afterMilestoneId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("afterMilestoneId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AfterMilestoneID = data
+		case "moveToTop":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("moveToTop"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MoveToTop = data
 		}
 	}
 	return it, nil
@@ -83677,6 +83803,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "snoozeIssue":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_snoozeIssue(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unsnoozeIssue":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_unsnoozeIssue(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

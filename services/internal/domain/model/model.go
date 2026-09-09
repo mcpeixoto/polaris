@@ -654,6 +654,7 @@ const (
 	FavoriteInitiative = "initiative"
 	FavoriteCycle      = "cycle"
 	FavoriteDocument   = "document"
+	FavoriteDashboard  = "dashboard"
 )
 
 // IssueTemplate prefills an issue.

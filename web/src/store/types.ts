@@ -783,7 +783,16 @@ export interface Favorite {
 }
 
 export type FavoriteKind =
-  'view' | 'team' | 'issue' | 'label' | 'folder' | 'project' | 'initiative' | 'cycle' | 'document';
+  | 'view'
+  | 'team'
+  | 'issue'
+  | 'label'
+  | 'folder'
+  | 'project'
+  | 'initiative'
+  | 'cycle'
+  | 'document'
+  | 'dashboard';
 
 export interface IssueTemplate {
   readonly id: UUID;

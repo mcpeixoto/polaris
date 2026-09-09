@@ -698,3 +698,46 @@ describe('a right-click on a favourite', () => {
     expect(call[0].variables.input).toMatchObject({ id: 'f-1', folderId: 'f-folder' });
   });
 });
+
+/**
+ * A dashboard is the fifth kind the sidebar learned, and the one the kind list called out as
+ * impossible until it grew. Same three properties as the four above — the href, the archived
+ * target, the target the replica has never seen — because a favourite row that goes nowhere
+ * is the failure this section cannot afford.
+ */
+describe('favourites for a dashboard', () => {
+  const dashboard = {
+    id: 'db-1',
+    workspaceId: WORKSPACE,
+    name: 'Velocity',
+    description: '',
+    filter: {},
+    sortOrder: 'V',
+    createdAt: AT,
+    updatedAt: AT,
+  };
+
+  it('renders a favourited dashboard at its detail route', () => {
+    renderShell(
+      seeded([['dashboard', dashboard as unknown as Entity], favorite('f-1', 'dashboard', 'db-1')]),
+    );
+    expect(screen.getByRole('link', { name: 'Velocity' }).getAttribute('href')).toBe(
+      '/dashboard/db-1',
+    );
+  });
+
+  it('drops the row when the dashboard is archived', () => {
+    renderShell(
+      seeded([
+        ['dashboard', { ...dashboard, archivedAt: AT } as unknown as Entity],
+        favorite('f-1', 'dashboard', 'db-1'),
+      ]),
+    );
+    expect(screen.queryByRole('link', { name: 'Velocity' })).toBeNull();
+  });
+
+  it('drops the row when the dashboard is not in the replica at all', () => {
+    renderShell(seeded([favorite('f-1', 'dashboard', 'db-1')]));
+    expect(screen.queryByRole('link', { name: 'Velocity' })).toBeNull();
+  });
+});
