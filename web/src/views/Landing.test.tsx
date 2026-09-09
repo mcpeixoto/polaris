@@ -248,13 +248,21 @@ describe('Landing', () => {
       expect(screen.getAllByRole('link', { name: /^Download Polaris for/ }).length).toBe(5);
     });
 
+    /**
+     * Windows only, now. The mac build is signed and notarised — the release workflow will
+     * not publish one that `spctl` refuses — so a note about Gatekeeper there would describe
+     * a dialog that no longer appears.
+     */
     it('warns about the unsigned builds before the operating system does', () => {
       const { container } = renderOn(MAC);
       const text = container.textContent ?? '';
       expect(text).toContain('not signed yet');
-      expect(text).toContain('right-click Polaris, choose Open');
       expect(text).toContain('SmartScreen');
       expect(text).toContain('Run anyway');
+      // And says nothing about Gatekeeper: the mac build is signed and notarised, and the
+      // release workflow refuses to publish one that `spctl` does not accept. Instructions
+      // for a dialog that no longer appears are their own kind of confusing.
+      expect(text).not.toContain('right-click Polaris, choose Open');
     });
 
     it('is reachable from the header and the footer, not only from the band', () => {
