@@ -362,7 +362,12 @@ export function InitiativeDetail() {
               reading a word of the page. */}
           <div className={styles.pills}>
             <InitiativeProperties initiativeId={initiative.id} variant="row" />
-            <div className={styles.health} role="group" aria-label="Initiative health">
+            {/* Marked rather than named, the way the project header's cell is (#233). An
+                accessible name with "health" in it also answers the update composer's own
+                `getByLabel('Health')` under Playwright's substring matching, and the badge
+                inside already says the word and the age to a screen reader — so there is
+                nothing here for ARIA to add, only something for a test to aim at. */}
+            <div className={styles.health} data-testid="initiative-health">
               {latest === undefined ? (
                 <span className={styles.muted}>No updates</span>
               ) : (

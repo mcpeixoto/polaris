@@ -157,11 +157,11 @@ describe('the initiative header', () => {
     mount();
 
     expect(within(header()).queryByRole('button', { name: 'Planned' })).toBeNull();
-    expect(within(header()).queryByRole('group', { name: 'Initiative health' })).toBeNull();
+    expect(within(header()).queryByTestId('initiative-health')).toBeNull();
     // Still on the page, just not in the header: the pill row and the rail both carry the
     // status, and the health sits at the end of the pill row.
     expect(screen.getAllByRole('button', { name: 'Planned' }).length).toBe(2);
-    expect(screen.getByRole('group', { name: 'Initiative health' })).toBeTruthy();
+    expect(screen.getByTestId('initiative-health')).toBeTruthy();
   });
 
   it('names its sections in a row of their own, under the header', () => {

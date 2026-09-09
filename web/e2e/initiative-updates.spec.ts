@@ -7,12 +7,16 @@
  * failure this is for. Deleting the newest post has to fall health back to the one before it
  * rather than leaving the initiative asserting something nobody said.
  *
- * The badge is found by its name rather than by its position. It used to be read as "the
+ * The badge is found by a marker rather than by its position. It used to be read as "the
  * element around the h1", which was true only while health and the heading shared a parent;
  * they no longer do — the heading and the properties are in the reading column, and health
- * is at the end of the property row. A named region survives that, and the next move too.
- * It also means the assertions belong on Overview, where the derived value is drawn, so the
- * ones that follow an edit made on Activity come back first.
+ * is at the end of the property row.
+ *
+ * A test id rather than an accessible name, matching the project header's cell: `getByLabel`
+ * matches on substring, so any name with "health" in it also answers the `getByLabel('Health')`
+ * below, which belongs to the composer's own select. It also means these assertions belong on
+ * Overview, where the derived value is drawn, so the ones that follow an edit made on Activity
+ * come back first.
  *
  * The edit and the delete are author-only on the server, so the affordances are drawn for
  * the author alone; a member looking at somebody else's post must not be offered a button
@@ -32,15 +36,13 @@ async function newInitiative(page: Page, name: string): Promise<void> {
   await page.getByRole('heading', { name, level: 1 }).waitFor();
 }
 
-/** The derived health badge, named rather than located. Drawn on the Overview tab. */
+/** The derived health badge, marked rather than located. Drawn on the Overview tab. */
 function health(page: Page) {
-  return page.getByRole('group', { name: 'Initiative health' });
+  return page.getByTestId('initiative-health');
 }
 
 async function postUpdate(page: Page, healthOption: string, body: string): Promise<void> {
-  // Exact: the overview also carries a region called "Initiative health", and Playwright
-  // matches a label by substring unless told otherwise.
-  await page.getByLabel('Health', { exact: true }).selectOption({ label: healthOption });
+  await page.getByLabel('Health').selectOption({ label: healthOption });
   await page.getByLabel('Update', { exact: true }).fill(body);
   await page.getByRole('button', { name: 'Post update' }).click();
   // The compose box clears once the mutation has resolved.
@@ -60,7 +62,7 @@ test('an author edits their initiative update and the derived health follows', a
 
   await page.getByRole('link', { name: 'Activity' }).click();
   await page.getByRole('button', { name: /^Edit update from/ }).click();
-  await page.getByLabel('Health', { exact: true }).selectOption('off_track');
+  await page.getByLabel('Health').selectOption('off_track');
   await page.getByLabel('Edit update', { exact: true }).fill('Vendor pulled out.');
   await page.getByRole('button', { name: 'Save changes' }).click();
 

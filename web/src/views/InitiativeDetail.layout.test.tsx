@@ -210,7 +210,7 @@ describe('the initiative reading column', () => {
 
   it('says the health at the end of the pill row', () => {
     mount();
-    const health = screen.getByRole('group', { name: 'Initiative health' });
+    const health = screen.getByTestId('initiative-health');
 
     expect(within(health).getByText('No updates')).toBeTruthy();
     expect(rail().contains(health)).toBe(false);
