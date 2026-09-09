@@ -117,7 +117,7 @@ interface Ranked {
   readonly rank: number;
 }
 
-function rankProjects(
+export function rankProjects(
   store: Store,
   viewerId: UUID | null,
   teamIds: readonly UUID[],

@@ -44,6 +44,12 @@ export interface IssueComposerSeed {
   readonly labelIds?: readonly UUID[];
   readonly projectId?: UUID;
   readonly projectMilestoneId?: UUID;
+  /**
+   * Files the new issue under this one. Not reachable from a URL — no documented parameter
+   * names a parent — but the composer is the only thing that can file a sub-issue with a
+   * title somebody typed, and "Create related ▸ Sub-issue…" needs exactly that.
+   */
+  readonly parentId?: UUID;
   readonly templateId?: UUID;
   /** A saved draft this seed is resuming. Submitting or discarding clears it. */
   readonly draftId?: UUID;

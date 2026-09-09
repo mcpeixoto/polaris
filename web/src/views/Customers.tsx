@@ -19,13 +19,34 @@
 import { useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router';
 
-import { useKeyContext, useKeymap } from '~/app/keymap';
-import { Avatar, Button, EmptyState, Input, SegmentedControl } from '~/components';
-import { formatCustomerStatus } from '~/features/customers/mutations';
+import { useEngine } from '~/app/context';
+import { useActions, useKeyContext, useKeymap } from '~/app/keymap';
+import {
+  Avatar,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  IconButton,
+  Input,
+  Menu,
+  SegmentedControl,
+  type MenuNode,
+} from '~/components';
+import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
+import {
+  archiveCustomer,
+  formatCustomerStatus,
+  updateCustomer,
+} from '~/features/customers/mutations';
 import { EntityLoading, useStoreSettled } from '~/features/entity-gate/EntityGate';
+import { copyText } from '~/features/github/copy';
+import { DotsGlyph } from '~/features/issue/glyphs';
+import { report } from '~/features/issue/mutations';
+import { useContextMenu } from '~/hooks/useContextMenu';
 import { listRowDomId, useListCursor } from '~/hooks/useListCursor';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerRole } from '~/hooks/useViewer';
+import { ApiError } from '~/sync/api';
 import type { CustomerStatus, Store, UUID } from '~/store';
 import styles from './Customers.module.css';
 
@@ -60,6 +81,7 @@ interface CustomerRow {
 
 export function Customers() {
   const navigate = useNavigate();
+  const engine = useEngine();
   const { registry, context } = useKeymap();
   const viewerRole = useViewerRole();
   // An empty replica and an empty workspace look identical from here, and only one of them
@@ -70,6 +92,17 @@ export function Customers() {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [sort, setSort] = useState<Sort>('name');
+  const [failure, setFailure] = useState<string | null>(null);
+  /** Which customer archive was asked about, and whether its request is in flight. */
+  const [confirming, setConfirming] = useState<{ readonly id: UUID; readonly name: string } | null>(
+    null,
+  );
+  const [archiving, setArchiving] = useState(false);
+  // One ⋯ menu shared by every row, anchored to whichever button opened it: a trigger ref
+  // per row would be a ref per customer, rebuilt on every delta.
+  const [rowMenuId, setRowMenuId] = useState<UUID | null>(null);
+  const [rowMenuOpen, setRowMenuOpen] = useState(false);
+  const rowMenuTrigger = useRef<HTMLButtonElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   const workspace = useLiveQuery(
@@ -109,6 +142,35 @@ export function Customers() {
     onOpen: (id) => void navigate(`/customer/${id}`),
   });
 
+  const contextMenu = useContextMenu<UUID>({
+    onOpen: (id) => cursor.setCursor(id),
+    returnFocusTo: scrollerRef,
+  });
+
+  useActions(
+    [
+      {
+        // Archive and the status change live in the row menu, and a Mac laptop sends
+        // neither Shift+F10 nor a Menu key — so without a chord the whole of it was a
+        // pointer-only affordance on a screen whose own search box is keyboard-first.
+        id: 'customers.actions',
+        title: 'Show actions for the customer',
+        keys: ['.'],
+        when: 'list',
+        group: 'Customers',
+        enabled: () => cursor.cursorId !== null,
+        run: () => {
+          const id = cursor.cursorId;
+          if (id === null) return;
+          const element = document.getElementById(listRowDomId('customerList', id));
+          if (element === null) return;
+          contextMenu.openOn(element, id);
+        },
+      },
+    ],
+    [],
+  );
+
   // A guest sees nothing customer-shaped, the sidebar link included — so the URL typed in
   // by hand has to say so too. The role comes from the session because a guest's replica
   // holds no `user` rows to read a profile out of.
@@ -117,6 +179,87 @@ export function Customers() {
   }
 
   const disabled = workspace !== null && !workspace.customerRequestsEnabled;
+
+  const closeMenus = () => {
+    setRowMenuOpen(false);
+    setRowMenuId(null);
+    contextMenu.close();
+  };
+
+  /**
+   * One array, drawn by the ⋯ button and by the right-click alike.
+   *
+   * No favourites row: `FavoriteKind` has no `customer`, so there is nothing to write. No
+   * Delete either — the API archives a customer and never deletes one, and a row that
+   * promised otherwise would be a lie with a confirm dialog on it.
+   */
+  const itemsFor = (row: CustomerRow): MenuNode[] =>
+    entityRowMenuItems(
+      { noun: 'customer', name: row.name },
+      {
+        open: () => {
+          closeMenus();
+          void navigate(`/customer/${row.id}`);
+        },
+        openLabel: 'Open customer',
+        copyLink: () => {
+          closeMenus();
+          void copyText(`${window.location.origin}/customer/${row.id}`);
+        },
+        properties: [
+          {
+            kind: 'submenu',
+            id: 'status',
+            label: 'Status',
+            items: STATUS_OPTIONS.filter((option) => option.value !== 'all').map((option) => ({
+              id: `status-${option.value}`,
+              label: option.label,
+              selected: option.value === row.status,
+              onSelect: () => {
+                closeMenus();
+                if (option.value === row.status) return;
+                setFailure(null);
+                updateCustomer(engine, row.id, {
+                  status: option.value as CustomerStatus,
+                }).catch((error: unknown) => {
+                  setFailure(
+                    error instanceof ApiError && error.message !== ''
+                      ? error.message
+                      : 'That status could not be saved.',
+                  );
+                  report(error);
+                });
+              },
+            })),
+          },
+        ],
+        archive: () => {
+          closeMenus();
+          setFailure(null);
+          setConfirming({ id: row.id, name: row.name });
+        },
+        archiveLabel: 'Archive customer',
+      },
+    );
+
+  const confirmArchive = () => {
+    if (confirming === null) return;
+    setArchiving(true);
+    setFailure(null);
+    void archiveCustomer(engine, confirming.id)
+      .then(() => setConfirming(null))
+      .catch((error: unknown) =>
+        setFailure(
+          error instanceof ApiError && error.message !== ''
+            ? error.message
+            : 'That customer could not be archived.',
+        ),
+      )
+      .finally(() => setArchiving(false));
+  };
+
+  const menuRow = rows.find((row) => row.id === rowMenuId) ?? null;
+  const contextRow = rows.find((row) => row.id === contextMenu.id) ?? null;
 
   return (
     <div className={styles.screen}>
@@ -197,7 +340,12 @@ export function Customers() {
                   key={row.id}
                   {...cursor.rowProps(row.id)}
                   role="option"
-                  className={row.id === cursor.cursorId ? styles.cursorItem : undefined}
+                  className={[styles.item, row.id === cursor.cursorId ? styles.cursorItem : null]
+                    .filter(Boolean)
+                    .join(' ')}
+                  onContextMenu={(event) => {
+                    contextMenu.openFromEvent(event, row.id);
+                  }}
                 >
                   <Link
                     to={`/customer/${row.id}`}
@@ -224,12 +372,70 @@ export function Customers() {
                       {row.requestCount === 1 ? '1 request' : `${row.requestCount} requests`}
                     </span>
                   </Link>
+                  <IconButton
+                    aria-label={`Options for ${row.name}`}
+                    size="sm"
+                    className={styles.menuButton}
+                    icon={<DotsGlyph />}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      rowMenuTrigger.current = event.currentTarget;
+                      setRowMenuId(row.id);
+                      cursor.setCursor(row.id);
+                      setRowMenuOpen(true);
+                    }}
+                  />
                 </div>
               ))}
             </div>
           )}
         </>
       )}
+
+      {/* A refusal that has nowhere else to go. While the confirmation is up it is shown
+          inside the dialog instead, beside the button that was refused. */}
+      {failure === null || confirming !== null ? null : (
+        <p className={styles.error} role="alert">
+          {failure}
+        </p>
+      )}
+
+      <Menu
+        open={rowMenuOpen && menuRow !== null}
+        onClose={closeMenus}
+        trigger={rowMenuTrigger}
+        label={menuRow === null ? 'Customer options' : `Options for ${menuRow.name}`}
+        keysPresentation="kbd"
+        density="compact"
+        items={menuRow === null ? [] : itemsFor(menuRow)}
+      />
+
+      {contextMenu.at === null ? null : <div {...contextMenu.anchorProps} />}
+      <Menu
+        open={contextMenu.at !== null && contextRow !== null}
+        onClose={contextMenu.close}
+        trigger={contextMenu.anchorRef}
+        label={contextRow === null ? 'Customer options' : `Options for ${contextRow.name}`}
+        keysPresentation="kbd"
+        density="compact"
+        items={contextRow === null ? [] : itemsFor(contextRow)}
+      />
+
+      <ConfirmDialog
+        open={confirming !== null}
+        title={confirming === null ? 'Archive this customer?' : `Archive ${confirming.name}?`}
+        consequence="It leaves this list. Requests already attached to issues stay there. There is no archives page for customers yet, so bringing it back is an API call."
+        confirmLabel="Archive"
+        destructive
+        busy={archiving}
+        error={confirming === null ? undefined : (failure ?? undefined)}
+        onConfirm={confirmArchive}
+        onClose={() => {
+          if (archiving) return;
+          setConfirming(null);
+          setFailure(null);
+        }}
+      />
     </div>
   );
 }

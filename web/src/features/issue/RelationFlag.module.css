@@ -1,0 +1,19 @@
+/*
+ * The relation ramp, and only it. `08-ui-composition.md`: priority uses the priority ramp,
+ * workflow state uses the state tokens, relation flags use the relation tokens — a theme
+ * that recolours urgency must not silently recolour "blocked".
+ */
+.flag {
+  display: inline-flex;
+  flex: none;
+  width: var(--space-3);
+  height: var(--space-3);
+}
+
+.flagBlocked {
+  color: var(--relation-blocked);
+}
+
+.flagBlocking {
+  color: var(--relation-blocking);
+}
