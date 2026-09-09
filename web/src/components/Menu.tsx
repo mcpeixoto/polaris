@@ -81,6 +81,19 @@ export interface MenuSubmenu {
   readonly icon?: ReactNode;
   readonly disabled?: boolean;
   readonly items: readonly MenuNode[];
+  /**
+   * Adds a filter box to the submenu, on the same terms as the top-level `filterable`.
+   *
+   * A submenu is a grouping device, so most of them are short enough that a filter box is
+   * noise. The exception is the one that made this necessary: an assignee or project
+   * submenu across a real workspace is sixty rows, and type-ahead does not reach inside a
+   * submenu — it matches the parent row and stops there — so without this the only way in
+   * is to scroll.
+   */
+  readonly filterable?: boolean;
+  readonly filterPlaceholder?: string;
+  /** Shown when the submenu's filter matches nothing. */
+  readonly emptyLabel?: string;
 }
 
 export interface MenuSeparator {
@@ -779,6 +792,11 @@ export function Menu({
         // Only in a submenu. At the top level the key belongs to whatever is behind the
         // menu — a caret in the field the picker was opened from, usually.
         if (!nested) return;
+        // A filtered submenu has a caret of its own, and moving it is what the key means
+        // while there is text to move through. Going back is what it means once the field
+        // is empty, which is also the state a user who wants to leave has just reached by
+        // deleting what they typed.
+        if (filterable && filter !== '') return;
         consume(event);
         onClose();
         return;
@@ -1034,6 +1052,9 @@ export function Menu({
           label={searchTextOf(openSubmenuNode)}
           placement="right-start"
           nested
+          filterable={openSubmenuNode.filterable}
+          filterPlaceholder={openSubmenuNode.filterPlaceholder}
+          emptyLabel={openSubmenuNode.emptyLabel}
           keysPresentation={keysPresentation}
           density={density}
         />
