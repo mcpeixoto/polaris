@@ -269,7 +269,20 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm -C web exec playwright install --with-deps chromium
+      # `--with-deps` runs `apt-get update`, which reads every repo the runner image has
+      # configured — including Google's Chrome one, which periodically serves a Packages.gz
+      # whose hash disagrees with its own Release file and fails the whole update. Playwright
+      # brings its own Chromium and never wanted that repo; dropping it takes a third party's
+      # mirror out of the path of every pull request.
+      #
+      # Matched on the URL rather than on a filename: the first attempt removed
+      # `google-chrome.list` and the runner still had the repo, because the image is free to
+      # name that file what it likes and to write it in either apt format.
+      - name: Install the browser, without a repo we do not use
+        run: |
+          sudo grep -rl 'dl\.google\.com' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null \
+            | sudo xargs -r rm -v -f
+          pnpm -C web exec playwright install --with-deps chromium
 
       - name: Migrate
         run: go run ./cmd/polarisctl migrate up
@@ -300,7 +313,10 @@ jobs:
 
       - name: Server logs on failure
         if: failure()
-        run: tail -200 /tmp/api.log /tmp/sync.log /tmp/worker.log
+        # `-n 200`, not `-200`: the short form is rejected with more than one file
+        # ("option used in invalid context"), so this step has been failing instead of
+        # printing the logs it exists to print.
+        run: tail -n 200 /tmp/api.log /tmp/sync.log /tmp/worker.log
 
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -318,6 +334,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: bash scripts/lint-keymap.sh
+      # A chord drawn in a menu against the chords the keymap actually binds. `MenuItem.keys`
+      # is typed by hand at every call site, so a renamed or removed binding leaves the menu
+      # teaching a key nothing listens for — confident, wrong, and shipped in the interface.
+      - run: node scripts/lint-menu-chords.mjs
       - run: bash scripts/lint-tokens.sh
       # Ten ad hoc breakpoints is not a responsive design, it is ten surfaces each reflowing
       # at a window size none of the others agree with. A media condition cannot reference a

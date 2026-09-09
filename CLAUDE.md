@@ -243,7 +243,7 @@ pnpm -C web test --run
 pnpm -C web e2e
 go vet ./... && go test ./... -race
 ./scripts/lint-imports.sh && ./scripts/lint-keymap.sh && ./scripts/lint-tokens.sh \
-  && ./scripts/lint-routes.sh && ./scripts/lint-compose.sh
+  && ./scripts/lint-routes.sh && ./scripts/lint-compose.sh && node scripts/lint-menu-chords.mjs
 ```
 
 Every colour is a `var(--token)`; every shortcut goes through the keymap registry. The
