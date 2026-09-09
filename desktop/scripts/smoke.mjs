@@ -184,9 +184,25 @@ async function main() {
         expression: PROBE,
         returnByValue: true,
       });
-      state = JSON.parse(result.result.value);
+      // An evaluate against a context that is not there yet answers with no value at all —
+      // `exceptionDetails` and an undefined result — and parsing that threw `"undefined" is
+      // not valid JSON` on the *first* poll, which defeated the whole point of polling. The
+      // window can take a moment to exist after the target is debuggable, so a miss here is
+      // "not yet", not "broken".
+      const value = result.result.value;
+      if (typeof value !== 'string') {
+        await sleep(500);
+        continue;
+      }
+      state = JSON.parse(value);
       if (state.mounted > 0) break;
       await sleep(500);
+    }
+
+    if (state === null) {
+      throw new Error(
+        `the renderer never answered the probe within ${String(RENDER_TIMEOUT_MS)}ms`,
+      );
     }
 
     const problems = cdp.events
