@@ -1051,6 +1051,17 @@ export interface Initiative {
   readonly workspaceId: UUID;
   readonly name: string;
   readonly description: string;
+  readonly icon?: string;
+  /**
+   * Optional in the replica, `String!` on the wire.
+   *
+   * Every initiative the server sends carries a colour — the column is NOT NULL with a
+   * default — so this is never actually absent on a row that arrived through sync. It is
+   * optional here because a required field would be a breaking change to every fixture and
+   * every provisional row that predates the column, for a value each reader already has to
+   * have a default for anyway. Read it as `initiative.color ?? DEFAULT_ENTITY_COLOR`.
+   */
+  readonly color?: string;
   readonly status: InitiativeStatus;
   readonly priority: number;
   readonly ownerId?: UUID;

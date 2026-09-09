@@ -1,39 +1,92 @@
 /*
- * A panel of glyphs. The surface is components/Popover; everything here is the grid inside it.
+ * A panel of glyphs. The surface is components/Popover; everything here is what goes in it.
  *
- * The width is fixed rather than fluid because the grid is: ten columns of one emoji is what
- * makes the four groups scannable as blocks instead of as a wrapping paragraph.
+ * The width is fixed rather than fluid because the grid is: twelve columns of one glyph is
+ * what makes a hundred and fifty icons scannable as a block instead of as a wrapping
+ * paragraph, and it is the width the tab row, the colour dots and the search field are all
+ * sized against.
  */
 
 .panel {
-  width: 300px;
-  max-height: 420px;
-  overflow-y: auto;
+  width: 340px;
+  gap: var(--space-2);
 }
 
-.group {
+.tabs {
+  padding-inline: var(--space-1);
+}
+
+/* The colour row: ten dots, a hairline, and the whole palette behind the last one. */
+.colors {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: var(--space-1);
+  padding-inline: var(--space-1);
 }
 
-/* Secondary and not tertiary: this sits on `--bg-elevated`, where tertiary fails body text in
-   dark. See 08-ui-composition.md. */
-.heading {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  line-height: var(--line-height-none);
+/*
+ * A dot is a button whose fill is the value, so neither the hover nor the pressed state can
+ * be a colour change — both are rings around it. The pressed ring is the one ColorPicker
+ * already draws on the swatch it is chosen from, deliberately, so the ten dots here and the
+ * sixteen swatches one click behind them mark "this one" identically. Selection is announced
+ * by aria-pressed, so the ring is not carrying the meaning on its own.
+ */
+.dot {
+  flex: none;
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+  padding: 0;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+}
+
+.dot:hover {
+  box-shadow:
+    0 0 0 2px var(--bg-elevated),
+    0 0 0 3px var(--border-strong);
+}
+
+.dot:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.dot[aria-pressed='true'] {
+  box-shadow:
+    0 0 0 2px var(--bg-elevated),
+    0 0 0 4px var(--text-primary);
+}
+
+.divider {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  margin-inline: var(--space-0-5);
+  background-color: var(--border-subtle);
+}
+
+/* The full palette, drawn as an eleventh dot. The shape is ColorPicker's own `compact`
+   trigger — styling its insides from here would be reaching into another component's
+   subtree, which is the rule 08-ui-composition.md states first. */
+.custom {
+  flex: none;
+}
+
+.search {
+  padding-inline: var(--space-1);
 }
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(10, 1fr);
+  grid-template-columns: repeat(12, 1fr);
   gap: var(--space-0-5);
+  max-height: 260px;
+  overflow-y: auto;
+  padding: var(--space-0-5);
 }
 
-.icon {
+.cell {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -50,20 +103,37 @@
   transition: background-color var(--duration-instant) var(--ease-out);
 }
 
-.icon:hover {
+.cell svg {
+  width: 16px;
+  height: 16px;
+}
+
+.cell:hover {
   background-color: var(--bg-hover);
 }
 
-.icon:focus-visible {
+.cell:focus-visible {
   outline: var(--focus-ring-width) solid var(--border-focus);
   outline-offset: calc(var(--focus-ring-offset) * -1);
 }
 
-.icon[aria-pressed='true'] {
+.cell[aria-pressed='true'] {
   background-color: var(--bg-selected);
 }
 
-.custom {
+/* Secondary and not tertiary: this sits on `--bg-elevated`, where tertiary fails body text in
+   dark. See 08-ui-composition.md. */
+.empty {
+  margin: 0;
+  padding: var(--space-3) var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+  text-align: center;
+}
+
+.customIcon {
   display: flex;
   flex-direction: column;
+  padding-inline: var(--space-1);
 }

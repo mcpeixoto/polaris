@@ -26,6 +26,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router';
 
 import { AgentPanel } from '~/features/agent/AgentPanel';
 import { useAgentPanel } from '~/features/agent/useAgentPanel';
+import { EntityIcon } from '~/features/icon/EntityIcon';
 import { useDesktopNotifications, useUnreadBadge } from '~/features/inbox/desktop';
 import { unreadCount, useWakingQuery } from '~/features/inbox/inbox';
 import { offerError } from '~/features/toast/ToastHost';
@@ -2606,6 +2607,9 @@ function FavoriteItem({
         event.dataTransfer.effectAllowed = 'move';
       }}
     >
+      {item.icon === undefined || item.icon === '' ? null : (
+        <EntityIcon icon={item.icon} color={item.color} fallback={null} size="sm" />
+      )}
       {item.prefix !== null && <span className={styles.teamKey}>{item.prefix}</span>}
       <span className={navStyles.navLabel}>{item.label}</span>
     </NavLink>
@@ -2776,6 +2780,16 @@ interface FavoriteLink {
   /** The team key, for an issue or a team. Null for anything without one. */
   readonly prefix: string | null;
   /**
+   * The project's own glyph and colour, where the favourite points at one.
+   *
+   * Only a project sets these today: it is the one favourite whose target carries an icon a
+   * person chose, and a sidebar that invented a glyph for the kinds that have none would be
+   * drawing decoration rather than identity. Undefined draws nothing, which is what every
+   * other kind drew before.
+   */
+  readonly icon?: string | undefined;
+  readonly color?: string | undefined;
+  /**
    * What the favourite points at, which is how a favourite is removed.
    *
    * `removeFavorite` takes `(kind, targetId)` rather than the favourite's own id — see the
@@ -2894,7 +2908,14 @@ function favoriteLink(store: Store, favorite: Favorite): FavoriteTarget | null {
     case 'project': {
       const project = store.get('project', favorite.targetId);
       if (project === undefined || project.archivedAt !== undefined) return null;
-      return { id: favorite.id, to: `/project/${project.id}`, label: project.name, prefix: null };
+      return {
+        id: favorite.id,
+        to: `/project/${project.id}`,
+        label: project.name,
+        prefix: null,
+        icon: project.icon,
+        color: project.color,
+      };
     }
     case 'initiative': {
       const initiative = store.get('initiative', favorite.targetId);

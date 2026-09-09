@@ -35,6 +35,8 @@ import {
   type TitleHandle,
 } from '~/components';
 import { EntityGate } from '~/features/entity-gate/EntityGate';
+import { EntityIcon } from '~/features/icon/EntityIcon';
+import { IconPicker } from '~/features/icon/IconPicker';
 import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
 import { browserTimezone } from '~/features/locale';
 import { ProjectHealthCell } from '~/features/project-updates/ProjectHealthCell';
@@ -67,6 +69,7 @@ export function ProjectShell() {
   const status = useMenuTrigger();
   const target = useMenuTrigger<HTMLButtonElement>('dialog');
   const more = useMenuTrigger();
+  const headerIcon = useMenuTrigger<HTMLButtonElement>('dialog');
   const contextMenu = useContextMenu<string>();
   const titleRef = useRef<TitleHandle | null>(null);
   const [confirming, setConfirming] = useState<'archive' | 'delete' | null>(null);
@@ -202,13 +205,24 @@ export function ProjectShell() {
         const project = row.project;
         const base = `/project/${project.id}`;
         // Tinted with the project's own colour, which is the other half of what the icon
-        // picker writes and until now was stored and never drawn.
-        const mark =
-          project.icon === undefined || project.icon === '' ? (
-            <ProjectGlyph />
-          ) : (
-            <span style={{ color: project.color }}>{project.icon}</span>
-          );
+        // picker writes and until now was stored and never drawn. It is also the control
+        // that changes both, because the breadcrumb is where a person looking at a project
+        // is looking when they decide the icon is wrong.
+        const mark = (
+          <button
+            type="button"
+            {...headerIcon.props}
+            className={styles.iconTrigger}
+            aria-label="Change project icon"
+          >
+            <EntityIcon
+              icon={project.icon}
+              color={project.color}
+              fallback={<ProjectGlyph />}
+              size="md"
+            />
+          </button>
+        );
 
         // One row, one landmark. The attached views sit between Issues and Activity and draw
         // themselves, because a saved view's tab also drags to reorder and opens a context
@@ -301,7 +315,7 @@ export function ProjectShell() {
                 items={[
                   { label: 'Projects', to: '/projects' },
                   {
-                    icon: mark,
+                    control: mark,
                     label: (
                       <TitleField
                         key={`project-title-${project.id}`}
@@ -421,6 +435,24 @@ export function ProjectShell() {
               trigger={contextMenu.anchorRef}
               label={`Options for ${project.name}`}
               items={menuItems()}
+            />
+
+            <IconPicker
+              open={headerIcon.open}
+              onClose={headerIcon.hide}
+              trigger={headerIcon.ref}
+              label="Project icon"
+              actionId="project.closeHeaderIconPicker"
+              value={{ icon: project.icon ?? '', color: project.color }}
+              onChange={(next) => {
+                if (next.icon !== (project.icon ?? '')) {
+                  updateProject(engine, project.id, { icon: next.icon }).catch(report);
+                  return;
+                }
+                if (next.color !== project.color) {
+                  updateProject(engine, project.id, { color: next.color }).catch(report);
+                }
+              }}
             />
 
             <ProjectStatusPicker

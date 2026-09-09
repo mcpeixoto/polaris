@@ -34,6 +34,8 @@ import {
   type MenuNode,
 } from '~/components';
 import { AssigneePicker, PriorityPicker } from '~/features/issue/pickers';
+import { EntityIcon } from '~/features/icon/EntityIcon';
+import { iconValueLabel } from '~/features/icon/glyphs';
 import { IconPicker } from '~/features/icon/IconPicker';
 import { UserPicker } from '~/features/members/UserPicker';
 import { useEngine } from '~/app/context';
@@ -269,17 +271,11 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
           aria-label="Set icon"
           icon={
             project.icon === undefined || project.icon === '' ? undefined : (
-              <span aria-hidden="true" style={{ color: project.color }}>
-                {project.icon}
-              </span>
+              <EntityIcon icon={project.icon} color={project.color} fallback={null} size="md" />
             )
           }
         >
-          {project.icon === undefined || project.icon === '' ? (
-            <span className={styles.unset}>Set icon</span>
-          ) : (
-            project.icon
-          )}
+          {iconValueLabel(project.icon) ?? <span className={styles.unset}>Set icon</span>}
         </Button>
       </div>
       <div className={styles.row}>

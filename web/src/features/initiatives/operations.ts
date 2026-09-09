@@ -8,6 +8,8 @@ export const INITIATIVE_FIELDS = /* GraphQL */ `
     workspaceId
     name
     description
+    icon
+    color
     status
     priority
     ownerId

@@ -17,7 +17,7 @@ A project is a unit of work with a clear outcome or completion date. It can span
 
 | Property | Notes |
 |---|---|
-| Name, icon + colour | Icon from a preset palette |
+| Name, icon + colour | A named line icon or an emoji, tinted with a colour. See below |
 | Summary | Short one-liner |
 | Description | Doc-like rich text: mentions, inline comments, version history |
 | Status | From workspace-defined **project statuses** — categories Backlog, Planned, In Progress, Completed, Canceled; custom name/description/colour per status. Never auto-derived from issue completion; always manual |
@@ -32,6 +32,24 @@ A project is a unit of work with a clear outcome or completion date. It can span
 | Milestones | Ordered checkpoints |
 | Dependencies | Blocked by / blocking other projects |
 | Customer requests | Appear as a dedicated tab once the first is added |
+
+### Icon and colour
+
+A project's icon is either one of about a hundred and fifty named line icons — stored as a
+token, `icon:rocket` — or any emoji, and it is drawn tinted with the project's colour
+everywhere the project appears: the list, the board card, the breadcrumb, the sidebar
+favourite, the peek pane, the project pill on an issue. The two halves are chosen in one
+popover and written one at a time, so changing the colour does not rewrite the icon.
+
+The difference between the two kinds is the colour. A line icon is drawn in the project's
+colour, which is what makes twenty projects distinguishable in a sidebar at 14px; an emoji is
+a picture the platform owns and ignores the tint, though the colour is still stored and comes
+back if the icon is later changed to a line icon.
+
+The icon itself is the control. Clicking it opens the picker — in the projects list, on a
+board card, in the project header beside the name, and in the properties rail, which also
+still lists it as a row. It is a button, so it is reachable from the keyboard, and Escape
+closes the picker.
 
 ## Project overview page
 

@@ -629,6 +629,7 @@ type ComplexityRoot struct {
 
 	Initiative struct {
 		ArchivedAt            func(childComplexity int) int
+		Color                 func(childComplexity int) int
 		CreatedAt             func(childComplexity int) int
 		Creator               func(childComplexity int) int
 		CreatorID             func(childComplexity int) int
@@ -636,6 +637,7 @@ type ComplexityRoot struct {
 		DeletedBy             func(childComplexity int) int
 		Description           func(childComplexity int) int
 		ID                    func(childComplexity int) int
+		Icon                  func(childComplexity int) int
 		LeadTeam              func(childComplexity int) int
 		LeadTeamID            func(childComplexity int) int
 		Name                  func(childComplexity int) int
@@ -4737,6 +4739,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Initiative.ArchivedAt(childComplexity), true
+	case "Initiative.color":
+		if e.ComplexityRoot.Initiative.Color == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Initiative.Color(childComplexity), true
 	case "Initiative.createdAt":
 		if e.ComplexityRoot.Initiative.CreatedAt == nil {
 			break
@@ -4779,6 +4787,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Initiative.ID(childComplexity), true
+	case "Initiative.icon":
+		if e.ComplexityRoot.Initiative.Icon == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Initiative.Icon(childComplexity), true
 	case "Initiative.leadTeam":
 		if e.ComplexityRoot.Initiative.LeadTeam == nil {
 			break
@@ -14006,6 +14020,9 @@ type Initiative {
   workspaceId: UUID!
   name: String!
   description: String!
+  """An emoji or a short ` + "`" + `icon:<name>` + "`" + ` token, at most 64 characters."""
+  icon: String
+  color: String!
   status: InitiativeStatus!
   priority: Int!
   ownerId: UUID
@@ -15887,6 +15904,8 @@ input UpdateInitiativeUpdateInput {
 input CreateInitiativeInput {
   name: String!
   description: String
+  icon: String
+  color: String
   status: InitiativeStatus
   priority: Int
   ownerId: UUID
@@ -15920,6 +15939,8 @@ input UpdateInitiativeInput {
   id: UUID!
   name: String
   description: String
+  icon: String
+  color: String
   status: InitiativeStatus
   priority: Int
   ownerId: UUID
@@ -17871,6 +17892,10 @@ func (ec *executionContext) childFields_Initiative(ctx context.Context, field gr
 		return ec.fieldContext_Initiative_name(ctx, field)
 	case "description":
 		return ec.fieldContext_Initiative_description(ctx, field)
+	case "icon":
+		return ec.fieldContext_Initiative_icon(ctx, field)
+	case "color":
+		return ec.fieldContext_Initiative_color(ctx, field)
 	case "status":
 		return ec.fieldContext_Initiative_status(ctx, field)
 	case "priority":
@@ -35715,6 +35740,52 @@ func (ec *executionContext) _Initiative_description(ctx context.Context, field g
 	)
 }
 func (ec *executionContext) fieldContext_Initiative_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Initiative", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Initiative_icon(ctx context.Context, field graphql.CollectedField, obj *Initiative) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Initiative_icon(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Icon, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Initiative_icon(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Initiative", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Initiative_color(ctx context.Context, field graphql.CollectedField, obj *Initiative) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Initiative_color(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Color, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Initiative_color(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Initiative", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -70475,7 +70546,7 @@ func (ec *executionContext) unmarshalInputCreateInitiativeInput(ctx context.Cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "description", "status", "priority", "ownerId", "leadTeamId", "targetDate", "targetDateGranularity", "parentInitiativeId"}
+	fieldsInOrder := [...]string{"name", "description", "icon", "color", "status", "priority", "ownerId", "leadTeamId", "targetDate", "targetDateGranularity", "parentInitiativeId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -70496,6 +70567,20 @@ func (ec *executionContext) unmarshalInputCreateInitiativeInput(ctx context.Cont
 				return it, err
 			}
 			it.Description = data
+		case "icon":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("icon"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Icon = data
+		case "color":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("color"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Color = data
 		case "status":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
 			data, err := ec.unmarshalOInitiativeStatus2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeStatus(ctx, v)
@@ -73815,7 +73900,7 @@ func (ec *executionContext) unmarshalInputUpdateInitiativeInput(ctx context.Cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "name", "description", "status", "priority", "ownerId", "clearOwner", "leadTeamId", "clearLeadTeam", "targetDate", "targetDateGranularity", "clearTarget"}
+	fieldsInOrder := [...]string{"id", "name", "description", "icon", "color", "status", "priority", "ownerId", "clearOwner", "leadTeamId", "clearLeadTeam", "targetDate", "targetDateGranularity", "clearTarget"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -73843,6 +73928,20 @@ func (ec *executionContext) unmarshalInputUpdateInitiativeInput(ctx context.Cont
 				return it, err
 			}
 			it.Description = data
+		case "icon":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("icon"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Icon = data
+		case "color":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("color"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Color = data
 		case "status":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
 			data, err := ec.unmarshalOInitiativeStatus2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiativeStatus(ctx, v)
@@ -80875,6 +80974,16 @@ func (ec *executionContext) _Initiative(ctx context.Context, sel ast.SelectionSe
 			}
 		case "description":
 			out.Values[i] = ec._Initiative_description(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "icon":
+			out.Values[i] = ec._Initiative_icon(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "color":
+			out.Values[i] = ec._Initiative_color(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

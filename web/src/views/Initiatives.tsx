@@ -53,10 +53,14 @@ import {
 } from '~/features/export/csv';
 import { report } from '~/features/issue/mutations';
 import { ChevronGlyph } from '~/components/glyphs';
+import { EntityIcon } from '~/features/icon/EntityIcon';
+import { IconPicker } from '~/features/icon/IconPicker';
+import { DEFAULT_ENTITY_COLOR } from '~/features/icon/glyphs';
 import {
   archiveInitiative,
   formatInitiativeStatus,
   INITIATIVE_STATUS_ICON,
+  updateInitiative,
 } from '~/features/initiatives/mutations';
 import {
   changedInitiativeDisplayCount,
@@ -107,6 +111,10 @@ import styles from './Initiatives.module.css';
 interface InitiativeRow {
   readonly id: UUID;
   readonly name: string;
+  /** The stored glyph: an emoji, an `icon:<name>` token, or nothing. */
+  readonly icon: string | undefined;
+  /** The stored tint. Optional in the replica, so every reader falls back. */
+  readonly color: string | undefined;
   readonly status: InitiativeStatus;
   readonly health: ProjectUpdateHealth | null;
   /** When the latest update was posted, for the age beside the health word. */
@@ -184,6 +192,16 @@ export function Initiatives() {
   const [exportNote, setExportNote] = useState<string | null>(null);
   const [archiving, setArchiving] = useState<{ id: string; name: string } | null>(null);
   const [archiveBusy, setArchiveBusy] = useState(false);
+  /**
+   * One icon picker for the whole list, and the initiative it is currently pointed at.
+   *
+   * A picker per row would be one live query per row to serve the single open one, and the
+   * row that owns an open panel unmounts the moment a fold or a filter takes it away. So the
+   * panel is a singleton and the anchor moves — `showFrom` is the hook's answer to exactly
+   * this.
+   */
+  const iconPicker = useMenuTrigger<HTMLElement>('dialog');
+  const [iconEditing, setIconEditing] = useState<UUID | null>(null);
 
   const flat = isFlatList(display.grouping, status !== 'all');
 
@@ -290,6 +308,11 @@ export function Initiatives() {
     returnFocusTo: scrollerRef,
   });
   const contextRow = contextMenu.id === null ? null : (byPath.get(contextMenu.id) ?? null);
+
+  // The same initiative may be several rows; any of them carries the value, so the first is
+  // as good as the one that was clicked.
+  const editingIcon =
+    iconEditing === null ? null : (rows.find((row) => row.id === iconEditing) ?? null);
 
   useActions(
     [
@@ -477,6 +500,10 @@ export function Initiatives() {
                     cursorProps={cursor.rowProps(row.path)}
                     onCursor={() => cursor.setCursor(row.path)}
                     onToggle={() => toggleCollapsed(row.path)}
+                    onIcon={(element) => {
+                      setIconEditing(row.id);
+                      iconPicker.showFrom(element);
+                    }}
                     onContextMenu={(x, y) => contextMenu.openAt(x, y, row.path)}
                   />
                 ))}
@@ -498,6 +525,26 @@ export function Initiatives() {
           })}
         </div>
       )}
+
+      <IconPicker
+        open={iconPicker.open && iconEditing !== null}
+        onClose={iconPicker.hide}
+        trigger={iconPicker.ref}
+        value={{
+          icon: editingIcon?.icon ?? '',
+          color: editingIcon?.color ?? DEFAULT_ENTITY_COLOR,
+        }}
+        onChange={(next) => {
+          if (iconEditing === null) return;
+          // One half per act, which is what the picker promises: writing the pair would put
+          // a colour on the wire every time somebody tried a different glyph.
+          const fields =
+            next.icon === (editingIcon?.icon ?? '') ? { color: next.color } : { icon: next.icon };
+          void updateInitiative(engine, iconEditing, fields).catch(report);
+        }}
+        actionId="initiatives.closeIconPicker"
+        label="Initiative icon"
+      />
 
       {contextMenu.at === null ? null : <div {...contextMenu.anchorProps} />}
       <Menu
@@ -547,6 +594,8 @@ interface RowProps {
   readonly cursorProps: ListRowProps;
   onCursor(): void;
   onToggle(): void;
+  /** Open the list's one icon picker against this row's glyph. */
+  onIcon(element: HTMLElement): void;
   onContextMenu(x: number, y: number): void;
 }
 
@@ -558,6 +607,7 @@ function Row({
   cursorProps,
   onCursor,
   onToggle,
+  onIcon,
   onContextMenu,
 }: RowProps) {
   // The chevron is a command of its own and cannot live inside the link that opens the
@@ -597,9 +647,28 @@ function Row({
       )}
       <Link to={`/initiative/${row.id}`} className={rowClass(display)} onClick={onCursor}>
         <span className={styles.nameCell}>
-          <span className={styles.icon} aria-hidden="true">
-            <InitiativeGlyph />
-          </span>
+          {/* A button inside the link, which nesting rules forbid for a second link but
+              allow here: the icon is a different command from "open this initiative", it is
+              the only place the icon can be where somebody would look for it, and the click
+              is stopped before the link ever sees it. */}
+          <button
+            type="button"
+            className={styles.iconButton}
+            aria-label={`Change icon for ${row.name}`}
+            aria-haspopup="dialog"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onIcon(event.currentTarget);
+            }}
+          >
+            <EntityIcon
+              icon={row.icon}
+              color={row.color ?? DEFAULT_ENTITY_COLOR}
+              fallback={<InitiativeGlyph />}
+              size="sm"
+            />
+          </button>
           <span className={styles.name}>{row.name}</span>
         </span>
         {/* Past two chips the rest become a count, which is the one thing that cannot
@@ -840,6 +909,8 @@ function listInitiatives(
     return {
       id: initiative.id,
       name: initiative.name,
+      icon: initiative.icon,
+      color: initiative.color,
       status: initiative.status,
       health: latest?.health ?? null,
       healthAt: latest?.createdAt ?? null,

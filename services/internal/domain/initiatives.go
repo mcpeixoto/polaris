@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -26,6 +27,8 @@ func validInitiativeStatus(s string) bool {
 type CreateInitiativeInput struct {
 	Name                  string
 	Description           string
+	Icon                  *string
+	Color                 *string
 	Status                string
 	Priority              int
 	OwnerID               *uuid.UUID
@@ -39,6 +42,8 @@ type UpdateInitiativeInput struct {
 	ID                    uuid.UUID
 	Name                  *string
 	Description           *string
+	Icon                  *string
+	Color                 *string
 	Status                *string
 	Priority              *int
 	OwnerID               *uuid.UUID
@@ -72,6 +77,13 @@ func (s *Service) CreateInitiative(
 	if in.Priority < 0 || in.Priority > 4 {
 		return model.Initiative{}, 0, platform.Validation("priority", "priority must be 0 (none) to 4 (low)")
 	}
+	if err := validateIcon(in.Icon); err != nil {
+		return model.Initiative{}, 0, err
+	}
+	if err := validateHexColor("color", in.Color); err != nil {
+		return model.Initiative{}, 0, err
+	}
+	in.Color = normaliseColor(in.Color)
 	target, targetG, err := resolveTimeframe(in.TargetDate, in.TargetDateGranularity)
 	if err != nil {
 		return model.Initiative{}, 0, err
@@ -116,6 +128,8 @@ func (s *Service) CreateInitiative(
 			WorkspaceID:           p.WorkspaceID,
 			Name:                  name,
 			Description:           in.Description,
+			Icon:                  trimOpt(in.Icon),
+			Color:                 in.Color,
 			Status:                status,
 			Priority:              int16(in.Priority),
 			OwnerID:               in.OwnerID,
@@ -161,11 +175,19 @@ func (s *Service) CreateInitiative(
 func (s *Service) UpdateInitiative(
 	ctx context.Context, p *authz.Principal, in UpdateInitiativeInput,
 ) (model.Initiative, int64, error) {
-	if in.Name == nil && in.Description == nil && in.Status == nil && in.Priority == nil &&
+	if in.Name == nil && in.Description == nil && in.Icon == nil && in.Color == nil &&
+		in.Status == nil && in.Priority == nil &&
 		in.OwnerID == nil && !in.ClearOwner && in.LeadTeamID == nil && !in.ClearLeadTeam &&
 		in.TargetDate == nil && in.TargetDateGranularity == nil && !in.ClearTarget {
 		return model.Initiative{}, 0, platform.Validation("input", "nothing to update")
 	}
+	if err := validateIcon(in.Icon); err != nil {
+		return model.Initiative{}, 0, err
+	}
+	if err := validateHexColor("color", in.Color); err != nil {
+		return model.Initiative{}, 0, err
+	}
+	in.Color = normaliseColor(in.Color)
 	if in.Name != nil {
 		trimmed := strings.TrimSpace(*in.Name)
 		if trimmed == "" {
@@ -230,6 +252,8 @@ func (s *Service) UpdateInitiative(
 			ID:                    in.ID,
 			Name:                  in.Name,
 			Description:           in.Description,
+			Icon:                  in.Icon,
+			Color:                 in.Color,
 			Status:                in.Status,
 			Priority:              priorityParam(in.Priority),
 			ClearTarget:           in.ClearTarget,
@@ -589,6 +613,8 @@ func toInitiative(i store.Initiative) model.Initiative {
 		WorkspaceID:           i.WorkspaceID,
 		Name:                  i.Name,
 		Description:           i.Description,
+		Icon:                  i.Icon,
+		Color:                 i.Color,
 		Status:                i.Status,
 		Priority:              i.Priority,
 		OwnerID:               i.OwnerID,
@@ -603,6 +629,16 @@ func toInitiative(i store.Initiative) model.Initiative {
 		CreatedAt:             i.CreatedAt,
 		UpdatedAt:             i.UpdatedAt,
 	}
+}
+
+// validateIcon bounds an initiative's icon the way validateProjectText bounds a project's:
+// same column, same picker, same cap, so the two cannot drift apart.
+func validateIcon(icon *string) error {
+	if icon != nil && len(*icon) > maxProjectIconLength {
+		return platform.Validation("icon",
+			fmt.Sprintf("an icon is at most %d characters", maxProjectIconLength))
+	}
+	return nil
 }
 
 func toInitiativeProject(ip store.InitiativeProject) model.InitiativeProject {

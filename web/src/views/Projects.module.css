@@ -184,18 +184,36 @@
   min-width: 0;
 }
 
-/* The emoji the project chose, or the product's project glyph when it chose none. A fixed
-   box either way, so names line up whether or not their neighbours have an icon. */
-.icon {
+/* The project's chosen glyph, or the product's project glyph when it chose none — and the
+   control that changes it, which is the same fixed box so names line up whether or not
+   their neighbours have an icon.
+
+   No border and no background until it is hovered,
+   because a button drawn as a button in every row would turn a name column into a toolbar —
+   the affordance appears where the pointer is. */
+.iconButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: none;
   width: var(--space-4);
   height: var(--space-4);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
   color: var(--text-secondary);
   font-size: var(--font-size-md);
   line-height: var(--line-height-none);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background-color: var(--bg-hover);
+}
+
+.iconButton:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
 }
 
 .name {

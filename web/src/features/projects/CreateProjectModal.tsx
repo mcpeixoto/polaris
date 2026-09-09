@@ -53,6 +53,7 @@ import {
   Textarea,
   type MenuNode,
 } from '~/components';
+import { EntityIcon } from '~/features/icon/EntityIcon';
 import { IconPicker } from '~/features/icon/IconPicker';
 import { InitiativePicker } from '~/features/initiatives/InitiativePicker';
 import { PriorityPicker } from '~/features/issue/pickers';
@@ -703,15 +704,7 @@ export function CreateProjectModal({ open = true, onClose }: CreateProjectModalP
               name="Icon and colour"
               describe={`${formId}-icon`}
               empty={icon === '' && color === '' ? 'No icon' : undefined}
-              icon={
-                icon === '' ? (
-                  <PaletteGlyph />
-                ) : (
-                  <span className={styles.emoji} aria-hidden="true">
-                    {icon}
-                  </span>
-                )
-              }
+              icon={<EntityIcon icon={icon} color={color} fallback={<PaletteGlyph />} size="sm" />}
             >
               {icon === '' && color === '' ? 'Icon' : 'Icon set'}
             </PropertyPill>

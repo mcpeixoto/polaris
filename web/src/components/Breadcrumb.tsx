@@ -27,6 +27,13 @@ export interface BreadcrumbItem {
   to?: string | undefined;
   /** A mark before the label — a project's emoji, a team's avatar. Decorative. */
   icon?: ReactNode | undefined;
+  /**
+   * A mark that is a control in its own right — the project icon that opens its picker.
+   * Drawn in the icon's place and, unlike it, not hidden from assistive tech: a focusable
+   * element inside `aria-hidden` can still be tabbed to, and is announced as nothing.
+   * Takes precedence over `icon` when both are given.
+   */
+  control?: ReactNode | undefined;
 }
 
 export interface BreadcrumbProps {
@@ -41,7 +48,9 @@ export function Breadcrumb({ items, className }: BreadcrumbProps) {
         const last = index === items.length - 1;
         const body = (
           <>
-            {item.icon === undefined ? null : (
+            {item.control !== undefined ? (
+              <span className={styles.icon}>{item.control}</span>
+            ) : item.icon === undefined ? null : (
               <span className={styles.icon} aria-hidden="true">
                 {item.icon}
               </span>

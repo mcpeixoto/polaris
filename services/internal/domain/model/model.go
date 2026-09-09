@@ -1119,6 +1119,8 @@ type Initiative struct {
 	WorkspaceID           uuid.UUID  `json:"workspaceId"`
 	Name                  string     `json:"name"`
 	Description           string     `json:"description"`
+	Icon                  *string    `json:"icon,omitempty"`
+	Color                 string     `json:"color"`
 	Status                string     `json:"status"`
 	Priority              int16      `json:"priority"`
 	OwnerID               *uuid.UUID `json:"ownerId,omitempty"`
