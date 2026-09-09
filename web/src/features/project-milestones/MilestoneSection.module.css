@@ -100,3 +100,13 @@
   color: var(--text-danger);
   font-size: var(--font-size-sm);
 }
+
+/* The menu's move rows borrow the chevron rather than adding two glyphs to the set: the
+   same arrowhead, pointed the way the row travels. */
+.moveUp {
+  transform: rotate(-90deg);
+}
+
+.moveDown {
+  transform: rotate(90deg);
+}

@@ -31,6 +31,13 @@
  * third set written here, and Enter restores the row under it — a deleted issue has no page
  * to open, and the one thing this screen exists to do is the honest meaning of "open" on it.
  *
+ * Every row carries the product's row menu — a ⋯ button and a right-click that render the
+ * same array, opened from the keyboard with `.` like every other list. It holds one row,
+ * Restore, and that is the whole of it: a deleted issue has no page to open and no link that
+ * resolves, and the purge behind "delete permanently" is `purgeDeletedIssues(before:)`, which
+ * empties the trash rather than taking one row out of it. A per-row button for that would be
+ * a button that takes its neighbours with it.
+ *
  * The wait is `EntityLoading`, not a bare `Spinner`. A spinner over a table says something
  * is happening; a skeleton of the rows about to arrive says what is coming, and it is the
  * one loading treatment the rest of the product uses.
@@ -42,12 +49,13 @@
  * rather than showing a blank cell.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useEngine } from '~/app/context';
-import { useKeyContext } from '~/app/keymap';
-import { Badge, Button, EmptyState } from '~/components';
+import { useActions, useKeyContext } from '~/app/keymap';
+import { Badge, Button, EmptyState, IconButton, Menu, type MenuNode } from '~/components';
 import { EntityLoading } from '~/features/entity-gate/EntityGate';
+import { DotsGlyph } from '~/features/issue/glyphs';
 import { when } from '~/features/time';
 import {
   type DeletedIssue,
@@ -55,6 +63,7 @@ import {
   RESTORE_WINDOW_DAYS,
   restoreIssue,
 } from '~/features/trash/mutations';
+import { useContextMenu } from '~/hooks/useContextMenu';
 import { listRowDomId, useListCursor } from '~/hooks/useListCursor';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { UUID } from '~/store';
@@ -92,6 +101,12 @@ export function Trash() {
   const [restoring, setRestoring] = useState<UUID | null>(null);
   const [restored, setRestored] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // One ⋯ menu for the whole table, anchored to whichever button opened it, exactly as the
+  // document and cycle lists do it — a trigger ref per row would be a ref per deleted issue.
+  const [rowMenuId, setRowMenuId] = useState<UUID | null>(null);
+  const [rowMenuOpen, setRowMenuOpen] = useState(false);
+  const rowMenuTrigger = useRef<HTMLButtonElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
 
   // Re-run on `attempt` and on nothing else. The trash has no live source to subscribe to, so
   // "reload" is a user's decision rather than something a delta can trigger — and pressing the
@@ -197,6 +212,63 @@ export function Trash() {
     },
   });
 
+  const contextMenu = useContextMenu<UUID>({
+    onOpen: (id) => cursor.setCursor(id),
+    returnFocusTo: tableRef,
+  });
+
+  useActions(
+    [
+      {
+        // The same chord the document and cycle lists use. Without it the menu is a
+        // pointer-only affordance on a Mac, which has neither Shift+F10 nor a Menu key.
+        id: 'trash.actions',
+        title: 'Show actions for the deleted issue',
+        keys: ['.'],
+        when: 'list',
+        group: 'Trash',
+        enabled: () => cursor.cursorId !== null,
+        run: () => {
+          const id = cursor.cursorId;
+          if (id === null) return;
+          const element = document.getElementById(listRowDomId('trashList', id));
+          if (element === null) return;
+          contextMenu.openOn(element, id);
+        },
+      },
+    ],
+    [],
+  );
+
+  const closeMenus = () => {
+    setRowMenuOpen(false);
+    setRowMenuId(null);
+    contextMenu.close();
+  };
+
+  /**
+   * One array, rendered by the ⋯ button and by the right-click alike.
+   *
+   * Restore is the only row, and that is the whole menu rather than a stub of one. A deleted
+   * issue has no page to open and no link that would resolve, so `entityRowMenuItems` — Open,
+   * Copy link, Favourite, Archive, Delete — has nothing here it could truthfully draw. And
+   * there is no per-row purge to offer: `purgeDeletedIssues` takes a `before` instant and
+   * empties the trash, so a "Delete permanently" on a row would take the other rows with it.
+   */
+  const itemsFor = (row: TrashRow): MenuNode[] => [
+    {
+      id: 'restore',
+      label: 'Restore issue',
+      onSelect: () => {
+        closeMenus();
+        void restore(row);
+      },
+    },
+  ];
+
+  const menuRow = rows.find((row) => row.id === rowMenuId) ?? null;
+  const contextRow = rows.find((row) => row.id === contextMenu.id) ?? null;
+
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
@@ -254,6 +326,7 @@ export function Trash() {
 
         {rows.length === 0 ? null : (
           <table
+            ref={tableRef}
             className={styles.table}
             role="grid"
             aria-activedescendant={
@@ -284,6 +357,9 @@ export function Trash() {
                     .filter(Boolean)
                     .join(' ')}
                   onClick={() => cursor.setCursor(row.id)}
+                  onContextMenu={(event) => {
+                    contextMenu.openFromEvent(event, row.id);
+                  }}
                 >
                   <th scope="row" className={styles.issue}>
                     <span className={styles.identifier}>{row.identifier}</span>
@@ -310,6 +386,18 @@ export function Trash() {
                     >
                       Restore
                     </Button>
+                    <IconButton
+                      aria-label={`Options for ${row.identifier}`}
+                      size="sm"
+                      icon={<DotsGlyph />}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        rowMenuTrigger.current = event.currentTarget;
+                        setRowMenuId(row.id);
+                        cursor.setCursor(row.id);
+                        setRowMenuOpen(true);
+                      }}
+                    />
                   </td>
                 </tr>
               ))}
@@ -317,6 +405,27 @@ export function Trash() {
           </table>
         )}
       </div>
+
+      <Menu
+        open={rowMenuOpen && menuRow !== null}
+        onClose={closeMenus}
+        trigger={rowMenuTrigger}
+        label={menuRow === null ? 'Issue options' : `Options for ${menuRow.identifier}`}
+        keysPresentation="kbd"
+        density="compact"
+        items={menuRow === null ? [] : itemsFor(menuRow)}
+      />
+
+      {contextMenu.at === null ? null : <div {...contextMenu.anchorProps} />}
+      <Menu
+        open={contextMenu.at !== null && contextRow !== null}
+        onClose={contextMenu.close}
+        trigger={contextMenu.anchorRef}
+        label={contextRow === null ? 'Issue options' : `Options for ${contextRow.identifier}`}
+        keysPresentation="kbd"
+        density="compact"
+        items={contextRow === null ? [] : itemsFor(contextRow)}
+      />
     </div>
   );
 }

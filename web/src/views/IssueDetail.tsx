@@ -125,6 +125,7 @@ import { offerUndo } from '~/features/undo/UndoToast';
 import { exact, when, whenDay } from '~/features/time';
 import { copyText, gitBranchNameFor } from '~/features/github/copy';
 import { clearCommentDraft, readCommentDrafts, writeCommentDraft } from '~/features/drafts/local';
+import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
 import { useContextMenu } from '~/hooks/useContextMenu';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -2168,9 +2169,58 @@ function CommentBody({
 }: CommentBodyProps) {
   const author = actorName(comment.actor, names);
   const resolved = comment.resolvedAt !== undefined;
+  const kebab = useMenuTrigger();
+  const contextMenu = useContextMenu<UUID>();
+
+  /**
+   * The one list both menus draw.
+   *
+   * The three buttons beside the timestamp stay — they are the fast path down a thread — and
+   * this is the same three commands under the gesture people arrive with from Linear. Built
+   * once so the ⋯ menu and the right-click cannot come apart, and gated by the same
+   * `canEdit`/`canDelete` the buttons are: a menu offering an action the server will refuse
+   * is worse than one that never mentioned it.
+   */
+  const itemsFor = (): MenuNode[] => {
+    const properties: MenuNode[] = [];
+    if (onResolve !== undefined) {
+      const resolve = onResolve;
+      properties.push({
+        id: 'resolve',
+        label: resolved ? 'Reopen thread' : 'Resolve thread',
+        icon: <TickGlyph />,
+        onSelect: () => resolve(),
+      });
+    }
+    if (canEdit) {
+      properties.push({
+        id: 'edit',
+        label: 'Edit comment',
+        icon: <EditGlyph />,
+        onSelect: () => onEdit(),
+      });
+    }
+    return entityRowMenuItems(
+      { noun: 'comment' },
+      {
+        properties,
+        ...(canDelete ? { askDelete: () => onDelete(), deleteLabel: 'Delete comment' } : {}),
+        deleteIcon: <BinGlyph />,
+      },
+    );
+  };
+
+  const menuLabel = `Options for the comment from ${author}, ${when(comment.createdAt)}`;
+
   return (
     <article
       className={[styles.comment, resolved ? styles.resolved : null].filter(Boolean).join(' ')}
+      onContextMenu={(event) => {
+        // Nothing to offer while the editor is open, and the row's own controls are hidden
+        // then too — so the browser's menu is the better answer for a text selection.
+        if (editing || itemsFor().length === 0) return;
+        contextMenu.openFromEvent(event, comment.id);
+      }}
     >
       <div className={styles.commentHead}>
         <Avatar name={author} size="sm" colorKey={comment.actor.id ?? author} decorative />
@@ -2222,6 +2272,17 @@ function CommentBody({
                 onClick={onDelete}
               />
             )}
+            {/* The right-click's twin. Without it the menu would exist only for a mouse
+                with two buttons, which is nobody on a phone. */}
+            {itemsFor().length === 0 ? null : (
+              <IconButton
+                {...kebab.props}
+                size="sm"
+                icon={<DotsGlyph />}
+                aria-label={menuLabel}
+                tooltip="Comment actions"
+              />
+            )}
           </span>
         )}
       </div>
@@ -2251,6 +2312,27 @@ function CommentBody({
           />
         </>
       )}
+
+      <Menu
+        open={kebab.open}
+        onClose={kebab.hide}
+        trigger={kebab.ref}
+        label={menuLabel}
+        keysPresentation="kbd"
+        density="compact"
+        items={itemsFor()}
+      />
+
+      {contextMenu.at === null ? null : <div {...contextMenu.anchorProps} />}
+      <Menu
+        open={contextMenu.at !== null}
+        onClose={contextMenu.close}
+        trigger={contextMenu.anchorRef}
+        label={menuLabel}
+        keysPresentation="kbd"
+        density="compact"
+        items={itemsFor()}
+      />
     </article>
   );
 }
