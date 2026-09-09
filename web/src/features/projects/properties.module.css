@@ -1,7 +1,134 @@
 .panel {
   display: flex;
   flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* One folding section. The heading is the toggle, the chevron says which way it is, and the
+   body is `hidden` when shut rather than unmounted — a section that forgets its scroll and
+   its open pickers every time it is folded is a section nobody folds twice. */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-md);
+}
+
+.sectionTitle {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+}
+
+.sectionToggle {
+  display: inline-flex;
+  align-items: center;
   gap: var(--space-1);
+  margin-inline-start: calc(-1 * var(--space-1));
+  padding: var(--space-1);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+
+.sectionToggle:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.sectionToggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* The same chevron `components/Section` draws: pointing along the row when shut, turned a
+   quarter when open. It turns rather than swapping for a second glyph, and the duration is
+   the fast one because folding a section is on the keyboard path. */
+.chevron {
+  flex: none;
+  width: var(--space-3);
+  height: var(--space-3);
+  color: var(--text-tertiary);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.chevron.open {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
+}
+
+.sectionCount {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.sectionBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* What the section would hold, for a project that has none of it yet. */
+.helper {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/* Scope, started, completed: three counts on one line, the number leading and the word
+   under it, because the numbers are what the eye is comparing. */
+.counts {
+  display: flex;
+  gap: var(--space-5);
+  margin: 0 0 var(--space-2);
+}
+
+.count {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.countLabel {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.countValue {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The two ends of the timeframe read as one fact, so the arrow between them is text-sized
+   and grey rather than another control in the row. */
+.dateArrow {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
 }
 
 /*
@@ -11,7 +138,7 @@
  */
 .row {
   display: grid;
-  grid-template-columns: 84px minmax(0, 1fr);
+  grid-template-columns: 88px minmax(0, 1fr);
   align-items: center;
   gap: var(--space-2);
   min-height: var(--control-height-md);
@@ -104,31 +231,14 @@
   gap: var(--space-1);
 }
 
-/* The day and its granularity are one property, so they share a line and wrap together
-   rather than reading as two unrelated controls stacked in the rail. */
+/* Both ends of the timeframe are one property, so they share a line and wrap together
+   rather than reading as two unrelated dates stacked in the rail. */
 .dateRow {
-  flex-wrap: wrap;
-}
-
-.dateInput {
-  flex: 1 1 8rem;
-  min-width: 0;
-}
-
-/* A titled group under the rows: the milestones. 24px above, as the issue rail spaces
-   "Labels" and "Project". */
-.group {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin-top: var(--space-4);
-}
-
-.groupTitle {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-medium);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
 }
 
 .milestones {

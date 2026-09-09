@@ -53,11 +53,48 @@ closes the picker.
 
 ## Project overview page
 
-Tabs: **Overview**, **Issues**, **Customer requests** (conditional), **Activity/Updates**, plus any attached views.
+The screen is three parts: a header, a tab row, and a document column with a properties rail
+beside it.
 
-Overview contains: summary, properties, resources (links + documents), detailed description with inline comments, and the milestone list with progress. This is explicitly designed as the place a project starts *before* any issues exist — collect research, write the spec, get feedback in comments.
+**Header** (one row). The trail — `Projects › [icon] Name` — where the icon opens the icon
+picker and the name is the field the project is renamed in (`E` puts the caret in it). Then
+the derived health, so how the project is going is read in the same glance as what it is
+called. At the trailing edge: the favourite star, the notifications bell, and `⋯`, which
+carries the same menu a right-click on the header opens. No property pills: everything the
+project *is* is stated in the body and edited in the rail, and a header copy of two of them
+was two more places for the same fact to disagree with itself.
 
-Details sidebar (`Cmd/Ctrl+I`): all properties, resources, and the project graph. Available from both Overview and Issues.
+**Tab row.** **Overview**, **Issues**, any attached views, **Activity**, and at the trailing
+edge the rail's toggle (`aria-pressed` says whether the rail is open). The fold is remembered
+per reader in `localStorage`, and the document column widens when the rail is away.
+
+**Document column** (centred, ~720px of measure), top to bottom:
+
+| Part | What it is |
+|---|---|
+| Summary | One line, unboxed, saved on blur |
+| Properties | A row of pills — status, priority, lead, members, `start → target`, teams — each opening its own picker. The same values the rail holds, stated where the reader already is |
+| Resources | The project's documents, and `+ Add document`, which opens the shared create-document dialogue seeded with this project |
+| Update | The latest update with its health, author and age, plus the composer. An empty project reads **"Write first project update"** rather than "no updates yet" — the composer is open beneath it either way. The full history is the Activity tab's |
+| Description | The rich editor, with mentions and inline comments |
+| Milestones | The list with per-milestone progress, and the `+` that adds one |
+| Customer requests | Once the project has any |
+
+**Properties rail** (320px, right). Three folding sections, each remembering its own state:
+
+- **Properties** — icon, status, priority, lead, members, `Dates` as one `start → target` row,
+  labels, teams, initiatives, update schedule, and the dependency panels. Labels are 88px, the
+  values are ghost triggers wearing their own glyph, and an unset one says what setting it
+  would do ("Add lead") rather than "None".
+- **Milestones** — which one the project is on, with progress. Adding is the overview's job.
+- **Progress** — Scope / Started / Completed counted from the project's live issues, and the
+  burn-up graph beneath them. The counts are there because the graph is not: it only draws for
+  a started project with at least two weeks of history, and "scope 6, started 0, completed 1"
+  is exactly what its reader wanted from it in the meantime.
+
+Keyboard. `E` (rename) and `S` (status) are the shell's and work on every tab of the project,
+open rail or not. `P`, `L`, `A`, `Shift+A`, `Shift+D` and `I` belong to the rail's own
+pickers, so they need the rail open — a picker has to hang off a control that is on screen.
 
 ## Issues in a project
 

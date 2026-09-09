@@ -21,15 +21,17 @@
   }
 }
 
-/* The document column: 720px of measure, set in from the left the way a detail view's
-   content is, with room beneath for the last section to scroll clear of the edge. */
+/* The document column: 720px of measure, centred in whatever the pane has left, so folding
+   the rail away widens the page rather than sliding the words across it. Room beneath for
+   the last section to scroll clear of the edge. */
 .column {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   width: 100%;
-  max-width: calc(720px + var(--space-12) + var(--space-8));
-  padding: var(--space-10) var(--space-8) var(--space-16) var(--space-12);
+  max-width: 720px;
+  margin-inline: auto;
+  padding: var(--space-10) var(--space-6) var(--space-16);
 }
 
 /* The save line sits above the prose it reports on, at the trailing edge, where it can
@@ -50,13 +52,118 @@
   line-height: var(--line-height-relaxed);
 }
 
-.section {
+/*
+ * A property line of the document: the property's name in a fixed column, its values
+ * wrapping in the rest of the row. The name column is the same 88px the rail's is, so the
+ * two read as one arrangement seen twice rather than as two designs.
+ */
+.propertyRow {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-2);
+  min-height: var(--control-height-lg);
+  padding-block: var(--space-1);
+}
+
+.rowLabel {
+  margin: 0;
+  padding-top: var(--space-1);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-tight);
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* Between the two dates: one fact with two ends, not two controls. */
+.arrow {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+/* A value the row states rather than offers — the teams. Sized like a pill so the row
+   keeps one rhythm, with none of a control's affordances. */
+.staticPill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-height-md);
+  padding-inline: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.avatars {
+  display: inline-flex;
+  align-items: center;
+}
+
+.avatars > * + * {
+  margin-inline-start: calc(-1 * var(--space-1));
+}
+
+/* One document of the project, as a link rather than a pill: it goes somewhere. */
+.resource {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-height-md);
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+}
+
+.resource:hover {
+  background: var(--bg-hover);
+  text-decoration: underline;
+}
+
+.resource:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.addResource {
+  color: var(--text-secondary);
+}
+
+/* The name on the accessibility tree only: the pills' visible text is their value, and the
+   property is what a screen reader needs after it. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.updateSection,
+.proseSection {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   padding-top: var(--space-6);
   margin-top: var(--space-4);
   border-top: 1px solid var(--border-subtle);
+}
+
+/* The description's heading is a property label, not a section title: it names the field
+   under it, in the same grey the properties above use. */
+.proseSection {
+  gap: var(--space-2);
 }
 
 .sectionTitle {
