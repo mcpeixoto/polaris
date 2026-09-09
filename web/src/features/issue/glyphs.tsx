@@ -209,6 +209,15 @@ export function UnassignedGlyph(props: GlyphProps) {
   );
 }
 
+/** A lidded box. Archive, as distinct from the bin that Delete draws. */
+export function ArchiveGlyph(props: GlyphProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M2 4.5h12M3.5 4.5v8a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-8M6 7h4M4 2.5h8" />
+    </Glyph>
+  );
+}
+
 export function BellGlyph(props: GlyphProps) {
   return (
     <Glyph {...props}>
