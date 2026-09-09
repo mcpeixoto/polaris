@@ -22,6 +22,7 @@ import { PriorityIcon, StateIcon, type MenuNode } from '~/components';
 import {
   ArchiveGlyph,
   BellGlyph,
+  BranchGlyph,
   CalendarGlyph,
   CopyGlyph,
   CycleGlyph,
@@ -90,6 +91,15 @@ export interface IssueRowMenuCommands {
   openInPeek?(): void;
   copyLink?(): void;
   copyIdentifier?(): void;
+  copyTitle?(): void;
+  /**
+   * The branch name for this issue, in whatever format the workspace configured.
+   *
+   * Registered as a chord (`issue.copyGitBranchName`) long before it was drawn anywhere, so
+   * the only way to reach it was to already know it existed. It is the first thing a lot of
+   * people do with an issue, and it belongs beside the other two copies.
+   */
+  copyGitBranch?(): void;
   goToAssignee?(): void;
   goToLabel?(labelId: string): void;
   toggleSubscribe?(): void;
@@ -107,7 +117,9 @@ export interface IssueRowMenuCommands {
  * promise about what a keystroke does to the thing you are pointing at; this is how the
  * builder avoids making one it cannot keep.
  */
-export type IssueRowMenuChords = Readonly<Partial<Record<IssuePropertyKind | 'subscribe', string>>>;
+export type IssueRowMenuChords = Readonly<
+  Partial<Record<IssuePropertyKind | 'subscribe' | 'copyGitBranch', string>>
+>;
 
 interface PropertySpec {
   readonly kind: IssuePropertyKind;
@@ -260,6 +272,25 @@ export function issueRowMenuItems(
       label: 'Copy issue ID',
       icon: <CopyGlyph />,
       onSelect: () => copyIdentifier(),
+    });
+  }
+  if (commands.copyTitle !== undefined && target.count === 1) {
+    const copyTitle = commands.copyTitle;
+    copyChildren.push({
+      id: 'copy-title',
+      label: 'Copy title',
+      icon: <CopyGlyph />,
+      onSelect: () => copyTitle(),
+    });
+  }
+  if (commands.copyGitBranch !== undefined && target.count === 1) {
+    const copyGitBranch = commands.copyGitBranch;
+    copyChildren.push({
+      id: 'copy-branch',
+      label: 'Copy git branch name',
+      icon: <BranchGlyph />,
+      ...(chords.copyGitBranch === undefined ? {} : { keys: chords.copyGitBranch }),
+      onSelect: () => copyGitBranch(),
     });
   }
   if (copyChildren.length === 1 && copyChildren[0] !== undefined) {
