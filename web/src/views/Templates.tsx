@@ -44,7 +44,7 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 
 import { useEngine } from '~/app/context';
-import { useKeyContext } from '~/app/keymap';
+import { useActions, useKeyContext } from '~/app/keymap';
 import {
   Badge,
   Button,
@@ -207,6 +207,31 @@ export function Templates() {
   });
 
   const contextMenu = useContextMenu<UUID>({ onOpen: (id) => cursor.setCursor(id) });
+
+  useActions(
+    [
+      {
+        // The row menu without a pointer. The dots button and right-click both reach it;
+        // neither is a keyboard, and macOS has no Menu key to fall back on.
+        id: 'templates.actions',
+        title: 'Show actions for the template',
+        keys: ['.'],
+        when: 'list',
+        group: 'Templates',
+        // Only the standard tab draws cursor rows, so the other tabs leave `.` unbound
+        // rather than opening a menu about a row nobody can see.
+        enabled: () => cursor.cursorId !== null,
+        run: () => {
+          const id = cursor.cursorId;
+          if (id === null) return;
+          const element = document.getElementById(listRowDomId('templateList', id));
+          if (element === null) return;
+          contextMenu.openOn(element, id);
+        },
+      },
+    ],
+    [],
+  );
 
   /**
    * Writes, and rejects so the editor can keep the draft on screen beside the reason.

@@ -344,3 +344,45 @@ describe('when nothing matches', () => {
     expect(screen.queryByRole('button', { name: 'Clear filter' })).toBeNull();
   });
 });
+
+/**
+ * The menu's items were reachable with the pointer alone, on the one screen whose rows are
+ * `role="option"` and never focused — so not even Shift+F10 had anything to aim at here.
+ */
+describe('reaching the result menu without a pointer', () => {
+  it('opens on the cursor row when . is pressed', async () => {
+    gqlMock.mockResolvedValue(
+      answer([
+        wireIssue('issue-1', 'ENG-1', 'Fix the flake'),
+        wireIssue('issue-2', 'ENG-2', 'Flaky importer'),
+      ]),
+    );
+    const { user } = renderSearch(seeded(), '/search?q=flake');
+
+    await results();
+    await leaveBox(user);
+    await user.keyboard('.');
+
+    // The menu is labelled with the identifier of the row it is about, which is the only
+    // place it says out loud which result it belongs to.
+    expect(await screen.findByRole('menu', { name: 'ENG-1' })).toBeTruthy();
+  });
+
+  it('follows the cursor rather than the first row', async () => {
+    gqlMock.mockResolvedValue(
+      answer([
+        wireIssue('issue-1', 'ENG-1', 'Fix the flake'),
+        wireIssue('issue-2', 'ENG-2', 'Flaky importer'),
+      ]),
+    );
+    const { user } = renderSearch(seeded(), '/search?q=flake');
+
+    await results();
+    await leaveBox(user);
+    await user.keyboard('j.');
+
+    expect(await screen.findByRole('menu', { name: 'ENG-2' })).toBeTruthy();
+    expect(screen.queryByRole('menu', { name: 'ENG-1' })).toBeNull();
+    expect((await results())[1]?.getAttribute('aria-selected')).toBe('true');
+  });
+});

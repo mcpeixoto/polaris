@@ -26,7 +26,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { useKeyContext, useKeymap } from '~/app/keymap';
+import { useActions, useKeyContext, useKeymap } from '~/app/keymap';
 import {
   Button,
   ConfirmDialog,
@@ -149,6 +149,29 @@ export function Documents() {
     onOpen: (id) => cursor.setCursor(id),
     returnFocusTo: scrollerRef,
   });
+
+  useActions(
+    [
+      {
+        // The row menu is where archive, delete and the star live, and until this it was
+        // reachable only with a pointer — Shift+F10 aside, which no Mac keyboard sends.
+        id: 'documents.actions',
+        title: 'Show actions for the document',
+        keys: ['.'],
+        when: 'list',
+        group: 'Documents',
+        enabled: () => cursor.cursorId !== null,
+        run: () => {
+          const id = cursor.cursorId;
+          if (id === null) return;
+          const element = document.getElementById(listRowDomId('documentList', id));
+          if (element === null) return;
+          contextMenu.openOn(element, id);
+        },
+      },
+    ],
+    [],
+  );
 
   const create = () => registry.invoke('document.create', { source: 'menu', context });
 

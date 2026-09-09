@@ -46,6 +46,22 @@ const SCREENS: [name: string, path: string][] = [
   ['drafts', '/drafts'],
   ['search', '/search'],
   ['projects', '/projects'],
+  // The rest of the entity lists. Each of these now registers a `.` of its own to open its
+  // row menu from the keyboard, and `.` is exactly the kind of one-character binding that
+  // collides quietly: the registry refuses a second unguarded claim on a key in a context,
+  // and the refusal escapes a passive effect as a white page. Walking them here is the only
+  // place that pair — the shell's keymap and the screen's, in one live registry — is real.
+  //
+  // `/initiatives` and `/dashboards` sit behind `MembersOnly`; the fixture's account is a
+  // member, so both mount for real rather than rendering a gate.
+  ['cycles', '/team/ENG/cycles'],
+  ['documents', '/documents'],
+  ['dashboards', '/dashboards'],
+  ['initiatives', '/initiatives'],
+  // Templates is deliberately absent. It lives under `/settings`, which swaps the sidebar
+  // for the settings `<nav>` — so the readiness check below, which waits for the workspace
+  // nav, never resolves there. Its `.` is covered by `Templates.rows.test.tsx` instead, and
+  // widening this walk's wait would mean rewriting an assertion this change does not own.
 ];
 
 function collectPageErrors(page: Page): string[] {

@@ -1536,12 +1536,17 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
         // Linear's chord, and the one thing every context menu in the product lacked: a way
         // in without a pointer. Shift+F10 and the Menu key reach the same menu through the
         // browser's own synthesised event, but neither is on a laptop keyboard people use.
+        //
+        // Peek does not push a context of its own, so its own `.` is registered in `list`
+        // beside this one and the two must not both match: with the panel open it owns the
+        // chord, because that is the surface the reader is looking at. The same rule Escape
+        // already follows between `clearSelection` and `peek.close`.
         id: 'issueList.actions',
         title: 'Show actions for the selection',
         keys: ['.'],
         when: 'list',
         group: 'Selection',
-        enabled: () => commands.current.hasRows(),
+        enabled: () => commands.current.hasRows() && !commands.current.peekOpen(),
         run: () => commands.current.openContextMenu(),
       },
       {

@@ -10,13 +10,13 @@
  * panel with it, and the rows sitting in the tab order a panel's controls belong in.
  */
 
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { EngineProvider } from '~/app/context';
-import { KeymapProvider } from '~/app/keymap';
+import { KeymapProvider, useKeyContext } from '~/app/keymap';
 import { Store, type Change, type Entity } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
 
@@ -290,5 +290,79 @@ describe('Peek’s properties rail, once it became editable', () => {
     for (const value of ['Todo', 'High', 'Ada Lovelace', 'Cycle 4', 'Importer', 'Regression']) {
       expect(screen.getByRole('button', { name: value }).getAttribute('tabindex')).toBeNull();
     }
+  });
+});
+
+/**
+ * The panel's own menu had a pointer and nothing else.
+ *
+ * Peek pushes no key context of its own — that is deliberate, it is what lets the rail draw
+ * the list's chords and have them be true — so its `.` is registered in `list` alongside the
+ * list's own. Two bindings on one key in one context is only safe while their guards cannot
+ * both match, and the split is the panel: open, the chord is the panel's. The list's half of
+ * that pair lives in `IssueList.tsx`; this is the half that belongs to Peek.
+ */
+function renderPeekInList(open = true) {
+  const mutate = vi.fn().mockResolvedValue({});
+  const engine = { store: seeded(), mutate } as unknown as SyncEngine;
+
+  // The list is what mounts Peek, and the list is what pushes `list`. Standing in for it is
+  // the whole point: a `.` registered in a context nobody pushed fires nowhere.
+  function InList() {
+    useKeyContext('list');
+    return <Peek open={open} issueId={ISSUE_A} />;
+  }
+
+  render(
+    <MemoryRouter>
+      <KeymapProvider>
+        <EngineProvider engine={engine} status={{ phase: 'idle' }}>
+          <InList />
+        </EngineProvider>
+      </KeymapProvider>
+    </MemoryRouter>,
+  );
+  return { user: userEvent.setup(), mutate };
+}
+
+describe('reaching Peek’s menu without a pointer', () => {
+  it('opens the panel’s menu on .', async () => {
+    const { user } = renderPeekInList();
+
+    await user.keyboard('.');
+
+    // Longer than the default second: the panel's first paint is heavy, and on a loaded
+    // machine this file's first mount has been seen to take most of it.
+    const menu = await screen.findByRole('menu', { name: 'Issue actions' }, { timeout: 5000 });
+    // Peek's menu carries no Delete, so the label item is what names the subject: only the
+    // peeked issue carries Regression, the two others in the store carry nothing.
+    expect(within(menu).getByRole('menuitem', { name: 'Open label Regression' })).toBeTruthy();
+  });
+
+  it('opens it from the synthesised event a browser sends for Shift+F10', async () => {
+    renderPeekInList();
+
+    // Nothing pressed and 0,0 for coordinates: the panel is measured rather than believed.
+    fireEvent.contextMenu(screen.getByRole('complementary', { name: 'Peek ENG-7' }), {
+      button: 0,
+      buttons: 0,
+      clientX: 0,
+      clientY: 0,
+    });
+
+    // Longer than the default second: the panel's first paint is heavy, and on a loaded
+    // machine this file's first mount has been seen to take most of it.
+    const menu = await screen.findByRole('menu', { name: 'Issue actions' }, { timeout: 5000 });
+    expect(within(menu).getByRole('menuitem', { name: 'Open label Regression' })).toBeTruthy();
+  });
+
+  it('leaves the chord alone while the panel is shut', async () => {
+    const { user } = renderPeekInList(false);
+
+    await user.keyboard('.');
+
+    // Guarded, not merely registered. A closed Peek that still answered `.` would swallow
+    // the chord the list needs for the row under its cursor.
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 });

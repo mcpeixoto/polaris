@@ -225,3 +225,28 @@ describe('Dashboards keyboard and row actions', () => {
     await waitFor(() => expect(mutate).toHaveBeenCalled());
   });
 });
+
+/**
+ * Duplicate and delete have no chord of their own; the menu holding them opened only under
+ * a pointer. `.` is the keyboard's way into all three.
+ */
+describe('Dashboards row menu without a pointer', () => {
+  it('opens on the cursor row when . is pressed', async () => {
+    const { user } = mount(seeded());
+
+    // The cursor starts on the first row of the first group, the personal dashboard.
+    await user.keyboard('.');
+
+    expect(await screen.findByRole('menu', { name: 'Options for My burn-up' })).toBeTruthy();
+  });
+
+  it('follows the cursor rather than the first row', async () => {
+    const { user } = mount(seeded());
+
+    await user.keyboard('j.');
+
+    const menu = await screen.findByRole('menu', { name: 'Options for Everything' });
+    expect(within(menu).getByRole('menuitem', { name: 'Delete' })).toBeTruthy();
+    expect(screen.queryByRole('menu', { name: 'Options for My burn-up' })).toBeNull();
+  });
+});

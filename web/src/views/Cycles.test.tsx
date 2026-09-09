@@ -278,3 +278,27 @@ describe('Cycles keyboard', () => {
     expect(await screen.findByRole('menu', { name: 'Options for Cycle 2' })).toBeTruthy();
   });
 });
+
+/**
+ * Everything in the cycle menu — edit, the ICS subscription, starting the next window —
+ * was reachable only under a pointer. `.` is the way in from the keyboard.
+ */
+describe('Cycles row menu without a pointer', () => {
+  it('opens on the cursor row when . is pressed', async () => {
+    const { user } = mount(seeded());
+
+    // The cursor starts on the first row of the first group, the running cycle.
+    await user.keyboard('.');
+
+    expect(await screen.findByRole('menu', { name: 'Options for Cycle 2' })).toBeTruthy();
+  });
+
+  it('follows the cursor rather than the first row', async () => {
+    const { user } = mount(seeded());
+
+    await user.keyboard('j.');
+
+    expect(await screen.findByRole('menu', { name: 'Options for Cycle 3' })).toBeTruthy();
+    expect(screen.queryByRole('menu', { name: 'Options for Cycle 2' })).toBeNull();
+  });
+});

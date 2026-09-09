@@ -216,3 +216,28 @@ describe('Documents', () => {
     expect(mutate).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Archive and delete live in the row menu, and until this the menu opened only under a
+ * pointer — Shift+F10 aside, which is not a gesture a Mac keyboard has.
+ */
+describe('Documents row menu without a pointer', () => {
+  it('opens on the cursor row when . is pressed', async () => {
+    const { user } = mount(seeded(), vi.fn(), { phase: 'idle' });
+
+    // Sorted by last update, so the cursor starts on Runbook.
+    await user.keyboard('.');
+
+    expect(await screen.findByRole('menu', { name: 'Options for Runbook' })).toBeTruthy();
+  });
+
+  it('follows the cursor rather than the first row', async () => {
+    const { user } = mount(seeded(), vi.fn(), { phase: 'idle' });
+
+    await user.keyboard('j.');
+
+    const menu = await screen.findByRole('menu', { name: 'Options for Onboarding' });
+    expect(within(menu).getByRole('menuitem', { name: 'Delete document' })).toBeTruthy();
+    expect(screen.queryByRole('menu', { name: 'Options for Runbook' })).toBeNull();
+  });
+});

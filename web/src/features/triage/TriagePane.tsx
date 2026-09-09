@@ -25,6 +25,7 @@ import { useRef, useState } from 'react';
 import { Link } from 'react-router';
 
 import { useEngine } from '~/app/context';
+import { useActions, useKeyContext } from '~/app/keymap';
 import {
   Avatar,
   Button,
@@ -47,7 +48,7 @@ import { labelViewPath, userViewPath } from '~/features/labels/labelView';
 import { applyLabel, removeLabel } from '~/features/labels/mutations';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { exact, when } from '~/features/time';
-import { contextMenuPoint } from '~/hooks/useContextMenu';
+import { contextMenuPoint, contextMenuPointOn } from '~/hooks/useContextMenu';
 import { useContextMenuHandoff } from '~/hooks/useContextMenuHandoff';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -128,6 +129,46 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
     [issueId ?? ''],
   );
 
+  /*
+   * The one action this pane does register, and the context it registers it in.
+   *
+   * `.` is the chord for "show me what I can do to the thing I am looking at", and on this
+   * screen there are two such things: the queue on the left and this issue on the right.
+   * `IssueList` binds `.` in `list` guarded on having rows, which is true the whole time
+   * triage is on screen — so a second `.` in `list` would never win, the list registering
+   * first, and the pane's menu would have no way in at all.
+   *
+   * So the pane takes a context of its own while the keyboard is inside it. `resolveChain`
+   * walks innermost-first and `detail` is not sealed, which is exactly the shape wanted
+   * here: `.` typed with focus in the pane resolves against `detail` and opens this menu,
+   * while `s`, `p`, `a` and the decision keys — which this pane draws in its own menu but
+   * does not own — fall straight through to the list's bindings underneath.
+   *
+   * Focus-within rather than mount, because the pane is always mounted. `onBlur` bubbles
+   * from the pane's own controls, so it has to ask where focus went before giving up the
+   * context; a key handler is not an option and would be the wrong tool anyway.
+   */
+  const paneRef = useRef<HTMLElement>(null);
+  const [focusWithin, setFocusWithin] = useState(false);
+  useKeyContext('detail', focusWithin);
+
+  useActions([
+    {
+      id: 'triage.actions',
+      title: 'Show actions for the triage issue',
+      keys: ['.'],
+      when: 'detail',
+      group: 'Issues',
+      enabled: () => issueId !== null && issue !== null,
+      run: () => {
+        const element = paneRef.current;
+        if (element === null) return;
+        setContextAt(contextMenuPointOn(element));
+        setContextOpen(true);
+      },
+    },
+  ]);
+
   if (issueId === null || issue === null) {
     return (
       <section className={styles.pane} aria-label="Triage issue">
@@ -165,8 +206,15 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
 
   return (
     <section
+      ref={paneRef}
       className={styles.pane}
       aria-label={`Triage ${issue.identifier}`}
+      onFocus={() => setFocusWithin(true)}
+      onBlur={(event) => {
+        // React's onBlur is `focusout`, so it fires on every hop between the pane's own
+        // controls too. Only focus that has actually left the pane gives up the context.
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocusWithin(false);
+      }}
       onContextMenu={(event) => {
         event.preventDefault();
         setContextAt(contextMenuPoint(event));

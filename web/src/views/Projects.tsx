@@ -508,6 +508,27 @@ export function Projects() {
         run: () => setPeek(false),
       },
       {
+        // Linear's chord. The row menu was pointer-only here: Shift+F10 and the Menu key
+        // reach it through the browser's synthesised event, and macOS has neither.
+        id: 'projects.actions',
+        title: 'Show actions for the project',
+        keys: ['.'],
+        when: 'list',
+        group: 'Projects',
+        // The timeline is another component with no rows of ours in it, so there is no
+        // cursor row to hang a menu off there.
+        enabled: () => display.layout !== 'timeline' && cursor.cursorId !== null,
+        run: () => {
+          const id = cursor.cursorId;
+          if (id === null || display.layout === 'timeline') return;
+          // Whichever of the three presentations is on screen, the cursor row carries the
+          // same id, so this finds the board card or the table row without asking which.
+          const element = document.getElementById(listRowDomId(CURSOR_PREFIX, id));
+          if (element === null) return;
+          contextMenu.openOn(element, id);
+        },
+      },
+      {
         id: 'projects.exportCsv',
         title: 'Export projects as CSV',
         group: 'Projects',
