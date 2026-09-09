@@ -254,6 +254,18 @@ Prettier is one of them. It is a separate CI step rather than part of `pnpm -r l
 branch that passes everything above and skips it still fails — which is exactly how it was
 found. Run it before pushing, not after.
 
+On Node 25 the web suite reports about nineteen failures that CI on Node 22 does not have,
+all `window.localStorage.* is not a function` in `ListGroup`, `collapse` and `Initiatives`.
+Give Node a file to back localStorage onto and they go away — a full run then passes
+3099/3099:
+
+```bash
+NODE_OPTIONS=--localstorage-file=/tmp/polaris-ls.json pnpm -C web test --run
+```
+
+Worth doing rather than subtracting the nineteen from memory, because a real failure hiding
+among them is invisible.
+
 ## Ship
 
 **Cutting a `v*` tag is the deploy.** Merging to `$BASE` is integration: it runs the full
