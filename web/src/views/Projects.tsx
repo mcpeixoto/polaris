@@ -116,6 +116,7 @@ import { listProjectMilestones } from '~/features/project-milestones/helpers';
 import { ProjectHealthCell } from '~/features/project-updates/ProjectHealthCell';
 import { projectProgress, type Progress } from '~/features/initiatives/progress';
 import { ProjectPeek } from '~/features/peek/ProjectPeek';
+import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
 import { useContextMenu } from '~/hooks/useContextMenu';
 import { useListCursor, listRowDomId } from '~/hooks/useListCursor';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -536,66 +537,60 @@ export function Projects() {
   const copyLink = (id: UUID) => void copyText(`${window.location.origin}/project/${id}`);
 
   /** One menu, whichever way it was opened: right-click and the keyboard agree. */
-  const itemsFor = (row: ProjectRow): MenuNode[] => [
-    {
-      id: 'open',
-      label: 'Open project',
-      onSelect: () => {
-        contextMenu.close();
-        void navigate(`/project/${row.id}`);
+  const itemsFor = (row: ProjectRow): MenuNode[] =>
+    entityRowMenuItems(
+      {
+        noun: 'project',
+        name: row.name,
+        favorited: favourites.has(row.id),
       },
-    },
-    {
-      id: 'copy-link',
-      label: 'Copy link',
-      onSelect: () => {
-        contextMenu.close();
-        copyLink(row.id);
-      },
-    },
-    ...(viewerId === null
-      ? []
-      : [
+      {
+        open: () => {
+          contextMenu.close();
+          void navigate(`/project/${row.id}`);
+        },
+        openIcon: <ProjectGlyph />,
+        copyLink: () => {
+          contextMenu.close();
+          copyLink(row.id);
+        },
+        ...(viewerId === null
+          ? {}
+          : {
+              toggleFavorite: () => {
+                contextMenu.close();
+                toggleFavorite(engine, viewerId, 'project', row.id).catch(report);
+              },
+            }),
+        properties: [
           {
-            id: 'favourite',
-            label: favourites.has(row.id) ? 'Remove from favourites' : 'Add to favourites',
+            id: 'status',
+            label: 'Status…',
+            keys: 's',
             onSelect: () => {
+              const at = contextMenu.at;
               contextMenu.close();
-              toggleFavorite(engine, viewerId, 'project', row.id).catch(report);
+              if (at !== null) setPicker({ kind: 'status', row, x: at.x, y: at.y });
             },
           },
-        ]),
-    { kind: 'separator' as const },
-    {
-      id: 'status',
-      label: 'Status…',
-      onSelect: () => {
-        const at = contextMenu.at;
-        contextMenu.close();
-        if (at !== null) setPicker({ kind: 'status', row, x: at.x, y: at.y });
+          {
+            id: 'lead',
+            label: 'Lead…',
+            keys: 'a',
+            onSelect: () => {
+              const at = contextMenu.at;
+              contextMenu.close();
+              if (at !== null) setPicker({ kind: 'lead', row, x: at.x, y: at.y });
+            },
+          },
+        ],
+        archive: () => {
+          contextMenu.close();
+          setArchiveError(null);
+          setArchiving(row);
+        },
       },
-    },
-    {
-      id: 'lead',
-      label: 'Lead…',
-      onSelect: () => {
-        const at = contextMenu.at;
-        contextMenu.close();
-        if (at !== null) setPicker({ kind: 'lead', row, x: at.x, y: at.y });
-      },
-    },
-    { kind: 'separator' as const },
-    {
-      id: 'archive',
-      label: 'Archive project',
-      danger: true,
-      onSelect: () => {
-        contextMenu.close();
-        setArchiveError(null);
-        setArchiving(row);
-      },
-    },
-  ];
+    );
 
   const contextRow = rowById(contextMenu.id);
 
@@ -957,6 +952,8 @@ export function Projects() {
         onClose={contextMenu.close}
         trigger={contextMenu.anchorRef}
         label={contextRow === null ? 'Project options' : `Options for ${contextRow.name}`}
+        keysPresentation="kbd"
+        density="compact"
         items={contextRow === null ? [] : itemsFor(contextRow)}
       />
 

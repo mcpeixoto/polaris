@@ -92,49 +92,6 @@
   padding: 0 var(--space-1);
 }
 
-/*
- * The date field, dressed as a pill. A native date input cannot be a Button, so the capsule
- * is drawn around it by hand to the same measurements: the same height, edge, radius and
- * glyph slot as `Button`'s pill, so the row does not have one control a shade taller.
- */
-.datePill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: var(--control-height-pill);
-  padding: 0 var(--space-2) 0 6px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-full);
-  color: var(--text-primary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  line-height: var(--line-height-none);
-  transition: background-color var(--duration-fast) var(--ease-out);
-}
-
-.datePill:hover {
-  background-color: var(--bg-hover);
-}
-
-/* The ring on the capsule, not the field: the field has no edge of its own to draw it on. */
-.datePill:focus-within {
-  outline: var(--focus-ring-width) solid var(--border-focus);
-  outline-offset: var(--focus-ring-offset);
-}
-
-.dateInput {
-  height: 100%;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-}
-
-.dateInput:focus {
-  outline: none;
-}
-
 /* A value the composer was handed and cannot change — the milestone a link asked for. */
 .staticPill {
   display: inline-flex;

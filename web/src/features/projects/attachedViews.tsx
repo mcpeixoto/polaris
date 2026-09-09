@@ -280,6 +280,8 @@ export function ProjectViewTabs({ projectId, base }: ProjectViewTabsProps) {
         onClose={closeMenu}
         trigger={menuTriggerRef}
         label="View options"
+        keysPresentation="kbd"
+        density="compact"
         items={[
           { id: 'copy', label: 'Copy link', onSelect: copyLink },
           ...(viewerId === null
@@ -287,7 +289,7 @@ export function ProjectViewTabs({ projectId, base }: ProjectViewTabsProps) {
             : [
                 {
                   id: 'favorite',
-                  label: starred ? 'Unfavorite' : 'Favorite',
+                  label: starred ? 'Remove from favourites' : 'Add to favourites',
                   onSelect: () => void toggleStar(),
                 },
               ]),

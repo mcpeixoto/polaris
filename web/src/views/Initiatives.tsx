@@ -32,6 +32,7 @@ import { useActions, useKeymap, useKeyContext } from '~/app/keymap';
 import {
   Avatar,
   Button,
+  ConfirmDialog,
   EmptyState,
   LabelChip,
   ListGroup,
@@ -41,6 +42,7 @@ import {
   Tooltip,
   type MenuNode,
 } from '~/components';
+import { copyText } from '~/features/github/copy';
 import { EntityLoading, useStoreSettled } from '~/features/entity-gate/EntityGate';
 import {
   downloadCsv,
@@ -84,6 +86,7 @@ import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadg
 import { updateAge } from '~/features/project-updates/helpers';
 import { isFavorite, toggleFavorite } from '~/features/view/mutations';
 import { readCollapsed, writeCollapsed } from '~/features/view/collapse';
+import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
 import { useContextMenu } from '~/hooks/useContextMenu';
 import { useListCursor, listRowDomId, type ListRowProps } from '~/hooks/useListCursor';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -179,6 +182,8 @@ export function Initiatives() {
   const scrollerRef = useRef<HTMLDivElement>(null);
   /** What the last export left out, or null. See the note below the toolbar. */
   const [exportNote, setExportNote] = useState<string | null>(null);
+  const [archiving, setArchiving] = useState<{ id: string; name: string } | null>(null);
+  const [archiveBusy, setArchiveBusy] = useState(false);
 
   const flat = isFlatList(display.grouping, status !== 'all');
 
@@ -318,37 +323,29 @@ export function Initiatives() {
   const contextItems: MenuNode[] =
     contextRow === null
       ? []
-      : [
+      : entityRowMenuItems(
+          { noun: 'initiative', name: contextRow.name, favorited },
           {
-            id: 'open',
-            label: 'Open initiative',
-            icon: <InitiativeGlyph />,
-            onSelect: () => {
+            open: () => {
               contextMenu.close();
               void navigate(`/initiative/${contextRow.id}`);
             },
-          },
-          {
-            id: 'favorite',
-            label: favorited ? 'Remove from favourites' : 'Add to favourites',
-            disabled: viewer === null,
-            onSelect: () => {
+            openIcon: <InitiativeGlyph />,
+            copyLink: () => {
+              contextMenu.close();
+              void copyText(`${window.location.origin}/initiative/${contextRow.id}`);
+            },
+            toggleFavorite: () => {
               contextMenu.close();
               if (viewer === null) return;
               void toggleFavorite(engine, viewer.id, 'initiative', contextRow.id).catch(report);
             },
-          },
-          { kind: 'separator' },
-          {
-            id: 'archive',
-            label: 'Archive initiative',
-            danger: true,
-            onSelect: () => {
+            archive: () => {
               contextMenu.close();
-              void archiveInitiative(engine, contextRow.id).catch(report);
+              setArchiving({ id: contextRow.id, name: contextRow.name });
             },
           },
-        ];
+        );
 
   // An empty replica is not an empty workspace. Until the first sync settles, "No initiatives
   // yet" is a claim the client cannot make — and it came with an invitation to create one.
@@ -487,7 +484,35 @@ export function Initiatives() {
         onClose={contextMenu.close}
         trigger={contextMenu.anchorRef}
         label={contextRow === null ? 'Initiative options' : `Options for ${contextRow.name}`}
+        keysPresentation="kbd"
+        density="compact"
         items={contextItems}
+      />
+
+      <ConfirmDialog
+        open={archiving !== null}
+        title={archiving === null ? 'Archive initiative?' : `Archive ${archiving.name}?`}
+        consequence="Archived initiatives leave the list. Nothing is deleted, and an admin can restore them from Archives."
+        confirmLabel="Archive initiative"
+        destructive
+        busy={archiveBusy}
+        onClose={() => {
+          if (archiveBusy) return;
+          setArchiving(null);
+        }}
+        onConfirm={() => {
+          if (archiving === null) return;
+          setArchiveBusy(true);
+          void archiveInitiative(engine, archiving.id)
+            .then(() => {
+              setArchiveBusy(false);
+              setArchiving(null);
+            })
+            .catch((error) => {
+              setArchiveBusy(false);
+              report(error);
+            });
+        }}
       />
     </div>
   );

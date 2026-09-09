@@ -397,6 +397,10 @@ const UNSERVED_PROPERTIES: ReadonlySet<string> = new Set<IssuePropertyKind>([
   'priority',
   'project',
   'labels',
+  'estimate',
+  'due',
+  'cycle',
+  'milestone',
 ]);
 
 /**
@@ -421,7 +425,14 @@ function SubIssueRow({ child, onRemove }: { child: Child; onRemove: () => void }
   const assigneeName = child.assigneeName ?? 'Unassigned';
 
   const items: MenuNode[] = issueRowMenuItems(
-    { count: 1, editable: true, canSetStatus: true, identifier: child.identifier },
+    {
+      count: 1,
+      editable: true,
+      canSetStatus: true,
+      identifier: child.identifier,
+      estimates: false,
+      cycles: false,
+    },
     {
       pick: (kind) => {
         context.close();
@@ -543,6 +554,8 @@ function SubIssueRow({ child, onRemove }: { child: Child; onRemove: () => void }
             onClose={context.close}
             trigger={context.anchorRef}
             label={`Actions for ${child.identifier}`}
+            keysPresentation="kbd"
+            density="compact"
             items={items}
           />
         </>

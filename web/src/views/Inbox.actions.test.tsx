@@ -95,9 +95,10 @@ describe('Inbox', () => {
     const menu = await screen.findByRole('menu', { name: 'Notification' });
     expect(within(menu).getByText('Mark read')).toBeTruthy();
     expect(within(menu).getByText('Snooze')).toBeTruthy();
-    expect(within(menu).getByText('Change status')).toBeTruthy();
+    // Same Linear-dense labels as issue/search row menus (`Status…`, not "Change status").
+    expect(within(menu).getByRole('menuitem', { name: /^Status…/ })).toBeTruthy();
 
-    await user.click(within(menu).getByText('Change status'));
+    await user.click(within(menu).getByRole('menuitem', { name: /^Status…/ }));
     expect(await screen.findByRole('menu', { name: 'Status' })).toBeTruthy();
   });
 
@@ -108,7 +109,9 @@ describe('Inbox', () => {
     const row = await screen.findByRole('option', { name: /assigned/ });
     await user.pointer({ keys: '[MouseRight]', target: row });
     await user.click(
-      within(await screen.findByRole('menu', { name: 'Notification' })).getByText('Set priority'),
+      within(await screen.findByRole('menu', { name: 'Notification' })).getByRole('menuitem', {
+        name: /^Priority…/,
+      }),
     );
     await user.click(
       within(await screen.findByRole('menu', { name: 'Priority' })).getByText('Urgent'),
