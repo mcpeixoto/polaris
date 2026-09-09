@@ -1,20 +1,29 @@
 /**
- * The frame every initiative tab hangs in: where you are, what it is called, what state it
- * is in, and everything you can do to the initiative as a whole.
+ * The frame every initiative tab hangs in: where you are, what it is called, and everything
+ * you can do to the initiative as a whole.
  *
- * It is built to the shape `IssueDetail` established, because an initiative is a detail
- * screen and there is no reason for it to be a different one. The trail says where the page
- * sits; the name is edited in place rather than through a form field two sections down; the
- * status is a pill that opens the same menu the rest of the product opens; and the acts that
- * are not everyday — archive, copy, favourite — sit behind the `…` menu instead of standing
- * permanently in the header. Archive used to be a bare ghost button beside the title, which
- * put a destructive act at the top of the screen on every visit and gave the four commands
- * beside it nowhere to live.
+ * It is one header row, which is what the project screen and Linear both draw. It used to be
+ * three — a breadcrumb, then the title with a status pill and a health badge beside it, then
+ * the tabs — so a third of the screen was chrome before the page began, and the same name
+ * appeared twice in the top two rows. The name is the last crumb now, and it is still the
+ * field the initiative is renamed in: read hundreds of times, renamed once, so at rest it is
+ * text and it becomes a control when you put the caret in it.
  *
- * The shortcuts are the shell's because the controls are: `e` renames, `s` opens the status
- * menu, and the `…` items each have an action so the keyboard and the menu cannot drift.
- * `useKeyContext('detail')` is pushed here rather than in the body so that the Activity tab
- * gets them too.
+ * The status pill moved into the body's Properties row, where the rest of the properties
+ * already are: a pill in the header was a seventh property kept apart from the other six for
+ * no reason but the order the screen was built in. Health did not move, and sits beside the
+ * name the way the project header's does — it is the one fact a reader wants in the same
+ * glance as the name, and it belongs to the initiative rather than to the tab, so it has to
+ * be readable from Activity too.
+ *
+ * The tabs get a row of their own, with the rail toggle at its far end — the rail belongs to
+ * the Overview but the toggle belongs here, so that hiding it survives a trip to Activity and
+ * back. See `features/initiatives/rail.ts` for why the state travels down the outlet.
+ *
+ * The shortcuts are the shell's where the controls are: `e` renames, and the `…` items each
+ * have an action so the keyboard and the menu cannot drift. `s`, `a` and `shift+t` belong to
+ * the property row that owns those triggers. `useKeyContext('detail')` is pushed here rather
+ * than in the body so that the Activity tab gets them too.
  */
 
 import { useRef, useState } from 'react';
@@ -29,7 +38,6 @@ import {
   EmptyState,
   IconButton,
   Menu,
-  StateIcon,
   Tabs,
   TitleField,
   type MenuNode,
@@ -42,19 +50,19 @@ import { copyText } from '~/features/github/copy';
 import { EntityIcon } from '~/features/icon/EntityIcon';
 import { IconPicker } from '~/features/icon/IconPicker';
 import { DEFAULT_ENTITY_COLOR } from '~/features/icon/glyphs';
-import { InitiativeGlyph } from '~/features/initiatives/glyphs';
-import {
-  archiveInitiative,
-  formatInitiativeStatus,
-  INITIATIVE_STATUS_ICON,
-  INITIATIVE_STATUSES,
-  updateInitiative,
-} from '~/features/initiatives/mutations';
-import { report } from '~/features/issue/mutations';
-import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
+import { InitiativeGlyph, RailGlyph } from '~/features/initiatives/glyphs';
 import { latestInitiativeUpdate } from '~/features/initiative-updates/helpers';
+import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
+import {
+  INITIATIVE_RAIL_ID,
+  INITIATIVE_RAIL_KEY,
+  type InitiativeOutletContext,
+} from '~/features/initiatives/rail';
+import { archiveInitiative, updateInitiative } from '~/features/initiatives/mutations';
+import { report } from '~/features/issue/mutations';
 import { setInitiativeSubscription } from '~/features/subscriptions/mutations';
 import { SubscribeBell } from '~/features/subscriptions/SubscribeBell';
+import { readCollapsed, writeCollapsed } from '~/features/view/collapse';
 import { isFavorite, toggleFavorite } from '~/features/view/mutations';
 import { useContextMenu } from '~/hooks/useContextMenu';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
@@ -73,10 +81,24 @@ export function InitiativeShell() {
   const [archiveBusy, setArchiveBusy] = useState(false);
   const [archiveError, setArchiveError] = useState<string | null>(null);
   const titleRef = useRef<TitleHandle | null>(null);
-  const status = useMenuTrigger();
   const more = useMenuTrigger();
   const iconPicker = useMenuTrigger('dialog');
   const contextMenu = useContextMenu<string>();
+  const [railOpen, setRailOpen] = useState(
+    () => !readCollapsed(INITIATIVE_RAIL_KEY).has(INITIATIVE_RAIL_ID),
+  );
+
+  const toggleRail = () => {
+    setRailOpen((open) => {
+      // Read-modify-write against storage: the rail's own sections share this key, and one
+      // of them may have been folded in another tab since this was read.
+      const stored = new Set(readCollapsed(INITIATIVE_RAIL_KEY));
+      if (open) stored.add(INITIATIVE_RAIL_ID);
+      else stored.delete(INITIATIVE_RAIL_ID);
+      writeCollapsed(INITIATIVE_RAIL_KEY, stored);
+      return !open;
+    });
+  };
 
   const initiative = useLiveQuery(
     (store) => store.initiatives.get(initiativeId) ?? null,
@@ -129,12 +151,11 @@ export function InitiativeShell() {
         run: () => titleRef.current?.revert(),
       },
       {
-        id: 'initiative.status',
-        title: 'Set initiative status',
-        keys: ['s'],
+        id: 'initiative.rail',
+        title: 'Show or hide the initiative properties',
         when: 'detail',
         group: 'Initiatives',
-        run: () => status.show(),
+        run: toggleRail,
       },
       {
         id: 'initiative.favorite',
@@ -199,16 +220,6 @@ export function InitiativeShell() {
       });
   };
 
-  const statusItems: MenuNode[] = INITIATIVE_STATUSES.map((value) => ({
-    id: value,
-    label: formatInitiativeStatus(value),
-    icon: <StateIcon category={INITIATIVE_STATUS_ICON[value]} decorative />,
-    selected: value === initiative.status,
-    onSelect: () => {
-      updateInitiative(engine, initiative.id, { status: value }).catch(report);
-    },
-  }));
-
   const closeMenus = () => {
     more.hide();
     contextMenu.close();
@@ -260,43 +271,61 @@ export function InitiativeShell() {
       <header
         className={styles.header}
         onContextMenu={(event) => {
-          // A descendant that already answered this right-click owns it: a saved view's
-          // tab sits inside this header and opens a menu of its own, and two menus at once
+          // A descendant that already answered this right-click owns it: two menus at once
           // means neither can be clicked.
           if (event.defaultPrevented) return;
           event.preventDefault();
           contextMenu.openAt(event.clientX, event.clientY, initiative.id);
         }}
       >
-        <div className={styles.crumbRow}>
-          <Breadcrumb
-            items={[
-              { label: 'Initiatives', to: '/initiatives' },
-              {
-                label: initiative.name,
-                // `control` rather than `icon`: the mark is a button now, and the icon slot
-                // is aria-hidden — a focusable control inside it is a tab stop nothing
-                // announces. This is where the eye already goes to check which initiative is
-                // open, so it is where the glyph is changed.
-                control: (
-                  <button
-                    {...iconPicker.props}
-                    type="button"
-                    className={styles.markButton}
-                    aria-label="Change initiative icon"
-                  >
-                    <EntityIcon
-                      icon={initiative.icon}
-                      color={initiative.color ?? DEFAULT_ENTITY_COLOR}
-                      fallback={<InitiativeGlyph />}
-                      size="md"
-                    />
-                  </button>
-                ),
-              },
-            ]}
-          />
-          <div className={styles.spacer} />
+        {/* The name is the rename field in the last crumb, so the screen would otherwise
+            have no heading at all. Hidden the way `IssueDetail`'s `.screenTitle` is: a
+            `<textarea>` inside an `<h1>` gives the heading no name, and the heading list is
+            how somebody with a screen reader finds out which initiative they opened. */}
+        <h1 className={styles.screenTitle}>{initiative.name}</h1>
+        <Breadcrumb
+          className={styles.crumbs}
+          items={[
+            { label: 'Initiatives', to: '/initiatives' },
+            {
+              // `control` rather than `icon`: the mark is a button now, and the icon slot
+              // is aria-hidden — a focusable control inside it is a tab stop nothing
+              // announces. This is where the eye already goes to check which initiative is
+              // open, so it is where the glyph is changed.
+              control: (
+                <button
+                  {...iconPicker.props}
+                  type="button"
+                  className={styles.markButton}
+                  aria-label="Change initiative icon"
+                >
+                  <EntityIcon
+                    icon={initiative.icon}
+                    color={initiative.color ?? DEFAULT_ENTITY_COLOR}
+                    fallback={<InitiativeGlyph />}
+                    size="md"
+                  />
+                </button>
+              ),
+              label: (
+                <TitleField
+                  key={`initiative-title-${initiative.id}`}
+                  subjectId={initiative.id}
+                  value={initiative.name}
+                  label="Name"
+                  size="md"
+                  handle={titleRef}
+                  className={styles.titleField}
+                  onSave={(name) => updateInitiative(engine, initiative.id, { name }).catch(report)}
+                />
+              ),
+            },
+          ]}
+        />
+        {/* Beside the name rather than in the trailing group: health is the one fact a
+            reader wants in the same glance as the initiative. */}
+        {latest === undefined ? null : <ProjectHealthBadge health={latest.health} compact />}
+        <div className={styles.headerEnd}>
           {viewer !== null && viewer.role !== 'guest' ? (
             <SubscribeBell
               menuLabel="Initiative notifications"
@@ -335,6 +364,7 @@ export function InitiativeShell() {
               icon={<StarGlyph on={favourite} />}
               aria-label={favourite ? 'Remove from favourites' : 'Add to favourites'}
               aria-pressed={favourite}
+              className={favourite ? styles.starOn : undefined}
               onClick={() =>
                 toggleFavorite(engine, viewerId, 'initiative', initiative.id).catch(report)
               }
@@ -347,48 +377,25 @@ export function InitiativeShell() {
             aria-label="More actions"
           />
         </div>
+      </header>
 
-        <div className={styles.titleRow}>
-          {/* The heading is text and the editable name is the field beside it, hidden the
-              way `IssueDetail`'s `.screenTitle` is. A `<textarea>` inside an `<h1>` gives
-              the heading no name at all, and the heading list is how somebody arriving with
-              a screen reader finds out where they are. */}
-          <h1 className={styles.screenTitle}>{initiative.name}</h1>
-          <TitleField
-            key={`initiative-title-${initiative.id}`}
-            subjectId={initiative.id}
-            value={initiative.name}
-            label="Name"
-            handle={titleRef}
-            className={styles.titleField}
-            onSave={(name) => updateInitiative(engine, initiative.id, { name }).catch(report)}
-          />
-          {latest !== undefined && <ProjectHealthBadge health={latest.health} />}
-          <Button
-            {...status.props}
-            variant="pill"
-            icon={<StateIcon category={INITIATIVE_STATUS_ICON[initiative.status]} decorative />}
-          >
-            {formatInitiativeStatus(initiative.status)}
-          </Button>
-        </div>
-
+      <div className={styles.tabRow}>
         <Tabs
           aria-label="Initiative sections"
+          className={styles.tabs}
           items={[
             { id: 'overview', label: 'Overview', to: base, end: true },
             { id: 'activity', label: 'Activity', to: `${base}/activity` },
           ]}
         />
-      </header>
+        <IconButton
+          icon={<RailGlyph />}
+          aria-label={railOpen ? 'Hide properties' : 'Show properties'}
+          aria-pressed={railOpen}
+          onClick={toggleRail}
+        />
+      </div>
 
-      <Menu
-        open={status.open}
-        onClose={status.hide}
-        trigger={status.ref}
-        label="Status"
-        items={statusItems}
-      />
       <Menu
         open={more.open}
         onClose={more.hide}
@@ -408,7 +415,7 @@ export function InitiativeShell() {
       />
 
       <div className={styles.body}>
-        <Outlet />
+        <Outlet context={{ railOpen } satisfies InitiativeOutletContext} />
       </div>
       <IconPicker
         open={iconPicker.open}

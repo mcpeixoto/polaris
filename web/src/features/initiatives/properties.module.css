@@ -1,0 +1,152 @@
+/*
+ * The two shapes an initiative's properties are drawn in.
+ *
+ * The row is a line of pills under the title, sized by their content and wrapping rather
+ * than truncating — a property row that clips "No lead team" mid-word is the failure
+ * `docs/03-architecture/08-ui-composition.md` names first.
+ *
+ * The rail is a named column and a value: 88px for the label, the rest for the control,
+ * which is what makes six properties scannable down their left edge instead of read one
+ * line at a time.
+ */
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.railRow {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* The property label treatment: the name is furniture, the value is what the eye hunts. */
+.railLabel {
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * Doubled with `.railRow` so the value colour beats Button's ghost variant at a weight the
+ * bundler cannot reorder — both class names land on the element and the cascade would
+ * otherwise be settled by emission order.
+ */
+.railRow .value {
+  justify-content: flex-start;
+  min-width: 0;
+  min-height: var(--control-height-md);
+  height: auto;
+  padding: var(--space-0-5) var(--space-2);
+  color: var(--text-primary);
+  white-space: normal;
+  text-align: left;
+}
+
+.railRow .value:hover {
+  color: var(--text-primary);
+}
+
+.railRow .unset {
+  color: var(--text-secondary);
+}
+
+.labelRun {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: color-mix(in srgb, var(--text-danger) 12%, transparent);
+  color: var(--text-danger);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+/* --- A folded-away part of the rail ---------------------------------------------------- */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-md);
+}
+
+.sectionTitle {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+}
+
+/* A plain button, not the library's: it carries the heading's text at the heading's size
+   and must not read as a pill sitting where a title belongs. */
+.sectionToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-height-md);
+  margin-left: calc(var(--space-1) * -1);
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.sectionToggle:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.sectionToggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.chevron {
+  flex: none;
+  width: var(--space-3);
+  height: var(--space-3);
+  color: var(--text-tertiary);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.chevron.open {
+  transform: rotate(90deg);
+}
+
+.spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+.sectionBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  min-width: 0;
+}

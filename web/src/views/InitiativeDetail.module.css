@@ -1,8 +1,12 @@
-/* The reading column and the property rail, the two-column shape `IssueDetail` sets. The
-   rail drops under the body on a narrow window rather than squeezing the prose. */
+/*
+ * The reading column and the property rail, the two-column shape `IssueDetail` sets. The
+ * rail drops under the body on a narrow window rather than squeezing the prose, and it is
+ * `auto` rather than a fixed track so that hiding it gives the column the width back
+ * instead of leaving 300px of nothing behind.
+ */
 .screen {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(0, 1fr) auto;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -34,24 +38,59 @@
   }
 }
 
-/* The header, the title and the status chip used to live here. They are `InitiativeShell`'s
-   now — this screen is the shell's body — and the rules were left behind styling nothing.
-   Removed rather than kept "in case", because a stylesheet nobody can trace to markup is
-   the next person's fifteen minutes. */
+/*
+ * The reading column: centred, and capped rather than filling a 2000px window. Prose set
+ * across the full width of a desktop display is unreadable, and this page is prose with
+ * tables under it.
+ */
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  width: 100%;
+  max-width: 46rem;
+  margin-inline: auto;
+  min-width: 0;
+  padding: var(--space-6) var(--space-6) var(--space-10);
+}
 
-.section {
+/* The update, in a box of its own: it is the one thing on this page somebody writes rather
+   than sets, and the only section with a submit. */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-secondary);
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.latest {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
+  min-width: 0;
 }
 
-.sectionTitle {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
+.latestMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.metaText {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
 }
 
 .description {
@@ -62,11 +101,34 @@
   white-space: pre-wrap;
 }
 
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-md);
+}
+
+.sectionTitle {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
 /*
  * A field and the button that acts on it.
  *
- * Aligned on the baseline of the controls rather than centred, because the field now has
- * a visible label above it: centring would float the button halfway up the label and leave
+ * Aligned on the baseline of the controls rather than centred, because the field has a
+ * visible label above it: centring would float the button halfway up the label and leave
  * the two things that are actually a pair sitting at different heights.
  */
 .addRow {
@@ -81,6 +143,12 @@
   min-width: 0;
 }
 
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
 .projectList {
   list-style: none;
   margin: 0;
@@ -88,7 +156,7 @@
 }
 
 /*
-  * Status · name · health · lead · target · progress · action.
+  * Icon · name · health · lead · target · progress · action.
   *
   * A grid rather than a flex row, because the columns have to line up down the list: a
   * lead's name is what the eye scans for, and a flex row puts it wherever the project name
@@ -99,7 +167,8 @@
   grid-template-columns: auto minmax(0, 1fr) 10ch 14ch 9ch 10ch auto;
   align-items: center;
   gap: var(--space-2);
-  min-height: var(--row-height);
+  height: 39px;
+  overflow: hidden;
   padding-inline: var(--space-2);
   border-bottom: 1px solid var(--border-subtle);
   font-size: var(--font-size-sm);
@@ -166,50 +235,20 @@
   color: var(--accent-text);
 }
 
+/* One row per sub-initiative: the mark, the name taking the width, the action keeping its own. */
+.childRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 39px;
+  padding-inline: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
 .muted {
   margin: 0;
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
-}
-
-.latestMeta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.metaText {
-  color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
-}
-
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-/* The detail rail's label treatment — see `.propertyLabel` in IssueDetail.module.css.
-   These name controls this screen frames itself rather than ones `Field` frames, and the
-   two have to look like one vertical rhythm. */
-.fieldLabel {
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-normal);
-  line-height: var(--line-height-none);
-}
-
-.labelRun {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
 }
 
 .error {
@@ -222,38 +261,15 @@
   line-height: var(--line-height-normal);
 }
 
-/* One row per sub-initiative: the name takes the width, the action keeps its own. */
-.childRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: var(--row-height);
-  padding-inline: var(--space-2);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-/* --- The property rail ------------------------------------------------------------------
-   The same drawing as `IssueDetail.module.css`'s rail: a hidden label per row, a ghost
-   button whose glyph and value are the row, and an unset value that reads as an invitation
-   rather than as data. */
-
-.srOnly {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  border: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  clip-path: inset(50%);
-}
+/* --- The property rail ----------------------------------------------------------------- */
 
 .rail {
   display: flex;
   flex-direction: column;
-  gap: var(--space-0-5);
+  gap: var(--space-5);
   align-content: start;
+  flex: none;
+  width: 300px;
   min-width: 0;
   padding: var(--space-6) var(--space-4);
   border-left: 1px solid var(--border-subtle);
@@ -261,56 +277,36 @@
 
 @media (max-width: 960px) {
   .rail {
+    width: auto;
     padding: 0 var(--space-4) var(--space-6);
     border-left: 0;
     border-top: 1px solid var(--border-subtle);
   }
 }
 
-.railHead {
+/* Three counts on one line: the shape of the rollup before the bar draws it. */
+.counts {
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding-inline: var(--space-2);
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0;
 }
 
-.railTitle,
-.railGroup {
-  margin: 0 0 var(--space-1);
-  color: var(--text-secondary);
+.count {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  min-width: 0;
+}
+
+.countLabel {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.countValue {
+  margin: 0;
+  color: var(--text-primary);
   font-size: var(--font-size-md);
-  font-weight: var(--font-weight-medium);
-  line-height: var(--control-height-md);
-}
-
-.railGroup {
-  margin-top: var(--space-6);
-  padding-inline: var(--space-2);
-}
-
-.property {
-  display: flex;
-  min-width: 0;
-}
-
-/* Doubled with `.rail` so the value colour beats the ghost variant's secondary at a weight
-   the bundler cannot reorder. */
-.rail .propertyTrigger {
-  justify-content: flex-start;
-  min-width: 0;
-  min-height: var(--control-height-md);
-  height: auto;
-  padding: var(--space-0-5) var(--space-2);
-  color: var(--text-primary);
-  white-space: normal;
-  text-align: left;
-}
-
-.rail .propertyTrigger:hover {
-  color: var(--text-primary);
-}
-
-.rail .unset {
-  color: var(--text-secondary);
-  font-weight: var(--font-weight-medium);
+  font-variant-numeric: tabular-nums;
 }

@@ -1,17 +1,19 @@
 /**
  * One initiative: what it is for, how far along it is, and the work that rolls up into it.
  *
- * The properties are a rail, not a form. They used to be a two-column grid of native
- * `<select>`s and an `<input type="date">` sitting in the middle of the reading column,
- * ahead of the description — so the page opened on six form controls rather than on what
- * the initiative is about, and the same facts wore different clothes here and on the issue
- * a click away. The rail is `IssueDetail`'s: one ghost row per property, its label hidden
- * for the accessibility tree, its value carrying the glyph that names it.
+ * The page is a reading column with a property rail beside it, which is the shape the issue
+ * and project screens already take and the shape Linear draws this page in. The column opens
+ * on the properties as a row of pills, then the update, then what the initiative is about,
+ * then the work — because that is the order somebody arriving here reads in. It used to open
+ * on a progress bar and a graph, which is the answer to a question nobody had asked yet.
  *
- * Nothing here has a Save button. Every property writes on choice and the description
- * writes on blur, which is what `SaveIndicator` is for — the screen used to explain that
- * arrangement in a line of body copy ("Every property here saves on its own…"), and a
- * sentence explaining a save model is the shape of a missing indicator.
+ * Progress moved into the rail for that reason. It is a summary of the Projects section
+ * further down, and a summary belongs beside the page rather than ahead of it.
+ *
+ * Nothing here has a Save button. Every property writes on choice and the description writes
+ * on blur, which is what `SaveIndicator` is for — the screen used to explain that arrangement
+ * in a line of body copy ("Every property here saves on its own…"), and a sentence explaining
+ * a save model is the shape of a missing indicator.
  *
  * The two "add" rows are `Section` "+" affordances over the shared pickers. An unbounded
  * `<select>` of every project in the workspace is unusable past a few dozen and offers no
@@ -24,85 +26,62 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { useActions, useKeyContext } from '~/app/keymap';
+import { useKeyContext } from '~/app/keymap';
 import {
   Avatar,
   Button,
   ConfirmDialog,
-  DatePicker,
   EmptyState,
   IconButton,
   Input,
-  LabelChip,
-  Menu,
-  PRIORITY_LEVELS,
-  PriorityIcon,
-  priorityLabel,
   SaveIndicator,
   Section,
-  SegmentedControl,
   Select,
-  StateIcon,
   Textarea,
   useSaveState,
-  type MenuNode,
 } from '~/components';
 import { DescriptionEditor } from '~/editor/DescriptionEditor';
 import {
   addInitiativeProject,
   addInitiativeRelation,
   createInitiative,
-  formatInitiativeStatus,
-  INITIATIVE_STATUS_ICON,
-  INITIATIVE_STATUSES,
   removeInitiativeProject,
   removeInitiativeRelation,
   updateInitiative,
 } from '~/features/initiatives/mutations';
 import { InitiativePicker } from '~/features/initiatives/InitiativePicker';
-import {
-  applyInitiativeLabel,
-  removeInitiativeLabel,
-} from '~/features/initiative-labels/mutations';
-import { InitiativeLabelPicker } from '~/features/initiative-labels/InitiativeLabelPicker';
 import { createInitiativeUpdate } from '~/features/initiative-updates/mutations';
 import { latestInitiativeUpdate } from '~/features/initiative-updates/helpers';
 import { InitiativeGraph } from '~/features/initiatives/InitiativeGraph';
 import { ProgressBar } from '~/features/initiatives/ProgressBar';
+import { InitiativeProperties, InitiativeRailSection } from '~/features/initiatives/properties';
+import { useInitiativeRailOpen } from '~/features/initiatives/rail';
 import {
   initiativeProgress,
   listInitiativeProjectRows,
   type InitiativeProjectRow,
 } from '~/features/initiatives/progress';
 import { EntityIcon } from '~/features/icon/EntityIcon';
-import { IconPicker } from '~/features/icon/IconPicker';
-import { DEFAULT_ENTITY_COLOR, iconValueLabel } from '~/features/icon/glyphs';
+import { DEFAULT_ENTITY_COLOR } from '~/features/icon/glyphs';
 import { InitiativeGlyph } from '~/features/initiatives/glyphs';
-import { CalendarGlyph, PlusGlyph, UnassignedGlyph } from '~/features/issue/glyphs';
-import { UserPicker } from '~/features/members/UserPicker';
+import { PlusGlyph } from '~/features/issue/glyphs';
+import { ProjectGlyph } from '~/features/projects/glyphs';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
-import { formatTimeframe } from '~/features/projects/properties';
-import { PROJECT_STATUS_ICON } from '~/features/projects/statusCategories';
 import { personName } from '~/features/prefs/prefs';
 import { exact, when, whenDay } from '~/features/time';
 import { HealthDot, ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
-import { report } from '~/features/issue/mutations';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
-import { useViewer, useViewerId } from '~/hooks/useViewer';
+import { useViewerId } from '~/hooks/useViewer';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import type {
-  InitiativeLabel,
-  ProjectUpdateHealth,
-  Store,
-  TimeframeGranularity,
-  UUID,
-} from '~/store';
+import type { ProjectUpdateHealth, Store, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import styles from './InitiativeDetail.module.css';
 
 interface ChildRow {
   readonly id: UUID;
   readonly name: string;
+  readonly icon: string | undefined;
+  readonly color: string | undefined;
 }
 
 /** What a remove/un-nest confirmation is about, so one dialog serves both sections. */
@@ -118,20 +97,11 @@ const HEALTH_OPTIONS: readonly { readonly value: ProjectUpdateHealth; readonly l
   { value: 'off_track', label: 'Off track' },
 ];
 
-/** The five precisions a target date can be meant at, shortest word each. */
-const GRANULARITIES: readonly { readonly value: TimeframeGranularity; readonly label: string }[] = [
-  { value: 'day', label: 'Day' },
-  { value: 'month', label: 'Month' },
-  { value: 'quarter', label: 'Quarter' },
-  { value: 'half', label: 'Half' },
-  { value: 'year', label: 'Year' },
-];
-
 export function InitiativeDetail() {
   const engine = useEngine();
-  const viewer = useViewer();
   const viewerId = useViewerId();
   const { initiativeId = '' } = useParams<{ initiativeId: string }>();
+  const railOpen = useInitiativeRailOpen();
   const [body, setBody] = useState('');
   const [posting, setPosting] = useState(false);
   const [health, setHealth] = useState<ProjectUpdateHealth>('on_track');
@@ -141,13 +111,6 @@ export function InitiativeDetail() {
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
 
-  const iconPicker = useMenuTrigger('dialog');
-  const owner = useMenuTrigger();
-  const status = useMenuTrigger();
-  const priority = useMenuTrigger();
-  const leadTeam = useMenuTrigger();
-  const target = useMenuTrigger('dialog');
-  const labelsMenu = useMenuTrigger();
   const childPicker = useMenuTrigger();
   const projectPicker = useMenuTrigger();
 
@@ -155,35 +118,6 @@ export function InitiativeDetail() {
   const { run: runSave } = saveState;
 
   useKeyContext('detail');
-  useActions(
-    [
-      {
-        id: 'initiativeDetail.labels',
-        title: 'Set labels',
-        keys: ['l'],
-        when: 'detail',
-        group: 'Initiatives',
-        run: () => labelsMenu.show(),
-      },
-      {
-        id: 'initiative.owner',
-        title: 'Set initiative owner',
-        keys: ['a'],
-        when: 'detail',
-        group: 'Initiatives',
-        run: () => owner.show(),
-      },
-      {
-        id: 'initiative.targetDate',
-        title: 'Set initiative target date',
-        keys: ['shift+t'],
-        when: 'detail',
-        group: 'Initiatives',
-        run: () => target.show(),
-      },
-    ],
-    [initiativeId],
-  );
 
   const initiative = useLiveQuery(
     (store) => store.initiatives.get(initiativeId) ?? null,
@@ -218,26 +152,6 @@ export function InitiativeDetail() {
     ['user'],
   );
 
-  const ownerName = useLiveQuery(
-    (store) => {
-      const id = initiative?.ownerId;
-      if (id === undefined) return null;
-      const person = store.users.get(id);
-      return person === undefined ? null : personName(person);
-    },
-    ['user', 'initiative'],
-    [initiativeId, initiative?.ownerId ?? ''],
-  );
-
-  const teams = useLiveQuery(
-    (store) =>
-      [...store.teams.values()]
-        .filter((team) => team.archivedAt === undefined && team.retiredAt === undefined)
-        .map((team) => ({ id: team.id, name: team.name }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    ['team'],
-  );
-
   const projects = useLiveQuery(
     (store) => listInitiativeProjectRows(store, initiativeId),
     [
@@ -259,25 +173,6 @@ export function InitiativeDetail() {
     [initiativeId],
   );
 
-  const labelIds = useLiveQuery(
-    (store) => [...store.initiativeLabelIdsFor(initiativeId)],
-    ['initiativeLabel', 'initiativeLabelLink'],
-    [initiativeId],
-  );
-
-  const appliedLabels = useLiveQuery(
-    (store) =>
-      [...store.initiativeLabelIdsFor(initiativeId)]
-        .map((id) => store.initiativeLabels.get(id))
-        .filter(
-          (label): label is InitiativeLabel =>
-            label !== undefined && label.archivedAt === undefined,
-        )
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    ['initiativeLabel', 'initiativeLabelLink'],
-    [initiativeId],
-  );
-
   const children = useLiveQuery(
     (store) => (initiative === null ? [] : listChildren(store, initiative.id)),
     ['initiative', 'initiativeRelation'],
@@ -292,10 +187,6 @@ export function InitiativeDetail() {
   );
 
   if (initiative === null) return null;
-
-  const save = (fields: Parameters<typeof updateInitiative>[2]) => {
-    void runSave(() => updateInitiative(engine, initiative.id, fields));
-  };
 
   const onAddProject = async (projectId: UUID) => {
     setProjectError(null);
@@ -377,459 +268,230 @@ export function InitiativeDetail() {
     setPending(null);
   };
 
-  const statusItems: MenuNode[] = INITIATIVE_STATUSES.map((value) => ({
-    id: value,
-    label: formatInitiativeStatus(value),
-    icon: <StateIcon category={INITIATIVE_STATUS_ICON[value]} decorative />,
-    selected: value === initiative.status,
-    onSelect: () => save({ status: value }),
-  }));
-
-  const priorityItems: MenuNode[] = PRIORITY_LEVELS.map((level) => ({
-    id: String(level),
-    label: priorityLabel(level),
-    icon: <PriorityIcon priority={level} decorative />,
-    selected: level === initiative.priority,
-    onSelect: () => save({ priority: level }),
-  }));
-
-  const teamItems: MenuNode[] = [
-    {
-      id: 'none',
-      label: 'No lead team',
-      selected: initiative.leadTeamId === undefined,
-      onSelect: () => save({ leadTeamId: null }),
-    },
-    ...teams.map((team): MenuNode => ({
-      id: team.id,
-      label: team.name,
-      selected: team.id === initiative.leadTeamId,
-      onSelect: () => save({ leadTeamId: team.id }),
-    })),
-  ];
-
-  const granularity = initiative.targetDateGranularity ?? 'day';
+  const started = projects.filter((row) => row.statusCategory === 'started').length;
+  const finished = projects.filter((row) => row.statusCategory === 'completed').length;
 
   return (
     <div className={styles.screen}>
       <div className={styles.main}>
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>Progress</h2>
-          <ProgressBar progress={progress} label={initiative.name} />
-          <p className={styles.muted}>
-            {progress.total === 0
-              ? 'No issues in the linked projects yet.'
-              : `${progress.completed} of ${progress.total} issues completed across ${
-                  projects.length === 1 ? '1 project' : `${projects.length} projects`
-                }.`}
-          </p>
-          <InitiativeGraph initiativeId={initiative.id} />
-        </section>
+        <div className={styles.column}>
+          {/* The first thing on the page, because it is the first thing somebody checks.
+              Health is not repeated here: it is beside the name in the header, where it is
+              readable from the Activity tab too. */}
+          <InitiativeProperties initiativeId={initiative.id} variant="row" />
 
-        {/* Autosaving on blur, like every other description in the product. It used to sit
-            behind an explicit Edit / Save / Cancel — the only entity here that worked that
-            way, and the reason a description typed and then navigated away from was lost. */}
-        <section className={styles.section} aria-labelledby="initiative-description">
-          <h2 className={styles.sectionTitle} id="initiative-description">
-            Description
-          </h2>
-          <DescriptionEditor
-            target={{ kind: 'initiative', id: initiative.id }}
-            description={initiative.description}
-            names={names}
-            viewerId={viewerId}
-            enterSubmits={false}
-            onSave={(description) => save({ description })}
-          />
-        </section>
-
-        {latest !== undefined && (
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>Latest update</h2>
-            <div className={styles.latestMeta}>
-              <ProjectHealthBadge health={latest.health} />
-              {latestAuthor !== null && (
-                <span className={styles.metaText} title={exact(latest.createdAt)}>
-                  {latestAuthor} · {when(latest.createdAt)}
-                </span>
+          {/*
+            One card for the update, whether or not there is one yet. Linear's empty state is
+            an invitation rather than a heading over a blank space, and the composer stays
+            open beneath it: the reason an initiative has no updates is almost never that
+            somebody could not find the form.
+          */}
+          <section className={styles.card} aria-labelledby="initiative-update">
+            <h2 className={styles.cardTitle} id="initiative-update">
+              {latest === undefined ? 'Write first initiative update' : 'Latest update'}
+            </h2>
+            {latest === undefined ? null : (
+              <div className={styles.latest}>
+                <div className={styles.latestMeta}>
+                  <ProjectHealthBadge health={latest.health} />
+                  {latestAuthor !== null && (
+                    <span className={styles.metaText} title={exact(latest.createdAt)}>
+                      {latestAuthor} · {when(latest.createdAt)}
+                    </span>
+                  )}
+                </div>
+                {latest.body !== '' && <p className={styles.description}>{latest.body}</p>}
+              </div>
+            )}
+            <form className={styles.form} onSubmit={onSubmitUpdate}>
+              <Select
+                label="Health"
+                value={health}
+                prefix={<HealthDot health={health} />}
+                onChange={(event) => setHealth(event.target.value as ProjectUpdateHealth)}
+              >
+                {HEALTH_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+              <Textarea
+                label="Update"
+                value={body}
+                minRows={3}
+                placeholder="What changed since the last update?"
+                onChange={(event) => setBody(event.target.value)}
+              />
+              {updateError === null ? null : (
+                <p className={styles.error} role="alert">
+                  {updateError}
+                </p>
               )}
-            </div>
-            {latest.body !== '' && <p className={styles.description}>{latest.body}</p>}
+              <div className={styles.addRow}>
+                <Button type="submit" variant="primary" disabled={posting || viewerId === null}>
+                  Post update
+                </Button>
+              </div>
+            </form>
           </section>
-        )}
 
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>Post an update</h2>
-          <form className={styles.form} onSubmit={onSubmitUpdate}>
-            <Select
-              label="Health"
-              value={health}
-              prefix={<HealthDot health={health} />}
-              onChange={(event) => setHealth(event.target.value as ProjectUpdateHealth)}
-            >
-              {HEALTH_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-            <Textarea
-              label="Update"
-              value={body}
-              minRows={4}
-              placeholder="What changed since the last update?"
-              onChange={(event) => setBody(event.target.value)}
-            />
-            {updateError === null ? null : (
+          {/* Autosaving on blur, like every other description in the product. It used to sit
+              behind an explicit Edit / Save / Cancel — the only entity here that worked that
+              way, and the reason a description typed and then navigated away from was lost. */}
+          <section className={styles.section} aria-labelledby="initiative-description">
+            <div className={styles.sectionHead}>
+              <h2 className={styles.sectionTitle} id="initiative-description">
+                Description
+              </h2>
+              <SaveIndicator state={saveState.state} />
+            </div>
+            {saveState.error === undefined ? null : (
               <p className={styles.error} role="alert">
-                {updateError}
+                {saveState.error}
               </p>
             )}
-            <div className={styles.addRow}>
-              <Button type="submit" variant="primary" disabled={posting || viewerId === null}>
-                Post update
-              </Button>
-            </div>
-          </form>
-        </section>
-
-        <Section
-          title="Sub-initiatives"
-          count={children.length === 0 ? undefined : children.length}
-          className={styles.section}
-          action={
-            <IconButton
-              {...childPicker.props}
-              size="sm"
-              icon={<PlusGlyph />}
-              aria-label="Nest an existing initiative"
-              tooltip="Nest an existing initiative"
+            <DescriptionEditor
+              target={{ kind: 'initiative', id: initiative.id }}
+              description={initiative.description}
+              names={names}
+              viewerId={viewerId}
+              enterSubmits={false}
+              onSave={(description) =>
+                void runSave(() => updateInitiative(engine, initiative.id, { description }))
+              }
             />
-          }
-        >
-          {children.length === 0 ? (
-            <EmptyState
-              title="No sub-initiatives"
-              description="Nest an existing initiative, or start one under this objective."
-            />
-          ) : (
-            <ul className={styles.projectList}>
-              {children.map((row) => (
-                <li key={row.id} className={styles.childRow}>
-                  <Link to={`/initiative/${row.id}`} className={styles.projectLink}>
-                    {row.name}
-                  </Link>
-                  <Button
-                    variant="ghost"
-                    onClick={() => setPending({ kind: 'child', id: row.id, name: row.name })}
-                  >
-                    Un-nest
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {nestError === null ? null : (
-            <p className={styles.error} role="alert">
-              {nestError}
-            </p>
-          )}
-          <div className={styles.addRow}>
-            <Input
-              label="New sub-initiative"
-              className={styles.addField}
-              value={nestedName}
-              onChange={(event) => setNestedName(event.target.value)}
-            />
-            <Button disabled={nestedName.trim() === ''} onClick={() => void onCreateNested()}>
-              Create nested
-            </Button>
-          </div>
-        </Section>
+          </section>
 
-        <Section
-          title="Projects"
-          count={projects.length === 0 ? undefined : projects.length}
-          className={styles.section}
-          action={
-            <IconButton
-              {...projectPicker.props}
-              size="sm"
-              icon={<PlusGlyph />}
-              aria-label="Add a project"
-              tooltip="Add a project"
-            />
-          }
-        >
-          {projects.length === 0 ? (
-            <EmptyState
-              title="No projects yet"
-              description="Add the work streams that contribute to this initiative."
-            />
-          ) : (
-            <ul className={styles.projectList}>
-              {projects.map((row) => (
-                <ProjectRow
-                  key={row.projectId}
-                  row={row}
-                  onRemove={() =>
-                    setPending({ kind: 'project', id: row.projectId, name: row.name })
-                  }
-                />
-              ))}
-            </ul>
-          )}
-          {projectError === null ? null : (
-            <p className={styles.error} role="alert">
-              {projectError}
-            </p>
-          )}
-        </Section>
-      </div>
-
-      <aside className={styles.rail} aria-label="Initiative properties">
-        <div className={styles.railHead}>
-          <h2 className={styles.railTitle}>Properties</h2>
-          <SaveIndicator state={saveState.state} />
-        </div>
-        {saveState.error === undefined ? null : (
-          <p className={styles.error} role="alert">
-            {saveState.error}
-          </p>
-        )}
-
-        {/* Every row names itself for the accessibility tree and shows its glyph and value
-            on screen, which is how the issue rail beside it is drawn. */}
-
-        {/* First, because it is the only property that changes how the initiative is
-            recognised everywhere else it appears — the list, the breadcrumb, the picker. */}
-        <div className={styles.property}>
-          <Button
-            {...iconPicker.props}
-            variant="ghost"
-            fullWidth
-            className={styles.propertyTrigger}
-            aria-label="Set icon"
-            icon={
-              <EntityIcon
-                icon={initiative.icon}
-                color={initiative.color ?? DEFAULT_ENTITY_COLOR}
-                fallback={<InitiativeGlyph />}
+          <Section
+            title="Projects"
+            count={projects.length === 0 ? undefined : projects.length}
+            className={styles.section}
+            action={
+              <IconButton
+                {...projectPicker.props}
+                size="sm"
+                icon={<PlusGlyph />}
+                aria-label="Add a project"
+                tooltip="Add a project"
               />
             }
           >
-            {iconValueLabel(initiative.icon) ?? <span className={styles.unset}>Set icon</span>}
-          </Button>
-        </div>
+            {projects.length === 0 ? (
+              <EmptyState
+                title="No projects yet"
+                description="Add the work streams that contribute to this initiative."
+              />
+            ) : (
+              <ul className={styles.projectList}>
+                {projects.map((row) => (
+                  <ProjectRow
+                    key={row.projectId}
+                    row={row}
+                    onRemove={() =>
+                      setPending({ kind: 'project', id: row.projectId, name: row.name })
+                    }
+                  />
+                ))}
+              </ul>
+            )}
+            {projectError === null ? null : (
+              <p className={styles.error} role="alert">
+                {projectError}
+              </p>
+            )}
+          </Section>
 
-        <div className={styles.property}>
-          <span className={styles.srOnly} id="initiative-status-label">
-            Status
-          </span>
-          <Button
-            {...status.props}
-            variant="ghost"
-            fullWidth
-            className={styles.propertyTrigger}
-            aria-describedby="initiative-status-label"
-            icon={<StateIcon category={INITIATIVE_STATUS_ICON[initiative.status]} decorative />}
-          >
-            {formatInitiativeStatus(initiative.status)}
-          </Button>
-        </div>
-
-        <div className={styles.property}>
-          <span className={styles.srOnly} id="initiative-priority-label">
-            Priority
-          </span>
-          <Button
-            {...priority.props}
-            variant="ghost"
-            fullWidth
-            className={styles.propertyTrigger}
-            aria-describedby="initiative-priority-label"
-            icon={<PriorityIcon priority={initiative.priority} decorative />}
-          >
-            {priorityLabel(initiative.priority)}
-          </Button>
-        </div>
-
-        <div className={styles.property}>
-          <span className={styles.srOnly} id="initiative-owner-label">
-            Owner
-          </span>
-          <Button
-            {...owner.props}
-            variant="ghost"
-            fullWidth
-            className={styles.propertyTrigger}
-            aria-describedby="initiative-owner-label"
-            icon={
-              ownerName === null ? (
-                <UnassignedGlyph width="14" height="14" />
-              ) : (
-                <Avatar
-                  name={ownerName}
-                  size="xs"
-                  colorKey={initiative.ownerId ?? ownerName}
-                  decorative
-                />
-              )
+          <Section
+            title="Sub-initiatives"
+            count={children.length === 0 ? undefined : children.length}
+            className={styles.section}
+            action={
+              <IconButton
+                {...childPicker.props}
+                size="sm"
+                icon={<PlusGlyph />}
+                aria-label="Nest an existing initiative"
+                tooltip="Nest an existing initiative"
+              />
             }
           >
-            {ownerName ?? <span className={styles.unset}>No owner</span>}
-          </Button>
-        </div>
-
-        <div className={styles.property}>
-          <span className={styles.srOnly} id="initiative-target-label">
-            Target date
-          </span>
-          <Button
-            {...target.props}
-            variant="ghost"
-            fullWidth
-            className={styles.propertyTrigger}
-            aria-describedby="initiative-target-label"
-            icon={<CalendarGlyph width="14" height="14" />}
-          >
-            {initiative.targetDate === undefined ? (
-              <span className={styles.unset}>No target date</span>
+            {children.length === 0 ? (
+              <EmptyState
+                title="No sub-initiatives"
+                description="Nest an existing initiative, or start one under this objective."
+              />
             ) : (
-              formatTimeframe(initiative.targetDate, granularity)
-            )}
-          </Button>
-        </div>
-
-        <div className={styles.property}>
-          <span className={styles.srOnly} id="initiative-team-label">
-            Lead team
-          </span>
-          <Button
-            {...leadTeam.props}
-            variant="ghost"
-            fullWidth
-            className={styles.propertyTrigger}
-            aria-describedby="initiative-team-label"
-          >
-            {teams.find((team) => team.id === initiative.leadTeamId)?.name ?? (
-              <span className={styles.unset}>No lead team</span>
-            )}
-          </Button>
-        </div>
-
-        <h3 className={styles.railGroup} id="initiative-labels-label">
-          Labels
-        </h3>
-        <div className={styles.property}>
-          <Button
-            {...labelsMenu.props}
-            variant="ghost"
-            fullWidth
-            className={styles.propertyTrigger}
-            aria-label="Set labels"
-          >
-            {appliedLabels.length === 0 ? (
-              <span className={styles.unset}>Add labels</span>
-            ) : (
-              <span className={styles.labelRun}>
-                {appliedLabels.map((label) => (
-                  <LabelChip key={label.id} name={label.name} color={label.color} compact />
+              <ul className={styles.projectList}>
+                {children.map((row) => (
+                  <li key={row.id} className={styles.childRow}>
+                    <EntityIcon
+                      icon={row.icon}
+                      color={row.color ?? DEFAULT_ENTITY_COLOR}
+                      fallback={<InitiativeGlyph />}
+                    />
+                    <Link to={`/initiative/${row.id}`} className={styles.projectLink}>
+                      {row.name}
+                    </Link>
+                    <Button
+                      variant="ghost"
+                      onClick={() => setPending({ kind: 'child', id: row.id, name: row.name })}
+                    >
+                      Un-nest
+                    </Button>
+                  </li>
                 ))}
-              </span>
+              </ul>
             )}
-          </Button>
+            {nestError === null ? null : (
+              <p className={styles.error} role="alert">
+                {nestError}
+              </p>
+            )}
+            <div className={styles.addRow}>
+              <Input
+                label="New sub-initiative"
+                className={styles.addField}
+                value={nestedName}
+                onChange={(event) => setNestedName(event.target.value)}
+              />
+              <Button disabled={nestedName.trim() === ''} onClick={() => void onCreateNested()}>
+                Create nested
+              </Button>
+            </div>
+          </Section>
         </div>
-      </aside>
+      </div>
 
-      <Menu
-        open={status.open}
-        onClose={status.hide}
-        trigger={status.ref}
-        label="Status"
-        items={statusItems}
-      />
-      <Menu
-        open={priority.open}
-        onClose={priority.hide}
-        trigger={priority.ref}
-        label="Priority"
-        items={priorityItems}
-      />
-      <Menu
-        open={leadTeam.open}
-        onClose={leadTeam.hide}
-        trigger={leadTeam.ref}
-        label="Lead team"
-        items={teamItems}
-        filterable
-        filterPlaceholder="Lead team…"
-      />
-      <IconPicker
-        open={iconPicker.open}
-        onClose={iconPicker.hide}
-        trigger={iconPicker.ref}
-        value={{ icon: initiative.icon ?? '', color: initiative.color ?? DEFAULT_ENTITY_COLOR }}
-        onChange={(next) =>
-          // The picker moves one half per act, so the mutation carries one half too.
-          save(next.icon === (initiative.icon ?? '') ? { color: next.color } : { icon: next.icon })
-        }
-        actionId="initiativeDetail.closeIconPicker"
-        label="Initiative icon"
-      />
-      <UserPicker
-        open={owner.open}
-        onClose={owner.hide}
-        trigger={owner.ref}
-        label="Owner"
-        noneLabel="No owner"
-        filterPlaceholder="Owned by…"
-        filterHint="a"
-        value={initiative.ownerId ?? null}
-        onSelect={(ownerId) => save({ ownerId })}
-      />
-      <DatePicker
-        open={target.open}
-        onClose={target.hide}
-        trigger={target.ref}
-        actionId="initiative.closeTargetPicker"
-        actionGroup="Initiatives"
-        label="Target date"
-        clearLabel="No target date"
-        timezone={viewer?.timezone ?? 'UTC'}
-        value={initiative.targetDate ?? null}
-        onSelect={(day) =>
-          save(
-            day === null
-              ? { targetDate: null }
-              : { targetDate: day, targetDateGranularity: granularity },
-          )
-        }
-        footer={
-          initiative.targetDate === undefined ? undefined : (
-            // The precision is a property of the date, so it is set where the date is:
-            // "Q3" and "12 August" are the same stored day meant two different ways.
-            <SegmentedControl
-              aria-label="Target date precision"
-              options={GRANULARITIES}
-              value={granularity}
-              onChange={(value) =>
-                save({ targetDate: initiative.targetDate ?? null, targetDateGranularity: value })
-              }
-            />
-          )
-        }
-      />
-      <InitiativeLabelPicker
-        open={labelsMenu.open}
-        onClose={labelsMenu.hide}
-        trigger={labelsMenu.ref}
-        value={labelIds}
-        onApply={(labelId, displaced) =>
-          applyInitiativeLabel(engine, initiative.id, labelId, displaced).catch(report)
-        }
-        onRemove={(labelId) => removeInitiativeLabel(engine, initiative.id, labelId).catch(report)}
-      />
+      {railOpen ? (
+        <aside className={styles.rail} aria-label="Initiative properties">
+          <InitiativeProperties initiativeId={initiative.id} variant="rail" />
+          <InitiativeRailSection id="progress" title="Progress">
+            <dl className={styles.counts}>
+              <div className={styles.count}>
+                <dt className={styles.countLabel}>Projects</dt>
+                <dd className={styles.countValue}>{projects.length}</dd>
+              </div>
+              <div className={styles.count}>
+                <dt className={styles.countLabel}>Started</dt>
+                <dd className={styles.countValue}>{started}</dd>
+              </div>
+              <div className={styles.count}>
+                <dt className={styles.countLabel}>Completed</dt>
+                <dd className={styles.countValue}>{finished}</dd>
+              </div>
+            </dl>
+            <ProgressBar progress={progress} label={initiative.name} />
+            <p className={styles.muted}>
+              {progress.total === 0
+                ? 'No issues in the linked projects yet.'
+                : `${progress.completed} of ${progress.total} issues completed.`}
+            </p>
+            <InitiativeGraph initiativeId={initiative.id} />
+          </InitiativeRailSection>
+        </aside>
+      ) : null}
+
       <InitiativePicker
         open={childPicker.open}
         onClose={childPicker.hide}
@@ -890,15 +552,15 @@ function describeRefusal(failure: unknown): string {
 /**
  * One contributing project: what it is, who has it, and how far along it is.
  *
- * The section used to be a list of names with a Remove button each, which said nothing the
- * initiative is actually tracked on — and it walked only the direct links while the health
- * strip on the list screen walked descendants, so the same initiative reported two different
- * project counts. Both read `listInitiativeProjectRows` now.
+ * The row leads with the project's own icon rather than with its status glyph. Both are
+ * true, and only one of them tells two rows apart at a glance — the status is a word the
+ * project list already carries a column for, and the icon is what somebody recognises the
+ * project by everywhere else in the product.
  */
 function ProjectRow({ row, onRemove }: { row: InitiativeProjectRow; onRemove: () => void }) {
   return (
     <li className={styles.projectRow}>
-      <StateIcon category={PROJECT_STATUS_ICON[row.statusCategory]} label={row.statusName} />
+      <EntityIcon icon={row.icon} color={row.color} fallback={<ProjectGlyph />} />
       <Link to={`/project/${row.projectId}`} className={styles.projectLink}>
         {row.name}
       </Link>
@@ -950,7 +612,7 @@ function listChildren(store: Store, initiativeId: UUID): readonly ChildRow[] {
     if (child === undefined || child.archivedAt !== undefined || child.deletedAt !== undefined) {
       continue;
     }
-    rows.push({ id: child.id, name: child.name });
+    rows.push({ id: child.id, name: child.name, icon: child.icon, color: child.color });
   }
   return rows.sort((a, b) => a.name.localeCompare(b.name));
 }
