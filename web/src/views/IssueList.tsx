@@ -435,6 +435,7 @@ interface ListCommands {
   copyGitBranch(): void;
   copyIssueLink(): void;
   copyIssueId(): void;
+  copyIssueTitle(): void;
   insightsOpen(): boolean;
   toggleInsights(): void;
   saveView(): void;
@@ -1027,6 +1028,7 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
     copyGitBranch: () => {},
     copyIssueLink: () => {},
     copyIssueId: () => {},
+    copyIssueTitle: () => {},
     insightsOpen: () => false,
     toggleInsights: () => {},
     saveView: () => {},
@@ -1251,6 +1253,11 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
     copyIssueId: () => {
       const identifier = identifierOf(engine.store, cursorId);
       if (identifier !== null) void copyText(identifier);
+    },
+    copyIssueTitle: () => {
+      if (cursorId === null) return;
+      const row = engine.store.get('issue', cursorId);
+      if (row !== undefined) void copyText(row.title);
     },
     insightsOpen: () => insightsOpenRef.current,
     toggleInsights: () => setInsights(!insightsOpenRef.current),
@@ -2590,6 +2597,14 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
               closeContext();
               commands.current.copyIssueId();
             },
+            copyTitle: () => {
+              closeContext();
+              commands.current.copyIssueTitle();
+            },
+            copyGitBranch: () => {
+              closeContext();
+              commands.current.copyGitBranch();
+            },
             ...(contextIssue.assigneeId === null
               ? {}
               : {
@@ -2630,6 +2645,7 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
             estimate: 'shift+e',
             due: 'shift+d',
             subscribe: 'shift+s',
+            copyGitBranch: 'mod+shift+period',
           },
         )}
       />
