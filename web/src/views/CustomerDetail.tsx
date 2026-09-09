@@ -6,11 +6,12 @@
  * stayed Active with whatever was typed at create for the rest of its life.
  */
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { Button, EmptyState, IconButton, Input, Select } from '~/components';
+import { useActions, useKeyContext } from '~/app/keymap';
+import { Button, EmptyState, IconButton, Input, Menu, Select, type MenuNode } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { CreateCustomerRequestModal } from '~/features/customers/CreateCustomerRequestModal';
 import { CustomerRequestEditor } from '~/features/customers/CustomerRequestEditor';
@@ -22,12 +23,17 @@ import {
   toggleCustomerRequestImportant,
   updateCustomer,
 } from '~/features/customers/mutations';
+import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
 import { EntityLoading, useEntityState } from '~/features/entity-gate/EntityGate';
+import { copyText } from '~/features/github/copy';
+import { DotsGlyph } from '~/features/issue/glyphs';
 import { report } from '~/features/issue/mutations';
 import { PencilGlyph, TrashGlyph } from '~/features/project-updates/glyphs';
 import { setCustomerSubscription } from '~/features/subscriptions/mutations';
 import { SubscribeBell } from '~/features/subscriptions/SubscribeBell';
+import { useContextMenu } from '~/hooks/useContextMenu';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewer, useViewerRole } from '~/hooks/useViewer';
 import type { CustomerStatus, Store, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
@@ -63,6 +69,10 @@ export function CustomerDetail() {
   // the person who pressed the control did not. One region, because these are all edits to
   // the same customer and a banner per control would be four banners saying one thing.
   const [writeError, setWriteError] = useState<string | null>(null);
+
+  const more = useMenuTrigger();
+  const contextMenu = useContextMenu<string>();
+  const headerRef = useRef<HTMLElement>(null);
 
   const customer = useLiveQuery(
     (store) => store.customers.get(customerId) ?? null,
@@ -113,6 +123,29 @@ export function CustomerDetail() {
   );
 
   const customerState = useEntityState(customer);
+
+  useKeyContext('detail');
+  useActions(
+    [
+      {
+        // The same chord the customer list binds, aimed at the header rather than at a row.
+        // Distinct id because both are registered under one keymap and a duplicate would be
+        // refused at mount; `enabled` keeps the two from ever competing for the key.
+        id: 'customer.actions',
+        title: 'Show actions for the customer',
+        keys: ['.'],
+        when: 'detail',
+        group: 'Customers',
+        enabled: () => customer !== null,
+        run: () => {
+          const element = headerRef.current;
+          if (element === null || customer === null) return;
+          contextMenu.openOn(element, customer.id);
+        },
+      },
+    ],
+    [],
+  );
 
   // Same gate as the list: a guest reaching a customer page by its id sees the workspace
   // home instead, and the role is read from the session rather than the replica.
@@ -167,6 +200,73 @@ export function CustomerDetail() {
 
   const mergeTarget = others.find((row) => row.id === mergeIntoId) ?? null;
 
+  const closeMenus = () => {
+    more.hide();
+    contextMenu.close();
+  };
+
+  /**
+   * The customer list's menu, less `Open customer` — this is the customer it would open.
+   *
+   * Merge is here as well as in the header control: it is the one action on this page that
+   * needs a target chosen, and a submenu asks for it in the same gesture rather than sending
+   * the reader to a `<select>` first.
+   */
+  const menuItems = (): MenuNode[] =>
+    entityRowMenuItems(
+      { noun: 'customer', name: customer.name },
+      {
+        copyLink: () => {
+          closeMenus();
+          void copyText(`${window.location.origin}/customer/${customer.id}`);
+        },
+        properties: [
+          {
+            kind: 'submenu',
+            id: 'status',
+            label: 'Status',
+            items: STATUSES.map((value) => ({
+              id: `status-${value}`,
+              label: formatCustomerStatus(value),
+              selected: value === customer.status,
+              onSelect: () => {
+                closeMenus();
+                if (value === customer.status) return;
+                save({ status: value });
+              },
+            })),
+          },
+          ...(others.length === 0
+            ? []
+            : [
+                {
+                  kind: 'submenu' as const,
+                  id: 'merge',
+                  label: 'Merge into',
+                  filterable: others.length > 8,
+                  filterPlaceholder: 'Find a customer…',
+                  items: others.map((row) => ({
+                    id: `merge-${row.id}`,
+                    label: row.name,
+                    onSelect: () => {
+                      closeMenus();
+                      setMergeError(null);
+                      setMergeIntoId(row.id);
+                      setMerging(true);
+                    },
+                  })),
+                },
+              ]),
+        ],
+        archive: () => {
+          closeMenus();
+          setArchiveError(null);
+          setArchiving(true);
+        },
+        archiveLabel: 'Archive customer',
+      },
+    );
+
   const confirmMerge = () => {
     if (mergeTarget === null) return;
     setMergeBusy(true);
@@ -187,7 +287,17 @@ export function CustomerDetail() {
 
   return (
     <div className={styles.screen}>
-      <header className={styles.header}>
+      <header
+        ref={headerRef}
+        className={styles.header}
+        aria-label="Customer"
+        onContextMenu={(event) => {
+          // A descendant that already answered this right-click owns it: the notification
+          // bell opens a menu of its own, and two menus at once means neither can be used.
+          if (event.defaultPrevented) return;
+          contextMenu.openFromEvent(event, customer.id);
+        }}
+      >
         <div className={styles.titleRow}>
           <h1 className={styles.title}>{customer.name}</h1>
           <span className={styles.status}>{formatCustomerStatus(customer.status)}</span>
@@ -234,6 +344,21 @@ export function CustomerDetail() {
           <Button variant="ghost" onClick={() => setArchiving(true)}>
             Archive
           </Button>
+          <IconButton
+            {...more.props}
+            icon={<DotsGlyph />}
+            aria-label={`Options for ${customer.name}`}
+            onClick={more.toggle}
+          />
+          <Menu
+            open={more.open}
+            onClose={more.hide}
+            trigger={more.ref}
+            label="Customer options"
+            keysPresentation="kbd"
+            density="compact"
+            items={menuItems()}
+          />
           {others.length === 0 ? null : (
             <>
               <Select
@@ -260,6 +385,17 @@ export function CustomerDetail() {
           )}
         </div>
       </header>
+
+      {contextMenu.at === null ? null : <div {...contextMenu.anchorProps} />}
+      <Menu
+        open={contextMenu.at !== null}
+        onClose={contextMenu.close}
+        trigger={contextMenu.anchorRef}
+        label={`Options for ${customer.name}`}
+        keysPresentation="kbd"
+        density="compact"
+        items={menuItems()}
+      />
 
       {writeError === null ? null : (
         <p className={styles.error} role="alert">

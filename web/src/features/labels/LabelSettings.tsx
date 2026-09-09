@@ -20,9 +20,10 @@
  * could not is an error message.
  */
 
-import { useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 
 import { useEngine } from '~/app/context';
+import { useActions, useKeyContext } from '~/app/keymap';
 import {
   Badge,
   Button,
@@ -33,8 +34,12 @@ import {
   Input,
   Menu,
   Select,
+  type MenuNode,
 } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
+import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
+import { DotsGlyph } from '~/features/issue/glyphs';
+import { useContextMenu } from '~/hooks/useContextMenu';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Store, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
@@ -71,6 +76,43 @@ const WORKSPACE_SCOPE = 'workspace';
 export function LabelSettings() {
   const engine = useEngine();
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * The keyboard's way into a row's menu.
+   *
+   * This screen has no cursor and should not grow one: a label row is a form, and the
+   * thing that already says which row the user means is where the keyboard is. So each
+   * row reports focus and leaves behind a way to open its own menu, and the one `.`
+   * binding below aims at whichever row that is. Registering the action per row would be
+   * one `labels.actions` per label, which the registry refuses at mount.
+   */
+  const [focusedId, setFocusedId] = useState<UUID | null>(null);
+  const openers = useRef(new Map<UUID, () => void>());
+
+  const registerMenu = useCallback((id: UUID, open: (() => void) | null) => {
+    if (open === null) openers.current.delete(id);
+    else openers.current.set(id, open);
+  }, []);
+
+  useKeyContext('list');
+
+  useActions(
+    [
+      {
+        id: 'labels.actions',
+        title: 'Show actions for the label',
+        keys: ['.'],
+        when: 'list',
+        group: 'Labels',
+        enabled: () => focusedId !== null && openers.current.has(focusedId),
+        run: () => {
+          if (focusedId === null) return;
+          openers.current.get(focusedId)?.();
+        },
+      },
+    ],
+    [focusedId],
+  );
 
   const { labels, scopes } = useLiveQuery(
     (store: Store) => {
@@ -173,6 +215,8 @@ export function LabelSettings() {
                       onEdit={(fields) => run(updateLabel(engine, row.id, fields))}
                       onArchive={() => run(archiveLabel(engine, row.id))}
                       onMerge={(intoId) => run(mergeLabels(engine, row.id, intoId))}
+                      onFocusRow={setFocusedId}
+                      registerMenu={registerMenu}
                     />
                     {!row.isGroup ? null : (
                       <ul className={styles.children}>
@@ -189,6 +233,8 @@ export function LabelSettings() {
                               onUngroup={() =>
                                 run(updateLabel(engine, child.id, { parentId: null }))
                               }
+                              onFocusRow={setFocusedId}
+                              registerMenu={registerMenu}
                             />
                           </li>
                         ))}
@@ -311,13 +357,140 @@ interface LabelRowProps {
   onArchive: () => void;
   onMerge?: ((intoId: UUID) => void) | undefined;
   onUngroup?: (() => void) | undefined;
+  /** Reports where the keyboard is, so the screen's `.` binding knows which row it means. */
+  onFocusRow?: ((id: UUID) => void) | undefined;
+  /** Leaves behind a way to open this row's menu, and takes it back on unmount. */
+  registerMenu?: ((id: UUID, open: (() => void) | null) => void) | undefined;
 }
 
-function LabelRow({ row, mergeInto = [], onEdit, onArchive, onMerge, onUngroup }: LabelRowProps) {
+function LabelRow({
+  row,
+  mergeInto = [],
+  onEdit,
+  onArchive,
+  onMerge,
+  onUngroup,
+  onFocusRow,
+  registerMenu,
+}: LabelRowProps) {
   const [name, setName] = useState(row.name);
   const mergeRef = useRef<HTMLButtonElement>(null);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeTarget, setMergeTarget] = useState<LabelView | null>(null);
+
+  const rowRef = useRef<HTMLDivElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const kebabRef = useRef<HTMLButtonElement>(null);
+  const [kebabOpen, setKebabOpen] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const contextMenu = useContextMenu<UUID>({ returnFocusTo: kebabRef });
+
+  // A ref rather than the callback itself: the opener is registered once per row and must
+  // not re-register on every render, but it still has to reach the current `openOn`.
+  const openHere = useRef<() => void>(() => undefined);
+  openHere.current = () => {
+    const element = rowRef.current;
+    if (element !== null) contextMenu.openOn(element, row.id);
+  };
+
+  useEffect(() => {
+    if (registerMenu === undefined) return;
+    registerMenu(row.id, () => openHere.current());
+    return () => registerMenu(row.id, null);
+  }, [registerMenu, row.id]);
+
+  const closeMenus = () => {
+    setKebabOpen(false);
+    contextMenu.close();
+  };
+
+  /**
+   * One array, drawn by the ⋯ button and by the right-click alike.
+   *
+   * Merge is a submenu here rather than a second dialog: the choice of what to merge into
+   * is the command, and the standing `Merge…` button beside the row opens the same list
+   * into the same confirmation.
+   */
+  const itemsFor = (target: LabelView): MenuNode[] => {
+    const properties: MenuNode[] = [
+      {
+        id: 'rename',
+        label: 'Rename…',
+        onSelect: () => {
+          closeMenus();
+          // The row's own field, which is where renaming already happens. A second inline
+          // editor would be a second commit path for one mutation.
+          requestAnimationFrame(() => {
+            nameRef.current?.focus();
+            nameRef.current?.select();
+          });
+        },
+      },
+    ];
+
+    if (onMerge !== undefined && mergeInto.length > 0) {
+      properties.push({
+        kind: 'submenu',
+        id: 'merge',
+        label: 'Merge…',
+        filterable: mergeInto.length > 8,
+        filterPlaceholder: 'Find a label',
+        items: mergeInto.map((other) => ({
+          id: other.id,
+          label: other.name,
+          onSelect: () => {
+            closeMenus();
+            setMergeTarget(other);
+          },
+        })),
+      });
+    }
+
+    if (onUngroup !== undefined) {
+      properties.push({
+        id: 'ungroup',
+        label: 'Remove from group',
+        onSelect: () => {
+          closeMenus();
+          onUngroup();
+        },
+      });
+    }
+
+    const items = entityRowMenuItems(
+      { noun: 'label', name: target.name },
+      {
+        properties,
+        // Offered only when it can succeed. The count says why when it cannot, exactly as
+        // the disabled button beside the row does.
+        ...(target.uses > 0
+          ? null
+          : {
+              archive: () => {
+                closeMenus();
+                setArchiving(true);
+              },
+              archiveLabel: 'Archive label',
+            }),
+      },
+    );
+
+    if (target.uses > 0) {
+      items.push(
+        { kind: 'separator' },
+        {
+          id: 'archive',
+          label: 'Archive label',
+          danger: true,
+          disabled: true,
+          hint: `${target.uses} ${target.uses === 1 ? 'issue' : 'issues'}`,
+          onSelect: () => undefined,
+        },
+      );
+    }
+
+    return items;
+  };
 
   // Committed on blur rather than on every keystroke. Each keystroke is a mutation with its
   // own version and its own change row, and a fourteen-character rename would put fourteen
@@ -332,7 +505,14 @@ function LabelRow({ row, mergeInto = [], onEdit, onArchive, onMerge, onUngroup }
   };
 
   return (
-    <div className={styles.row}>
+    <div
+      ref={rowRef}
+      className={styles.row}
+      onFocusCapture={() => onFocusRow?.(row.id)}
+      onContextMenu={(event) => {
+        contextMenu.openFromEvent(event, row.id);
+      }}
+    >
       {/*
        * A form purely so that Enter commits.
        *
@@ -348,6 +528,7 @@ function LabelRow({ row, mergeInto = [], onEdit, onArchive, onMerge, onUngroup }
         }}
       >
         <Input
+          ref={nameRef}
           label={`Name of ${row.name}`}
           hideLabel
           value={name}
@@ -454,9 +635,51 @@ function LabelRow({ row, mergeInto = [], onEdit, onArchive, onMerge, onUngroup }
           // vanishes reads as a missing feature; one that is disabled with a reason reads as
           // a rule.
           disabled={row.uses > 0}
-          onClick={onArchive}
+          onClick={() => setArchiving(true)}
+        />
+        {/* The same array the right-click opens. Right-click alone is unreachable on a
+            touch screen, and invisible on any other. */}
+        <IconButton
+          ref={kebabRef}
+          aria-label={`Options for ${row.name}`}
+          aria-haspopup="menu"
+          aria-expanded={kebabOpen}
+          icon={<DotsGlyph />}
+          onClick={() => setKebabOpen(true)}
         />
       </span>
+
+      <Menu
+        open={kebabOpen}
+        onClose={() => setKebabOpen(false)}
+        trigger={kebabRef}
+        label={`Options for ${row.name}`}
+        density="compact"
+        items={itemsFor(row)}
+      />
+
+      {contextMenu.at === null ? null : <div {...contextMenu.anchorProps} />}
+      <Menu
+        open={contextMenu.at !== null}
+        onClose={contextMenu.close}
+        trigger={contextMenu.anchorRef}
+        label={`Options for ${row.name}`}
+        density="compact"
+        items={itemsFor(row)}
+      />
+
+      <ConfirmDialog
+        open={archiving}
+        title={`Archive ${row.name}?`}
+        consequence={`${row.name} stops being offered on new issues. Archiving is refused while anything still carries it.`}
+        confirmLabel="Archive"
+        destructive
+        onClose={() => setArchiving(false)}
+        onConfirm={() => {
+          setArchiving(false);
+          onArchive();
+        }}
+      />
     </div>
   );
 }
