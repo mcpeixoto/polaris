@@ -164,7 +164,10 @@ describe('ProjectShell context menu', () => {
     const user = userEvent.setup();
     renderShell(seededWithView(), READY);
 
-    await user.pointer({ target: screen.getByRole('link', { name: 'Bugs' }), keys: '[MouseRight]' });
+    await user.pointer({
+      target: screen.getByRole('link', { name: 'Bugs' }),
+      keys: '[MouseRight]',
+    });
 
     expect(await screen.findByRole('menu', { name: 'View options' })).not.toBeNull();
     expect(screen.queryByRole('menu', { name: 'Options for Launch' })).toBeNull();
