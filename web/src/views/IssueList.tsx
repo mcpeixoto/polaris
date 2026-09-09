@@ -73,6 +73,7 @@ import {
   type ReorderTarget,
 } from '~/features/issue/mutations';
 import { issueRowMenuItems, type IssuePropertyKind } from '~/features/issue/rowMenu';
+import { MilestonePicker } from '~/features/project-milestones/MilestonePicker';
 import { contextMenuPoint, contextMenuPointOn } from '~/hooks/useContextMenu';
 import { useContextMenuHandoff } from '~/hooks/useContextMenuHandoff';
 import { RESTORE_WINDOW_DAYS, restoreIssue } from '~/features/trash/mutations';
@@ -758,6 +759,7 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
   const assignee = useMenuTrigger();
   const priority = useMenuTrigger();
   const project = useMenuTrigger();
+  const milestone = useMenuTrigger();
   const cycle = useMenuTrigger();
   const labelMenu = useMenuTrigger();
   const estimate = useMenuTrigger();
@@ -840,6 +842,7 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
     assignee,
     priority,
     project,
+    milestone,
     labels: labelMenu,
     estimate,
     due,
@@ -850,6 +853,7 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
     assignee,
     priority,
     project,
+    milestone,
     labels: labelMenu,
     estimate,
     due,
@@ -1974,8 +1978,6 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
   const handOffContext = useCallback(
     (kind: IssuePropertyKind) => {
       if (contextRow === null) return;
-      // Milestone has no list picker yet; omit unsupported rather than no-op.
-      if (kind === 'milestone') return;
       contextHandoff.begin();
       setContextOpen(false);
       openFrom(kind, contextRow.id, contextRow.rowIndex, contextAnchor.current);
@@ -2044,6 +2046,7 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
     assignee.open ||
     priority.open ||
     project.open ||
+    milestone.open ||
     cycle.open ||
     labelMenu.open ||
     estimate.open ||
@@ -2060,6 +2063,11 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
   // open — the first version of this line used it and the button was therefore disabled
   // whenever no menu was showing, which is exactly when somebody would want to press it.
   const canSetStatus = canAct && sameTeam(engine.store, actOn);
+  // A milestone belongs to a project, so the row is offered only when the targets are all in
+  // the same one — and only when that is a project rather than none, since a milestone list
+  // for no project is an empty menu. Read from the store for the same reason `canSetStatus`
+  // is: `shared` is computed only while a picker is open.
+  const canSetMilestone = canAct && sameProject(engine.store, actOn);
 
   // `aria-activedescendant` has to name an element that is actually in the document, and a
   // virtualised list is mostly arithmetic. The cursor is scrolled into view whenever it
@@ -2419,6 +2427,16 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
         value={shared.projectId}
         onSelect={(projectId) => updateIssues(engine, actOn, { projectId }).catch(report)}
       />
+      <MilestonePicker
+        open={milestone.open}
+        onClose={() => closePicker(milestone.hide)}
+        trigger={milestone.ref}
+        projectId={shared.projectId ?? null}
+        value={shared.milestoneId}
+        onSelect={(projectMilestoneId) =>
+          updateIssues(engine, targets, { projectMilestoneId }).catch(report)
+        }
+      />
       <CyclePicker
         open={cycle.open}
         onClose={cycle.hide}
@@ -2538,6 +2556,10 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
             identifier: contextIssue.identifier,
             estimates: contextIssue.estimates || estimatesPossible,
             cycles: contextIssue.cycles,
+            // Only when the targets sit in one project. A milestone belongs to a project, so
+            // a selection spanning two has no list to offer — and one with no project at all
+            // has nothing to pick from, which is a row that would open an empty menu.
+            milestone: canSetMilestone,
             subscribed: contextIssue.subscribed,
             favorited: contextIssue.favorited,
             ...(contextIssue.assigneeName === null
@@ -3908,6 +3930,14 @@ interface SharedProperties {
    */
   readonly teamId: UUID | undefined;
   readonly projectId: UUID | null | undefined;
+  /**
+   * The milestone the selection is on, when it is all on one.
+   *
+   * A milestone belongs to a project, so this is only ever offered when `projectId` is one
+   * project — two projects have two sets of milestones and no correct list to show, the same
+   * way two teams have two sets of statuses.
+   */
+  readonly milestoneId: UUID | null | undefined;
   readonly cycleId: UUID | null | undefined;
   readonly estimate: number | null | undefined;
   readonly dueDate: DateOnly | null | undefined;
@@ -3924,6 +3954,7 @@ const NOTHING_SHARED: SharedProperties = {
   assigneeId: undefined,
   priority: undefined,
   projectId: undefined,
+  milestoneId: undefined,
   cycleId: undefined,
   estimate: undefined,
   dueDate: undefined,
@@ -3948,6 +3979,7 @@ function sharedProperties(store: Store, targets: readonly UUID[]): SharedPropert
   let priority: number | undefined;
   let teamId: UUID | undefined;
   let projectId: UUID | null | undefined;
+  let milestoneId: UUID | null | undefined;
   let cycleId: UUID | null | undefined;
   let estimate: number | null | undefined;
   let dueDate: DateOnly | null | undefined;
@@ -3966,6 +3998,7 @@ function sharedProperties(store: Store, targets: readonly UUID[]): SharedPropert
       priority = issue.priority;
       teamId = issue.teamId;
       projectId = issue.projectId ?? null;
+      milestoneId = issue.projectMilestoneId ?? null;
       cycleId = issue.cycleId ?? null;
       estimate = issue.estimate ?? null;
       dueDate = issue.dueDate ?? null;
@@ -3980,6 +4013,7 @@ function sharedProperties(store: Store, targets: readonly UUID[]): SharedPropert
     if (priority !== issue.priority) priority = undefined;
     if (teamId !== issue.teamId) teamId = undefined;
     if (projectId !== (issue.projectId ?? null)) projectId = undefined;
+    if (milestoneId !== (issue.projectMilestoneId ?? null)) milestoneId = undefined;
     if (cycleId !== (issue.cycleId ?? null)) cycleId = undefined;
     if (estimate !== (issue.estimate ?? null)) estimate = undefined;
     if (dueDate !== (issue.dueDate ?? null)) dueDate = undefined;
@@ -3995,6 +4029,7 @@ function sharedProperties(store: Store, targets: readonly UUID[]): SharedPropert
     priority,
     teamId,
     projectId,
+    milestoneId,
     cycleId,
     estimate,
     dueDate,
@@ -4002,6 +4037,25 @@ function sharedProperties(store: Store, targets: readonly UUID[]): SharedPropert
     timezone,
     labelIds: labelIds ?? [],
   };
+}
+
+/**
+ * Whether every issue given sits in one project — and in a project at all.
+ *
+ * The gate for the milestone row. Two projects have two sets of milestones and no correct
+ * list to draw, and an issue in no project has none to draw at all; both would open a menu
+ * with nothing in it.
+ */
+function sameProject(store: Store, targets: readonly UUID[]): boolean {
+  let projectId: UUID | undefined;
+  for (const id of targets) {
+    const issue = store.issues.get(id);
+    if (issue === undefined) continue;
+    if (issue.projectId === undefined) return false;
+    if (projectId === undefined) projectId = issue.projectId;
+    else if (projectId !== issue.projectId) return false;
+  }
+  return projectId !== undefined;
 }
 
 /** Estimate picker only when every targeted issue is in one team that estimates. */
