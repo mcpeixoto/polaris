@@ -269,7 +269,15 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm -C web exec playwright install --with-deps chromium
+      # `--with-deps` runs `apt-get update`, which reads every repo the runner image has
+      # configured — including Google's Chrome one, which periodically serves a Packages.gz
+      # whose hash disagrees with its own Release file and fails the whole update. Playwright
+      # brings its own Chromium and never wanted that repo; dropping it takes a third party's
+      # mirror out of the path of every pull request.
+      - name: Install the browser, without a repo we do not use
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+          pnpm -C web exec playwright install --with-deps chromium
 
       - name: Migrate
         run: go run ./cmd/polarisctl migrate up

@@ -396,6 +396,10 @@ jobs:
       - name: Prepare Linux sandbox and display
         if: ${{ matrix.name == 'Linux' }}
         run: |
+          # Google's Chrome repo periodically serves a Packages.gz whose hash disagrees with
+          # its own Release file, and `apt-get update` fails the run over a repo this job
+          # never reads. xvfb and libasound come from Ubuntu's own archives.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
           sudo apt-get update
           sudo apt-get install -y xvfb libasound2t64
           # Ubuntu's AppArmor policy restricts unprivileged user namespaces. Use
