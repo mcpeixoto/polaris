@@ -98,14 +98,17 @@ function renderOverview(mutate = vi.fn().mockResolvedValue({})) {
 }
 
 describe('ProjectOverview as a document', () => {
-  it("opens on the summary and the description, the name being the shell's", () => {
+  it('opens on the mark, the name, the summary and the description', () => {
     renderOverview();
 
+    // The document names itself. The mark and the name were the breadcrumb's alone until
+    // the page grew a title block of its own; the trail still carries both — it is on every
+    // tab, and it is where somebody arriving from the list confirms what they opened — and
+    // this pair is the document's own heading, editable in place.
+    expect(screen.getByText('🚀')).toBeTruthy();
+    expect((screen.getByLabelText('Project name') as HTMLTextAreaElement).value).toBe('Launch');
     expect((screen.getByLabelText('Summary') as HTMLInputElement).value).toBe('Ship it');
     expect(screen.getByLabelText('Description')).toBeTruthy();
-    // The heading and the emoji live in the breadcrumb; two copies of a name is one more
-    // than a screen reader wants.
-    expect(screen.queryByText('🚀')).toBeNull();
   });
 
   it('shows the latest update, and leaves the history to the activity tab', () => {

@@ -9,10 +9,15 @@
  * put the caret in it. That is the same bargain the issue title makes, and it is the same
  * component making it.
  *
- * Status and target ride at the far end as pills that open their pickers, not as chips that
- * only look like controls: a person arriving from the list checks they opened the right row
- * there, and changing it should not mean hunting for the rail. The rail is still where every
- * other property lives.
+ * The header carries where you are and what you can do to the project as a whole — the star,
+ * the notifications bell, the ⋯ menu — and nothing else. Status and target used to ride at
+ * the far end as pills, which put two copies of both on the screen: the properties are the
+ * page's now, stated once in the overview's property row and edited in the rail beside it.
+ * Health stays, because it is the one fact worth reading in the same glance as the name.
+ *
+ * The tabs are a row of their own beneath, with the rail's toggle at its trailing edge —
+ * the rail is a property of this screen rather than of the project, so its control belongs
+ * to the chrome and not to the trail.
  */
 
 import { useRef, useState } from 'react';
@@ -22,12 +27,9 @@ import {
   Breadcrumb,
   Button,
   ConfirmDialog,
-  DatePicker,
   EmptyState,
   IconButton,
   Menu,
-  PropertyPill,
-  StateIcon,
   Tabs,
   TitleField,
   type MenuNode,
@@ -38,17 +40,16 @@ import { EntityGate } from '~/features/entity-gate/EntityGate';
 import { EntityIcon } from '~/features/icon/EntityIcon';
 import { IconPicker } from '~/features/icon/IconPicker';
 import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
-import { browserTimezone } from '~/features/locale';
 import { ProjectHealthCell } from '~/features/project-updates/ProjectHealthCell';
 import { DotsGlyph, StarGlyph } from '~/features/issue/glyphs';
 import { ProjectGlyph } from '~/features/projects/glyphs';
-import { ProjectProperties, formatTimeframe } from '~/features/projects/properties';
-import { PROJECT_STATUS_ICON } from '~/features/projects/statusCategories';
+import { ProjectProperties } from '~/features/projects/properties';
 import { ProjectStatusPicker } from '~/features/projects/ProjectStatusPicker';
 import { ProjectViewTabs } from '~/features/projects/attachedViews';
 import { archiveProject, deleteProject, updateProject } from '~/features/projects/mutations';
 import { report, setProjectSubscription } from '~/features/subscriptions/mutations';
 import { SubscribeBell } from '~/features/subscriptions/SubscribeBell';
+import { readCollapsed, writeCollapsed } from '~/features/view/collapse';
 import { isFavorite, toggleFavorite } from '~/features/view/mutations';
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
@@ -59,6 +60,10 @@ import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewer, useViewerId } from '~/hooks/useViewer';
 import styles from './ProjectShell.module.css';
 
+/** One screen, one folded thing: the rail. Its own key, so the rail's sections keep theirs. */
+const RAIL_PREFERENCE = 'project-rail';
+const RAIL_KEY = 'rail';
+
 export function ProjectShell() {
   const engine = useEngine();
   const navigate = useNavigate();
@@ -67,12 +72,29 @@ export function ProjectShell() {
   const viewerId = useViewerId();
 
   const status = useMenuTrigger();
-  const target = useMenuTrigger<HTMLButtonElement>('dialog');
   const more = useMenuTrigger();
   const headerIcon = useMenuTrigger<HTMLButtonElement>('dialog');
   const contextMenu = useContextMenu<string>();
   const titleRef = useRef<TitleHandle | null>(null);
   const [confirming, setConfirming] = useState<'archive' | 'delete' | null>(null);
+
+  // Whether the rail is open, remembered the way a folded group is: in localStorage, keyed
+  // by the screen, because it is one reader's arrangement of one afternoon and not something
+  // a shared link should carry. Open is the default — a project's properties are half of
+  // what the screen is for.
+  //
+  // Folded means unmounted rather than hidden, which costs the rail's own shortcuts (`P`,
+  // `L`, `A`, `I`) while it is away. That is the honest trade: those actions open pickers,
+  // and a picker positioned against a `display: none` trigger opens in the corner of the
+  // window. `E` and `S` are registered here and keep working either way.
+  const [railShut, setRailShut] = useState(() => readCollapsed(RAIL_PREFERENCE).has(RAIL_KEY));
+  const toggleRail = () => {
+    setRailShut((shut) => {
+      const next = !shut;
+      writeCollapsed(RAIL_PREFERENCE, next ? new Set([RAIL_KEY]) : new Set());
+      return next;
+    });
+  };
 
   // The project and the status it sits on in one query. Both are read on every render of
   // the header, and two subscriptions over the same row buy nothing but another render
@@ -201,7 +223,6 @@ export function ProjectShell() {
     >
       {() => {
         if (row === null) return null;
-        const { status: current } = row;
         const project = row.project;
         const base = `/project/${project.id}`;
         // Tinted with the project's own colour, which is the other half of what the icon
@@ -224,18 +245,21 @@ export function ProjectShell() {
           </button>
         );
 
-        // One row, one landmark. The attached views sit between Issues and Activity and draw
-        // themselves, because a saved view's tab also drags to reorder and opens a context
-        // menu — behaviour a plain `TabItem` has no way to carry.
+        // One row, one landmark. Overview, Activity, Issues — Linear's order, and an order
+        // with an argument: the two tabs about the project as a whole come before the one
+        // about the work inside it. The attached views draw themselves after Issues, because
+        // a saved view's tab also drags to reorder and opens a context menu — behaviour a
+        // plain `TabItem` has no way to carry — and because a saved view *is* a view of the
+        // issues, so it belongs beside them.
         const tabs: TabItem[] = [
           { id: 'overview', label: 'Overview', to: base, end: true },
+          { id: 'activity', label: 'Activity', to: `${base}/activity` },
           { id: 'issues', label: 'Issues', to: `${base}/issues` },
           {
             id: 'views',
             label: 'Views',
             render: () => <ProjectViewTabs projectId={project.id} base={base} />,
           },
-          { id: 'activity', label: 'Activity', to: `${base}/activity` },
         ];
 
         const closeMenus = () => {
@@ -333,36 +357,17 @@ export function ProjectShell() {
               />
               {/* Beside the name rather than in the trailing group: health is the one fact a
                   reader wants in the same glance as the project. */}
-              <ProjectHealthCell store={engine.store} projectId={project.id} compact />
-              <Tabs aria-label="Project sections" className={styles.tabs} items={tabs} />
+              {/* Marked rather than named. The browser tests used to find this by taking the
+                  parent of whatever `h1` they could see, which stopped being one thing when
+                  the overview grew a title block; the obvious repair was an `aria-label`,
+                  and an accessible name containing "health" collides with the update
+                  editor's own Health control under Playwright's substring matching. The cell
+                  inside already says the word and the age to a screen reader, so there is
+                  nothing here for ARIA to add — only something for a test to aim at. */}
+              <div className={styles.health} data-testid="project-health">
+                <ProjectHealthCell store={engine.store} projectId={project.id} compact />
+              </div>
               <div className={styles.headerEnd}>
-                <PropertyPill
-                  {...status.props}
-                  name="Status"
-                  describe={`${project.id}-header-status`}
-                  empty={current === null ? 'No status' : undefined}
-                  icon={
-                    current === null ? undefined : (
-                      <StateIcon
-                        category={PROJECT_STATUS_ICON[current.category]}
-                        color={current.color}
-                        decorative
-                      />
-                    )
-                  }
-                >
-                  {current === null ? 'Status' : current.name}
-                </PropertyPill>
-                <PropertyPill
-                  {...target.props}
-                  name="Target date"
-                  describe={`${project.id}-header-target`}
-                  empty={project.targetDate === undefined ? 'No target date' : undefined}
-                >
-                  {project.targetDate === undefined
-                    ? 'Target'
-                    : formatTimeframe(project.targetDate, project.targetDateGranularity ?? 'day')}
-                </PropertyPill>
                 {viewerId === null ? null : (
                   <IconButton
                     icon={<StarGlyph on={favourite} />}
@@ -419,6 +424,22 @@ export function ProjectShell() {
               </div>
             </header>
 
+            {/* The sections, and the one control that belongs to this screen rather than to
+                the project. The toggle sits at the trailing edge of the row so the tabs keep
+                the leading edge they share with every other detail screen. */}
+            <div className={styles.tabRow}>
+              <Tabs aria-label="Project sections" className={styles.tabs} items={tabs} />
+              <IconButton
+                size="sm"
+                className={styles.railToggle}
+                icon={<RailGlyph />}
+                aria-label="Toggle properties"
+                aria-pressed={!railShut}
+                tooltip={railShut ? 'Show properties' : 'Hide properties'}
+                onClick={toggleRail}
+              />
+            </div>
+
             <Menu
               open={more.open}
               onClose={more.hide}
@@ -455,33 +476,17 @@ export function ProjectShell() {
               }}
             />
 
+            {/* `S` opens this from anywhere in the project, so it hangs off the ⋯ button:
+                the header's trailing group is the only anchor on screen on every tab and
+                whether or not the rail is open. The rail's own status row and the overview's
+                property pill open their own copies, positioned under themselves. */}
             <ProjectStatusPicker
               open={status.open}
               onClose={status.hide}
-              trigger={status.ref}
+              trigger={more.ref}
               placement="bottom-end"
               value={project.statusId}
               onSelect={(statusId) => updateProject(engine, project.id, { statusId }).catch(report)}
-            />
-
-            <DatePicker
-              open={target.open}
-              onClose={target.hide}
-              trigger={target.ref}
-              value={project.targetDate ?? null}
-              // The reader's zone rather than a team's: a project belongs to as many teams
-              // as it likes, so there is no one team whose Friday this date is.
-              timezone={browserTimezone()}
-              actionId="project.header.closeTargetPicker"
-              actionGroup="Projects"
-              label="Target date"
-              clearLabel="No target date"
-              onSelect={(targetDate) =>
-                updateProject(engine, project.id, {
-                  targetDate,
-                  targetDateGranularity: project.targetDateGranularity ?? 'day',
-                }).catch(report)
-              }
             />
 
             <ConfirmDialog
@@ -514,14 +519,39 @@ export function ProjectShell() {
               <div className={styles.main}>
                 <Outlet />
               </div>
-              <aside className={styles.properties} aria-label="Project properties">
-                <h2 className={styles.propertiesTitle}>Properties</h2>
-                <ProjectProperties projectId={project.id} />
-              </aside>
+              {railShut ? null : (
+                <aside className={styles.properties} aria-label="Project properties">
+                  <ProjectProperties projectId={project.id} />
+                </aside>
+              )}
             </div>
           </div>
         );
       }}
     </EntityGate>
+  );
+}
+
+/**
+ * The rail toggle's glyph: a pane with its trailing column marked.
+ *
+ * A mirror of the sidebar's own toggle in `AppShell`, because the two controls do the same
+ * thing at opposite edges of the window and a reader should not have to learn them twice.
+ */
+function RailGlyph() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect
+        x="2.5"
+        y="3"
+        width="11"
+        height="10"
+        rx="1.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.4}
+      />
+      <path d="M9.5 3v10" stroke="currentColor" strokeWidth={1.4} />
+    </svg>
   );
 }

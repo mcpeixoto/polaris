@@ -8,9 +8,12 @@
  * list has learned this one, and a product with two vocabularies for the same decision
  * teaches neither.
  *
- * The defaults are what the screen already did before there was a control for it — grouped
- * into priority bands, in the manual order people drag rows into inside each band — so an
- * existing link keeps meaning what it meant and no default is written into the query string.
+ * The default is one flat run of rows in the manual order people drag them into. It used to
+ * be priority bands, which is what the screen did before there was a control for it — but a
+ * band per priority puts a heading over every project list in the product, most of them
+ * reading "No priority", and the first thing a reader wants from a project list is the
+ * projects. Grouping is one choice away in Display, and it rides in the URL, so the bands
+ * are still a link somebody can share.
  */
 
 import type { ProjectStatusCategory, Store, UUID } from '~/store';
@@ -63,7 +66,7 @@ export interface ProjectDisplayOptions {
 
 export const DEFAULT_PROJECT_DISPLAY: Required<ProjectDisplayOptions> = {
   layout: 'list',
-  grouping: 'priority',
+  grouping: 'none',
   ordering: 'manual',
   direction: 'asc',
   columns: PROJECT_COLUMN_ORDER,

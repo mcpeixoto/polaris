@@ -21,7 +21,8 @@
   }
 }
 
-/* The view header: 44px, no rule beneath it. Breadcrumb, tabs, then the standing facts. */
+/* The view header: 44px, no rule beneath it. Where you are, how it is going, and what can
+   be done to the project as a whole. The sections are the row below. */
 .header {
   display: flex;
   align-items: center;
@@ -77,6 +78,14 @@
   max-width: 20rem;
 }
 
+/* The health group: a box only so the cell inside it can be named and found. */
+.health {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  min-width: 0;
+}
+
 /* A favourited project's star is filled and in the accent, the way the issue screen's is. */
 .starOn {
   color: var(--accent-text);
@@ -90,8 +99,33 @@
   margin-inline-start: auto;
 }
 
-.tabs {
+/* The tab row: 40px, the sections at the leading edge and the rail's toggle at the other.
+   The hairline is here rather than under the header, so the two rows read as one head. */
+.tabRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   flex: none;
+  min-height: var(--space-10);
+  padding-inline: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.tabs {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.railToggle {
+  flex: none;
+  color: var(--text-secondary);
+}
+
+/* Pressed means the rail is open, so the toggle wears the state the rest of the product's
+   pressed controls do rather than looking identical either way. */
+.railToggle[aria-pressed='true'] {
+  color: var(--text-primary);
 }
 
 .body {
@@ -108,23 +142,17 @@
   min-height: 0;
 }
 
-/* The rail: 300px, the properties heading at the same height the overview's title sits. */
+/* The rail: 320px of sections, each with its own heading — the panel draws them, so there
+   is no title here for it to be a second copy of. */
 .properties {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   flex: none;
-  width: 300px;
-  padding: var(--space-8) var(--space-5) var(--space-8);
+  width: 320px;
+  padding: var(--space-5) var(--space-5) var(--space-8);
   border-left: 1px solid var(--border-subtle);
   overflow-y: auto;
-}
-
-.propertiesTitle {
-  margin: 0 0 var(--space-1);
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-medium);
-  color: var(--text-secondary);
 }
 
 @media (max-width: 960px) {

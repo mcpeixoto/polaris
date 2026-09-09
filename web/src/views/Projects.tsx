@@ -9,8 +9,9 @@
  * How it is grouped, ordered and columned is the reader's, not the file's. It used to be
  * hard-wired to priority bands, which is one good answer to "what shape is this work" and a
  * poor answer to the other four people ask — whose is it, what state is it in, which team
- * owns it. The bands are now the default of a `grouping` option that lives in the URL beside
- * the filters, so the arrangement is part of what a shared link carries.
+ * owns it. Grouping is a `grouping` option that lives in the URL beside the filters, so the
+ * arrangement is part of what a shared link carries; it opens ungrouped, because the first
+ * thing a projects list owes its reader is the projects.
  *
  * Three layouts over the same rows: the table, a board of columns per project status, and
  * the timeline. All three sit behind one loading gate. The timeline used to be returned
@@ -51,7 +52,6 @@ import {
   PriorityIcon,
   priorityLabel,
   SegmentedControl,
-  Select,
   type MenuNode,
 } from '~/components';
 import {
@@ -68,10 +68,7 @@ import {
   projectCustomerFilterOptions,
   type ProjectCustomerFilter,
 } from '~/features/projects/customerFilter';
-import {
-  matchesDependencyFilter,
-  ProjectDependencyFilterSelect,
-} from '~/features/projects/dependencies';
+import { matchesDependencyFilter } from '~/features/projects/dependencies';
 import { EntityLoading, useStoreSettled } from '~/features/entity-gate/EntityGate';
 import {
   activeProjectFilterCount,
@@ -223,6 +220,7 @@ export function Projects() {
   const { registry, context } = useKeymap();
   const create = () => registry.invoke('project.create', { source: 'menu', context });
   const displayTrigger = useMenuTrigger();
+  const filterTrigger = useMenuTrigger();
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [draggingId, setDraggingId] = useState<UUID | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -322,6 +320,33 @@ export function Projects() {
     ['customer'],
   );
   const hideCustomers = viewer === null || viewer.role === 'guest';
+
+  /** How many of the two filters behind the button are narrowing the list. Status is not
+      one of them: it is the pill row, and it counts itself by being pressed. */
+  const narrowing =
+    (filters.dependency === 'all' ? 0 : 1) + (hideCustomers || filters.customer === 'all' ? 0 : 1);
+
+  // The same choices the two selects carried, as one menu: the customer list is open-ended,
+  // so it needs the filter box a `<select>` has no way to offer once a workspace has a
+  // hundred customers, and both filters answer the same question about the same list.
+  const filterItems: MenuNode[] = [
+    { kind: 'heading', label: 'Dependencies' },
+    ...(
+      [
+        { id: 'all', label: 'All projects' },
+        { id: 'has-dependencies', label: 'Has dependencies' },
+        { id: 'blocking', label: 'Has blocking dependency' },
+        { id: 'blocked-by', label: 'Has blocked-by dependency' },
+        { id: 'violated', label: 'Has violated dependencies' },
+      ] as const
+    ).map((option) => ({
+      id: `dependency:${option.id}`,
+      label: option.label,
+      selected: filters.dependency === option.id,
+      onSelect: () => setFilters({ dependency: option.id }),
+    })),
+    ...(hideCustomers ? [] : customerFilterItems(filters, customerOptions, setFilters)),
+  ];
 
   const heading = team === null ? 'Projects' : `${team.name} projects`;
 
@@ -685,8 +710,7 @@ export function Projects() {
 
       {/* The status filter as the row of pills every list view wears — one pressed at a
           time, the URL remembering which, and the shared control rather than this screen's
-          own copy of it. The other two filters are rarer and keep their dropdowns at the
-          far end of the row. */}
+          own copy of it. The other two are rarer and live behind Filter, beside Display. */}
       <div className={styles.toolbar}>
         <SegmentedControl
           className={styles.pills}
@@ -697,41 +721,24 @@ export function Projects() {
           options={STATUS_PILLS.map((pill) => ({ value: pill.value, label: pill.label }))}
         />
         <div className={styles.toolbarEnd}>
-          <ProjectDependencyFilterSelect
-            value={filters.dependency}
-            onChange={(value) => setFilters({ dependency: value })}
+          {/* Dependencies and customers behind one control rather than two selects standing
+              open. Both are rare — most workspaces have no project dependencies and no
+              customer requests at all — and a permanently visible dropdown for each put two
+              controls reading "All projects" and "All customers" on every projects list in
+              the product, one of them repeating the pill already pressed beside it. The
+              choices are unchanged, and the button counts whichever are narrowing the list. */}
+          <Button {...filterTrigger.props} variant="ghost">
+            Filter{narrowing === 0 ? '' : ` · ${narrowing}`}
+          </Button>
+          <Menu
+            open={filterTrigger.open}
+            onClose={filterTrigger.hide}
+            trigger={filterTrigger.ref}
+            label="Filter"
+            filterable
+            filterPlaceholder="Filter…"
+            items={filterItems}
           />
-          {hideCustomers ? null : (
-            <Select
-              aria-label="Customers"
-              value={filters.customer}
-              onChange={(event) =>
-                setFilters({ customer: event.target.value as ProjectCustomerFilter })
-              }
-            >
-              <option value="all">All customers</option>
-              <option value="any">Has customer requests</option>
-              <option value="none">No customer requests</option>
-              {customerOptions.customers.length > 0 ? (
-                <optgroup label="Customer">
-                  {customerOptions.customers.map((customer) => (
-                    <option key={customer.id} value={`customer:${customer.id}`}>
-                      {customer.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ) : null}
-              {customerOptions.tiers.length > 0 ? (
-                <optgroup label="Tier">
-                  {customerOptions.tiers.map((tier) => (
-                    <option key={tier} value={`tier:${tier}`}>
-                      {tier}
-                    </option>
-                  ))}
-                </optgroup>
-              ) : null}
-            </Select>
-          )}
           <Button {...displayTrigger.props} variant="ghost">
             Display{displayChanges > 0 ? ` · ${displayChanges}` : ''}
           </Button>
@@ -1214,14 +1221,21 @@ function ProjectRowLink({
                     <NoPersonGlyph />
                   </span>
                 ) : (
-                  <span title={row.leadName} className={styles.leadAvatar}>
-                    <Avatar
-                      name={row.leadName}
-                      src={row.leadAvatar}
-                      size="sm"
-                      colorKey={row.leadId}
-                    />
-                  </span>
+                  // The name beside the face. An avatar alone is an identity puzzle in a
+                  // list of twenty projects: initials in a coloured disc identify somebody
+                  // you already know is in the list, and nobody else.
+                  <>
+                    <span className={styles.leadAvatar}>
+                      <Avatar
+                        name={row.leadName}
+                        src={row.leadAvatar}
+                        size="sm"
+                        colorKey={row.leadId}
+                        decorative
+                      />
+                    </span>
+                    <span className={styles.leadName}>{row.leadName}</span>
+                  </>
                 )}
               </span>
             );
@@ -1366,6 +1380,62 @@ function Sparkline({ values }: { readonly values: readonly number[] }) {
       <polyline points={points} />
     </svg>
   );
+}
+
+/**
+ * The customer half of the Filter menu: the three standing choices, then a row per customer
+ * and per tier.
+ *
+ * Split out because the two open-ended lists make it the long half, and because it is the
+ * half a guest never sees — the toolbar decides that once, here, rather than threading a
+ * flag through every row.
+ */
+function customerFilterItems(
+  filters: ProjectFilterOptions,
+  options: {
+    readonly customers: readonly { id: UUID; name: string }[];
+    readonly tiers: readonly string[];
+  },
+  setFilters: (patch: Partial<ProjectFilterOptions>) => void,
+): MenuNode[] {
+  const choose = (value: string) => () => setFilters({ customer: value as ProjectCustomerFilter });
+  return [
+    { kind: 'heading', label: 'Customer requests' },
+    ...(
+      [
+        { id: 'all', label: 'All customers' },
+        { id: 'any', label: 'Has customer requests' },
+        { id: 'none', label: 'No customer requests' },
+      ] as const
+    ).map((option) => ({
+      id: `customer:${option.id}`,
+      label: option.label,
+      selected: filters.customer === option.id,
+      onSelect: choose(option.id),
+    })),
+    ...(options.customers.length === 0
+      ? []
+      : [
+          { kind: 'heading' as const, label: 'Customer' },
+          ...options.customers.map((customer) => ({
+            id: `customer:${customer.id}`,
+            label: customer.name,
+            selected: filters.customer === `customer:${customer.id}`,
+            onSelect: choose(`customer:${customer.id}`),
+          })),
+        ]),
+    ...(options.tiers.length === 0
+      ? []
+      : [
+          { kind: 'heading' as const, label: 'Tier' },
+          ...options.tiers.map((tier) => ({
+            id: `tier:${tier}`,
+            label: tier,
+            selected: filters.customer === `tier:${tier}`,
+            onSelect: choose(`tier:${tier}`),
+          })),
+        ]),
+  ];
 }
 
 /** Every status in the workspace, in the order the settings screen lists them. */
