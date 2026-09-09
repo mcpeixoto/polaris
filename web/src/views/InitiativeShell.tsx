@@ -4,29 +4,26 @@
  *
  * It is one header row, which is what the project screen and Linear both draw. It used to be
  * three — a breadcrumb, then the title with a status pill and a health badge beside it, then
- * the tabs — so a third of the screen was chrome before the page began, and the same name
- * appeared twice in the top two rows. The name is the last crumb now, and it is still the
- * field the initiative is renamed in: read hundreds of times, renamed once, so at rest it is
- * text and it becomes a control when you put the caret in it.
+ * the tabs — so a third of the screen was chrome before the page began.
  *
- * The status pill moved into the body's Properties row, where the rest of the properties
- * already are: a pill in the header was a seventh property kept apart from the other six for
- * no reason but the order the screen was built in. Health did not move, and sits beside the
- * name the way the project header's does — it is the one fact a reader wants in the same
- * glance as the name, and it belongs to the initiative rather than to the tab, so it has to
- * be readable from Activity too.
+ * The name, the mark beside it and the properties are the body's now, at the top of the
+ * reading column where Linear puts them and where the page is actually read. The trail keeps
+ * a plain copy of the name, because a trail says where you are; it is not a second place to
+ * rename anything. Everything that acts on the initiative as a whole — the star, the `…` —
+ * stays here, and the body's title block answers a right-click by asking this shell to open
+ * that same menu.
  *
  * The tabs get a row of their own, with the rail toggle at its far end — the rail belongs to
  * the Overview but the toggle belongs here, so that hiding it survives a trip to Activity and
  * back. See `features/initiatives/rail.ts` for why the state travels down the outlet.
  *
- * The shortcuts are the shell's where the controls are: `e` renames, and the `…` items each
- * have an action so the keyboard and the menu cannot drift. `s`, `a` and `shift+t` belong to
- * the property row that owns those triggers. `useKeyContext('detail')` is pushed here rather
- * than in the body so that the Activity tab gets them too.
+ * The shortcuts are the shell's where the controls are: the `…` items each have an action so
+ * the keyboard and the menu cannot drift. `e`, `s`, `a` and `shift+t` moved to the body with
+ * the controls they open. `useKeyContext('detail')` is pushed here rather than in the body so
+ * that the Activity tab gets them too.
  */
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Outlet, useNavigate, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
@@ -39,9 +36,7 @@ import {
   IconButton,
   Menu,
   Tabs,
-  TitleField,
   type MenuNode,
-  type TitleHandle,
 } from '~/components';
 import { DotsGlyph, StarGlyph } from '~/features/issue/glyphs';
 import { EntityLoading, useEntityState } from '~/features/entity-gate/EntityGate';
@@ -51,13 +46,11 @@ import { EntityIcon } from '~/features/icon/EntityIcon';
 import { IconPicker } from '~/features/icon/IconPicker';
 import { DEFAULT_ENTITY_COLOR } from '~/features/icon/glyphs';
 import { InitiativeGlyph, RailGlyph } from '~/features/initiatives/glyphs';
-import { latestInitiativeUpdate } from '~/features/initiative-updates/helpers';
-import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
 import {
   INITIATIVE_RAIL_ID,
   INITIATIVE_RAIL_KEY,
   type InitiativeOutletContext,
-} from '~/features/initiatives/rail';
+} from '~/features/initiatives/outlet';
 import { archiveInitiative, updateInitiative } from '~/features/initiatives/mutations';
 import { report } from '~/features/issue/mutations';
 import { setInitiativeSubscription } from '~/features/subscriptions/mutations';
@@ -80,7 +73,6 @@ export function InitiativeShell() {
   const [archiving, setArchiving] = useState(false);
   const [archiveBusy, setArchiveBusy] = useState(false);
   const [archiveError, setArchiveError] = useState<string | null>(null);
-  const titleRef = useRef<TitleHandle | null>(null);
   const more = useMenuTrigger();
   const iconPicker = useMenuTrigger('dialog');
   const contextMenu = useContextMenu<string>();
@@ -106,12 +98,6 @@ export function InitiativeShell() {
     [initiativeId],
   );
 
-  const latest = useLiveQuery(
-    (store) => latestInitiativeUpdate(store, initiativeId),
-    ['initiativeUpdate'],
-    [initiativeId],
-  );
-
   const favourite = useLiveQuery(
     (store) =>
       viewerId === null ? false : isFavorite(store, viewerId, 'initiative', initiativeId),
@@ -133,23 +119,6 @@ export function InitiativeShell() {
 
   useActions(
     [
-      {
-        id: 'initiative.rename',
-        title: 'Rename initiative',
-        keys: ['e'],
-        when: 'detail',
-        group: 'Initiatives',
-        run: () => titleRef.current?.focus(),
-      },
-      {
-        id: 'initiative.rename.cancel',
-        title: 'Stop renaming the initiative',
-        keys: ['Escape'],
-        when: 'detail',
-        group: 'Initiatives',
-        enabled: () => titleRef.current?.editing() === true,
-        run: () => titleRef.current?.revert(),
-      },
       {
         id: 'initiative.rail',
         title: 'Show or hide the initiative properties',
@@ -278,11 +247,6 @@ export function InitiativeShell() {
           contextMenu.openAt(event.clientX, event.clientY, initiative.id);
         }}
       >
-        {/* The name is the rename field in the last crumb, so the screen would otherwise
-            have no heading at all. Hidden the way `IssueDetail`'s `.screenTitle` is: a
-            `<textarea>` inside an `<h1>` gives the heading no name, and the heading list is
-            how somebody with a screen reader finds out which initiative they opened. */}
-        <h1 className={styles.screenTitle}>{initiative.name}</h1>
         <Breadcrumb
           className={styles.crumbs}
           items={[
@@ -307,24 +271,12 @@ export function InitiativeShell() {
                   />
                 </button>
               ),
-              label: (
-                <TitleField
-                  key={`initiative-title-${initiative.id}`}
-                  subjectId={initiative.id}
-                  value={initiative.name}
-                  label="Name"
-                  size="md"
-                  handle={titleRef}
-                  className={styles.titleField}
-                  onSave={(name) => updateInitiative(engine, initiative.id, { name }).catch(report)}
-                />
-              ),
+              // Plain text: a trail says where you are. The name is renamed in the body,
+              // where it is the page's heading rather than a step in a path.
+              label: initiative.name,
             },
           ]}
         />
-        {/* Beside the name rather than in the trailing group: health is the one fact a
-            reader wants in the same glance as the initiative. */}
-        {latest === undefined ? null : <ProjectHealthBadge health={latest.health} compact />}
         <div className={styles.headerEnd}>
           {viewer !== null && viewer.role !== 'guest' ? (
             <SubscribeBell
@@ -415,7 +367,16 @@ export function InitiativeShell() {
       />
 
       <div className={styles.body}>
-        <Outlet context={{ railOpen } satisfies InitiativeOutletContext} />
+        <Outlet
+          context={
+            {
+              railOpen,
+              // The body's title block is where the name and the mark are now, so it is
+              // where a right-click on "this initiative" lands. It has no menu of its own.
+              openMenuAt: (x: number, y: number) => contextMenu.openAt(x, y, initiative.id),
+            } satisfies InitiativeOutletContext
+          }
+        />
       </div>
       <IconPicker
         open={iconPicker.open}

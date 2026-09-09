@@ -2,11 +2,13 @@
  * The initiative header after the Linear pass: one row of chrome, the sections under it, and
  * a rail that stays hidden once somebody has hidden it.
  *
- * The three assertions are the three things the restructure could quietly lose. The trail,
- * the name and the actions have to be on the same row — the old header stacked a crumb row
- * over a title row and printed the name twice. The sections have to be a row of their own,
- * in the order Linear reads them. And the toggle has to write its answer down, because a
- * rail that comes back on every navigation is a control that does not work.
+ * The assertions are the things the restructure could quietly lose. The trail and the
+ * actions have to be on the same row — the old header stacked a crumb row over a title row
+ * and printed the name twice — and the trail's copy of the name has to be text, because the
+ * name is edited in the body and two editable copies of one name is worse than none. The
+ * sections have to be a row of their own, in the order Linear reads them. And the toggle has
+ * to write its answer down, because a rail that comes back on every navigation is a control
+ * that does not work.
  */
 
 import { render, screen, within } from '@testing-library/react';
@@ -87,8 +89,15 @@ function mount() {
   return { view, user: userEvent.setup() };
 }
 
+/**
+ * The chrome at the top, found by the trail rather than by the heading.
+ *
+ * The screen's heading is in the reading column now — inside a `<header>` of its own, which
+ * is the block a right-click on the initiative lands on — so "the element above the tabs" has
+ * to be named by something only it has.
+ */
 function header(): HTMLElement {
-  const found = screen.getByRole('heading', { name: NAME }).closest('header');
+  const found = screen.getByRole('link', { name: 'Initiatives' }).closest('header');
   if (found === null) throw new Error('the initiative header is not in the document');
   return found;
 }
@@ -124,23 +133,35 @@ function privateStorage(): void {
 beforeEach(privateStorage);
 
 describe('the initiative header', () => {
-  it('carries the trail, the name and the actions on one row', () => {
+  it('carries the trail, the mark and the actions on one row', () => {
     mount();
     const row = header();
 
     expect(within(row).getByRole('link', { name: 'Initiatives' })).toBeTruthy();
     expect(within(row).getByRole('button', { name: 'Change initiative icon' })).toBeTruthy();
-    expect((within(row).getByLabelText('Name') as HTMLTextAreaElement).value).toBe(NAME);
+    expect(within(row).getByText(NAME)).toBeTruthy();
     expect(within(row).getByRole('button', { name: 'Add to favourites' })).toBeTruthy();
     expect(within(row).getByRole('button', { name: 'More actions' })).toBeTruthy();
   });
 
-  it('leaves the status to the body, where the rest of the properties are', () => {
+  it('says the name in the trail rather than offering a second field for it', () => {
+    mount();
+
+    expect(within(header()).queryByLabelText('Name')).toBeNull();
+    // One field, in the body, where the heading is.
+    expect(screen.getAllByLabelText('Name')).toHaveLength(1);
+    expect(screen.getByRole('heading', { name: NAME }).closest('header')).not.toBe(header());
+  });
+
+  it('leaves the status and the health to the body, where the properties are', () => {
     mount();
 
     expect(within(header()).queryByRole('button', { name: 'Planned' })).toBeNull();
-    // Still on the page, just not in the header: the pill row and the rail both carry it.
+    expect(within(header()).queryByRole('group', { name: 'Initiative health' })).toBeNull();
+    // Still on the page, just not in the header: the pill row and the rail both carry the
+    // status, and the health sits at the end of the pill row.
     expect(screen.getAllByRole('button', { name: 'Planned' }).length).toBe(2);
+    expect(screen.getByRole('group', { name: 'Initiative health' })).toBeTruthy();
   });
 
   it('names its sections in a row of their own, under the header', () => {

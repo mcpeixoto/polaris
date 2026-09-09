@@ -56,7 +56,7 @@ import {
   updateInitiative,
 } from '~/features/initiatives/mutations';
 import { InitiativeGlyph } from '~/features/initiatives/glyphs';
-import { INITIATIVE_RAIL_KEY } from '~/features/initiatives/rail';
+import { INITIATIVE_RAIL_KEY } from '~/features/initiatives/outlet';
 import { CalendarGlyph, PlusGlyph, UnassignedGlyph } from '~/features/issue/glyphs';
 import { UserPicker } from '~/features/members/UserPicker';
 import { personName } from '~/features/prefs/prefs';

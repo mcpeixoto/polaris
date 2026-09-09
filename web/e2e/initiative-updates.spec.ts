@@ -2,10 +2,17 @@
  * Initiative updates: posting, correcting and withdrawing a status post.
  *
  * Initiative health is *derived* from the newest live update, exactly as a project's is. So
- * an edit has to move the badge on the shell and on the Initiatives list without a reload,
- * and it has to survive one — a corrected update that reverts on reload is the failure this
- * is for. Deleting the newest post has to fall health back to the one before it rather than
- * leaving the initiative asserting something nobody said.
+ * an edit has to move the badge on the overview and on the Initiatives list without a
+ * reload, and it has to survive one — a corrected update that reverts on reload is the
+ * failure this is for. Deleting the newest post has to fall health back to the one before it
+ * rather than leaving the initiative asserting something nobody said.
+ *
+ * The badge is found by its name rather than by its position. It used to be read as "the
+ * element around the h1", which was true only while health and the heading shared a parent;
+ * they no longer do — the heading and the properties are in the reading column, and health
+ * is at the end of the property row. A named region survives that, and the next move too.
+ * It also means the assertions belong on Overview, where the derived value is drawn, so the
+ * ones that follow an edit made on Activity come back first.
  *
  * The edit and the delete are author-only on the server, so the affordances are drawn for
  * the author alone; a member looking at somebody else's post must not be offered a button
@@ -25,8 +32,13 @@ async function newInitiative(page: Page, name: string): Promise<void> {
   await page.getByRole('heading', { name, level: 1 }).waitFor();
 }
 
-async function postUpdate(page: Page, health: string, body: string): Promise<void> {
-  await page.getByLabel('Health').selectOption({ label: health });
+/** The derived health badge, named rather than located. Drawn on the Overview tab. */
+function health(page: Page) {
+  return page.getByRole('group', { name: 'Initiative health' });
+}
+
+async function postUpdate(page: Page, healthOption: string, body: string): Promise<void> {
+  await page.getByLabel('Health').selectOption({ label: healthOption });
   await page.getByLabel('Update', { exact: true }).fill(body);
   await page.getByRole('button', { name: 'Post update' }).click();
   // The compose box clears once the mutation has resolved.
@@ -42,8 +54,7 @@ test('an author edits their initiative update and the derived health follows', a
   await newInitiative(page, name);
 
   await postUpdate(page, 'On track', 'Kickoff went fine.');
-  const shell = page.locator('h1').locator('..');
-  await expect(shell).toContainText('On track');
+  await expect(health(page)).toContainText('On track');
 
   await page.getByRole('link', { name: 'Activity' }).click();
   await page.getByRole('button', { name: /^Edit update from/ }).click();
@@ -51,15 +62,19 @@ test('an author edits their initiative update and the derived health follows', a
   await page.getByLabel('Edit update', { exact: true }).fill('Vendor pulled out.');
   await page.getByRole('button', { name: 'Save changes' }).click();
 
-  // The form stands down once the edit lands, and the derived health is the newest
-  // update's health, so the header moves with it.
+  // The form stands down once the edit lands.
   await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0);
-  await expect(page.locator('h1').locator('..')).toContainText('Off track');
   await expect(page.getByText('Vendor pulled out.')).toBeVisible();
   await expect(page.getByRole('listitem').first()).toContainText('edited');
 
+  // The derived health is the newest update's health, so the overview moves with it —
+  // without a reload, and then across one.
+  await page.getByRole('link', { name: 'Overview' }).click();
+  await expect(health(page)).toContainText('Off track');
+  await expect(page.getByText('Vendor pulled out.')).toBeVisible();
+
   await page.reload();
-  await expect(page.locator('h1').locator('..')).toContainText('Off track');
+  await expect(health(page)).toContainText('Off track');
   await expect(page.getByText('Vendor pulled out.')).toBeVisible();
 
   await page.goto('/initiatives');
@@ -73,7 +88,7 @@ test('deleting the newest initiative update falls health back', async ({ page, w
 
   await postUpdate(page, 'On track', 'Week one.');
   await postUpdate(page, 'Off track', 'Week two, badly.');
-  await expect(page.locator('h1').locator('..')).toContainText('Off track');
+  await expect(health(page)).toContainText('Off track');
 
   await page.getByRole('link', { name: 'Activity' }).click();
   const items = page.getByRole('listitem');
@@ -88,11 +103,15 @@ test('deleting the newest initiative update falls health back', async ({ page, w
   await page.getByRole('button', { name: 'Delete update', exact: true }).click();
 
   await expect(page.getByRole('listitem')).toHaveCount(1);
-  await expect(page.locator('h1').locator('..')).toContainText('On track');
 
   await page.reload();
   await expect(page.getByRole('listitem')).toHaveCount(1);
-  await expect(page.locator('h1').locator('..')).toContainText('On track');
+
+  // Health falls back to the update before the one that was deleted, and stays there.
+  await page.getByRole('link', { name: 'Overview' }).click();
+  await expect(health(page)).toContainText('On track');
+  await page.reload();
+  await expect(health(page)).toContainText('On track');
 });
 
 test('somebody else’s initiative update carries no edit or delete', async ({

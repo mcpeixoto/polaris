@@ -3,9 +3,15 @@
  *
  * The page is a reading column with a property rail beside it, which is the shape the issue
  * and project screens already take and the shape Linear draws this page in. The column opens
- * on the properties as a row of pills, then the update, then what the initiative is about,
- * then the work — because that is the order somebody arriving here reads in. It used to open
- * on a progress bar and a graph, which is the answer to a question nobody had asked yet.
+ * on the initiative's mark and its name, then the properties as a row of pills, then the
+ * update, then what the initiative is about, then the work — because that is the order
+ * somebody arriving here reads in. It used to open on a progress bar and a graph, which is
+ * the answer to a question nobody had asked yet.
+ *
+ * The name is here rather than in the trail above it, and so is the rename: this is the
+ * page's heading, and a heading belongs to the page rather than to the chrome. `e` and
+ * Escape are registered here for the same reason — a shortcut registered by the surface that
+ * owns the control it opens is a shortcut that cannot outlive it.
  *
  * Progress moved into the rail for that reason. It is a summary of the Projects section
  * further down, and a summary belongs beside the page rather than ahead of it.
@@ -22,11 +28,11 @@
  * throw away a link somebody made deliberately, and there is no undo for either.
  */
 
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { useKeyContext } from '~/app/keymap';
+import { useActions, useKeyContext } from '~/app/keymap';
 import {
   Avatar,
   Button,
@@ -38,7 +44,9 @@ import {
   Section,
   Select,
   Textarea,
+  TitleField,
   useSaveState,
+  type TitleHandle,
 } from '~/components';
 import { DescriptionEditor } from '~/editor/DescriptionEditor';
 import {
@@ -55,13 +63,14 @@ import { latestInitiativeUpdate } from '~/features/initiative-updates/helpers';
 import { InitiativeGraph } from '~/features/initiatives/InitiativeGraph';
 import { ProgressBar } from '~/features/initiatives/ProgressBar';
 import { InitiativeProperties, InitiativeRailSection } from '~/features/initiatives/properties';
-import { useInitiativeRailOpen } from '~/features/initiatives/rail';
+import { useInitiativeOutlet } from '~/features/initiatives/outlet';
 import {
   initiativeProgress,
   listInitiativeProjectRows,
   type InitiativeProjectRow,
 } from '~/features/initiatives/progress';
 import { EntityIcon } from '~/features/icon/EntityIcon';
+import { IconPicker } from '~/features/icon/IconPicker';
 import { DEFAULT_ENTITY_COLOR } from '~/features/icon/glyphs';
 import { InitiativeGlyph } from '~/features/initiatives/glyphs';
 import { PlusGlyph } from '~/features/issue/glyphs';
@@ -70,6 +79,8 @@ import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { personName } from '~/features/prefs/prefs';
 import { exact, when, whenDay } from '~/features/time';
 import { HealthDot, ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
+import { updateAge } from '~/features/project-updates/helpers';
+import { report } from '~/features/issue/mutations';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewerId } from '~/hooks/useViewer';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
@@ -101,7 +112,7 @@ export function InitiativeDetail() {
   const engine = useEngine();
   const viewerId = useViewerId();
   const { initiativeId = '' } = useParams<{ initiativeId: string }>();
-  const railOpen = useInitiativeRailOpen();
+  const { railOpen, openMenuAt } = useInitiativeOutlet();
   const [body, setBody] = useState('');
   const [posting, setPosting] = useState(false);
   const [health, setHealth] = useState<ProjectUpdateHealth>('on_track');
@@ -113,11 +124,38 @@ export function InitiativeDetail() {
 
   const childPicker = useMenuTrigger();
   const projectPicker = useMenuTrigger();
+  const titleIcon = useMenuTrigger('dialog');
+  const titleRef = useRef<TitleHandle | null>(null);
 
   const saveState = useSaveState(describeRefusal);
   const { run: runSave } = saveState;
 
   useKeyContext('detail');
+  useActions(
+    [
+      {
+        id: 'initiative.rename',
+        title: 'Rename initiative',
+        keys: ['e'],
+        when: 'detail',
+        group: 'Initiatives',
+        run: () => titleRef.current?.focus(),
+      },
+      {
+        // Escape while the name is being typed abandons the edit. Registered here rather
+        // than inside the field for the reason every other one is: the registry lives above
+        // it, and an unfocused field must not be holding Escape hostage from the rail.
+        id: 'initiative.rename.cancel',
+        title: 'Stop renaming the initiative',
+        keys: ['Escape'],
+        when: 'detail',
+        group: 'Initiatives',
+        enabled: () => titleRef.current?.editing() === true,
+        run: () => titleRef.current?.revert(),
+      },
+    ],
+    [initiativeId],
+  );
 
   const initiative = useLiveQuery(
     (store) => store.initiatives.get(initiativeId) ?? null,
@@ -275,10 +313,63 @@ export function InitiativeDetail() {
     <div className={styles.screen}>
       <div className={styles.main}>
         <div className={styles.column}>
-          {/* The first thing on the page, because it is the first thing somebody checks.
-              Health is not repeated here: it is beside the name in the header, where it is
-              readable from the Activity tab too. */}
-          <InitiativeProperties initiativeId={initiative.id} variant="row" />
+          {/*
+            The mark, then the name. A `<header>` rather than a `<div>`, because this block
+            is the page's own heading and because a right-click here is a right-click on the
+            initiative — which the shell answers with the `…` menu it already owns.
+          */}
+          <header
+            className={styles.titleBlock}
+            onContextMenu={(event) => {
+              // A descendant that already answered this right-click owns it: the name is an
+              // editable field, and a text field's own menu is the one somebody wants there.
+              if (event.defaultPrevented) return;
+              event.preventDefault();
+              openMenuAt(event.clientX, event.clientY);
+            }}
+          >
+            <button
+              {...titleIcon.props}
+              type="button"
+              className={styles.mark}
+              aria-label="Set initiative icon"
+            >
+              <EntityIcon
+                icon={initiative.icon}
+                color={initiative.color ?? DEFAULT_ENTITY_COLOR}
+                fallback={<InitiativeGlyph />}
+                size="lg"
+              />
+            </button>
+            {/* The heading, out of the page and still in the accessibility tree, with the
+                editable name beside it — the arrangement `IssueDetail` settled on. A
+                `<textarea>` inside an `<h1>` gives the heading no accessible name at all,
+                and the heading list is how somebody with a screen reader finds out which
+                initiative they opened. This is the screen's only heading. */}
+            <h1 className={styles.screenTitle}>{initiative.name}</h1>
+            <TitleField
+              key={`initiative-title-${initiative.id}`}
+              subjectId={initiative.id}
+              value={initiative.name}
+              label="Name"
+              handle={titleRef}
+              className={styles.titleField}
+              onSave={(name) => updateInitiative(engine, initiative.id, { name }).catch(report)}
+            />
+          </header>
+
+          {/* The properties, and the health beside them: what somebody checks before
+              reading a word of the page. */}
+          <div className={styles.pills}>
+            <InitiativeProperties initiativeId={initiative.id} variant="row" />
+            <div className={styles.health} role="group" aria-label="Initiative health">
+              {latest === undefined ? (
+                <span className={styles.muted}>No updates</span>
+              ) : (
+                <ProjectHealthBadge health={latest.health} since={updateAge(latest.createdAt)} />
+              )}
+            </div>
+          </div>
 
           {/*
             One card for the update, whether or not there is one yet. Linear's empty state is
@@ -500,6 +591,21 @@ export function InitiativeDetail() {
           </InitiativeRailSection>
         </aside>
       ) : null}
+
+      <IconPicker
+        open={titleIcon.open}
+        onClose={titleIcon.hide}
+        trigger={titleIcon.ref}
+        value={{ icon: initiative.icon ?? '', color: initiative.color ?? DEFAULT_ENTITY_COLOR }}
+        onChange={(next) => {
+          // One half per act — the picker never sends both, so neither does the mutation.
+          const fields =
+            next.icon === (initiative.icon ?? '') ? { color: next.color } : { icon: next.icon };
+          void updateInitiative(engine, initiative.id, fields).catch(report);
+        }}
+        actionId="initiativeDetail.closeTitleIconPicker"
+        label="Initiative icon"
+      />
 
       <InitiativePicker
         open={childPicker.open}

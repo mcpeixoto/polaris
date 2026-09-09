@@ -120,10 +120,8 @@ function seeded(): Store {
 }
 
 function mount() {
-  const engine = {
-    store: seeded(),
-    mutate: vi.fn().mockResolvedValue({}),
-  } as unknown as SyncEngine;
+  const mutate = vi.fn().mockResolvedValue({});
+  const engine = { store: seeded(), mutate } as unknown as SyncEngine;
   render(
     <MemoryRouter initialEntries={[`/initiative/${INITIATIVE}`]}>
       <KeymapProvider>
@@ -137,7 +135,7 @@ function mount() {
       </KeymapProvider>
     </MemoryRouter>,
   );
-  return { user: userEvent.setup() };
+  return { mutate, user: userEvent.setup() };
 }
 
 function rail(): HTMLElement {
@@ -175,6 +173,49 @@ function privateStorage(): void {
 beforeEach(privateStorage);
 
 describe('the initiative reading column', () => {
+  it('opens on the mark and the name, and the name is the screen\u2019s only heading', () => {
+    mount();
+    const heading = screen.getByRole('heading', { name: 'Platform reliability' });
+    const block = heading.closest('header');
+    if (block === null) throw new Error('the title block is not in the document');
+
+    expect(screen.getAllByRole('heading', { name: 'Platform reliability' })).toHaveLength(1);
+    expect(within(block).getByRole('button', { name: 'Set initiative icon' })).toBeTruthy();
+    expect((within(block).getByLabelText('Name') as HTMLTextAreaElement).value).toBe(
+      'Platform reliability',
+    );
+    // Not in the chrome above it: the trail says the name, it does not offer to change it.
+    expect(block.contains(screen.getByRole('link', { name: 'Initiatives' }))).toBe(false);
+  });
+
+  it('opens the icon picker from the mark beside the name', async () => {
+    const { user } = mount();
+
+    await user.click(screen.getByRole('button', { name: 'Set initiative icon' }));
+
+    expect(screen.getByRole('dialog', { name: 'Initiative icon' })).toBeTruthy();
+  });
+
+  it('saves a name typed over the heading', async () => {
+    const { user, mutate } = mount();
+    const field = screen.getByLabelText('Name');
+
+    await user.clear(field);
+    await user.type(field, 'Reliability');
+    await user.tab();
+
+    const call = mutate.mock.calls[0]![0] as { variables: { input: { name?: string } } };
+    expect(call.variables.input.name).toBe('Reliability');
+  });
+
+  it('says the health at the end of the pill row', () => {
+    mount();
+    const health = screen.getByRole('group', { name: 'Initiative health' });
+
+    expect(within(health).getByText('No updates')).toBeTruthy();
+    expect(rail().contains(health)).toBe(false);
+  });
+
   it('opens on the properties, as pills outside the rail', async () => {
     const { user } = mount();
     const pills = screen

@@ -35,8 +35,8 @@ An initiative that has never been given one falls back to the generic initiative
 grey, which is what the column defaults to.
 
 It can be set when the initiative is created, changed by clicking the icon in the initiatives
-list or in the initiative header, and changed from the Icon row at the top of the properties
-rail. This is newer than the project equivalent — initiatives had no icon at all until the
+list, in the initiative header or beside the name on the overview, and changed from the Icon
+row at the top of the properties rail. This is newer than the project equivalent — initiatives had no icon at all until the
 column was added — so an initiative created before that has no icon rather than a bad one.
 
 ## The screens
@@ -72,21 +72,28 @@ toolbar's order of convenience is not a ranking of states.
 
 One header row — `Initiatives › [mark] name`, the star and the `…` menu — then the sections
 (`Overview · Activity`) with the rail toggle at the far end of the same row. The name in the
-last crumb is the field the initiative is renamed in.
+last crumb is plain text: a trail says where you are, and the initiative is renamed where its
+name is the heading rather than a step in a path.
 
 The reading column, centred and capped so prose is not set across a 2000px window:
 
-1. The **properties** as a row of pills — status, priority, owner, target date, lead team —
-   with the current health beside them.
-2. The **update** card. When nothing has been posted it says "Write first initiative update"
+1. The **mark and the name**. A 32px icon that opens the icon picker, and under it the name,
+   which is text until you put the caret in it. The screen's one heading is a visually hidden
+   `<h1>` beside that field — a `<textarea>` inside an `<h1>` would leave the heading with no
+   accessible name at all, and the heading list is how somebody with a screen reader finds
+   out which initiative they opened. A right-click anywhere on this block opens the same `…`
+   menu the header does.
+2. The **properties** as a row of pills — status, priority, owner, target date, lead team —
+   with the current health at the end of the row, named "Initiative health".
+3. The **update** card. When nothing has been posted it says "Write first initiative update"
    and keeps the composer open beneath: the reason an initiative has no updates is almost
    never that somebody could not find the form.
-3. The **description**, autosaving on blur.
-4. **Projects**: one row per contributing project — `[icon] name · health · lead · target ·
+4. The **description**, autosaving on blur.
+5. **Projects**: one row per contributing project — `[icon] name · health · lead · target ·
    progress` — with the projects reached through a sub-initiative listed beside the ones this
    initiative owns and marked "Via a sub-initiative", because only a direct link can be
    removed here.
-5. **Sub-initiatives**: nest an existing one from the picker, or start one under this
+6. **Sub-initiatives**: nest an existing one from the picker, or start one under this
    objective.
 
 The rail holds the same properties again, one named row each, plus Icon and Labels which the
