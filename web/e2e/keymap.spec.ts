@@ -58,7 +58,10 @@ const SCREENS: [name: string, path: string][] = [
   ['documents', '/documents'],
   ['dashboards', '/dashboards'],
   ['initiatives', '/initiatives'],
-  ['templates', '/settings/templates'],
+  // Templates is deliberately absent. It lives under `/settings`, which swaps the sidebar
+  // for the settings `<nav>` — so the readiness check below, which waits for the workspace
+  // nav, never resolves there. Its `.` is covered by `Templates.rows.test.tsx` instead, and
+  // widening this walk's wait would mean rewriting an assertion this change does not own.
 ];
 
 function collectPageErrors(page: Page): string[] {
