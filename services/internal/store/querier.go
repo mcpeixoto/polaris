@@ -531,6 +531,7 @@ type Querier interface {
 	// Returning the existing row lets the writer update it instead of appending.
 	//
 	FindGroupableHistoryEntry(ctx context.Context, arg FindGroupableHistoryEntryParams) (IssueHistory, error)
+	FirstProjectMilestoneSortOrder(ctx context.Context, projectID uuid.UUID) (string, error)
 	// GetAPIKeyByTokenHash is the authentication path.
 	//
 	// Revocation and expiry are filtered here rather than checked by the caller: a revoked key
@@ -684,6 +685,7 @@ type Querier interface {
 	GetProjectLabelPositionAfter(ctx context.Context, arg GetProjectLabelPositionAfterParams) (string, error)
 	GetProjectMember(ctx context.Context, arg GetProjectMemberParams) (ProjectMember, error)
 	GetProjectMilestone(ctx context.Context, id uuid.UUID) (ProjectMilestone, error)
+	GetProjectMilestoneSortOrderAfter(ctx context.Context, arg GetProjectMilestoneSortOrderAfterParams) (string, error)
 	GetProjectSortOrderAfter(ctx context.Context, arg GetProjectSortOrderAfterParams) (string, error)
 	GetProjectStatus(ctx context.Context, id uuid.UUID) (ProjectStatus, error)
 	GetProjectSubscriptionForUser(ctx context.Context, arg GetProjectSubscriptionForUserParams) (ProjectSubscription, error)

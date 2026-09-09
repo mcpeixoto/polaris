@@ -568,6 +568,8 @@ func toFavoriteKind(v string) (generated.FavoriteKind, error) {
 		return generated.FavoriteKindCycle, nil
 	case model.FavoriteDocument:
 		return generated.FavoriteKindDocument, nil
+	case model.FavoriteDashboard:
+		return generated.FavoriteKindDashboard, nil
 	}
 	return "", platform.Internal(fmt.Errorf("unknown favourite kind %q", v))
 }
@@ -592,6 +594,8 @@ func fromFavoriteKind(k generated.FavoriteKind) (string, error) {
 		return model.FavoriteCycle, nil
 	case generated.FavoriteKindDocument:
 		return model.FavoriteDocument, nil
+	case generated.FavoriteKindDashboard:
+		return model.FavoriteDashboard, nil
 	}
 	return "", platform.Validation("kind", "that is not something you can favourite")
 }

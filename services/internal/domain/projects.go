@@ -752,6 +752,12 @@ type UpdateProjectMilestoneInput struct {
 	Description *string
 	TargetDate  *model.Date
 	ClearTarget bool
+	// AfterMilestoneID places this milestone directly below another in the same project.
+	// The caller names a neighbour rather than a key: the server mints the fractional
+	// order so two clients dragging at once cannot agree on a key and collide, which is
+	// the same bargain UpdateIssueInput.AfterIssueID strikes.
+	AfterMilestoneID *uuid.UUID
+	MoveToTop        bool
 }
 
 func (s *Service) UpdateProjectMilestone(ctx context.Context, p *authz.Principal, in UpdateProjectMilestoneInput) (model.ProjectMilestone, int64, error) {
@@ -764,6 +770,14 @@ func (s *Service) UpdateProjectMilestone(ctx context.Context, p *authz.Principal
 	}
 	if in.TargetDate != nil && in.ClearTarget {
 		return model.ProjectMilestone{}, 0, platform.Validation("targetDate", "cannot set and clear the date in one call")
+	}
+	if in.AfterMilestoneID != nil && in.MoveToTop {
+		return model.ProjectMilestone{}, 0, platform.Validation("afterMilestoneId",
+			"cannot place after a milestone and move to top in one call")
+	}
+	if in.AfterMilestoneID != nil && *in.AfterMilestoneID == in.ID {
+		return model.ProjectMilestone{}, 0, platform.Validation("afterMilestoneId",
+			"a milestone cannot be placed after itself")
 	}
 	var target pgtype.Date
 	if in.TargetDate != nil {
@@ -787,12 +801,23 @@ func (s *Service) UpdateProjectMilestone(ctx context.Context, p *authz.Principal
 		if _, _, err := s.requireProjectWrite(ctx, q, p, existing.ProjectID, authz.ActionProjectUpdate); err != nil {
 			return err
 		}
+		var sortOrder *string
+		if in.AfterMilestoneID != nil || in.MoveToTop {
+			pos, err := milestoneSortOrderFor(
+				ctx, q, existing.ProjectID, in.AfterMilestoneID, in.MoveToTop,
+			)
+			if err != nil {
+				return err
+			}
+			sortOrder = &pos
+		}
 		row, err := q.UpdateProjectMilestone(ctx, store.UpdateProjectMilestoneParams{
 			ID:          in.ID,
 			Name:        in.Name,
 			Description: in.Description,
 			TargetDate:  target,
 			ClearTarget: in.ClearTarget,
+			SortOrder:   sortOrder,
 		})
 		if err != nil {
 			return platform.Internal(err)
@@ -1262,6 +1287,52 @@ func nextProjectSort(ctx context.Context, q *store.Queries, workspaceID uuid.UUI
 		return "", platform.Internal(err)
 	}
 	return fractional.After(last), nil
+}
+
+// milestoneSortOrderFor mints the key that puts a milestone where the caller asked.
+//
+// The same shape as projectSortOrderFor above: to the top means before the current first,
+// after a named neighbour means between it and whatever follows it.
+func milestoneSortOrderFor(
+	ctx context.Context, q *store.Queries, projectID uuid.UUID, after *uuid.UUID, toTop bool,
+) (string, error) {
+	if toTop {
+		first, err := q.FirstProjectMilestoneSortOrder(ctx, projectID)
+		if err != nil {
+			if store.IsNotFound(err) {
+				return fractional.First(), nil
+			}
+			return "", platform.Internal(err)
+		}
+		return fractional.Before(first), nil
+	}
+
+	anchor, err := q.GetProjectMilestone(ctx, *after)
+	if err != nil {
+		if store.IsNotFound(err) {
+			return "", platform.Validation("afterMilestoneId", "no such milestone")
+		}
+		return "", platform.Internal(err)
+	}
+	if anchor.ProjectID != projectID {
+		return "", platform.Validation("afterMilestoneId", "that milestone is on another project")
+	}
+
+	next, err := q.GetProjectMilestoneSortOrderAfter(ctx, store.GetProjectMilestoneSortOrderAfterParams{
+		ProjectID: projectID, SortOrder: anchor.SortOrder,
+	})
+	if err != nil && !store.IsNotFound(err) {
+		return "", platform.Internal(err)
+	}
+	upper := ""
+	if err == nil {
+		upper = next
+	}
+	pos, err := fractional.Between(anchor.SortOrder, upper)
+	if err != nil {
+		return "", platform.Internal(err)
+	}
+	return pos, nil
 }
 
 func nextMilestoneSort(ctx context.Context, q *store.Queries, projectID uuid.UUID) (string, error) {

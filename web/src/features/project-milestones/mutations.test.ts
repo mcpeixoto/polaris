@@ -15,6 +15,7 @@ import type { SyncEngine } from '~/sync/engine';
 import {
   createProjectMilestone,
   deleteProjectMilestone,
+  moveProjectMilestone,
   updateProjectMilestone,
 } from './mutations';
 
@@ -114,6 +115,74 @@ describe('deleteProjectMilestone', () => {
     const { engine, mutate } = seeded();
 
     await deleteProjectMilestone(engine, 'nobody');
+
+    expect(mutate).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Reordering, which had no writer at all until `UpdateProjectMilestoneInput` grew
+ * `afterMilestoneId`/`moveToTop`. The wire form is what matters most here: the server mints
+ * the key, so the call must name a neighbour and never a sortOrder — the local key exists
+ * only so the row moves in the frame of the drop.
+ */
+describe('moveProjectMilestone', () => {
+  const SECOND = '01900000-0000-7000-8000-000000000011';
+  const THIRD = '01900000-0000-7000-8000-000000000012';
+
+  function threeMilestones() {
+    const store = new Store(WORKSPACE);
+    store.applyChanges([
+      upsert(1, 'projectMilestone', { ...existing, id: MILESTONE, name: 'Alpha', sortOrder: 'V' }),
+      upsert(2, 'projectMilestone', { ...existing, id: SECOND, name: 'Beta', sortOrder: 'W' }),
+      upsert(3, 'projectMilestone', { ...existing, id: THIRD, name: 'Gamma', sortOrder: 'X' }),
+    ]);
+    const mutate = vi.fn(
+      async (input: {
+        variables?: { input: Record<string, unknown> };
+        optimistic?: Parameters<Store['applyOptimistic']>[0];
+      }) => {
+        if (input.optimistic !== undefined) store.applyOptimistic(input.optimistic);
+        return {};
+      },
+    );
+    return { engine: { store, mutate } as unknown as SyncEngine, store, mutate };
+  }
+
+  function order(store: Store): string[] {
+    return [...store.projectMilestones.values()]
+      .sort((a, b) => (a.sortOrder < b.sortOrder ? -1 : a.sortOrder > b.sortOrder ? 1 : 0))
+      .map((row) => row.name);
+  }
+
+  it('names the anchor rather than sending a sortOrder, and moves the row locally', async () => {
+    const { engine, store, mutate } = threeMilestones();
+
+    await moveProjectMilestone(engine, THIRD, MILESTONE);
+
+    expect(mutate.mock.calls[0]![0].variables?.input).toEqual({
+      id: THIRD,
+      afterMilestoneId: MILESTONE,
+    });
+    expect(order(store)).toEqual(['Alpha', 'Gamma', 'Beta']);
+  });
+
+  it('sends moveToTop for the front of the list', async () => {
+    const { engine, store, mutate } = threeMilestones();
+
+    await moveProjectMilestone(engine, THIRD, null);
+
+    expect(mutate.mock.calls[0]![0].variables?.input).toEqual({ id: THIRD, moveToTop: true });
+    expect(order(store)).toEqual(['Gamma', 'Alpha', 'Beta']);
+  });
+
+  it('writes nothing when the move is a no-op or the anchor is unknown', async () => {
+    const { engine, mutate } = threeMilestones();
+
+    await moveProjectMilestone(engine, THIRD, THIRD);
+    await moveProjectMilestone(engine, THIRD, '01900000-0000-7000-8000-0000000000ff');
+    // Beta already sits directly after Alpha, so there is nothing to write.
+    await moveProjectMilestone(engine, SECOND, MILESTONE);
 
     expect(mutate).not.toHaveBeenCalled();
   });

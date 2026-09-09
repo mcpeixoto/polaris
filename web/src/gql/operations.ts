@@ -529,6 +529,18 @@ export const SNOOZE_ISSUE = /* GraphQL */ `
   }
 `;
 
+export const UNSNOOZE_ISSUE = /* GraphQL */ `
+  ${ISSUE_FIELDS}
+  mutation UnsnoozeIssue($id: UUID!, $clientId: UUID!, $opId: UUID!) {
+    unsnoozeIssue(id: $id, clientId: $clientId, opId: $opId) {
+      version
+      issue {
+        ...IssueFields
+      }
+    }
+  }
+`;
+
 export const CREATE_WORKFLOW_STATE = /* GraphQL */ `
   ${STATE_FIELDS}
   mutation CreateWorkflowState($input: CreateWorkflowStateInput!, $clientId: UUID!, $opId: UUID!) {

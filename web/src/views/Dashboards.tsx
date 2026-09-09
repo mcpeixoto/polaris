@@ -12,8 +12,9 @@
  * is the one we actually keep up to date" is the question a list of names cannot answer.
  *
  * Row actions are in a `…` menu and on right-click, from one list of items so the two agree.
- * There is no Favourite among them: `FavoriteKind` has no `dashboard`, so a star here would
- * be a control that cannot write anything. Duplicate is composed out of the create and the
+ * `FavoriteKind` has a `dashboard` now, so the API accepts the write and the sidebar draws
+ * the row; the star is not in this menu yet, which is a gap in this file rather than in the
+ * kind. Duplicate is composed out of the create and the
  * tile create rather than a mutation of its own — the API has no copy — which is why it
  * copies the tiles one at a time and says so if the copy stops half way.
  */

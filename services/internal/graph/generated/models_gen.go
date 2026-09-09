@@ -2744,6 +2744,10 @@ type UpdateProjectMilestoneInput struct {
 	Description *string   `json:"description,omitempty"`
 	TargetDate  *string   `json:"targetDate,omitempty"`
 	ClearTarget *bool     `json:"clearTarget,omitempty"`
+	// Places this milestone directly below the one named, within the same project.
+	AfterMilestoneID *uuid.UUID `json:"afterMilestoneId,omitempty"`
+	// Places it first instead. Cannot be combined with afterMilestoneId.
+	MoveToTop *bool `json:"moveToTop,omitempty"`
 }
 
 type UpdateProjectStatusInput struct {
@@ -3671,6 +3675,7 @@ const (
 	FavoriteKindInitiative FavoriteKind = "INITIATIVE"
 	FavoriteKindCycle      FavoriteKind = "CYCLE"
 	FavoriteKindDocument   FavoriteKind = "DOCUMENT"
+	FavoriteKindDashboard  FavoriteKind = "DASHBOARD"
 )
 
 var AllFavoriteKind = []FavoriteKind{
@@ -3683,11 +3688,12 @@ var AllFavoriteKind = []FavoriteKind{
 	FavoriteKindInitiative,
 	FavoriteKindCycle,
 	FavoriteKindDocument,
+	FavoriteKindDashboard,
 }
 
 func (e FavoriteKind) IsValid() bool {
 	switch e {
-	case FavoriteKindView, FavoriteKindTeam, FavoriteKindIssue, FavoriteKindLabel, FavoriteKindFolder, FavoriteKindProject, FavoriteKindInitiative, FavoriteKindCycle, FavoriteKindDocument:
+	case FavoriteKindView, FavoriteKindTeam, FavoriteKindIssue, FavoriteKindLabel, FavoriteKindFolder, FavoriteKindProject, FavoriteKindInitiative, FavoriteKindCycle, FavoriteKindDocument, FavoriteKindDashboard:
 		return true
 	}
 	return false

@@ -4,7 +4,8 @@
  *
  * The inbox is a status category, not a saved view, so leaving it is a status change — to
  * the team's default, to canceled, or to the system Duplicate status. Snooze is the one
- * action that does not leave: it hides the row until a time or until the next edit.
+ * action that does not leave: it hides the row until a time or until the next edit, and
+ * unsnooze puts it back before either happens.
  */
 
 import {
@@ -12,6 +13,7 @@ import {
   DECLINE_TRIAGE_ISSUE,
   MARK_ISSUE_DUPLICATE,
   SNOOZE_ISSUE,
+  UNSNOOZE_ISSUE,
   UPDATE_TEAM_TRIAGE,
 } from '~/gql/operations';
 import { uuidv7, type Issue, type IssueRelation, type Team, type UUID } from '~/store';
@@ -179,6 +181,33 @@ async function leave(
     mutation,
     variables,
     optimistic: [{ type: 'issue', id: before.id, before, after }],
+  });
+}
+
+export function unsnoozeIssues(engine: SyncEngine, ids: readonly UUID[]): Promise<void> {
+  return all(ids.map((id) => unsnoozeIssue(engine, id)));
+}
+
+/**
+ * Puts a snoozed issue back in the inbox now.
+ *
+ * The patch is the same `unsnooze` the status changes apply, because the two have to
+ * agree: a row that reappears here and a row that reappears on accept must look identical or
+ * the list re-sorts differently depending on which one woke it.
+ *
+ * A row that is not snoozed writes nothing. The server would accept the call and change
+ * nothing, but a mutation queued for a tunnel is a mutation replayed on reconnect, and an
+ * empty one is not worth carrying.
+ */
+export async function unsnoozeIssue(engine: SyncEngine, id: UUID): Promise<void> {
+  const before = engine.store.get('issue', id);
+  if (before === undefined || before.snoozedUntil === undefined) return;
+  const after = unsnooze({ ...before, updatedAt: new Date().toISOString() });
+
+  await engine.mutate({
+    mutation: UNSNOOZE_ISSUE,
+    variables: { id },
+    optimistic: [{ type: 'issue', id, before, after }],
   });
 }
 

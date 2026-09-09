@@ -9,6 +9,7 @@ import (
 
 	"github.com/peixotolabs/polaris/services/internal/authz"
 	"github.com/peixotolabs/polaris/services/internal/domain"
+	"github.com/peixotolabs/polaris/services/internal/platform"
 	"github.com/peixotolabs/polaris/services/internal/testutil"
 )
 
@@ -344,5 +345,112 @@ func TestUpdateIssue_LeavingTriageRequiresPriority(t *testing.T) {
 	}
 	if _, _, err := svc.UpdateIssue(ctx, p, domain.UpdateIssueInput{ID: filed.ID, StateID: &f.Todo}); err == nil {
 		t.Fatal("left triage without a priority")
+	}
+}
+
+// Unsnoozing is the other half of the snooze the client had to fake by dropping the field
+// locally. Three properties, and the second is the one that makes it usable from a menu:
+// it clears, it is a no-op rather than an error when nothing is snoozed, and it does not
+// insist the issue is still in triage — a snooze outlives the status it was set on, and an
+// unsnooze that refused there would strand the row.
+func TestUnsnoozeIssue_ClearsTheSnoozeAndIsANoOpWithoutOne(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	enableTriage(t, svc, p, f.TeamID, false)
+	filed, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{
+		TeamID: f.TeamID, Title: "Later", FromTriage: true,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	// Nothing is snoozed yet: the call succeeds and returns the issue as it stands.
+	untouched, _, err := svc.UnsnoozeIssue(ctx, p, filed.ID)
+	if err != nil {
+		t.Fatalf("unsnooze an issue that was never snoozed: %v", err)
+	}
+	if untouched.SnoozedUntil != nil || untouched.ID != filed.ID {
+		t.Fatalf("unsnooze returned %+v, want the issue unchanged", untouched)
+	}
+
+	until := time.Now().Add(2 * time.Hour).UTC().Truncate(time.Second)
+	if _, _, err := svc.SnoozeIssue(ctx, p, filed.ID, until); err != nil {
+		t.Fatalf("snooze: %v", err)
+	}
+
+	woken, version, err := svc.UnsnoozeIssue(ctx, p, filed.ID)
+	if err != nil {
+		t.Fatalf("unsnooze: %v", err)
+	}
+	if woken.SnoozedUntil != nil {
+		t.Fatalf("snoozedUntil = %v after unsnooze, want it cleared", woken.SnoozedUntil)
+	}
+	if version == 0 {
+		t.Fatal("a real change emitted no version, so no replica hears about it")
+	}
+	got, err := svc.GetIssue(ctx, p, filed.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.SnoozedUntil != nil {
+		t.Fatalf("the snooze came back on re-read: %v", got.SnoozedUntil)
+	}
+}
+
+func TestUnsnoozeIssue_WorksAfterTheIssueHasLeftTriage(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	enableTriage(t, svc, p, f.TeamID, false)
+	filed, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{
+		TeamID: f.TeamID, Title: "Later", FromTriage: true,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	until := time.Now().Add(2 * time.Hour).UTC().Truncate(time.Second)
+	if _, _, err := svc.SnoozeIssue(ctx, p, filed.ID, until); err != nil {
+		t.Fatalf("snooze: %v", err)
+	}
+	if _, _, err := svc.UnsnoozeIssue(ctx, p, filed.ID); err != nil {
+		t.Fatalf("unsnooze while in triage: %v", err)
+	}
+
+	if _, _, err := svc.SnoozeIssue(ctx, p, filed.ID, until); err != nil {
+		t.Fatalf("re-snooze: %v", err)
+	}
+	if _, _, err := svc.AcceptTriageIssue(ctx, p, filed.ID); err != nil {
+		t.Fatalf("accept: %v", err)
+	}
+	// Accepting clears the snooze on its own, which is what makes the next line the real
+	// test: unsnooze on an issue outside triage must be a quiet no-op, not a refusal.
+	if _, _, err := svc.UnsnoozeIssue(ctx, p, filed.ID); err != nil {
+		t.Fatalf("unsnooze after leaving triage: %v", err)
+	}
+}
+
+func TestUnsnoozeIssue_RefusesAnIssueThatIsNotThere(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	filed, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{TeamID: f.TeamID, Title: "Mine"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if _, _, err := svc.UnsnoozeIssue(ctx, p, uuid.Must(uuid.NewV7())); platform.CodeOf(err) != platform.CodeNotFound {
+		t.Fatalf("unsnoozing an issue that does not exist gave %v, want not found", err)
+	}
+	if _, _, err := svc.UnsnoozeIssue(ctx, p, filed.ID); err != nil {
+		t.Fatalf("unsnooze an issue the caller owns: %v", err)
 	}
 }

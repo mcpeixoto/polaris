@@ -7,7 +7,15 @@
  * milestone this client can see, and the real key arrives with the row.
  */
 
-import { uuidv7, type DateOnly, type ProjectMilestone, type Store, type UUID } from '~/store';
+import {
+  byOrderKey,
+  orderKeyBetween,
+  uuidv7,
+  type DateOnly,
+  type ProjectMilestone,
+  type Store,
+  type UUID,
+} from '~/store';
 import { ApiError } from '~/sync/api';
 import type { SyncEngine } from '~/sync/engine';
 
@@ -125,6 +133,60 @@ export async function updateProjectMilestone(
               ? { clearTarget: true }
               : { targetDate: fields.targetDate }),
         },
+      },
+      optimistic: [{ type: 'projectMilestone', id, before, after }],
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.isOffline) return;
+    throw error;
+  }
+}
+
+/**
+ * Moves a milestone within its project — after another one, or to the front.
+ *
+ * `UpdateProjectMilestoneInput` takes `afterMilestoneId`/`moveToTop` rather than a raw
+ * sortOrder, the same shape as `UpdateIssueInput`: the server mints the fractional key, so
+ * two people dragging at once cannot pick the same one. The optimistic key is minted here
+ * with `orderKeyBetween` so the row moves on the drop rather than a round trip later; the
+ * server's key arrives in the delta and replaces it. The two need not agree on the string,
+ * only on the order.
+ *
+ * `afterId` of null means the top.
+ */
+export async function moveProjectMilestone(
+  engine: SyncEngine,
+  id: UUID,
+  afterId: UUID | null,
+): Promise<void> {
+  const store = engine.store;
+  const before = store.get('projectMilestone', id);
+  if (before === undefined || afterId === id) return;
+
+  const siblings = [...store.projectMilestones.values()]
+    .filter((row) => row.projectId === before.projectId && row.archivedAt === undefined)
+    .sort(byOrderKey('sortOrder'));
+
+  let lower = '';
+  let rest = siblings;
+  if (afterId !== null) {
+    const anchorAt = siblings.findIndex((row) => row.id === afterId);
+    if (anchorAt === -1) return;
+    lower = siblings[anchorAt]!.sortOrder;
+    rest = siblings.slice(anchorAt + 1);
+  }
+  // The milestone the moved one lands in front of, skipping itself: a row already sitting
+  // in that gap is not one of its own neighbours.
+  const following = rest.find((row) => row.id !== id);
+  const sortOrder = orderKeyBetween(lower, following?.sortOrder ?? '');
+  if (sortOrder === null || sortOrder === before.sortOrder) return;
+
+  const after: ProjectMilestone = { ...before, sortOrder, updatedAt: new Date().toISOString() };
+  try {
+    await engine.mutate({
+      mutation: UPDATE_PROJECT_MILESTONE,
+      variables: {
+        input: { id, ...(afterId === null ? { moveToTop: true } : { afterMilestoneId: afterId }) },
       },
       optimistic: [{ type: 'projectMilestone', id, before, after }],
     });

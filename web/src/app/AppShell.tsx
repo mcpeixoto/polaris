@@ -412,7 +412,18 @@ export function AppShell({
   );
   const gotoFavorites = useLiveQuery(
     (store: Store) => (viewerId === null ? [] : flattenFavorites(favoriteNav(store, viewerId))),
-    ['favorite', 'view', 'team', 'issue', 'label', 'project', 'initiative', 'cycle', 'document'],
+    [
+      'favorite',
+      'view',
+      'team',
+      'issue',
+      'label',
+      'project',
+      'initiative',
+      'cycle',
+      'document',
+      'dashboard',
+    ],
     [viewerId],
   );
   const gotoCustomers = useLiveQuery(
@@ -2074,7 +2085,18 @@ function useNavRowMenu(userId: UUID | null): NavRowMenu {
 
   const folders = useLiveQuery(
     (store) => (userId === null ? [] : favoriteNav(store, userId).folders),
-    ['favorite', 'view', 'team', 'issue', 'label', 'project', 'initiative', 'cycle', 'document'],
+    [
+      'favorite',
+      'view',
+      'team',
+      'issue',
+      'label',
+      'project',
+      'initiative',
+      'cycle',
+      'document',
+      'dashboard',
+    ],
     [userId ?? ''],
   );
 
@@ -2248,7 +2270,18 @@ function FavoritesSection({
   const [dropTarget, setDropTarget] = useState<UUID | null | undefined>(undefined);
   const nav = useLiveQuery(
     (store) => favoriteNav(store, userId),
-    ['favorite', 'view', 'team', 'issue', 'label', 'project', 'initiative', 'cycle', 'document'],
+    [
+      'favorite',
+      'view',
+      'team',
+      'issue',
+      'label',
+      'project',
+      'initiative',
+      'cycle',
+      'document',
+      'dashboard',
+    ],
     [userId],
   );
 
@@ -2892,6 +2925,16 @@ function favoriteLink(store: Store, favorite: Favorite): FavoriteTarget | null {
         id: favorite.id,
         to: `/document/${document.id}`,
         label: document.title,
+        prefix: null,
+      };
+    }
+    case 'dashboard': {
+      const dashboard = store.get('dashboard', favorite.targetId);
+      if (dashboard === undefined || dashboard.archivedAt !== undefined) return null;
+      return {
+        id: favorite.id,
+        to: `/dashboard/${dashboard.id}`,
+        label: dashboard.name,
         prefix: null,
       };
     }

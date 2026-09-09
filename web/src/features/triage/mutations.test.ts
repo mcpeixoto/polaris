@@ -27,6 +27,7 @@ import {
   markIssueDuplicate,
   requiresPriorityToLeave,
   snoozeIssue,
+  unsnoozeIssue,
   updateTeamTriage,
 } from './mutations';
 
@@ -216,3 +217,37 @@ function issue(id: string, stateId: string, title = 'Incoming'): Issue {
 function change(v: number, type: EntityType, id: string, payload: Entity): Change {
   return { v, type, id, op: 'upsert', actor: { type: 'system' }, payload };
 }
+
+/**
+ * Unsnoozing used to be a patch with no mutation behind it: the field was dropped locally
+ * and came straight back on the next delta. These pin the two halves — the same patch as
+ * before, and a real `unsnoozeIssue` on the wire — plus the case that must write nothing,
+ * because a queued no-op is replayed on every reconnect.
+ */
+describe('unsnoozeIssue', () => {
+  it('clears the snooze and calls the server', async () => {
+    const until = new Date('2026-08-20T09:00:00.000Z');
+    await snoozeIssue(engine, ISSUE, until);
+    mutate.mockClear();
+
+    await unsnoozeIssue(engine, ISSUE);
+
+    expect(engine.store.get('issue', ISSUE)?.snoozedUntil).toBeUndefined();
+    expect(mutate).toHaveBeenCalledTimes(1);
+    const [call] = mutate.mock.calls as unknown as [
+      [{ mutation: string; variables: { id: string } }],
+    ];
+    expect(call[0].mutation).toContain('unsnoozeIssue');
+    expect(call[0].variables).toEqual({ id: ISSUE });
+  });
+
+  it('writes nothing when the issue is not snoozed', async () => {
+    await unsnoozeIssue(engine, ISSUE);
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it('writes nothing for an issue the replica has never seen', async () => {
+    await unsnoozeIssue(engine, '01900000-0000-7000-8000-00000000ffff');
+    expect(mutate).not.toHaveBeenCalled();
+  });
+});
