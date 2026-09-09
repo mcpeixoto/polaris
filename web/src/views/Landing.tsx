@@ -339,7 +339,9 @@ export function Landing() {
                     <span className={styles.downloadDetail}>{build.detail}</span>
                   </div>
                 ))}
-                <p className={styles.downloadCaution}>{platform.caution}</p>
+                {platform.caution ? (
+                  <p className={styles.downloadCaution}>{platform.caution}</p>
+                ) : null}
               </li>
             ))}
           </ul>

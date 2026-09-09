@@ -47,8 +47,12 @@ export interface DownloadPlatform {
   readonly os: Exclude<DownloadOS, 'unknown'>;
   readonly name: string;
   readonly builds: readonly DownloadBuild[];
-  /** What the OS will say the first time, in the words the reader will see. */
-  readonly caution: string;
+  /**
+   * What the OS will say the first time, in the words the reader will see. Absent when the
+   * platform's build is signed and there is nothing to warn about — an explanation of a
+   * dialog that does not appear is its own kind of confusing.
+   */
+  readonly caution?: string;
 }
 
 /**
@@ -72,8 +76,10 @@ export const DOWNLOADS: readonly DownloadPlatform[] = [
         url: file('Polaris-mac-x64.dmg'),
       },
     ],
-    caution:
-      'The Mac build is not signed yet, so macOS will say it cannot check it for malware. Open Applications, right-click Polaris, choose Open, then Open again. Once, on the first run.',
+    // Signed with a Developer ID certificate and notarised by Apple, so it opens the way
+    // any other Mac app does. The workflow proves it on every release — `spctl --assess`
+    // has to accept the bundle or the release does not publish — which is what makes it
+    // safe to say nothing here.
   },
   {
     os: 'windows',

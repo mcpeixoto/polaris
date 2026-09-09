@@ -105,6 +105,17 @@ test('G chords still navigate from the inbox and from pulse', async ({ page, wor
   for (const from of ['/inbox', '/pulse']) {
     await page.goto(from);
     await page.getByRole('navigation', { name: /workspace/i }).waitFor();
+    // The same wait the command-menu test above performs, and for the same reason: the
+    // shell re-registers its keymap on navigation while the screen registers on mount, and
+    // a chord pressed between the two is dropped. The navigation landmark appears before
+    // that pair has settled, so waiting on it alone is not enough.
+    //
+    // This is a race only a machine can win — nobody types `g m` within milliseconds of a
+    // route painting — but it made the suite fail roughly one run in five, and a release
+    // that stalls on a coin toss is worse than one that fails.
+    await expect
+      .poll(() => page.evaluate(() => document.readyState), { timeout: 10_000 })
+      .toBe('complete');
     await page.keyboard.press('g');
     await page.keyboard.press('m');
     await expect(page, `g m from ${from}`).toHaveURL(/\/my-issues$/, { timeout: 5000 });
