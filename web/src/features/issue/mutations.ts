@@ -74,6 +74,14 @@ export interface IssueFields {
   readonly projectId?: UUID | null | undefined;
   /** `null` removes the issue from its cycle. */
   readonly cycleId?: UUID | null | undefined;
+  /**
+   * `null` takes the issue off its milestone.
+   *
+   * Only meaningful within the issue's own project: the server refuses a milestone that
+   * belongs to another one, which is why changing the project clears this rather than
+   * carrying a marker across into a project that has never heard of it.
+   */
+  readonly projectMilestoneId?: UUID | null | undefined;
 }
 
 export interface NewIssue {
@@ -303,6 +311,14 @@ function planUpdate(
     ...(next.cycleId === undefined
       ? null
       : { cycleId: next.cycleId === null ? undefined : next.cycleId }),
+    // After the project block above, so a write that moves the issue and names a milestone
+    // in the new project keeps the milestone rather than having it cleared by the move.
+    ...(next.projectMilestoneId === undefined
+      ? null
+      : {
+          projectMilestoneId:
+            next.projectMilestoneId === null ? undefined : next.projectMilestoneId,
+        }),
     updatedAt: new Date().toISOString(),
   });
   if (sameIssue(before, after)) return null;
@@ -324,6 +340,9 @@ function bulkInputOf(fields: IssueFields): Record<string, unknown> | null {
   if (fields.description !== undefined) return null;
   if (fields.projectId !== undefined) return null;
   if (fields.cycleId !== undefined) return null;
+  // `BulkUpdateIssuesInput` has no milestone either, so a selection falls back to one
+  // `updateIssue` per row rather than silently dropping the field.
+  if (fields.projectMilestoneId !== undefined) return null;
 
   const input: Record<string, unknown> = {
     ...(fields.stateId === undefined ? null : { stateId: fields.stateId }),
@@ -1396,6 +1415,11 @@ function updateInputOf(fields: IssueFields): Record<string, unknown> {
       : fields.cycleId === null
         ? { clearCycle: true }
         : { cycleId: fields.cycleId }),
+    ...(fields.projectMilestoneId === undefined
+      ? null
+      : fields.projectMilestoneId === null
+        ? { clearMilestone: true }
+        : { projectMilestoneId: fields.projectMilestoneId }),
   };
 }
 
