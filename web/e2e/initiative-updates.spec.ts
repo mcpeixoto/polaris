@@ -38,7 +38,9 @@ function health(page: Page) {
 }
 
 async function postUpdate(page: Page, healthOption: string, body: string): Promise<void> {
-  await page.getByLabel('Health').selectOption({ label: healthOption });
+  // Exact: the overview also carries a region called "Initiative health", and Playwright
+  // matches a label by substring unless told otherwise.
+  await page.getByLabel('Health', { exact: true }).selectOption({ label: healthOption });
   await page.getByLabel('Update', { exact: true }).fill(body);
   await page.getByRole('button', { name: 'Post update' }).click();
   // The compose box clears once the mutation has resolved.
@@ -58,7 +60,7 @@ test('an author edits their initiative update and the derived health follows', a
 
   await page.getByRole('link', { name: 'Activity' }).click();
   await page.getByRole('button', { name: /^Edit update from/ }).click();
-  await page.getByLabel('Health').selectOption('off_track');
+  await page.getByLabel('Health', { exact: true }).selectOption('off_track');
   await page.getByLabel('Edit update', { exact: true }).fill('Vendor pulled out.');
   await page.getByRole('button', { name: 'Save changes' }).click();
 
