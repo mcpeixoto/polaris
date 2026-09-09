@@ -1,24 +1,28 @@
 -- name: CreateInitiative :one
 INSERT INTO initiative (
-  id, workspace_id, name, description, status, priority, owner_id, lead_team_id,
+  id, workspace_id, name, description, icon, color, status, priority, owner_id, lead_team_id,
   creator_id, sort_order, target_date, target_date_granularity
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(name), sqlc.arg(description),
+        sqlc.narg(icon), COALESCE(sqlc.narg(color)::text, '#6b7280'),
+        sqlc.arg(status), sqlc.arg(priority), sqlc.narg(owner_id), sqlc.narg(lead_team_id),
+        sqlc.narg(creator_id), sqlc.arg(sort_order), sqlc.narg(target_date),
+        sqlc.narg(target_date_granularity))
 RETURNING id, workspace_id, name, description, status, priority, owner_id, lead_team_id,
           creator_id, sort_order, target_date, target_date_granularity,
-          archived_at, deleted_at, deleted_by, created_at, updated_at;
+          archived_at, deleted_at, deleted_by, created_at, updated_at, icon, color;
 
 -- name: GetInitiative :one
 SELECT id, workspace_id, name, description, status, priority, owner_id, lead_team_id,
        creator_id, sort_order, target_date, target_date_granularity,
-       archived_at, deleted_at, deleted_by, created_at, updated_at
+       archived_at, deleted_at, deleted_by, created_at, updated_at, icon, color
 FROM initiative
 WHERE id = $1;
 
 -- name: GetInitiativeForUpdate :one
 SELECT id, workspace_id, name, description, status, priority, owner_id, lead_team_id,
        creator_id, sort_order, target_date, target_date_granularity,
-       archived_at, deleted_at, deleted_by, created_at, updated_at
+       archived_at, deleted_at, deleted_by, created_at, updated_at, icon, color
 FROM initiative
 WHERE id = $1
 FOR UPDATE;
@@ -27,6 +31,8 @@ FOR UPDATE;
 UPDATE initiative
 SET name                     = COALESCE(sqlc.narg(name), name),
     description              = COALESCE(sqlc.narg(description), description),
+    icon                     = COALESCE(sqlc.narg(icon), icon),
+    color                    = COALESCE(sqlc.narg(color), color),
     status                   = COALESCE(sqlc.narg(status), status),
     priority                 = COALESCE(sqlc.narg(priority), priority),
     sort_order               = COALESCE(sqlc.narg(sort_order), sort_order),
@@ -41,7 +47,7 @@ SET name                     = COALESCE(sqlc.narg(name), name),
 WHERE id = sqlc.arg(id) AND deleted_at IS NULL
 RETURNING id, workspace_id, name, description, status, priority, owner_id, lead_team_id,
           creator_id, sort_order, target_date, target_date_granularity,
-          archived_at, deleted_at, deleted_by, created_at, updated_at;
+          archived_at, deleted_at, deleted_by, created_at, updated_at, icon, color;
 
 -- name: ArchiveInitiative :exec
 UPDATE initiative SET archived_at = now() WHERE id = $1 AND archived_at IS NULL;
@@ -50,7 +56,7 @@ UPDATE initiative SET archived_at = now() WHERE id = $1 AND archived_at IS NULL;
 UPDATE initiative SET archived_at = NULL WHERE id = $1
 RETURNING id, workspace_id, name, description, status, priority, owner_id, lead_team_id,
           creator_id, sort_order, target_date, target_date_granularity,
-          archived_at, deleted_at, deleted_by, created_at, updated_at;
+          archived_at, deleted_at, deleted_by, created_at, updated_at, icon, color;
 
 -- name: SoftDeleteInitiative :one
 UPDATE initiative
@@ -58,7 +64,7 @@ SET deleted_at = now(), deleted_by = sqlc.arg(deleted_by)
 WHERE id = sqlc.arg(id) AND deleted_at IS NULL
 RETURNING id, workspace_id, name, description, status, priority, owner_id, lead_team_id,
           creator_id, sort_order, target_date, target_date_granularity,
-          archived_at, deleted_at, deleted_by, created_at, updated_at;
+          archived_at, deleted_at, deleted_by, created_at, updated_at, icon, color;
 
 -- name: LastInitiativeSortOrder :one
 SELECT sort_order FROM initiative
@@ -69,7 +75,7 @@ LIMIT 1;
 -- name: ListInitiativesInWorkspace :many
 SELECT id, workspace_id, name, description, status, priority, owner_id, lead_team_id,
        creator_id, sort_order, target_date, target_date_granularity,
-       archived_at, deleted_at, deleted_by, created_at, updated_at
+       archived_at, deleted_at, deleted_by, created_at, updated_at, icon, color
 FROM initiative
 WHERE workspace_id = $1 AND deleted_at IS NULL AND archived_at IS NULL
 ORDER BY sort_order;
@@ -86,7 +92,7 @@ ORDER BY created_at;
 -- name: StreamInitiativesForBootstrap :many
 SELECT i.id, i.workspace_id, i.name, i.description, i.status, i.priority, i.owner_id,
        i.lead_team_id, i.creator_id, i.sort_order, i.target_date, i.target_date_granularity,
-       i.archived_at, i.deleted_at, i.deleted_by, i.created_at, i.updated_at
+       i.archived_at, i.deleted_at, i.deleted_by, i.created_at, i.updated_at, i.icon, i.color
 FROM initiative i
 LEFT JOIN team lt ON lt.id = i.lead_team_id
 WHERE i.workspace_id = sqlc.arg(workspace_id)

@@ -35,6 +35,7 @@ import {
   TagGlyph,
   UnassignedGlyph,
 } from '~/features/issue/glyphs';
+import { EntityIcon } from '~/features/icon/EntityIcon';
 import { labelViewPath, userViewPath } from '~/features/labels/labelView';
 import { applyLabel, removeLabel } from '~/features/labels/mutations';
 import { LabelPicker } from '~/features/labels/LabelPicker';
@@ -369,7 +370,13 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
             factRefs.current.project = element;
           }}
         >
-          <ProjectGlyph {...glyph} className={styles.glyph} />
+          <EntityIcon
+            icon={issue.projectIcon ?? undefined}
+            color={issue.projectColor ?? undefined}
+            fallback={<ProjectGlyph {...glyph} className={styles.glyph} />}
+            size="sm"
+            className={styles.glyph}
+          />
           {issue.projectName ?? <span className={styles.unset}>No project</span>}
         </Fact>
         {/* The parent stays a fact rather than a control: re-parenting moves an issue into
@@ -591,6 +598,9 @@ interface PeekIssue {
   readonly cycleName: string | null;
   readonly projectId: UUID | null;
   readonly projectName: string | null;
+  /** The project's own icon and colour, so the fact draws it the way the list does. */
+  readonly projectIcon: string | null;
+  readonly projectColor: string | null;
   readonly parent: { identifier: string; title: string } | null;
   /** The raw points, for the picker; `estimateLabel` is the same value in the team's scale. */
   readonly estimate: number | null;
@@ -611,6 +621,7 @@ function readPeek(store: Store, id: UUID): PeekIssue | null {
   const assignee = found.assigneeId === undefined ? undefined : store.users.get(found.assigneeId);
   const team = store.teams.get(found.teamId);
   const parent = found.parentId === undefined ? undefined : store.issues.get(found.parentId);
+  const project = found.projectId === undefined ? undefined : store.projects.get(found.projectId);
   const labels: { id: UUID; name: string; color: string }[] = [];
   for (const labelId of store.labelIdsFor(found.id)) {
     const label = store.labels.get(labelId);
@@ -638,8 +649,9 @@ function readPeek(store: Store, id: UUID): PeekIssue | null {
     cycleId: found.cycleId ?? null,
     cycleName: found.cycleId === undefined ? null : (store.cycles.get(found.cycleId)?.name ?? null),
     projectId: found.projectId ?? null,
-    projectName:
-      found.projectId === undefined ? null : (store.projects.get(found.projectId)?.name ?? null),
+    projectName: project?.name ?? null,
+    projectIcon: project?.icon ?? null,
+    projectColor: project?.color ?? null,
     parent:
       parent === undefined ? null : { identifier: store.identifierOf(parent), title: parent.title },
     estimate: found.estimate ?? null,

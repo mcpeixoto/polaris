@@ -1,0 +1,37 @@
+/*
+ * The glyph a project or initiative is recognised by, at the three sizes it is drawn at.
+ *
+ * The colour is set inline by the component because it is data. Only the box is styled here:
+ * a fixed square so a two-character emoji and a 16px SVG take the same room in a row, and so
+ * a name column does not shift by a pixel when an icon changes kind.
+ */
+
+.root {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  line-height: var(--line-height-none);
+}
+
+.root svg {
+  display: block;
+}
+
+.sm {
+  width: 14px;
+  height: 14px;
+  font-size: var(--font-size-md);
+}
+
+.md {
+  width: 16px;
+  height: 16px;
+  font-size: var(--font-size-lg);
+}
+
+.lg {
+  width: 20px;
+  height: 20px;
+  font-size: var(--font-size-xl);
+}

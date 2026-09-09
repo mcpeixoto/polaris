@@ -28,9 +28,10 @@
  * thrown: the initiative exists by then, and losing it to tidy up a label would be a far
  * worse outcome than an objective with one label missing.
  *
- * **There is no icon pill.** An initiative has no icon or colour — not in the schema, not in
- * the replica — so the picker would set a value nothing could ever read. It belongs with the
- * backend change that adds the column.
+ * **The icon pill files both halves with the initiative.** `initiative.icon` and
+ * `initiative.color` are columns now, so the glyph and the tint an objective is recognised by
+ * are set here, in the same breath as its name, rather than on a detail page somebody has to
+ * open afterwards.
  */
 
 import { useId, useRef, useState, type FormEvent } from 'react';
@@ -57,6 +58,8 @@ import {
   type MenuNode,
 } from '~/components';
 import { PriorityPicker } from '~/features/issue/pickers';
+import { EntityIcon } from '~/features/icon/EntityIcon';
+import { IconPicker } from '~/features/icon/IconPicker';
 import { InitiativeLabelPicker } from '~/features/initiative-labels/InitiativeLabelPicker';
 import { addInitiativeLabel } from '~/features/initiative-labels/mutations';
 import { UserPicker } from '~/features/members/UserPicker';
@@ -110,6 +113,12 @@ export function CreateInitiativeModal({ open = true, onClose }: CreateInitiative
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  /**
+   * The glyph and the tint, held as two strings because that is how they are stored and how
+   * the picker hands them back — one half per act, never the pair.
+   */
+  const [icon, setIcon] = useState('');
+  const [color, setColor] = useState('');
   const [status, setStatus] = useState<InitiativeStatus>(DEFAULT_STATUS);
   const [priority, setPriority] = useState(0);
   /**
@@ -176,6 +185,7 @@ export function CreateInitiativeModal({ open = true, onClose }: CreateInitiative
     [labelIds.join(',')],
   );
 
+  const iconMenu = useMenuTrigger('dialog');
   const ownerMenu = useMenuTrigger();
   const statusMenu = useMenuTrigger();
   const priorityMenu = useMenuTrigger();
@@ -188,6 +198,8 @@ export function CreateInitiativeModal({ open = true, onClose }: CreateInitiative
   const dirty =
     name.trim() !== '' ||
     description.trim() !== '' ||
+    icon !== '' ||
+    color !== '' ||
     status !== DEFAULT_STATUS ||
     priority !== 0 ||
     owner !== undefined ||
@@ -210,6 +222,8 @@ export function CreateInitiativeModal({ open = true, onClose }: CreateInitiative
       const id = await createInitiative(engine, {
         name: trimmed,
         description: description.trim() === '' ? undefined : description,
+        icon: icon === '' ? undefined : icon,
+        color: color === '' ? undefined : color,
         status,
         priority,
         ownerId: ownerId ?? undefined,
@@ -232,10 +246,14 @@ export function CreateInitiativeModal({ open = true, onClose }: CreateInitiative
 
       if (another) {
         // The properties stay and the words go: the next objective in a sitting shares the
-        // owner, the timeframe and the parent, and shares none of its prose.
+        // owner, the timeframe and the parent, and shares none of its prose. The icon goes
+        // with the words — it names one objective the way its name does, and a run of
+        // initiatives wearing the same rocket is a list nobody can scan.
         reset();
         setName('');
         setDescription('');
+        setIcon('');
+        setColor('');
         setFiled((count) => count + 1);
         setLabelNote(
           missed.length === 0 ? null : `Could not apply ${missed.join(', ')} to the last one.`,
@@ -478,6 +496,16 @@ export function CreateInitiativeModal({ open = true, onClose }: CreateInitiative
           */}
           <div className={styles.properties}>
             <PropertyPill
+              {...iconMenu.props}
+              name="Icon and colour"
+              describe={`${formId}-icon`}
+              empty={icon === '' && color === '' ? 'No icon' : undefined}
+              icon={<EntityIcon icon={icon} color={color} fallback={<PaletteGlyph />} />}
+            >
+              {icon === '' && color === '' ? 'Icon' : 'Icon set'}
+            </PropertyPill>
+
+            <PropertyPill
               {...statusMenu.props}
               name="Status"
               describe={`${formId}-status`}
@@ -587,6 +615,18 @@ export function CreateInitiativeModal({ open = true, onClose }: CreateInitiative
           )}
         </form>
 
+        <IconPicker
+          open={iconMenu.open}
+          onClose={iconMenu.hide}
+          trigger={iconMenu.ref}
+          value={{ icon, color }}
+          onChange={(next) => {
+            setIcon(next.icon);
+            setColor(next.color);
+          }}
+          actionId="initiative.create.closeIconPicker"
+          label="Initiative icon"
+        />
         <UserPicker
           open={ownerMenu.open}
           onClose={ownerMenu.hide}
@@ -748,6 +788,19 @@ function TeamGlyph() {
       <circle cx="6" cy="6" r="2.25" {...STROKE} />
       <path d="M2 12.5c.6-1.9 2-2.9 4-2.9s3.4 1 4 2.9" {...STROKE} />
       <path d="M10.5 4.2a2.25 2.25 0 0 1 0 3.6M11.5 9.9c1.4.3 2.3 1.2 2.7 2.6" {...STROKE} />
+    </svg>
+  );
+}
+
+function PaletteGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+      <path
+        d="M8 2.5a5.5 5.5 0 0 0 0 11c.83 0 1.25-.6 1.25-1.25 0-.86-.75-1.15-.75-1.9 0-.5.4-.85.9-.85h1.35A2.75 2.75 0 0 0 13.5 6.7C13.5 4.3 11 2.5 8 2.5Z"
+        {...STROKE}
+      />
+      <circle cx="5.5" cy="7" r=".9" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="5.5" r=".9" fill="currentColor" stroke="none" />
     </svg>
   );
 }

@@ -74,6 +74,10 @@ import {
   listInitiativeProjectRows,
   type InitiativeProjectRow,
 } from '~/features/initiatives/progress';
+import { EntityIcon } from '~/features/icon/EntityIcon';
+import { IconPicker } from '~/features/icon/IconPicker';
+import { DEFAULT_ENTITY_COLOR, iconValueLabel } from '~/features/icon/glyphs';
+import { InitiativeGlyph } from '~/features/initiatives/glyphs';
 import { CalendarGlyph, PlusGlyph, UnassignedGlyph } from '~/features/issue/glyphs';
 import { UserPicker } from '~/features/members/UserPicker';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
@@ -137,6 +141,7 @@ export function InitiativeDetail() {
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
 
+  const iconPicker = useMenuTrigger('dialog');
   const owner = useMenuTrigger();
   const status = useMenuTrigger();
   const priority = useMenuTrigger();
@@ -595,6 +600,28 @@ export function InitiativeDetail() {
 
         {/* Every row names itself for the accessibility tree and shows its glyph and value
             on screen, which is how the issue rail beside it is drawn. */}
+
+        {/* First, because it is the only property that changes how the initiative is
+            recognised everywhere else it appears — the list, the breadcrumb, the picker. */}
+        <div className={styles.property}>
+          <Button
+            {...iconPicker.props}
+            variant="ghost"
+            fullWidth
+            className={styles.propertyTrigger}
+            aria-label="Set icon"
+            icon={
+              <EntityIcon
+                icon={initiative.icon}
+                color={initiative.color ?? DEFAULT_ENTITY_COLOR}
+                fallback={<InitiativeGlyph />}
+              />
+            }
+          >
+            {iconValueLabel(initiative.icon) ?? <span className={styles.unset}>Set icon</span>}
+          </Button>
+        </div>
+
         <div className={styles.property}>
           <span className={styles.srOnly} id="initiative-status-label">
             Status
@@ -737,6 +764,18 @@ export function InitiativeDetail() {
         items={teamItems}
         filterable
         filterPlaceholder="Lead team…"
+      />
+      <IconPicker
+        open={iconPicker.open}
+        onClose={iconPicker.hide}
+        trigger={iconPicker.ref}
+        value={{ icon: initiative.icon ?? '', color: initiative.color ?? DEFAULT_ENTITY_COLOR }}
+        onChange={(next) =>
+          // The picker moves one half per act, so the mutation carries one half too.
+          save(next.icon === (initiative.icon ?? '') ? { color: next.color } : { icon: next.icon })
+        }
+        actionId="initiativeDetail.closeIconPicker"
+        label="Initiative icon"
       />
       <UserPicker
         open={owner.open}

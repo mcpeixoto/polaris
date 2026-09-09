@@ -15,6 +15,7 @@ Initiatives sit above projects and express goals/objectives. Enabled per workspa
 
 | Property | Notes |
 |---|---|
+| Icon + colour | A named line icon or an emoji, tinted with a colour. See below |
 | Status | Proposed, Planned, Active, Completed, Canceled |
 | Priority | Same 5-level scale |
 | Labels | Initiative labels + groups, managed in Workspace Settings → Initiatives → Labels. For cross-cutting dimensions (product line, region, company goal, planning period) |
@@ -25,6 +26,18 @@ Initiatives sit above projects and express goals/objectives. Enabled per workspa
 | Description | Purpose, scope, context |
 | Latest update | Health + narrative (same mechanism as project updates) |
 | Projects | Contributing work streams |
+
+### Icon and colour
+
+An initiative is drawn the way a project is, from the same picker and the same set: a named
+line icon stored as a token (`icon:target`) or an emoji, tinted with the initiative's colour.
+An initiative that has never been given one falls back to the generic initiative glyph and to
+grey, which is what the column defaults to.
+
+It can be set when the initiative is created, changed by clicking the icon in the initiatives
+list or in the initiative header, and changed from the Icon row at the top of the properties
+rail. This is newer than the project equivalent — initiatives had no icon at all until the
+column was added — so an initiative created before that has no icon rather than a bad one.
 
 ## Creating and organising
 

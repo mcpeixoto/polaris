@@ -23,13 +23,17 @@ func (q *Queries) ArchiveInitiative(ctx context.Context, id uuid.UUID) error {
 
 const createInitiative = `-- name: CreateInitiative :one
 INSERT INTO initiative (
-  id, workspace_id, name, description, status, priority, owner_id, lead_team_id,
+  id, workspace_id, name, description, icon, color, status, priority, owner_id, lead_team_id,
   creator_id, sort_order, target_date, target_date_granularity
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+VALUES ($1, $2, $3, $4,
+        $5, COALESCE($6::text, '#6b7280'),
+        $7, $8, $9, $10,
+        $11, $12, $13,
+        $14)
 RETURNING id, workspace_id, name, description, status, priority, owner_id, lead_team_id,
           creator_id, sort_order, target_date, target_date_granularity,
-          archived_at, deleted_at, deleted_by, created_at, updated_at
+          archived_at, deleted_at, deleted_by, created_at, updated_at, icon, color
 `
 
 type CreateInitiativeParams struct {
@@ -37,6 +41,8 @@ type CreateInitiativeParams struct {
 	WorkspaceID           uuid.UUID
 	Name                  string
 	Description           string
+	Icon                  *string
+	Color                 *string
 	Status                string
 	Priority              int16
 	OwnerID               *uuid.UUID
@@ -53,6 +59,8 @@ func (q *Queries) CreateInitiative(ctx context.Context, arg CreateInitiativePara
 		arg.WorkspaceID,
 		arg.Name,
 		arg.Description,
+		arg.Icon,
+		arg.Color,
 		arg.Status,
 		arg.Priority,
 		arg.OwnerID,
@@ -81,6 +89,8 @@ func (q *Queries) CreateInitiative(ctx context.Context, arg CreateInitiativePara
 		&i.DeletedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
+		&i.Color,
 	)
 	return i, err
 }
@@ -138,7 +148,7 @@ func (q *Queries) DeleteInitiativeProject(ctx context.Context, id uuid.UUID) (In
 const getInitiative = `-- name: GetInitiative :one
 SELECT id, workspace_id, name, description, status, priority, owner_id, lead_team_id,
        creator_id, sort_order, target_date, target_date_granularity,
-       archived_at, deleted_at, deleted_by, created_at, updated_at
+       archived_at, deleted_at, deleted_by, created_at, updated_at, icon, color
 FROM initiative
 WHERE id = $1
 `
@@ -164,6 +174,8 @@ func (q *Queries) GetInitiative(ctx context.Context, id uuid.UUID) (Initiative, 
 		&i.DeletedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
+		&i.Color,
 	)
 	return i, err
 }
@@ -171,7 +183,7 @@ func (q *Queries) GetInitiative(ctx context.Context, id uuid.UUID) (Initiative, 
 const getInitiativeForUpdate = `-- name: GetInitiativeForUpdate :one
 SELECT id, workspace_id, name, description, status, priority, owner_id, lead_team_id,
        creator_id, sort_order, target_date, target_date_granularity,
-       archived_at, deleted_at, deleted_by, created_at, updated_at
+       archived_at, deleted_at, deleted_by, created_at, updated_at, icon, color
 FROM initiative
 WHERE id = $1
 FOR UPDATE
@@ -198,6 +210,8 @@ func (q *Queries) GetInitiativeForUpdate(ctx context.Context, id uuid.UUID) (Ini
 		&i.DeletedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
+		&i.Color,
 	)
 	return i, err
 }
@@ -365,7 +379,7 @@ func (q *Queries) ListInitiativeProjectsForInitiatives(ctx context.Context, arg 
 const listInitiativesInWorkspace = `-- name: ListInitiativesInWorkspace :many
 SELECT id, workspace_id, name, description, status, priority, owner_id, lead_team_id,
        creator_id, sort_order, target_date, target_date_granularity,
-       archived_at, deleted_at, deleted_by, created_at, updated_at
+       archived_at, deleted_at, deleted_by, created_at, updated_at, icon, color
 FROM initiative
 WHERE workspace_id = $1 AND deleted_at IS NULL AND archived_at IS NULL
 ORDER BY sort_order
@@ -398,6 +412,8 @@ func (q *Queries) ListInitiativesInWorkspace(ctx context.Context, workspaceID uu
 			&i.DeletedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Icon,
+			&i.Color,
 		); err != nil {
 			return nil, err
 		}
@@ -415,7 +431,7 @@ SET deleted_at = now(), deleted_by = $1
 WHERE id = $2 AND deleted_at IS NULL
 RETURNING id, workspace_id, name, description, status, priority, owner_id, lead_team_id,
           creator_id, sort_order, target_date, target_date_granularity,
-          archived_at, deleted_at, deleted_by, created_at, updated_at
+          archived_at, deleted_at, deleted_by, created_at, updated_at, icon, color
 `
 
 type SoftDeleteInitiativeParams struct {
@@ -444,6 +460,8 @@ func (q *Queries) SoftDeleteInitiative(ctx context.Context, arg SoftDeleteInitia
 		&i.DeletedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
+		&i.Color,
 	)
 	return i, err
 }
@@ -513,7 +531,7 @@ func (q *Queries) StreamInitiativeProjectsForBootstrap(ctx context.Context, arg 
 const streamInitiativesForBootstrap = `-- name: StreamInitiativesForBootstrap :many
 SELECT i.id, i.workspace_id, i.name, i.description, i.status, i.priority, i.owner_id,
        i.lead_team_id, i.creator_id, i.sort_order, i.target_date, i.target_date_granularity,
-       i.archived_at, i.deleted_at, i.deleted_by, i.created_at, i.updated_at
+       i.archived_at, i.deleted_at, i.deleted_by, i.created_at, i.updated_at, i.icon, i.color
 FROM initiative i
 LEFT JOIN team lt ON lt.id = i.lead_team_id
 WHERE i.workspace_id = $1
@@ -570,6 +588,8 @@ func (q *Queries) StreamInitiativesForBootstrap(ctx context.Context, arg StreamI
 			&i.DeletedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Icon,
+			&i.Color,
 		); err != nil {
 			return nil, err
 		}
@@ -585,7 +605,7 @@ const unarchiveInitiative = `-- name: UnarchiveInitiative :one
 UPDATE initiative SET archived_at = NULL WHERE id = $1
 RETURNING id, workspace_id, name, description, status, priority, owner_id, lead_team_id,
           creator_id, sort_order, target_date, target_date_granularity,
-          archived_at, deleted_at, deleted_by, created_at, updated_at
+          archived_at, deleted_at, deleted_by, created_at, updated_at, icon, color
 `
 
 func (q *Queries) UnarchiveInitiative(ctx context.Context, id uuid.UUID) (Initiative, error) {
@@ -609,6 +629,8 @@ func (q *Queries) UnarchiveInitiative(ctx context.Context, id uuid.UUID) (Initia
 		&i.DeletedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
+		&i.Color,
 	)
 	return i, err
 }
@@ -617,26 +639,30 @@ const updateInitiative = `-- name: UpdateInitiative :one
 UPDATE initiative
 SET name                     = COALESCE($1, name),
     description              = COALESCE($2, description),
-    status                   = COALESCE($3, status),
-    priority                 = COALESCE($4, priority),
-    sort_order               = COALESCE($5, sort_order),
-    target_date              = CASE WHEN $6::boolean THEN NULL
-                                    ELSE COALESCE($7, target_date) END,
-    target_date_granularity  = CASE WHEN $6::boolean THEN NULL
-                                    ELSE COALESCE($8, target_date_granularity) END,
-    owner_id = CASE WHEN $9::boolean THEN NULL
-                    ELSE COALESCE($10, owner_id) END,
-    lead_team_id = CASE WHEN $11::boolean THEN NULL
-                        ELSE COALESCE($12, lead_team_id) END
-WHERE id = $13 AND deleted_at IS NULL
+    icon                     = COALESCE($3, icon),
+    color                    = COALESCE($4, color),
+    status                   = COALESCE($5, status),
+    priority                 = COALESCE($6, priority),
+    sort_order               = COALESCE($7, sort_order),
+    target_date              = CASE WHEN $8::boolean THEN NULL
+                                    ELSE COALESCE($9, target_date) END,
+    target_date_granularity  = CASE WHEN $8::boolean THEN NULL
+                                    ELSE COALESCE($10, target_date_granularity) END,
+    owner_id = CASE WHEN $11::boolean THEN NULL
+                    ELSE COALESCE($12, owner_id) END,
+    lead_team_id = CASE WHEN $13::boolean THEN NULL
+                        ELSE COALESCE($14, lead_team_id) END
+WHERE id = $15 AND deleted_at IS NULL
 RETURNING id, workspace_id, name, description, status, priority, owner_id, lead_team_id,
           creator_id, sort_order, target_date, target_date_granularity,
-          archived_at, deleted_at, deleted_by, created_at, updated_at
+          archived_at, deleted_at, deleted_by, created_at, updated_at, icon, color
 `
 
 type UpdateInitiativeParams struct {
 	Name                  *string
 	Description           *string
+	Icon                  *string
+	Color                 *string
 	Status                *string
 	Priority              *int16
 	SortOrder             *string
@@ -654,6 +680,8 @@ func (q *Queries) UpdateInitiative(ctx context.Context, arg UpdateInitiativePara
 	row := q.db.QueryRow(ctx, updateInitiative,
 		arg.Name,
 		arg.Description,
+		arg.Icon,
+		arg.Color,
 		arg.Status,
 		arg.Priority,
 		arg.SortOrder,
@@ -685,6 +713,8 @@ func (q *Queries) UpdateInitiative(ctx context.Context, arg UpdateInitiativePara
 		&i.DeletedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
+		&i.Color,
 	)
 	return i, err
 }

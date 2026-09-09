@@ -1349,6 +1349,9 @@ type Initiative {
   workspaceId: UUID!
   name: String!
   description: String!
+  """An emoji or a short `icon:<name>` token, at most 64 characters."""
+  icon: String
+  color: String!
   status: InitiativeStatus!
   priority: Int!
   ownerId: UUID
@@ -3230,6 +3233,8 @@ input UpdateInitiativeUpdateInput {
 input CreateInitiativeInput {
   name: String!
   description: String
+  icon: String
+  color: String
   status: InitiativeStatus
   priority: Int
   ownerId: UUID
@@ -3263,6 +3268,8 @@ input UpdateInitiativeInput {
   id: UUID!
   name: String
   description: String
+  icon: String
+  color: String
   status: InitiativeStatus
   priority: Int
   ownerId: UUID

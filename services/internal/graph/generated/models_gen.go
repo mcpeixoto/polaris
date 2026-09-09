@@ -481,6 +481,8 @@ type CreateGitLabUserLinkInput struct {
 type CreateInitiativeInput struct {
 	Name                  string                `json:"name"`
 	Description           *string               `json:"description,omitempty"`
+	Icon                  *string               `json:"icon,omitempty"`
+	Color                 *string               `json:"color,omitempty"`
 	Status                *InitiativeStatus     `json:"status,omitempty"`
 	Priority              *int                  `json:"priority,omitempty"`
 	OwnerID               *uuid.UUID            `json:"ownerId,omitempty"`
@@ -1226,10 +1228,13 @@ type GitLabWebhook struct {
 
 // A workspace objective grouping a manually curated set of projects.
 type Initiative struct {
-	ID                    uuid.UUID             `json:"id"`
-	WorkspaceID           uuid.UUID             `json:"workspaceId"`
-	Name                  string                `json:"name"`
-	Description           string                `json:"description"`
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	// An emoji or a short `icon:<name>` token, at most 64 characters.
+	Icon                  *string               `json:"icon,omitempty"`
+	Color                 string                `json:"color"`
 	Status                InitiativeStatus      `json:"status"`
 	Priority              int                   `json:"priority"`
 	OwnerID               *uuid.UUID            `json:"ownerId,omitempty"`
@@ -2599,6 +2604,8 @@ type UpdateInitiativeInput struct {
 	ID                    uuid.UUID             `json:"id"`
 	Name                  *string               `json:"name,omitempty"`
 	Description           *string               `json:"description,omitempty"`
+	Icon                  *string               `json:"icon,omitempty"`
+	Color                 *string               `json:"color,omitempty"`
 	Status                *InitiativeStatus     `json:"status,omitempty"`
 	Priority              *int                  `json:"priority,omitempty"`
 	OwnerID               *uuid.UUID            `json:"ownerId,omitempty"`

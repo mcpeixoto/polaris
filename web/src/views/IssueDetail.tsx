@@ -54,6 +54,7 @@ import {
 // exports the primitives a screen composes with, and this is an assembled dialogue.
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { estimatesEnabled, issueEstimateLabel } from '~/features/estimate';
+import { EntityIcon } from '~/features/icon/EntityIcon';
 import { maybeExpandEmoticons } from '~/features/prefs/emoticons';
 import { personName, getPrefs, subscribePrefs } from '~/features/prefs/prefs';
 import {
@@ -223,6 +224,11 @@ export function IssueDetail() {
           found.projectId === undefined
             ? null
             : (store.projects.get(found.projectId)?.name ?? 'Unknown project'),
+        // The glyph beside the name, so the rail names a project the way every list does.
+        projectIcon:
+          found.projectId === undefined ? undefined : store.projects.get(found.projectId)?.icon,
+        projectColor:
+          found.projectId === undefined ? undefined : store.projects.get(found.projectId)?.color,
         cycleId: found.cycleId ?? null,
         cycleName:
           found.cycleId === undefined
@@ -1292,7 +1298,14 @@ export function IssueDetail() {
               fullWidth
               className={styles.propertyTrigger}
               aria-describedby={`${issue.id}-project-label`}
-              icon={<ProjectGlyph width="14" height="14" />}
+              icon={
+                <EntityIcon
+                  icon={issue.projectIcon}
+                  color={issue.projectColor}
+                  fallback={<ProjectGlyph width="14" height="14" />}
+                  size="sm"
+                />
+              }
             >
               {issue.projectName ?? <span className={styles.unset}>Add to project</span>}
             </Button>

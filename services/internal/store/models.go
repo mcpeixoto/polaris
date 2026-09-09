@@ -510,6 +510,8 @@ type Initiative struct {
 	DeletedBy             *uuid.UUID
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
+	Icon                  *string
+	Color                 string
 }
 
 type InitiativeLabel struct {

@@ -60,6 +60,7 @@ import {
 import { copyText, gitBranchNameFor } from '~/features/github/copy';
 import { issueIdsForAdhocList } from '~/features/issue/adhocList';
 import { buildCreateURL } from '~/features/issue/create-url';
+import { EntityIcon } from '~/features/icon/EntityIcon';
 import { ArchiveGlyph } from '~/features/issue/glyphs';
 import {
   archiveIssues,
@@ -3443,6 +3444,10 @@ const IssueRow = memo(function IssueRow({
           found.projectId === undefined
             ? null
             : (store.projects.get(found.projectId)?.icon ?? null),
+        projectColor:
+          found.projectId === undefined
+            ? null
+            : (store.projects.get(found.projectId)?.color ?? null),
         cycleName:
           found.cycleId === undefined ? null : (store.cycles.get(found.cycleId)?.name ?? null),
         // Live children only, on the same terms the detail page counts them: a canceled or
@@ -3567,15 +3572,14 @@ const IssueRow = memo(function IssueRow({
       <span className={styles.meta}>
         {properties.has('project') && issue.projectName !== null ? (
           <span className={styles.pill}>
-            {issue.projectIcon === null ? (
-              <span className={styles.pillGlyph}>
-                <ProjectGlyph />
-              </span>
-            ) : (
-              <span className={styles.pillEmoji} aria-hidden="true">
-                {issue.projectIcon}
-              </span>
-            )}
+            <span className={styles.pillGlyph}>
+              <EntityIcon
+                icon={issue.projectIcon ?? undefined}
+                color={issue.projectColor ?? undefined}
+                fallback={<ProjectGlyph />}
+                size="sm"
+              />
+            </span>
             <span className={styles.pillText}>{issue.projectName}</span>
           </span>
         ) : null}

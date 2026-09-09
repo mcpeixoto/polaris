@@ -104,6 +104,8 @@ import {
   PlusGlyph,
   ProjectGlyph,
 } from '~/features/projects/glyphs';
+import { EntityIcon } from '~/features/icon/EntityIcon';
+import { IconPicker } from '~/features/icon/IconPicker';
 import { ProjectDisplayMenu } from '~/features/projects/ProjectDisplayMenu';
 import { ProgressRing } from '~/features/projects/ProgressRing';
 import { ProjectStatusPicker } from '~/features/projects/ProjectStatusPicker';
@@ -402,6 +404,23 @@ export function Projects() {
   } | null>(null);
   const pickerAnchorRef = useRef<HTMLDivElement>(null);
 
+  /**
+   * The icon picker the list shares, and the project it is currently editing.
+   *
+   * One picker rather than one per row, for the reason `useMenuTrigger` gives: a row that
+   * scrolls out of the overscan window unmounts, and a picker mounted inside it goes with
+   * it. `showFrom` moves the anchor instead.
+   */
+  const iconPicker = useMenuTrigger<HTMLElement>('dialog');
+  const [iconId, setIconId] = useState<UUID | null>(null);
+  const openIconPicker = useCallback(
+    (id: UUID, element: HTMLElement) => {
+      setIconId(id);
+      iconPicker.showFrom(element);
+    },
+    [iconPicker],
+  );
+
   // An empty replica is not an empty workspace. Until the first sync settles, "No projects
   // yet" is a claim the client cannot make — and it came with an invitation to create one.
   const settled = useStoreSettled();
@@ -614,6 +633,7 @@ export function Projects() {
     );
 
   const contextRow = rowById(contextMenu.id);
+  const iconRow = rowById(iconId);
 
   // A drop writes manual order, so it is offered only where manual order is what the list
   // is in. See the note the display menu puts under the ordering control.
@@ -629,6 +649,7 @@ export function Projects() {
       over={overId === row.id}
       draggable={draggable}
       onSelect={() => cursor.setCursor(row.id)}
+      onOpenIcon={(element) => openIconPicker(row.id, element)}
       onDragStart={() => setDraggingId(row.id)}
       onDragEnd={() => {
         setDraggingId(null);
@@ -843,6 +864,7 @@ export function Projects() {
                             row={row}
                             dragging={draggingId === row.id}
                             onSelect={() => cursor.setCursor(row.id)}
+                            onOpenIcon={(element) => openIconPicker(row.id, element)}
                             onDragStart={() => setDraggingId(row.id)}
                             onDragEnd={() => {
                               setDraggingId(null);
@@ -988,6 +1010,24 @@ export function Projects() {
           }}
         />
       )}
+      <IconPicker
+        open={iconPicker.open}
+        onClose={iconPicker.hide}
+        trigger={iconPicker.ref}
+        label="Project icon"
+        actionId="projects.closeIconPicker"
+        value={{ icon: iconRow?.icon ?? '', color: iconRow?.color ?? '' }}
+        onChange={(next) => {
+          if (iconRow === null) return;
+          if (next.icon !== (iconRow.icon ?? '')) {
+            updateProject(engine, iconRow.id, { icon: next.icon }).catch(report);
+            return;
+          }
+          if (next.color !== iconRow.color) {
+            updateProject(engine, iconRow.id, { color: next.color }).catch(report);
+          }
+        }}
+      />
       <ProjectStatusPicker
         open={picker?.kind === 'status'}
         onClose={() => setPicker(null)}
@@ -1046,6 +1086,44 @@ export function Projects() {
   );
 }
 
+/**
+ * The project's glyph, and the control that changes it.
+ *
+ * A button inside a link, which is normally a smell and is accepted here on three counts:
+ * the click is stopped before the anchor ever sees it, the row stays a plain link for
+ * everything else that reaches it, and the icon is the affordance a person looking at the
+ * list would reach for anyway — the alternative was opening the project to change the one
+ * property that identifies it in the list you were already looking at.
+ */
+function ProjectIconButton({
+  row,
+  onOpenIcon,
+}: {
+  readonly row: ProjectRow;
+  readonly onOpenIcon: (element: HTMLElement) => void;
+}) {
+  return (
+    <button
+      type="button"
+      draggable={false}
+      className={styles.iconButton}
+      aria-haspopup="dialog"
+      aria-label={`Change icon for ${row.name}`}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onOpenIcon(event.currentTarget);
+      }}
+      onDragStart={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+    >
+      <EntityIcon icon={row.icon} color={row.color} fallback={<ProjectGlyph />} size="sm" />
+    </button>
+  );
+}
+
 interface RowLinkProps {
   readonly store: Store;
   readonly row: ProjectRow;
@@ -1055,6 +1133,8 @@ interface RowLinkProps {
   readonly over: boolean;
   readonly draggable: boolean;
   readonly onSelect: () => void;
+  /** Opens the shared icon picker against the row's own glyph. */
+  readonly onOpenIcon: (element: HTMLElement) => void;
   readonly onDragStart: () => void;
   readonly onDragEnd: () => void;
   readonly onDragOver: (event: DragEvent<HTMLAnchorElement>) => void;
@@ -1071,6 +1151,7 @@ function ProjectRowLink({
   over,
   draggable,
   onSelect,
+  onOpenIcon,
   onDragStart,
   onDragEnd,
   onDragOver,
@@ -1098,13 +1179,7 @@ function ProjectRowLink({
       onDrop={onDrop}
     >
       <span className={styles.nameCell}>
-        <span className={styles.icon} aria-hidden="true">
-          {row.icon === undefined || row.icon === '' ? (
-            <ProjectGlyph />
-          ) : (
-            <span style={row.color === '' ? undefined : { color: row.color }}>{row.icon}</span>
-          )}
-        </span>
+        <ProjectIconButton row={row} onOpenIcon={onOpenIcon} />
         <span className={styles.name}>{row.name}</span>
         {row.milestone === null ? (
           row.summary === '' ? null : (
@@ -1213,12 +1288,15 @@ function ProjectCard({
   row,
   dragging,
   onSelect,
+  onOpenIcon,
   onDragStart,
   onDragEnd,
 }: {
   readonly row: ProjectRow;
   readonly dragging: boolean;
   readonly onSelect: () => void;
+  /** Opens the shared icon picker against the card's own glyph. */
+  readonly onOpenIcon: (element: HTMLElement) => void;
   readonly onDragStart: () => void;
   readonly onDragEnd: () => void;
 }) {
@@ -1235,13 +1313,7 @@ function ProjectCard({
       onDragEnd={onDragEnd}
     >
       <span className={styles.cardTop}>
-        <span className={styles.icon} aria-hidden="true">
-          {row.icon === undefined || row.icon === '' ? (
-            <ProjectGlyph />
-          ) : (
-            <span style={row.color === '' ? undefined : { color: row.color }}>{row.icon}</span>
-          )}
-        </span>
+        <ProjectIconButton row={row} onOpenIcon={onOpenIcon} />
         <span className={styles.name}>{row.name}</span>
       </span>
       <span className={styles.cardMeta}>
