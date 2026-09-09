@@ -55,6 +55,7 @@ import {
   StateIcon,
 } from '~/components';
 import { issueEstimateLabel } from '~/features/estimate';
+import { EntityIcon } from '~/features/icon/EntityIcon';
 import { createUrlForGroup } from '~/features/issue/create-url';
 import { reorderIssue, report, updateIssues, type IssueFields } from '~/features/issue/mutations';
 import type { IssuePropertyKind } from '~/features/issue/rowMenu';
@@ -1021,6 +1022,7 @@ interface CardData {
   readonly projectName: string | null;
   /** The project's emoji, when the team set one; the pill falls back to the project glyph. */
   readonly projectIcon: string | null;
+  readonly projectColor: string | null;
   /** Already in the team's scale — "3", "M" — or null when the team does not estimate. */
   readonly estimate: string | null;
   /** Already in the team's timezone, because a due date is the team's Friday. */
@@ -1222,15 +1224,14 @@ const BoardCard = memo(function BoardCard({
         )}
         {properties.has('project') && issue.projectName !== null ? (
           <span className={styles.pill}>
-            {issue.projectIcon === null ? (
-              <span className={styles.pillGlyph}>
-                <ProjectGlyph />
-              </span>
-            ) : (
-              <span className={styles.pillEmoji} aria-hidden="true">
-                {issue.projectIcon}
-              </span>
-            )}
+            <span className={styles.pillGlyph}>
+              <EntityIcon
+                icon={issue.projectIcon ?? undefined}
+                color={issue.projectColor ?? undefined}
+                fallback={<ProjectGlyph />}
+                size="sm"
+              />
+            </span>
             <span className={styles.pillText}>{issue.projectName}</span>
           </span>
         ) : null}
@@ -1317,6 +1318,8 @@ function cardOf(store: Store, id: UUID): CardData | null {
       found.projectId === undefined ? null : (store.projects.get(found.projectId)?.name ?? null),
     projectIcon:
       found.projectId === undefined ? null : (store.projects.get(found.projectId)?.icon ?? null),
+    projectColor:
+      found.projectId === undefined ? null : (store.projects.get(found.projectId)?.color ?? null),
     estimate: team === undefined ? null : issueEstimateLabel(found.estimate, team),
     dueDate: found.dueDate === undefined ? null : whenDay(found.dueDate, zone),
     overdue: found.dueDate !== undefined && isOverdue(found.dueDate, zone),

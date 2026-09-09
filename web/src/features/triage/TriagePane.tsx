@@ -38,6 +38,7 @@ import {
   Tooltip,
   Menu,
 } from '~/components';
+import { EntityIcon } from '~/features/icon/EntityIcon';
 import { PlusGlyph, ProjectGlyph, UnassignedGlyph } from '~/features/issue/glyphs';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
 import { report, updateIssue, updateIssues } from '~/features/issue/mutations';
@@ -355,7 +356,12 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
                 onOpen={project.showFrom}
                 ref={project.props.ref}
               >
-                <ProjectGlyph />
+                <EntityIcon
+                  icon={issue.projectIcon ?? undefined}
+                  color={issue.projectColor ?? undefined}
+                  fallback={<ProjectGlyph />}
+                  size="sm"
+                />
               </PropertyTrigger>
               {issue.projectName === null ? (
                 <span className={styles.unset}>No project</span>
@@ -722,6 +728,9 @@ interface TriageIssue {
   readonly assigneeAvatar: string | null;
   readonly projectId: UUID | null;
   readonly projectName: string | null;
+  /** The project's own icon and colour, so the row draws it the way the list does. */
+  readonly projectIcon: string | null;
+  readonly projectColor: string | null;
   /** Every label on the issue, which is what the picker ticks against. */
   readonly labelIds: readonly UUID[];
   /** The ones the strip draws: no groups, nothing archived, in name order. */
@@ -735,6 +744,7 @@ function readTriageIssue(store: Store, id: UUID): TriageIssue | null {
   const state = store.workflowStates.get(found.stateId);
   const creator = found.creatorId === undefined ? undefined : store.users.get(found.creatorId);
   const assignee = found.assigneeId === undefined ? undefined : store.users.get(found.assigneeId);
+  const project = found.projectId === undefined ? undefined : store.projects.get(found.projectId);
   const labels: { id: UUID; name: string; color: string }[] = [];
   for (const labelId of store.labelIdsFor(found.id)) {
     const label = store.labels.get(labelId);
@@ -759,8 +769,9 @@ function readTriageIssue(store: Store, id: UUID): TriageIssue | null {
     assigneeName: assignee?.displayName ?? null,
     assigneeAvatar: assignee?.avatarUrl ?? null,
     projectId: found.projectId ?? null,
-    projectName:
-      found.projectId === undefined ? null : (store.projects.get(found.projectId)?.name ?? null),
+    projectName: project?.name ?? null,
+    projectIcon: project?.icon ?? null,
+    projectColor: project?.color ?? null,
     labelIds: [...store.labelIdsFor(found.id)],
     labels,
     createdAt: found.createdAt,

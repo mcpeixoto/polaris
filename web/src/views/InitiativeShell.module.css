@@ -56,6 +56,28 @@
   letter-spacing: -0.018em;
 }
 
+/* The breadcrumb's mark, made pressable without being drawn as a button: the crumb row is
+   a line of text and a bordered control in it would read as a second heading. */
+.markButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.markButton:hover {
+  background-color: var(--bg-hover);
+}
+
+.markButton:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+}
+
 .crumbRow {
   display: flex;
   align-items: center;

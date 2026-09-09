@@ -11,11 +11,14 @@
 import type { RefObject } from 'react';
 
 import { Menu, type MenuNode, type MenuPlacement } from '~/components';
+import { EntityIcon } from '~/features/icon/EntityIcon';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
 import type { Project, ProjectStatus, ProjectStatusCategory, Store, UUID } from '~/store';
 
 import type { Mixed } from '~/features/issue/pickers';
+
+import { ProjectGlyph } from './glyphs';
 
 const NONE = 'none';
 const RECENT_MS = 14 * 24 * 60 * 60 * 1000;
@@ -77,6 +80,14 @@ export function ProjectPicker({
     items.push({
       id: row.project.id,
       label: row.project.name,
+      icon: (
+        <EntityIcon
+          icon={row.project.icon}
+          color={row.project.color}
+          fallback={<ProjectGlyph />}
+          size="sm"
+        />
+      ),
       hint: row.status?.name,
       selected: row.project.id === value,
       onSelect: () => onSelect(row.project.id),

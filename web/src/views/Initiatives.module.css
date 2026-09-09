@@ -232,6 +232,30 @@
   color: var(--text-secondary);
 }
 
+/* The same box the plain glyph occupied, so a row with a picker in it and a row without
+   line up. Bare until it is pointed at: a button drawn as a button on every row would put
+   a second visual edge beside every name. */
+.iconButton {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background-color: var(--bg-hover);
+}
+
+.iconButton:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+}
+
 .name {
   overflow: hidden;
   color: var(--text-primary);

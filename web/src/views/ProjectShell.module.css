@@ -36,6 +36,28 @@
   flex: 0 1 auto;
 }
 
+/* The breadcrumb's mark, which is also the control that changes it. Sized by `EntityIcon`
+   inside; the button adds only the press target and the hover the affordance needs. */
+.iconTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.iconTrigger:hover {
+  background-color: var(--bg-hover);
+}
+
+.iconTrigger:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+}
+
 /* The heading, out of the page and still in the accessibility tree: `display: none` would
    take it out of both, which is the one thing a heading must never be. */
 .screenTitle {

@@ -34,6 +34,8 @@ type InitiativeProject = EntityOf<'initiativeProject'>;
 export interface NewInitiative {
   readonly name: string;
   readonly description?: string | undefined;
+  readonly icon?: string | undefined;
+  readonly color?: string | undefined;
   readonly status?: InitiativeStatus | undefined;
   readonly priority?: number | undefined;
   readonly ownerId?: UUID | undefined;
@@ -52,6 +54,9 @@ export async function createInitiative(engine: SyncEngine, input: NewInitiative)
     workspaceId: store.workspaceId,
     name: input.name,
     description: input.description ?? '',
+    ...(input.icon === undefined || input.icon === '' ? null : { icon: input.icon }),
+    // The server's default too, so the row does not change colour when the real one lands.
+    color: input.color ?? '#6b7280',
     // The same defaults the server applies, so the row the list draws on the first frame is
     // the row the stream sends back — a provisional that said "planned" while the dialog set
     // "active" would move between statuses on its own a second later.
@@ -77,6 +82,8 @@ export async function createInitiative(engine: SyncEngine, input: NewInitiative)
         input: {
           name: input.name,
           description: input.description ?? '',
+          ...(input.icon === undefined || input.icon === '' ? null : { icon: input.icon }),
+          ...(input.color === undefined || input.color === '' ? null : { color: input.color }),
           ownerId: input.ownerId,
           ...(input.status === undefined ? null : { status: toWire(input.status) }),
           ...(input.priority === undefined ? null : { priority: input.priority }),
@@ -131,6 +138,8 @@ export const INITIATIVE_STATUSES: readonly InitiativeStatus[] = [
 export interface InitiativeFields {
   readonly name?: string | undefined;
   readonly description?: string | undefined;
+  readonly icon?: string | undefined;
+  readonly color?: string | undefined;
   readonly status?: InitiativeStatus | undefined;
   readonly priority?: number | undefined;
   readonly ownerId?: UUID | null | undefined;
@@ -158,6 +167,8 @@ export async function updateInitiative(
     ...before,
     ...(fields.name === undefined ? null : { name: fields.name }),
     ...(fields.description === undefined ? null : { description: fields.description }),
+    ...(fields.icon === undefined ? null : { icon: fields.icon }),
+    ...(fields.color === undefined ? null : { color: fields.color }),
     ...(fields.status === undefined ? null : { status: fields.status }),
     ...(fields.priority === undefined ? null : { priority: fields.priority }),
     ...(fields.ownerId === undefined
@@ -185,6 +196,8 @@ export async function updateInitiative(
           id,
           ...(fields.name === undefined ? null : { name: fields.name }),
           ...(fields.description === undefined ? null : { description: fields.description }),
+          ...(fields.icon === undefined ? null : { icon: fields.icon }),
+          ...(fields.color === undefined ? null : { color: fields.color }),
           ...(fields.status === undefined ? null : { status: toWire(fields.status) }),
           ...(fields.priority === undefined ? null : { priority: fields.priority }),
           ...(fields.ownerId === undefined

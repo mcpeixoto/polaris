@@ -372,14 +372,6 @@
   color: var(--text-secondary);
 }
 
-/* The project's emoji is data, and it is drawn at the glyph's size so a project with one and
-   a project without still line up. */
-.pillEmoji {
-  flex: none;
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-none);
-}
-
 /* Labels wrap with the pills rather than taking a row of their own, so a card with one label
    and no other facts is not two lines tall for it. */
 .labels {

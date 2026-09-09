@@ -62,6 +62,7 @@ import {
 } from '~/components';
 import { createDraft, deleteDraft, updateDraft } from '~/features/drafts/mutations';
 import { estimateLabel, estimateOptions, estimatesEnabled } from '~/features/estimate';
+import { EntityIcon } from '~/features/icon/EntityIcon';
 import { LabelPicker } from '~/features/labels/LabelPicker';
 import { readIssueComposerDraft, writeIssueComposerDraft } from '~/features/drafts/local';
 import { getPrefs } from '~/features/prefs/prefs';
@@ -406,12 +407,20 @@ export function CreateIssueModal({
     [teamId],
   );
 
-  const projectName = useLiveQuery(
-    (store) =>
-      resolvedProjectId === null ? null : (store.projects.get(resolvedProjectId)?.name ?? null),
+  // The name and the glyph together, because the pill draws both and two live queries over
+  // the same row would be two subscriptions for one fact.
+  const chosenProject = useLiveQuery(
+    (store) => {
+      if (resolvedProjectId === null) return null;
+      const project = store.projects.get(resolvedProjectId);
+      return project === undefined
+        ? null
+        : { name: project.name, icon: project.icon, color: project.color };
+    },
     ['project'],
     [resolvedProjectId ?? ''],
   );
+  const projectName = chosenProject?.name ?? null;
 
   const cycleName = useLiveQuery(
     (store) =>
@@ -1415,7 +1424,14 @@ export function CreateIssueModal({
               name="Project"
               describe={`${formId}-project`}
               empty={projectName === null ? 'No project' : undefined}
-              icon={<ProjectGlyph />}
+              icon={
+                <EntityIcon
+                  icon={chosenProject?.icon}
+                  color={chosenProject?.color}
+                  fallback={<ProjectGlyph />}
+                  size="sm"
+                />
+              }
             >
               {projectName ?? 'Project'}
             </PropertyPill>

@@ -57,13 +57,29 @@ export interface ColorPickerProps {
    */
   onChange: (color: string) => void;
   disabled?: boolean | undefined;
+  /**
+   * Draws the trigger as the swatch alone, without the hex beside it.
+   *
+   * For a row of colour dots that already reads as a palette — the icon picker's — where the
+   * value is announced by the trigger's own name and a second `#6b7280` in 12px mono would be
+   * the widest thing in a 340px panel. The name, the panel and every commit rule are
+   * unchanged: this hides six characters, not a control.
+   */
+  compact?: boolean | undefined;
   className?: string | undefined;
 }
 
 /** `#rgb` and `#rrggbb`, the two forms a person types. */
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/iu;
 
-export function ColorPicker({ label, value, onChange, disabled, className }: ColorPickerProps) {
+export function ColorPicker({
+  label,
+  value,
+  onChange,
+  disabled,
+  compact,
+  className,
+}: ColorPickerProps) {
   const [draft, setDraft] = useState(value);
   // The value the parent last told us about, so an edit from elsewhere — another client's
   // delta — replaces a draft nobody is typing into rather than being overwritten by it.
@@ -121,7 +137,7 @@ export function ColorPicker({ label, value, onChange, disabled, className }: Col
       <button
         ref={triggerRef}
         type="button"
-        className={styles.trigger}
+        className={compact === true ? `${styles.trigger} ${styles.triggerCompact}` : styles.trigger}
         aria-label={label}
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -136,7 +152,7 @@ export function ColorPicker({ label, value, onChange, disabled, className }: Col
           style={{ backgroundColor: normalise(value) }}
           aria-hidden="true"
         />
-        <span className={styles.value}>{value.toLowerCase()}</span>
+        {compact === true ? null : <span className={styles.value}>{value.toLowerCase()}</span>}
       </button>
 
       {open ? (

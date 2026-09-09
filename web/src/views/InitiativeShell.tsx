@@ -39,6 +39,9 @@ import { DotsGlyph, StarGlyph } from '~/features/issue/glyphs';
 import { EntityLoading, useEntityState } from '~/features/entity-gate/EntityGate';
 import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
 import { copyText } from '~/features/github/copy';
+import { EntityIcon } from '~/features/icon/EntityIcon';
+import { IconPicker } from '~/features/icon/IconPicker';
+import { DEFAULT_ENTITY_COLOR } from '~/features/icon/glyphs';
 import { InitiativeGlyph } from '~/features/initiatives/glyphs';
 import {
   archiveInitiative,
@@ -72,6 +75,7 @@ export function InitiativeShell() {
   const titleRef = useRef<TitleHandle | null>(null);
   const status = useMenuTrigger();
   const more = useMenuTrigger();
+  const iconPicker = useMenuTrigger('dialog');
   const contextMenu = useContextMenu<string>();
 
   const initiative = useLiveQuery(
@@ -268,7 +272,28 @@ export function InitiativeShell() {
           <Breadcrumb
             items={[
               { label: 'Initiatives', to: '/initiatives' },
-              { label: initiative.name, icon: <InitiativeGlyph /> },
+              {
+                label: initiative.name,
+                // `control` rather than `icon`: the mark is a button now, and the icon slot
+                // is aria-hidden — a focusable control inside it is a tab stop nothing
+                // announces. This is where the eye already goes to check which initiative is
+                // open, so it is where the glyph is changed.
+                control: (
+                  <button
+                    {...iconPicker.props}
+                    type="button"
+                    className={styles.markButton}
+                    aria-label="Change initiative icon"
+                  >
+                    <EntityIcon
+                      icon={initiative.icon}
+                      color={initiative.color ?? DEFAULT_ENTITY_COLOR}
+                      fallback={<InitiativeGlyph />}
+                      size="md"
+                    />
+                  </button>
+                ),
+              },
             ]}
           />
           <div className={styles.spacer} />
@@ -385,6 +410,21 @@ export function InitiativeShell() {
       <div className={styles.body}>
         <Outlet />
       </div>
+      <IconPicker
+        open={iconPicker.open}
+        onClose={iconPicker.hide}
+        trigger={iconPicker.ref}
+        value={{ icon: initiative.icon ?? '', color: initiative.color ?? DEFAULT_ENTITY_COLOR }}
+        onChange={(next) => {
+          // One half per act — the picker never sends both, so neither does the mutation.
+          const fields =
+            next.icon === (initiative.icon ?? '') ? { color: next.color } : { icon: next.icon };
+          void updateInitiative(engine, initiative.id, fields).catch(report);
+        }}
+        actionId="initiative.closeHeaderIconPicker"
+        label="Initiative icon"
+      />
+
       <ConfirmDialog
         open={archiving}
         title={`Archive ${initiative.name}?`}

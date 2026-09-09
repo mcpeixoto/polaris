@@ -36,6 +36,7 @@ import {
   Textarea,
 } from '~/components';
 import composer from '~/features/issue/CommentEditor.module.css';
+import { EntityIcon } from '~/features/icon/EntityIcon';
 import { ProjectGlyph, TagGlyph, UnassignedGlyph } from '~/features/issue/glyphs';
 import { postComment, report, updateIssue } from '~/features/issue/mutations';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
@@ -262,7 +263,12 @@ export function InboxDetail({ issueId, unread }: InboxDetailProps) {
                 onOpen={project.showFrom}
                 ref={project.props.ref}
               >
-                <ProjectGlyph />
+                <EntityIcon
+                  icon={issue.projectIcon ?? undefined}
+                  color={issue.projectColor ?? undefined}
+                  fallback={<ProjectGlyph />}
+                  size="sm"
+                />
               </PropertyTrigger>
               {issue.projectName === null ? (
                 <span className={styles.unset}>No project</span>
@@ -518,6 +524,9 @@ interface DetailIssue {
   readonly assigneeAvatar: string | null;
   readonly projectId: UUID | null;
   readonly projectName: string | null;
+  /** The project's own icon and colour, so the row draws it the way the list does. */
+  readonly projectIcon: string | null;
+  readonly projectColor: string | null;
   /** Every label on the issue, which is what the picker ticks against. */
   readonly labelIds: readonly UUID[];
   /** The ones the rail draws: no groups, nothing archived, in name order. */
@@ -529,6 +538,7 @@ function readDetail(store: Store, id: UUID): DetailIssue | null {
   if (found === undefined) return null;
   const state = store.workflowStates.get(found.stateId);
   const assignee = found.assigneeId === undefined ? undefined : store.users.get(found.assigneeId);
+  const project = found.projectId === undefined ? undefined : store.projects.get(found.projectId);
   const labels: { id: UUID; name: string; color: string }[] = [];
   for (const labelId of store.labelIdsFor(found.id)) {
     const label = store.labels.get(labelId);
@@ -552,8 +562,9 @@ function readDetail(store: Store, id: UUID): DetailIssue | null {
     assigneeName: assignee?.displayName ?? null,
     assigneeAvatar: assignee?.avatarUrl ?? null,
     projectId: found.projectId ?? null,
-    projectName:
-      found.projectId === undefined ? null : (store.projects.get(found.projectId)?.name ?? null),
+    projectName: project?.name ?? null,
+    projectIcon: project?.icon ?? null,
+    projectColor: project?.color ?? null,
     labelIds: [...store.labelIdsFor(found.id)],
     labels,
   };

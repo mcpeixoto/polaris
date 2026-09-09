@@ -674,14 +674,6 @@
   color: var(--text-tertiary);
 }
 
-/* The project's emoji is data, and it is drawn at the glyph's size so a project with one and
-   a project without still line up. */
-.pillEmoji {
-  flex: none;
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-none);
-}
-
 /*
  * Overdue is the one fact on a row worth interrupting a scan for, and the word is in the text
  * as well — `.srOnly` below. Its own token rather than `--priority-urgent`: the ramps are not
