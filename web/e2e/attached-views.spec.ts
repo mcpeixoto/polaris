@@ -132,18 +132,18 @@ test('a project carries saved views as tabs, created, reordered and deleted in p
     .dragTo(tabs.getByRole('link', { name: 'Beta', exact: true }));
   await expect(tabs.getByRole('link')).toHaveText([
     'Overview',
+    'Activity',
     'Issues',
     'Beta',
     'Alpha',
-    'Activity',
   ]);
   await page.reload();
   await expect(tabs.getByRole('link')).toHaveText([
     'Overview',
+    'Activity',
     'Issues',
     'Beta',
     'Alpha',
-    'Activity',
   ]);
 
   // Renaming moves the tab, and the new name is the server's rather than this tab's.
@@ -165,7 +165,7 @@ test('a project carries saved views as tabs, created, reordered and deleted in p
     .click();
   await expect(page).toHaveURL(new RegExp(`/project/${projectId}/issues`));
   await page.reload();
-  await expect(tabs.getByRole('link')).toHaveText(['Overview', 'Issues', 'Bravo', 'Activity']);
+  await expect(tabs.getByRole('link')).toHaveText(['Overview', 'Activity', 'Issues', 'Bravo']);
 });
 
 test('a saved view seeds its filter once, so the bar can still be cleared', async ({

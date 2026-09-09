@@ -8,7 +8,7 @@ import { Link } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Button, IconButton, Select } from '~/components';
+import { Button, IconButton } from '~/components';
 import { report } from '~/features/issue/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { UUID } from '~/store';
@@ -252,24 +252,10 @@ function DependencySection({
 export type { ProjectDependencyFilter };
 export { matchesDependencyFilter } from './dependencyHelpers';
 
-export function ProjectDependencyFilterSelect({
-  value,
-  onChange,
-}: {
-  readonly value: ProjectDependencyFilter;
-  readonly onChange: (value: ProjectDependencyFilter) => void;
-}) {
-  return (
-    <Select
-      aria-label="Dependencies"
-      value={value}
-      onChange={(event) => onChange(event.target.value as ProjectDependencyFilter)}
-    >
-      <option value="all">All projects</option>
-      <option value="has-dependencies">Has dependencies</option>
-      <option value="blocking">Has blocking dependency</option>
-      <option value="blocked-by">Has blocked-by dependency</option>
-      <option value="violated">Has violated dependencies</option>
-    </Select>
-  );
-}
+/*
+ * The dependency filter's own `<select>` used to live here, drawn permanently in the
+ * projects toolbar. Its choices are now a group of the list's Filter menu, beside the
+ * customer ones — see `customerFilterItems` in `views/Projects.tsx` — because two dropdowns
+ * standing open for two filters most workspaces never set is two controls in the way of the
+ * projects. The wording is the same; the control is gone rather than duplicated.
+ */

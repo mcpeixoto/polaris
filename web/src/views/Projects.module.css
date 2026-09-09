@@ -71,7 +71,7 @@
   --project-grid: minmax(0, 1fr);
   --col-health: 16ch;
   --col-priority: 7ch;
-  --col-lead: 5ch;
+  --col-lead: 16ch;
   --col-target: 12ch;
   --col-issues: 6ch;
   --col-status: 9ch;
@@ -101,8 +101,10 @@
   height: var(--control-height-lg);
   padding-inline: var(--space-4);
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
+  /* The same size as the rows beneath, in the rail's grey: a heading row that is smaller
+     *and* greyer than its column reads as a caption rather than as the column's name. */
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-normal);
   border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -154,7 +156,9 @@
   grid-template-columns: var(--project-grid);
   align-items: center;
   gap: var(--space-3);
-  height: 51px;
+  /* 39px: the density Linear's project row is drawn at, and the height at which a name, a
+     health claim, a face and a ring all fit on one line without stacking. */
+  height: 39px;
   padding-inline: var(--space-4);
   color: inherit;
   text-decoration: none;
@@ -263,10 +267,22 @@
 .lead {
   display: flex;
   align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .leadAvatar {
   display: inline-flex;
+  flex: none;
+}
+
+/* The lead's name, which may be longer than the column: a person's name is user-supplied
+   text, and an ellipsis is the honest answer for it. */
+.leadName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .noLead {

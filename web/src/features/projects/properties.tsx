@@ -1,11 +1,20 @@
 /**
  * Project properties — everything the project *is*, editable, in the shell's rail.
  *
+ * Three sections, each folding on its own heading and remembering it: **Properties**, the
+ * rows below; **Milestones**, the checkpoints as a reader checks which one is current; and
+ * **Progress**, the scope-started-completed counts with the burn-up under them. The graph
+ * used to sit at the bottom of the overview, a screen's worth of scrolling away from the
+ * dates it is drawn against.
+ *
  * One row per property: its name at the left in the rail's grey, its value at the right as a
  * ghost `Button` wearing the value's own glyph — a state icon, a priority glyph, an avatar.
  * An unset value says what setting it would do ("Add lead") rather than "None". The summary
  * and the description are not here: they are the project's content, and they read and edit as
  * prose on the overview.
+ *
+ * The two dates share one row — `start → target` — because a timeframe is one fact with two
+ * ends, and two rows of it made the rail read as though a project had four dates.
  *
  * The names on the triggers are verbs — "Set status", "Add lead" — rather than the issue
  * rail's arrangement, where the button is named by its value and described by its property.
@@ -17,6 +26,8 @@
  * the same bargain the issue rail makes, which is what lets a change arriving over sync land
  * on the rail without a picker having to be told.
  */
+
+import { useState, type ReactNode } from 'react';
 
 import { useActions, useKeyContext } from '~/app/keymap';
 import {
@@ -34,15 +45,24 @@ import {
   type MenuNode,
 } from '~/components';
 import { AssigneePicker, PriorityPicker } from '~/features/issue/pickers';
+import { ChevronGlyph } from '~/features/issue/glyphs';
 import { EntityIcon } from '~/features/icon/EntityIcon';
 import { iconValueLabel } from '~/features/icon/glyphs';
 import { IconPicker } from '~/features/icon/IconPicker';
 import { UserPicker } from '~/features/members/UserPicker';
 import { useEngine } from '~/app/context';
 import { browserTimezone } from '~/features/locale';
+import { readCollapsed, writeCollapsed } from '~/features/view/collapse';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import type { ProjectLabel, ProjectUpdateSchedule, TimeframeGranularity, UUID } from '~/store';
+import type {
+  Issue,
+  ProjectLabel,
+  ProjectUpdateSchedule,
+  Store,
+  TimeframeGranularity,
+  UUID,
+} from '~/store';
 
 import { report } from '~/features/issue/mutations';
 import { applyProjectLabel, removeProjectLabel } from '~/features/project-labels/mutations';
@@ -51,9 +71,13 @@ import { listProjectMilestones } from '~/features/project-milestones/helpers';
 import { addProjectMember, removeProjectMember, updateProject } from './mutations';
 import { ProjectDependencies } from './dependencies';
 import { CalendarGlyph, LabelGlyph, MembersGlyph, MilestoneGlyph, NoPersonGlyph } from './glyphs';
+import { ProjectGraph } from './ProjectGraph';
 import { ProjectStatusPicker } from './ProjectStatusPicker';
 import { PROJECT_STATUS_ICON } from './statusCategories';
 import styles from './properties.module.css';
+
+/** Where the rail's folded sections are kept. The rail itself is the shell's own key. */
+const COLLAPSE_PREFERENCE = 'project-rail-sections';
 
 interface ProjectPropertiesProps {
   readonly projectId: UUID;
@@ -167,6 +191,12 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
     [projectId],
   );
 
+  const scope = useLiveQuery(
+    (store) => projectScope(store, projectId),
+    ['issue', 'workflowState'],
+    [projectId],
+  );
+
   useActions(
     [
       // Status is registered by the shell, whose header pill opens the same picker: the
@@ -257,216 +287,236 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
 
   return (
     <div className={styles.panel}>
-      {/* First, because it is the only property that changes how the project is recognised
+      <RailSection id="properties" title="Properties">
+        {/* First, because it is the only property that changes how the project is recognised
           everywhere else it appears — the list, the sidebar, the breadcrumb. It was settable
           in the create dialog and nowhere afterwards, which made the one property you pick
           before you know anything about the project the one you could never revise. */}
-      <div className={styles.row}>
-        <span className={styles.label}>Icon</span>
-        <Button
-          {...icon.props}
-          variant="ghost"
-          fullWidth
-          className={styles.trigger}
-          aria-label="Set icon"
-          icon={
-            project.icon === undefined || project.icon === '' ? undefined : (
-              <EntityIcon icon={project.icon} color={project.color} fallback={null} size="md" />
-            )
-          }
-        >
-          {iconValueLabel(project.icon) ?? <span className={styles.unset}>Set icon</span>}
-        </Button>
-      </div>
-      <div className={styles.row}>
-        <span className={styles.label}>Status</span>
-        <Button
-          {...status.props}
-          variant="ghost"
-          fullWidth
-          className={styles.trigger}
-          aria-label="Set status"
-          icon={
-            currentStatus === null ? undefined : (
-              <StateIcon
-                category={PROJECT_STATUS_ICON[currentStatus.category]}
-                color={currentStatus.color}
-                decorative
-              />
-            )
-          }
-        >
-          {currentStatus === null ? (
-            <span className={styles.unset}>Set status</span>
-          ) : (
-            currentStatus.name
-          )}
-        </Button>
-      </div>
-      <div className={styles.row}>
-        <span className={styles.label}>Priority</span>
-        <Button
-          {...priority.props}
-          variant="ghost"
-          fullWidth
-          className={styles.trigger}
-          aria-label="Set priority"
-          icon={<PriorityIcon priority={project.priority} decorative />}
-        >
-          {priorityLabel(project.priority)}
-        </Button>
-      </div>
-      <div className={styles.row}>
-        <span className={styles.label}>Lead</span>
-        <Button
-          {...lead.props}
-          variant="ghost"
-          fullWidth
-          className={styles.trigger}
-          aria-label="Set lead"
-          icon={
-            currentLead === null ? (
-              <NoPersonGlyph />
+        <div className={styles.row}>
+          <span className={styles.label}>Icon</span>
+          <Button
+            {...icon.props}
+            variant="ghost"
+            fullWidth
+            className={styles.trigger}
+            aria-label="Set icon"
+            icon={
+              project.icon === undefined || project.icon === '' ? undefined : (
+                <EntityIcon icon={project.icon} color={project.color} fallback={null} size="md" />
+              )
+            }
+          >
+            {iconValueLabel(project.icon) ?? <span className={styles.unset}>Set icon</span>}
+          </Button>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.label}>Status</span>
+          <Button
+            {...status.props}
+            variant="ghost"
+            fullWidth
+            className={styles.trigger}
+            aria-label="Set status"
+            icon={
+              currentStatus === null ? undefined : (
+                <StateIcon
+                  category={PROJECT_STATUS_ICON[currentStatus.category]}
+                  color={currentStatus.color}
+                  decorative
+                />
+              )
+            }
+          >
+            {currentStatus === null ? (
+              <span className={styles.unset}>Set status</span>
             ) : (
-              <Avatar
-                name={currentLead.displayName}
-                src={currentLead.avatarUrl ?? null}
-                size="xs"
-                colorKey={currentLead.id}
-                decorative
-              />
-            )
-          }
-        >
-          {currentLead === null ? (
-            <span className={styles.unset}>Add lead</span>
-          ) : (
-            currentLead.displayName
-          )}
-        </Button>
-      </div>
-      {/* Editable, at last. Membership is also written by the server as people are given work
+              currentStatus.name
+            )}
+          </Button>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.label}>Priority</span>
+          <Button
+            {...priority.props}
+            variant="ghost"
+            fullWidth
+            className={styles.trigger}
+            aria-label="Set priority"
+            icon={<PriorityIcon priority={project.priority} decorative />}
+          >
+            {priorityLabel(project.priority)}
+          </Button>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.label}>Lead</span>
+          <Button
+            {...lead.props}
+            variant="ghost"
+            fullWidth
+            className={styles.trigger}
+            aria-label="Set lead"
+            icon={
+              currentLead === null ? (
+                <NoPersonGlyph />
+              ) : (
+                <Avatar
+                  name={currentLead.displayName}
+                  src={currentLead.avatarUrl ?? null}
+                  size="xs"
+                  colorKey={currentLead.id}
+                  decorative
+                />
+              )
+            }
+          >
+            {currentLead === null ? (
+              <span className={styles.unset}>Add lead</span>
+            ) : (
+              currentLead.displayName
+            )}
+          </Button>
+        </div>
+        {/* Editable, at last. Membership is also written by the server as people are given work
           in the project, so this list adds to that rather than replacing it. */}
-      <div className={styles.row}>
-        <span className={styles.label}>Members</span>
-        <Button
-          {...members.props}
-          variant="ghost"
-          fullWidth
-          className={styles.trigger}
-          aria-label="Set members"
-          icon={memberRows.length === 0 ? <MembersGlyph /> : undefined}
-        >
-          {memberRows.length === 0 ? (
-            <span className={styles.unset}>Add members</span>
-          ) : (
-            <Tooltip label={memberRows.map((user) => user.name).join(', ')}>
-              <span className={styles.avatars}>
-                {memberRows.slice(0, 5).map((user) => (
-                  <Avatar
-                    key={user.id}
-                    name={user.name}
-                    src={user.avatarUrl}
-                    size="xs"
-                    colorKey={user.id}
-                    decorative
-                  />
-                ))}
-                {memberRows.length > 5 && (
-                  <span className={styles.more}>+{memberRows.length - 5}</span>
-                )}
-              </span>
-            </Tooltip>
-          )}
-        </Button>
-      </div>
-      {/* Both ends of the timeframe, each with the granularity that says how much of the
-          day to believe. The API refuses a granularity without a day, and "Q3" is a day
-          nobody is meant to read too closely — so the write always carries both, and the
-          granularity is chosen in the panel that sets the day. */}
-      <TimeframeRow
-        title="Start date"
-        trigger={startDate}
-        date={project.startDate ?? null}
-        granularity={project.startDateGranularity ?? 'day'}
-        actionId="projectDetail.closeStartPicker"
-        onChange={(startDate, startDateGranularity) =>
-          updateProject(engine, project.id, { startDate, startDateGranularity }).catch(report)
-        }
-      />
-      <TimeframeRow
-        title="Target date"
-        trigger={targetDate}
-        date={project.targetDate ?? null}
-        granularity={project.targetDateGranularity ?? 'day'}
-        actionId="projectDetail.closeTargetPicker"
-        onChange={(targetDate, targetDateGranularity) =>
-          updateProject(engine, project.id, { targetDate, targetDateGranularity }).catch(report)
-        }
-      />
-      <div className={styles.row}>
-        <span className={styles.label}>Labels</span>
-        <Button
-          {...labels.props}
-          variant="ghost"
-          fullWidth
-          className={styles.trigger}
-          aria-label="Set labels"
-          icon={appliedLabels.length === 0 ? <LabelGlyph /> : undefined}
-        >
-          {appliedLabels.length === 0 ? (
-            <span className={styles.unset}>Add labels</span>
-          ) : (
-            <span className={styles.labelRun}>
-              {appliedLabels.map((label) => (
-                <LabelChip key={label.id} name={label.name} color={label.color} compact />
-              ))}
+        <div className={styles.row}>
+          <span className={styles.label}>Members</span>
+          <Button
+            {...members.props}
+            variant="ghost"
+            fullWidth
+            className={styles.trigger}
+            aria-label="Set members"
+            icon={memberRows.length === 0 ? <MembersGlyph /> : undefined}
+          >
+            {memberRows.length === 0 ? (
+              <span className={styles.unset}>Add members</span>
+            ) : (
+              <Tooltip label={memberRows.map((user) => user.name).join(', ')}>
+                <span className={styles.avatars}>
+                  {memberRows.slice(0, 5).map((user) => (
+                    <Avatar
+                      key={user.id}
+                      name={user.name}
+                      src={user.avatarUrl}
+                      size="xs"
+                      colorKey={user.id}
+                      decorative
+                    />
+                  ))}
+                  {memberRows.length > 5 && (
+                    <span className={styles.more}>+{memberRows.length - 5}</span>
+                  )}
+                </span>
+              </Tooltip>
+            )}
+          </Button>
+        </div>
+        {/* Both ends of the timeframe on one line, each with the granularity that says how
+          much of the day to believe. The API refuses a granularity without a day, and "Q3"
+          is a day nobody is meant to read too closely — so the write always carries both,
+          and the granularity is chosen in the panel that sets the day. */}
+        <div className={styles.row}>
+          <span className={styles.label}>Dates</span>
+          <span className={styles.dateRow}>
+            <TimeframeTrigger
+              title="Start date"
+              trigger={startDate}
+              date={project.startDate ?? null}
+              granularity={project.startDateGranularity ?? 'day'}
+              actionId="projectDetail.closeStartPicker"
+              short="Start"
+              onChange={(startDate, startDateGranularity) =>
+                updateProject(engine, project.id, { startDate, startDateGranularity }).catch(report)
+              }
+            />
+            <span className={styles.dateArrow} aria-hidden="true">
+              →
             </span>
-          )}
-        </Button>
-      </div>
-      {/* Which teams carry the work, and which initiatives the project rolls up into. Read
+            <TimeframeTrigger
+              title="Target date"
+              trigger={targetDate}
+              date={project.targetDate ?? null}
+              granularity={project.targetDateGranularity ?? 'day'}
+              actionId="projectDetail.closeTargetPicker"
+              short="Target"
+              onChange={(targetDate, targetDateGranularity) =>
+                updateProject(engine, project.id, { targetDate, targetDateGranularity }).catch(
+                  report,
+                )
+              }
+            />
+          </span>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.label}>Labels</span>
+          <Button
+            {...labels.props}
+            variant="ghost"
+            fullWidth
+            className={styles.trigger}
+            aria-label="Set labels"
+            icon={appliedLabels.length === 0 ? <LabelGlyph /> : undefined}
+          >
+            {appliedLabels.length === 0 ? (
+              <span className={styles.unset}>Add labels</span>
+            ) : (
+              <span className={styles.labelRun}>
+                {appliedLabels.map((label) => (
+                  <LabelChip key={label.id} name={label.name} color={label.color} compact />
+                ))}
+              </span>
+            )}
+          </Button>
+        </div>
+        {/* Which teams carry the work, and which initiatives the project rolls up into. Read
           here and written where the relationship is owned — the team from the project's own
           settings, the initiative from the initiative it belongs to — so the rail states them
           rather than offering a second, half-informed place to change them. */}
-      <div className={styles.row}>
-        <span className={styles.label}>Teams</span>
-        <span className={styles.value}>
-          {teams.length === 0 ? (
-            <span className={styles.unset}>No teams</span>
-          ) : (
-            teams.map((team) => team.key).join(', ')
-          )}
-        </span>
-      </div>
-      <div className={styles.row}>
-        <span className={styles.label}>Initiatives</span>
-        <span className={styles.value}>
-          {initiatives.length === 0 ? (
-            <span className={styles.unset}>No initiatives</span>
-          ) : (
-            initiatives.map((found) => found.name).join(', ')
-          )}
-        </span>
-      </div>
-      <div className={styles.row}>
-        <span className={styles.label}>Updates</span>
-        <Button
-          {...schedule.props}
-          variant="ghost"
-          fullWidth
-          className={styles.trigger}
-          aria-label="Update schedule"
-        >
-          {scheduleLabel}
-        </Button>
-      </div>
+        <div className={styles.row}>
+          <span className={styles.label}>Teams</span>
+          <span className={styles.value}>
+            {teams.length === 0 ? (
+              <span className={styles.unset}>No teams</span>
+            ) : (
+              teams.map((team) => team.key).join(', ')
+            )}
+          </span>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.label}>Initiatives</span>
+          <span className={styles.value}>
+            {initiatives.length === 0 ? (
+              <span className={styles.unset}>No initiatives</span>
+            ) : (
+              initiatives.map((found) => found.name).join(', ')
+            )}
+          </span>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.label}>Updates</span>
+          <Button
+            {...schedule.props}
+            variant="ghost"
+            fullWidth
+            className={styles.trigger}
+            aria-label="Update schedule"
+          >
+            {scheduleLabel}
+          </Button>
+        </div>
+
+        <ProjectDependencies projectId={project.id} compact addable />
+      </RailSection>
 
       {/* The checkpoints, each with how far along it is. Editing them is the overview's
-          job; the rail is where a reader checks which one is current. */}
-      {milestones.length > 0 && (
-        <section className={styles.group} aria-label="Milestones">
-          <h3 className={styles.groupTitle}>Milestones</h3>
+          job — the "+" is there, on the section that owns the list — and the rail is where
+          a reader checks which one the project is on. */}
+      <RailSection id="milestones" title="Milestones" count={milestones.length}>
+        {milestones.length === 0 ? (
+          <p className={styles.helper}>
+            Add milestones on the overview to break the project into stages.
+          </p>
+        ) : (
           <ul className={styles.milestones}>
             {milestones.map((milestone) => (
               <li
@@ -497,10 +547,31 @@ export function ProjectProperties({ projectId }: ProjectPropertiesProps) {
               </li>
             ))}
           </ul>
-        </section>
-      )}
+        )}
+      </RailSection>
 
-      <ProjectDependencies projectId={project.id} compact addable />
+      {/* Scope, started and completed, then the burn-up they are the endpoints of. Counted
+          from the issues in the project rather than from the graph, which only draws once a
+          project is under way and would leave the counts blank for the projects that most
+          need them. */}
+      <RailSection id="progress" title="Progress">
+        <dl className={styles.counts}>
+          <div className={styles.count}>
+            <dt className={styles.countLabel}>Scope</dt>
+            <dd className={styles.countValue}>{scope.total}</dd>
+          </div>
+          <div className={styles.count}>
+            <dt className={styles.countLabel}>Started</dt>
+            <dd className={styles.countValue}>{scope.started}</dd>
+          </div>
+          <div className={styles.count}>
+            <dt className={styles.countLabel}>Completed</dt>
+            <dd className={styles.countValue}>{scope.completed}</dd>
+          </div>
+        </dl>
+        <ProjectGraph projectId={project.id} />
+      </RailSection>
+
       <IconPicker
         open={icon.open}
         onClose={icon.hide}
@@ -577,8 +648,10 @@ const GRANULARITIES: readonly { readonly value: TimeframeGranularity; readonly l
   { value: 'year', label: 'Year' },
 ];
 
-interface TimeframeRowProps {
+interface TimeframeTriggerProps {
   readonly title: string;
+  /** What the trigger says while the date is unset — "Start", not "Set start date". */
+  readonly short: string;
   readonly trigger: ReturnType<typeof useMenuTrigger<HTMLButtonElement>>;
   readonly date: string | null;
   readonly granularity: TimeframeGranularity;
@@ -593,28 +666,30 @@ interface TimeframeRowProps {
  * The granularity rides in the picker's footer rather than beside the row, because it is a
  * qualifier on the day being chosen and not a property of its own — a rail that showed
  * "Quarter" next to an empty date was offering a precision for a date nobody had set.
+ *
+ * The visible text is the short word because both ends share one 88px row; the full name is
+ * on the accessible name, where "Set target date" still says which end this is.
  */
-function TimeframeRow({
+function TimeframeTrigger({
   title,
+  short,
   trigger,
   date,
   granularity,
   actionId,
   onChange,
-}: TimeframeRowProps) {
+}: TimeframeTriggerProps) {
   return (
-    <div className={styles.row}>
-      <span className={styles.label}>{title}</span>
+    <>
       <Button
         {...trigger.props}
         variant="ghost"
-        fullWidth
         className={styles.trigger}
         aria-label={`Set ${title.toLowerCase()}`}
         icon={<CalendarGlyph />}
       >
         {date === null || date === '' ? (
-          <span className={styles.unset}>Set {title.toLowerCase()}</span>
+          <span className={styles.unset}>{short}</span>
         ) : (
           formatTimeframe(date, granularity)
         )}
@@ -648,8 +723,90 @@ function TimeframeRow({
           )
         }
       />
-    </div>
+    </>
   );
+}
+
+interface RailSectionProps {
+  /** The storage key for this section's folded state, and nothing else. */
+  readonly id: string;
+  readonly title: string;
+  readonly count?: number | undefined;
+  readonly children: ReactNode;
+}
+
+/**
+ * One folding section of the rail.
+ *
+ * `components/Section` is the same drawing and deliberately does not remember its state —
+ * a section somebody folded on one issue is not a decision about the next issue. The rail is
+ * the case where it is: there is one project rail, a reader who never uses the graph folds
+ * Progress once, and re-opening it on every project would be the software forgetting
+ * something it was told. So the fold is kept where a folded group is kept, in localStorage
+ * through `features/view/collapse`, and the heading is otherwise the same button.
+ */
+function RailSection({ id, title, count, children }: RailSectionProps) {
+  const [shut, setShut] = useState(() => readCollapsed(COLLAPSE_PREFERENCE).has(id));
+  const bodyId = `project-rail-${id}`;
+
+  return (
+    <section className={styles.section} aria-label={title}>
+      <div className={styles.sectionHead}>
+        <h3 className={styles.sectionTitle}>
+          <button
+            type="button"
+            className={styles.sectionToggle}
+            aria-expanded={!shut}
+            aria-controls={bodyId}
+            onClick={() => {
+              const next = !shut;
+              setShut(next);
+              const held = new Set(readCollapsed(COLLAPSE_PREFERENCE));
+              if (next) held.add(id);
+              else held.delete(id);
+              writeCollapsed(COLLAPSE_PREFERENCE, held);
+            }}
+          >
+            <ChevronGlyph className={shut ? styles.chevron : `${styles.chevron} ${styles.open}`} />
+            <span>{title}</span>
+          </button>
+        </h3>
+        {count === undefined || count === 0 ? null : (
+          <span className={styles.sectionCount}>{count}</span>
+        )}
+      </div>
+      <div id={bodyId} className={styles.sectionBody} hidden={shut}>
+        {children}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * How much work the project holds, and how much of it has moved.
+ *
+ * Archived issues are left out, the way every other count of a project's scope leaves them
+ * out; canceled work stays in the scope, because a project that dropped half its scope has
+ * not thereby delivered it.
+ */
+export function projectScope(
+  store: Store,
+  projectId: UUID,
+): { readonly total: number; readonly started: number; readonly completed: number } {
+  let total = 0;
+  let started = 0;
+  let completed = 0;
+  for (const id of store.index.byProject(projectId)) {
+    const issue: Issue | undefined = store.issues.get(id);
+    if (issue === undefined || issue.archivedAt !== undefined) continue;
+    total++;
+    if (issue.completedAt !== undefined) {
+      completed++;
+      continue;
+    }
+    if (store.workflowStates.get(issue.stateId)?.category === 'started') started++;
+  }
+  return { total, started, completed };
 }
 
 /**
