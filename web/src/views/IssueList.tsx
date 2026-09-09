@@ -4024,7 +4024,6 @@ function issueCount(n: number): string {
   return n === 1 ? '1 issue' : `${n} issues`;
 }
 
-
 /**
  * Whether every issue given is in one team.
  *
