@@ -47,11 +47,13 @@ import {
 } from '~/components';
 import { archiveDocument, deleteDocument, updateDocument } from '~/features/documents/mutations';
 import { EntityGate } from '~/features/entity-gate/EntityGate';
+import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
 import { copyText } from '~/features/github/copy';
 import { DotsGlyph, StarGlyph } from '~/features/issue/glyphs';
 import { Markdown } from '~/features/markdown/Markdown';
 import { report } from '~/features/subscriptions/mutations';
 import { isFavorite, toggleFavorite } from '~/features/view/mutations';
+import { useContextMenu } from '~/hooks/useContextMenu';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewerId } from '~/hooks/useViewer';
@@ -67,6 +69,7 @@ export function DocumentDetail() {
   const titleRef = useRef<TitleHandle | null>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const more = useMenuTrigger();
+  const contextMenu = useContextMenu<string>();
 
   const document = useLiveQuery(
     (store) => store.documents.get(documentId) ?? null,
@@ -321,26 +324,43 @@ export function DocumentDetail() {
         ? `/team/${team.key}/documents`
         : '/documents';
 
-  const menuItems: MenuNode[] = [
-    { id: 'copy-link', label: 'Copy link', onSelect: copyLink },
-    ...(viewerId === null
-      ? []
-      : [
-          {
-            id: 'favourite',
-            label: favourite ? 'Remove from favourites' : 'Add to favourites',
-            onSelect: toggleFavourite,
-          },
-        ]),
-    { kind: 'separator' as const },
-    { id: 'archive', label: 'Archive document', onSelect: () => setConfirming('archive') },
-    {
-      id: 'delete',
-      label: 'Delete document',
-      danger: true,
-      onSelect: () => setConfirming('delete'),
-    },
-  ];
+  const closeMenus = () => {
+    more.hide();
+    contextMenu.close();
+  };
+
+  /**
+   * `Documents.tsx`'s menu, from the same builder, less `Open document` — this is the document
+   * it would open. Everything else, wording and order, is the list's.
+   */
+  const menuItems = (): MenuNode[] =>
+    entityRowMenuItems(
+      { noun: 'document', name: document?.title, favorited: favourite },
+      {
+        copyLink: () => {
+          closeMenus();
+          copyLink();
+        },
+        ...(viewerId === null
+          ? {}
+          : {
+              toggleFavorite: () => {
+                closeMenus();
+                toggleFavourite();
+              },
+            }),
+        archive: () => {
+          closeMenus();
+          setConfirming('archive');
+        },
+        archiveLabel: 'Archive document',
+        askDelete: () => {
+          closeMenus();
+          setConfirming('delete');
+        },
+        deleteLabel: 'Delete document',
+      },
+    );
 
   return (
     <EntityGate
@@ -360,7 +380,13 @@ export function DocumentDetail() {
 
         return (
           <article className={styles.screen}>
-            <header className={styles.header}>
+            <header
+              className={styles.header}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                contextMenu.openAt(event.clientX, event.clientY, document.id);
+              }}
+            >
               <Breadcrumb
                 className={styles.crumbs}
                 items={[
@@ -393,10 +419,19 @@ export function DocumentDetail() {
                   onClose={more.hide}
                   trigger={more.ref}
                   label="Document options"
-                  items={menuItems}
+                  items={menuItems()}
                 />
               </div>
             </header>
+
+            {contextMenu.at === null ? null : <div {...contextMenu.anchorProps} />}
+            <Menu
+              open={contextMenu.at !== null}
+              onClose={contextMenu.close}
+              trigger={contextMenu.anchorRef}
+              label={`Options for ${document.title}`}
+              items={menuItems()}
+            />
 
             {saving.error === undefined ? null : (
               <p className={styles.error} role="alert">

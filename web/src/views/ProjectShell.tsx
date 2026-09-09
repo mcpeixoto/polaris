@@ -35,6 +35,7 @@ import {
   type TitleHandle,
 } from '~/components';
 import { EntityGate } from '~/features/entity-gate/EntityGate';
+import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
 import { browserTimezone } from '~/features/locale';
 import { ProjectHealthCell } from '~/features/project-updates/ProjectHealthCell';
 import { DotsGlyph, StarGlyph } from '~/features/issue/glyphs';
@@ -50,6 +51,7 @@ import { isFavorite, toggleFavorite } from '~/features/view/mutations';
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
 import { copyText } from '~/features/github/copy';
+import { useContextMenu } from '~/hooks/useContextMenu';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewer, useViewerId } from '~/hooks/useViewer';
@@ -65,6 +67,7 @@ export function ProjectShell() {
   const status = useMenuTrigger();
   const target = useMenuTrigger<HTMLButtonElement>('dialog');
   const more = useMenuTrigger();
+  const contextMenu = useContextMenu<string>();
   const titleRef = useRef<TitleHandle | null>(null);
   const [confirming, setConfirming] = useState<'archive' | 'delete' | null>(null);
 
@@ -221,31 +224,68 @@ export function ProjectShell() {
           { id: 'activity', label: 'Activity', to: `${base}/activity` },
         ];
 
-        const menuItems: MenuNode[] = [
-          { id: 'copy-link', label: 'Copy link', onSelect: copyLink },
-          { id: 'copy-id', label: 'Copy model UUID', onSelect: () => void copyText(project.id) },
-          ...(viewerId === null
-            ? []
-            : [
+        const closeMenus = () => {
+          more.hide();
+          contextMenu.close();
+        };
+
+        /**
+         * The list's menu, built by the same shared builder so the wording and order cannot
+         * drift: `Open project` is dropped because this is the project it would open, and
+         * `Copy model UUID` rides in the properties slot — the list has no equivalent, and it
+         * is the one item here that belongs to a developer rather than to the project.
+         *
+         * Two deliberate differences from `Projects.tsx`. `Delete project` is offered here and
+         * not there, which is where it already was. And the status and lead pickers are not
+         * repeated: the header pills and the rail already open them on this screen.
+         */
+        const menuItems = (): MenuNode[] =>
+          entityRowMenuItems(
+            { noun: 'project', name: project.name, favorited: favourite },
+            {
+              copyLink: () => {
+                closeMenus();
+                copyLink();
+              },
+              ...(viewerId === null
+                ? {}
+                : {
+                    toggleFavorite: () => {
+                      closeMenus();
+                      toggleFavourite();
+                    },
+                  }),
+              properties: [
                 {
-                  id: 'favourite',
-                  label: favourite ? 'Remove from favourites' : 'Add to favourites',
-                  onSelect: toggleFavourite,
+                  id: 'copy-id',
+                  label: 'Copy model UUID',
+                  onSelect: () => {
+                    closeMenus();
+                    void copyText(project.id);
+                  },
                 },
-              ]),
-          { kind: 'separator' as const },
-          { id: 'archive', label: 'Archive project', onSelect: () => setConfirming('archive') },
-          {
-            id: 'delete',
-            label: 'Delete project',
-            danger: true,
-            onSelect: () => setConfirming('delete'),
-          },
-        ];
+              ],
+              archive: () => {
+                closeMenus();
+                setConfirming('archive');
+              },
+              askDelete: () => {
+                closeMenus();
+                setConfirming('delete');
+              },
+              deleteLabel: 'Delete project',
+            },
+          );
 
         return (
           <div className={styles.screen}>
-            <header className={styles.header}>
+            <header
+              className={styles.header}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                contextMenu.openAt(event.clientX, event.clientY, project.id);
+              }}
+            >
               {/* The name is the rename field in the last crumb, so the screen would
                   otherwise have no heading at all. Hidden the way `IssueDetail`'s
                   `.screenTitle` is: a `<textarea>` inside an `<h1>` gives the heading no
@@ -367,7 +407,16 @@ export function ProjectShell() {
               trigger={more.ref}
               label="More actions"
               placement="bottom-end"
-              items={menuItems}
+              items={menuItems()}
+            />
+
+            {contextMenu.at === null ? null : <div {...contextMenu.anchorProps} />}
+            <Menu
+              open={contextMenu.at !== null}
+              onClose={contextMenu.close}
+              trigger={contextMenu.anchorRef}
+              label={`Options for ${project.name}`}
+              items={menuItems()}
             />
 
             <ProjectStatusPicker

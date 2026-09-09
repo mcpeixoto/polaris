@@ -37,6 +37,7 @@ import {
 } from '~/components';
 import { DotsGlyph, StarGlyph } from '~/features/issue/glyphs';
 import { EntityLoading, useEntityState } from '~/features/entity-gate/EntityGate';
+import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
 import { copyText } from '~/features/github/copy';
 import { InitiativeGlyph } from '~/features/initiatives/glyphs';
 import {
@@ -52,6 +53,7 @@ import { latestInitiativeUpdate } from '~/features/initiative-updates/helpers';
 import { setInitiativeSubscription } from '~/features/subscriptions/mutations';
 import { SubscribeBell } from '~/features/subscriptions/SubscribeBell';
 import { isFavorite, toggleFavorite } from '~/features/view/mutations';
+import { useContextMenu } from '~/hooks/useContextMenu';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewer, useViewerId } from '~/hooks/useViewer';
@@ -70,6 +72,7 @@ export function InitiativeShell() {
   const titleRef = useRef<TitleHandle | null>(null);
   const status = useMenuTrigger();
   const more = useMenuTrigger();
+  const contextMenu = useContextMenu<string>();
 
   const initiative = useLiveQuery(
     (store) => store.initiatives.get(initiativeId) ?? null,
@@ -202,38 +205,61 @@ export function InitiativeShell() {
     },
   }));
 
-  const moreItems: MenuNode[] = [
-    {
-      id: 'copy-link',
-      label: 'Copy link',
-      onSelect: () => void copyText(`${window.location.origin}/initiative/${initiative.id}`),
-    },
-    { id: 'copy-id', label: 'Copy ID', onSelect: () => void copyText(initiative.id) },
-    ...(viewerId === null
-      ? []
-      : [
+  const closeMenus = () => {
+    more.hide();
+    contextMenu.close();
+  };
+
+  /**
+   * `Initiatives.tsx`'s menu, from the same builder so the wording and order stay shared.
+   * `Open initiative` is dropped — this is the initiative it would open — and `Copy ID` rides
+   * in the properties slot, which the list has no equivalent for. There is no Delete because
+   * an initiative has never had one; archiving is the only way out, on both screens.
+   */
+  const moreItems = (): MenuNode[] =>
+    entityRowMenuItems(
+      { noun: 'initiative', name: initiative.name, favorited: favourite },
+      {
+        copyLink: () => {
+          closeMenus();
+          void copyText(`${window.location.origin}/initiative/${initiative.id}`);
+        },
+        ...(viewerId === null
+          ? {}
+          : {
+              toggleFavorite: () => {
+                closeMenus();
+                toggleFavorite(engine, viewerId, 'initiative', initiative.id).catch(report);
+              },
+            }),
+        properties: [
           {
-            id: 'favourite',
-            label: favourite ? 'Remove from favourites' : 'Add to favourites',
+            id: 'copy-id',
+            label: 'Copy ID',
             onSelect: () => {
-              toggleFavorite(engine, viewerId, 'initiative', initiative.id).catch(report);
+              closeMenus();
+              void copyText(initiative.id);
             },
-          } satisfies MenuNode,
-        ]),
-    { kind: 'separator' },
-    {
-      id: 'archive',
-      label: 'Archive initiative',
-      danger: true,
-      onSelect: () => setArchiving(true),
-    },
-  ];
+          },
+        ],
+        archive: () => {
+          closeMenus();
+          setArchiving(true);
+        },
+      },
+    );
 
   const base = `/initiative/${initiative.id}`;
 
   return (
     <div className={styles.screen}>
-      <header className={styles.header}>
+      <header
+        className={styles.header}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          contextMenu.openAt(event.clientX, event.clientY, initiative.id);
+        }}
+      >
         <div className={styles.crumbRow}>
           <Breadcrumb
             items={[
@@ -340,7 +366,16 @@ export function InitiativeShell() {
         trigger={more.ref}
         label="More actions"
         placement="bottom-end"
-        items={moreItems}
+        items={moreItems()}
+      />
+
+      {contextMenu.at === null ? null : <div {...contextMenu.anchorProps} />}
+      <Menu
+        open={contextMenu.at !== null}
+        onClose={contextMenu.close}
+        trigger={contextMenu.anchorRef}
+        label={`Options for ${initiative.name}`}
+        items={moreItems()}
       />
 
       <div className={styles.body}>
