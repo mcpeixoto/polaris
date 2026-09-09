@@ -7,7 +7,7 @@
  * screen and an unhandled rejection in the console.
  */
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -71,7 +71,12 @@ describe('Drafts', () => {
     ]);
     const user = renderDrafts();
 
+    // Discarding asks first now, from the row's button as well as from its menu: nothing
+    // brings an unsent draft back, and that was already the reason the menu asked.
     await user.click(await screen.findByRole('button', { name: 'Discard' }));
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Discard' }),
+    );
 
     expect(cleared).toHaveBeenCalledWith(ISSUE, undefined);
   });
@@ -92,10 +97,30 @@ describe('Drafts', () => {
     const user = renderDrafts();
 
     await user.click(await screen.findByRole('button', { name: 'Discard' }));
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Discard' }),
+    );
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('could not be discarded');
     expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
+  });
+
+  it('sends nothing until the discard is answered, and nothing at all if it is refused', async () => {
+    listed.mockReturnValue([
+      { kind: 'comment', issueId: ISSUE, body: 'Half a reply', updatedAt: AT },
+    ]);
+    const user = renderDrafts();
+
+    await user.click(await screen.findByRole('button', { name: 'Discard' }));
+    // The dialogue names the draft, because "discard this draft?" over a list of them is a
+    // question about which one.
+    expect((await screen.findByRole('dialog')).textContent).toContain('Half a reply');
+    expect(cleared).not.toHaveBeenCalled();
+
+    await user.keyboard('{Escape}');
+
+    expect(cleared).not.toHaveBeenCalled();
   });
 
   it('waits rather than calling the wait an empty state', () => {
