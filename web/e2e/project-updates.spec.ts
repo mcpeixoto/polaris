@@ -12,15 +12,19 @@ import type { Page } from '@playwright/test';
 import { expect, inviteToWorkspace, signIn, test, uniqueEmail } from './fixtures';
 
 /**
- * The project header's health, by name rather than by position.
+ * The project header's health, by what it is rather than by where it sits.
  *
  * This used to be `page.locator('h1').locator('..')` — the parent of the screen's heading,
  * which happened to be the header. The overview now has a title block of its own, so
- * "whatever sits beside an h1" is a question with more than one answer; the header's health
- * group carries an accessible name, and that name is what these assertions actually want.
+ * "whatever sits beside an h1" is a question with more than one answer.
+ *
+ * A test id rather than an accessible name: `getByLabel` matches on substring, so any name
+ * with "health" in it also answers the `getByLabel('Health')` below, which belongs to the
+ * update editor's own select. The cell already announces the word and the age; the marker
+ * is only for this file.
  */
 function healthBadge(page: Page) {
-  return page.getByRole('group', { name: 'Project health' });
+  return page.getByTestId('project-health');
 }
 
 async function newProject(page: Page, name: string): Promise<void> {

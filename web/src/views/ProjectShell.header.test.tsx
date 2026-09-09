@@ -99,8 +99,13 @@ describe('the project header', () => {
   it('carries the trail, the health and the actions, and no property pills', () => {
     mount();
 
-    const header = screen.getByRole('banner');
-    expect(within(header).getByRole('navigation', { name: 'Breadcrumb' })).toBeTruthy();
+    // The row itself, found through the trail inside it rather than by the banner role —
+    // in the running application this header sits inside the shell's `<main>`, where a
+    // `<header>` is not a landmark at all.
+    const trail = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    const header = trail.closest('header') as HTMLElement;
+    expect(header).not.toBeNull();
+    expect(within(header).getByTestId('project-health')).toBeTruthy();
     expect(within(header).getByRole('button', { name: 'Add to favourites' })).toBeTruthy();
     expect(within(header).getByRole('button', { name: 'More actions' })).toBeTruthy();
     // The status and the target are the page's and the rail's; the header does not repeat

@@ -357,11 +357,14 @@ export function ProjectShell() {
               />
               {/* Beside the name rather than in the trailing group: health is the one fact a
                   reader wants in the same glance as the project. */}
-              {/* Named, because it is a fact about the project rather than a decoration of
-                  the trail: "how is it going" is the one thing worth reading in the same
-                  glance as the name, and a group with a name is what lets a reader — or a
-                  test — ask for it rather than infer it from where it sits. */}
-              <div className={styles.health} role="group" aria-label="Project health">
+              {/* Marked rather than named. The browser tests used to find this by taking the
+                  parent of whatever `h1` they could see, which stopped being one thing when
+                  the overview grew a title block; the obvious repair was an `aria-label`,
+                  and an accessible name containing "health" collides with the update
+                  editor's own Health control under Playwright's substring matching. The cell
+                  inside already says the word and the age to a screen reader, so there is
+                  nothing here for ARIA to add — only something for a test to aim at. */}
+              <div className={styles.health} data-testid="project-health">
                 <ProjectHealthCell store={engine.store} projectId={project.id} compact />
               </div>
               <div className={styles.headerEnd}>
