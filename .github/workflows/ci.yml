@@ -274,9 +274,14 @@ jobs:
       # whose hash disagrees with its own Release file and fails the whole update. Playwright
       # brings its own Chromium and never wanted that repo; dropping it takes a third party's
       # mirror out of the path of every pull request.
+      #
+      # Matched on the URL rather than on a filename: the first attempt removed
+      # `google-chrome.list` and the runner still had the repo, because the image is free to
+      # name that file what it likes and to write it in either apt format.
       - name: Install the browser, without a repo we do not use
         run: |
-          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+          sudo grep -rl 'dl\.google\.com' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null \
+            | sudo xargs -r rm -v -f
           pnpm -C web exec playwright install --with-deps chromium
 
       - name: Migrate
@@ -308,7 +313,10 @@ jobs:
 
       - name: Server logs on failure
         if: failure()
-        run: tail -200 /tmp/api.log /tmp/sync.log /tmp/worker.log
+        # `-n 200`, not `-200`: the short form is rejected with more than one file
+        # ("option used in invalid context"), so this step has been failing instead of
+        # printing the logs it exists to print.
+        run: tail -n 200 /tmp/api.log /tmp/sync.log /tmp/worker.log
 
       - uses: actions/upload-artifact@v4
         if: failure()
