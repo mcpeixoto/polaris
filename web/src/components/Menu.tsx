@@ -79,6 +79,14 @@ export interface MenuSubmenu {
   /** As on an item: what typing matches. Defaults to `label` when that is a string. */
   readonly text?: string;
   readonly icon?: ReactNode;
+  /**
+   * A key spec at the trailing edge, as on an item — `S` beside "Status…".
+   *
+   * A submenu row is still a command in the user's head: the chord opens the same list the
+   * row does, so leaving the cap off the row that groups them would hide every property
+   * shortcut in the product the moment the flat items became cascades.
+   */
+  readonly keys?: string;
   readonly disabled?: boolean;
   readonly items: readonly MenuNode[];
   /**
@@ -94,6 +102,16 @@ export interface MenuSubmenu {
   readonly filterPlaceholder?: string;
   /** Shown when the submenu's filter matches nothing. */
   readonly emptyLabel?: string;
+  /**
+   * Told what the submenu's filter box now holds, on the same terms as the top-level
+   * `onFilterChange`: the submenu still narrows its own rows by it, and this is for a caller
+   * that has to run a different search off the same keystrokes — "Mark as blocked by…" lists
+   * issues found across the replica, and the replica is not a list the menu can hold.
+   *
+   * Called with `''` when the submenu closes, because the box has gone and the caller's
+   * search should not still be narrowed by text nobody can see.
+   */
+  readonly onFilterChange?: (value: string) => void;
 }
 
 export interface MenuSeparator {
@@ -910,9 +928,20 @@ export function Menu({
         )}
         <span className={styles.label}>{row.label}</span>
         {submenu ? (
-          <span className={styles.chevron} aria-hidden="true">
-            <ChevronGlyph />
-          </span>
+          <>
+            {row.keys === undefined ? null : (
+              <span className={styles.hint}>
+                {keysPresentation === 'kbd' ? (
+                  <Kbd keys={row.keys} surface="raised" />
+                ) : (
+                  formatKeySpec(row.keys)
+                )}
+              </span>
+            )}
+            <span className={styles.chevron} aria-hidden="true">
+              <ChevronGlyph />
+            </span>
+          </>
         ) : row.keys === undefined ? (
           row.hint === undefined ? null : (
             <span className={styles.hint}>{row.hint}</span>
@@ -1046,6 +1075,7 @@ export function Menu({
           open
           onClose={() => {
             setOpenSubmenuId(null);
+            openSubmenuNode.onFilterChange?.('');
           }}
           trigger={submenuTriggerRef}
           items={openSubmenuNode.items}
@@ -1054,6 +1084,7 @@ export function Menu({
           nested
           filterable={openSubmenuNode.filterable}
           filterPlaceholder={openSubmenuNode.filterPlaceholder}
+          onFilterChange={openSubmenuNode.onFilterChange}
           emptyLabel={openSubmenuNode.emptyLabel}
           keysPresentation={keysPresentation}
           density={density}

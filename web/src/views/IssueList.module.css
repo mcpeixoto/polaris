@@ -725,6 +725,18 @@
 }
 
 /*
+ * The blocked flag, between the identifier and the title.
+ *
+ * Its own box rather than a bare glyph, because the `srOnly` sentence rides inside it and the
+ * `title` belongs to the pair: hovering the flag is how a pointer asks what is blocking this.
+ */
+.blocked {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+/*
  * Visible to a screen reader and to nothing else. Not `display: none` and not
  * `visibility: hidden`, both of which take the text out of the accessibility tree as well —
  * which is the entire point of the class.

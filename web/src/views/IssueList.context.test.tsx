@@ -426,7 +426,7 @@ describe('archiving from the row menu', () => {
  * a branch name for six is not a thing.
  */
 describe('the Copy submenu', () => {
-  it('offers link, id, title and branch name', async () => {
+  it('offers link, id, title, title as link and branch name', async () => {
     const { user } = renderList();
 
     const menu = await openContextMenu('Ship the importer');
@@ -441,6 +441,7 @@ describe('the Copy submenu', () => {
       'Copy link',
       'Copy issue ID',
       'Copy title',
+      'Copy title as link',
       expect.stringContaining('Copy git branch name') as unknown as string,
     ]);
   });

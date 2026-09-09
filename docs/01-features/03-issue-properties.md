@@ -94,10 +94,10 @@ Reporting: filter by SLA status; recommended Insight = measure Issue count, slic
 
 Types: **related**, **blocked by / blocking**, **duplicate**.
 
-- Add from the issue editor, list/board via shortcut, command menu, or contextual menu. Repeat per relation.
+- Add from the issue editor, list/board via shortcut, command menu, or contextual menu — **Mark as ▸** for an issue that already exists, **Create related ▸** for one that does not yet. Repeat per relation.
 - `M` then `R` = related; `M` then `B` = blocked by; `M` then `X` = blocking. Command menu: "Create new issue related to…".
 - Referencing an issue in a description or comment auto-creates a **related** relation.
-- Blocked-by shows an orange flag; blocking shows a red flag. Once the blocker resolves, the pair moves under Related.
+- Blocked-by shows an orange flag; blocking shows a red flag. Once the blocker resolves, the pair moves under Related. The orange flag also rides on the issue's list row and board card, naming the blocker ("Blocked by ENG-4") in words as well as in colour.
 - **Duplicate** is directional: you mark the issue you're viewing as a duplicate *of* a canonical issue (never the reverse). Effects: attachments and customer requests move to the canonical issue; the duplicate's status becomes the reserved Duplicate status; a banner + sidebar treatment link back. `MM` triggers it from triage.
 - Remove a relation by hovering + `X`, or command menu → Remove relation (prompts when several exist).
 

@@ -117,7 +117,7 @@ export function LabelPicker({
   onRemove,
 }: LabelPickerProps) {
   const sections = useLiveQuery(
-    (store) => offerings(store, teamId, new Set(value)),
+    (store) => labelOfferings(store, teamId, new Set(value)),
     // `issueLabel` and `issue` are gone from this list along with the issue itself. What is
     // ticked is now the caller's answer, so a label applied to some other issue no longer
     // wakes this menu — and the caller that reads `labelIdsFor` subscribes to `issueLabel`
@@ -186,7 +186,11 @@ export function LabelPicker({
  * filterable menu is searched rather than scanned, and alphabetical is the only order that is
  * correct for every block in it.
  */
-function offerings(store: Store, teamId: UUID | null, applied: ReadonlySet<UUID>): LabelSection[] {
+export function labelOfferings(
+  store: Store,
+  teamId: UUID | null,
+  applied: ReadonlySet<UUID>,
+): LabelSection[] {
   const groups = new Map<UUID, Label>();
   const children = new Map<UUID, Label[]>();
   const loose: Label[] = [];
