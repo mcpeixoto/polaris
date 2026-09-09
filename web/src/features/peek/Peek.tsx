@@ -220,8 +220,7 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
       className={styles.panel}
       aria-label={`Peek ${issue.identifier}`}
       onContextMenu={(event) => {
-        event.preventDefault();
-        context.openAt(event.clientX, event.clientY, issueId);
+        context.openFromEvent(event, issueId);
       }}
       {...exitProps}
     >

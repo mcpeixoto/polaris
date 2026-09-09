@@ -82,6 +82,7 @@ import {
   type IssuePropertyKind,
   type IssueRowMenuChords,
 } from '~/features/issue/rowMenu';
+import { contextMenuPoint } from '~/hooks/useContextMenu';
 import { useContextMenuHandoff } from '~/hooks/useContextMenuHandoff';
 import { LabelPicker } from '~/features/labels/LabelPicker';
 import { applyLabel, removeLabel } from '~/features/labels/mutations';
@@ -500,7 +501,7 @@ export function Search() {
     // cursor. Opening first would build the menu around wherever the cursor happened to be.
     setCursorKey(row.key);
     setPropertyFor(row.key);
-    setContextAt({ x: event.clientX, y: event.clientY });
+    setContextAt(contextMenuPoint(event));
     setMenuOpen(true);
   };
 

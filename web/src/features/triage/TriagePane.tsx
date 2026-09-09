@@ -47,6 +47,7 @@ import { labelViewPath, userViewPath } from '~/features/labels/labelView';
 import { applyLabel, removeLabel } from '~/features/labels/mutations';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { exact, when } from '~/features/time';
+import { contextMenuPoint } from '~/hooks/useContextMenu';
 import { useContextMenuHandoff } from '~/hooks/useContextMenuHandoff';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -168,7 +169,7 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
       aria-label={`Triage ${issue.identifier}`}
       onContextMenu={(event) => {
         event.preventDefault();
-        setContextAt({ x: event.clientX, y: event.clientY });
+        setContextAt(contextMenuPoint(event));
         setContextOpen(true);
       }}
     >

@@ -301,8 +301,7 @@ export function Dashboards() {
                       .filter(Boolean)
                       .join(' ')}
                     onContextMenu={(event) => {
-                      event.preventDefault();
-                      contextMenu.openAt(event.clientX, event.clientY, row.id);
+                      contextMenu.openFromEvent(event, row.id);
                     }}
                   >
                     {renaming === row.id ? (

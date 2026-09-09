@@ -474,8 +474,7 @@ function SubIssueRow({ child, onRemove }: { child: Child; onRemove: () => void }
       // anchored to, and a picker opened from the context menu is anchored to this row.
       tabIndex={-1}
       onContextMenu={(event) => {
-        event.preventDefault();
-        context.openAt(event.clientX, event.clientY, child.id);
+        context.openFromEvent(event, child.id);
       }}
     >
       <PropertyTrigger

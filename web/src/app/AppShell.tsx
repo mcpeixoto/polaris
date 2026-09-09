@@ -2218,8 +2218,7 @@ function useNavRowMenu(userId: UUID | null): NavRowMenu {
   return {
     on: (row) => ({
       onContextMenu: (event: ReactMouseEvent) => {
-        event.preventDefault();
-        menu.openAt(event.clientX, event.clientY, row);
+        menu.openFromEvent(event, row);
       },
     }),
     node: (

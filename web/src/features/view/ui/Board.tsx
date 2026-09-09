@@ -62,6 +62,7 @@ import { LabelList } from '~/features/labels/LabelList';
 import { getPrefs, personName, subscribePrefs } from '~/features/prefs/prefs';
 import { isOverdue, whenDay } from '~/features/time';
 import type { DisplayGroupBy, DisplayOptions, DisplayProperty } from '~/filter';
+import { contextMenuPoint } from '~/hooks/useContextMenu';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewerId } from '~/hooks/useViewer';
@@ -1106,7 +1107,8 @@ const BoardCard = memo(function BoardCard({
       onContextMenu={(event) => {
         if (onContextMenu === undefined) return;
         event.preventDefault();
-        onContextMenu(id, index, event.clientX, event.clientY);
+        const point = contextMenuPoint(event);
+        onContextMenu(id, index, point.x, point.y);
       }}
     >
       <div className={styles.top}>

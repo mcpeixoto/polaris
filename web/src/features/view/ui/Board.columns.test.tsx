@@ -313,7 +313,15 @@ describe('a right-click on a card', () => {
   it('reports the card and where the pointer was', () => {
     const { onContextMenu } = renderBoard();
 
-    fireEvent.contextMenu(card('Ship the importer'), { clientX: 40, clientY: 80 });
+    // A real right-click, as Chrome sends it. Left to jsdom's defaults this would be
+    // `button: 0, buttons: 0` — which is the keyboard, and would be measured off the card
+    // rather than taken from the pointer.
+    fireEvent.contextMenu(card('Ship the importer'), {
+      button: 2,
+      buttons: 2,
+      clientX: 40,
+      clientY: 80,
+    });
 
     expect(onContextMenu).toHaveBeenCalledWith('issue-2', 0, 40, 80);
   });
