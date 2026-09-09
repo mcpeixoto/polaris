@@ -195,6 +195,13 @@ describe('the initiative reading column', () => {
     expect(screen.getByRole('button', { name: 'Post update' })).toBeTruthy();
   });
 
+  it('leaves "Update" the name of the composer alone, not of the card around it', () => {
+    mount();
+    // The card's heading is a heading, not a region name. It was briefly both, and the
+    // update field then had a second element answering to its own label.
+    expect(screen.getAllByLabelText(/update/i)).toHaveLength(1);
+  });
+
   it('draws a contributing project with its own icon, health, lead and progress', () => {
     mount();
     const row = screen.getByRole('link', { name: 'Alpha' }).closest('li');

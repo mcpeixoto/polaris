@@ -286,8 +286,14 @@ export function InitiativeDetail() {
             open beneath it: the reason an initiative has no updates is almost never that
             somebody could not find the form.
           */}
-          <section className={styles.card} aria-labelledby="initiative-update">
-            <h2 className={styles.cardTitle} id="initiative-update">
+          {/*
+            No `aria-labelledby` on the section, deliberately. Naming a region "Latest
+            update" makes the region itself something `getByLabel('Update')` finds, and the
+            composer inside it is what that query is looking for — a section that shadows its
+            own field is worse than a section with no name. The heading is still a heading.
+          */}
+          <section className={styles.card}>
+            <h2 className={styles.cardTitle}>
               {latest === undefined ? 'Write first initiative update' : 'Latest update'}
             </h2>
             {latest === undefined ? null : (
