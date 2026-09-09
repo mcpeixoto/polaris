@@ -60,6 +60,7 @@ import {
   archiveInitiative,
   formatInitiativeStatus,
   INITIATIVE_STATUS_ICON,
+  INITIATIVE_STATUSES,
   updateInitiative,
 } from '~/features/initiatives/mutations';
 import {
@@ -159,10 +160,27 @@ const PREFERENCE_KEY = 'initiatives';
 
 export type InitiativeStatusFilter = 'all' | InitiativeStatus;
 
+/**
+ * The status tabs, in the order Linear puts them: the two somebody is nearly always after,
+ * then everything.
+ *
+ * The other three keep their pills after those rather than moving into the display menu. A
+ * status filter is what this screen is scoped by — it rides in the URL so a link shows what
+ * its sender was looking at — and burying "Completed" a menu deep would make the three
+ * halves of the workspace unequal for no reason but their frequency.
+ *
+ * This is the row's order and not the product's order for a status. Grouping by status
+ * still walks `INITIATIVE_STATUSES`, which is proposed through canceled: a heading list is
+ * a lifecycle and reordering it to match a toolbar would be reading it as a ranking.
+ */
 const STATUS_PILLS: readonly { readonly value: InitiativeStatusFilter; readonly label: string }[] =
   [
-    { value: 'all', label: 'All initiatives' },
-    ...(['proposed', 'planned', 'active', 'completed', 'canceled'] as const).map((status) => ({
+    ...(['active', 'planned'] as const).map((status) => ({
+      value: status,
+      label: formatInitiativeStatus(status),
+    })),
+    { value: 'all' as const, label: 'All initiatives' },
+    ...(['proposed', 'completed', 'canceled'] as const).map((status) => ({
       value: status,
       label: formatInitiativeStatus(status),
     })),
@@ -479,12 +497,12 @@ export function Initiatives() {
         >
           <div className={columnsClass(display)} aria-hidden="true">
             <span>Name</span>
-            {display.columns.includes('labels') ? <span>Labels</span> : null}
-            <span>Status</span>
             {display.columns.includes('health') ? <span>Health</span> : null}
-            <span>Projects</span>
+            <span>Status</span>
+            {display.columns.includes('labels') ? <span>Labels</span> : null}
             <span>Owner</span>
             {display.columns.includes('targetDate') ? <span>Target date</span> : null}
+            <span>Projects</span>
             {display.columns.includes('progress') ? <span>Progress</span> : null}
           </div>
           {groups.map((group) => {
@@ -680,6 +698,23 @@ function Row({
           </button>
           <span className={styles.name}>{row.name}</span>
         </span>
+        {display.columns.includes('health') ? (
+          <span className={styles.health}>
+            {row.health === null ? (
+              <span className={styles.muted}>No updates</span>
+            ) : (
+              <ProjectHealthBadge
+                health={row.health}
+                compact
+                since={row.healthAt === null ? undefined : updateAge(row.healthAt)}
+              />
+            )}
+          </span>
+        ) : null}
+        <span className={styles.status}>
+          <StateIcon category={INITIATIVE_STATUS_ICON[row.status]} decorative />
+          {formatInitiativeStatus(row.status)}
+        </span>
         {/* Past two chips the rest become a count, which is the one thing that cannot
             overflow a fixed-height row. */}
         {display.columns.includes('labels') ? (
@@ -699,26 +734,6 @@ function Row({
             )}
           </span>
         ) : null}
-        <span className={styles.status}>
-          <StateIcon category={INITIATIVE_STATUS_ICON[row.status]} decorative />
-          {formatInitiativeStatus(row.status)}
-        </span>
-        {display.columns.includes('health') ? (
-          <span className={styles.health}>
-            {row.health === null ? (
-              <span className={styles.muted}>No updates</span>
-            ) : (
-              <ProjectHealthBadge
-                health={row.health}
-                compact
-                since={row.healthAt === null ? undefined : updateAge(row.healthAt)}
-              />
-            )}
-          </span>
-        ) : null}
-        <span className={styles.projects}>
-          <ActiveProjectsHealth projects={row.projects} />
-        </span>
         <span className={styles.owner}>
           {row.ownerName === null ? (
             <Tooltip label="No owner">
@@ -751,6 +766,9 @@ function Row({
             )}
           </span>
         ) : null}
+        <span className={styles.projects}>
+          <ActiveProjectsHealth projects={row.projects} />
+        </span>
         {display.columns.includes('progress') ? (
           <span className={styles.progress}>
             <ProgressBar progress={row.progress} label={row.name} compact />
@@ -824,8 +842,8 @@ function groupRows(rows: readonly InitiativeRow[], grouping: string): RowGroup[]
   // Status keeps the product's order — proposed through canceled — and owners are
   // alphabetical with "No owner" last, where an absence belongs.
   if (grouping === 'status') {
-    const order = STATUS_PILLS.map((pill) => pill.value);
-    groups.sort((a, b) => order.indexOf(a.key as never) - order.indexOf(b.key as never));
+    const order: readonly string[] = INITIATIVE_STATUSES;
+    groups.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
   } else {
     groups.sort((a, b) =>
       a.key === 'no-owner' ? 1 : b.key === 'no-owner' ? -1 : a.name.localeCompare(b.name),

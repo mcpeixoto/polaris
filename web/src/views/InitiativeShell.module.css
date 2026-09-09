@@ -19,41 +19,19 @@
   }
 }
 
+/* The view header: 44px, no rule beneath it — the tab row carries the hairline. */
 .header {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  flex: none;
-  padding: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.titleRow {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  min-width: 0;
+  flex: none;
+  height: var(--header-height);
+  padding-inline: var(--space-4);
 }
 
-.screenTitle {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  border: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  clip-path: inset(50%);
-}
-
-/* The editable name, at the weight the static heading used to carry. */
-.titleField {
-  flex: 1;
+.crumbs {
   min-width: 0;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.018em;
+  flex: 0 1 auto;
 }
 
 /* The breadcrumb's mark, made pressable without being drawn as a button: the crumb row is
@@ -78,15 +56,35 @@
   outline: var(--focus-ring-width) solid var(--border-focus);
 }
 
-.crumbRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  min-width: 0;
+/* A favourited initiative's star is filled and in the accent, the way the issue screen's is. */
+.starOn {
+  color: var(--accent-text);
 }
 
-.spacer {
+.headerEnd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  margin-inline-start: auto;
+}
+
+/* The sections, and the rail toggle at the far end of the same row: one line of chrome
+   between the header and the page rather than two. */
+.tabRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  min-height: var(--space-10);
+  padding: var(--space-1) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.tabs {
   flex: 1;
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .body {

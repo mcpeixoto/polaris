@@ -2,13 +2,18 @@
  * Renaming an initiative in place: an empty name is never written, and an unchanged one is
  * not written back either.
  *
- * The rename moved from a "Name" field in the overview's property form to the shared
- * `TitleField` in `InitiativeShell`, which is what the issue and project screens rename
- * with — so these render the shell and open the box with `e`. The rule this file has always
- * checked survives the move: clearing the name and leaving the field must not leave the
- * screen showing a name that was never saved. `TitleField` answers it by reverting to the
- * stored name rather than by raising "An initiative needs a name" beneath a form field
- * there no longer is; the assertion below checks the revert as well as the silence.
+ * The rename has moved twice. First from a "Name" field in the overview's property form to
+ * the shared `TitleField` the issue and project screens rename with; then, with the Linear
+ * layout, out of the shell's breadcrumb and into the top of the reading column, where the
+ * name is the page's heading rather than a step in a trail. So this file renders the shell
+ * *and* the tab inside it, which is where the field now is, and opens the box with `e` as
+ * before.
+ *
+ * The rule it has always checked survives both moves: clearing the name and leaving the
+ * field must not leave the screen showing a name that was never saved. `TitleField` answers
+ * it by reverting to the stored name rather than by raising "An initiative needs a name"
+ * beneath a form field there no longer is; the assertion below checks the revert as well as
+ * the silence.
  */
 
 import { render, screen } from '@testing-library/react';
@@ -21,6 +26,7 @@ import { KeymapProvider } from '~/app/keymap';
 import { Store, type Change, type Entity } from '~/store';
 import type { SyncEngine } from '~/sync/engine';
 
+import { InitiativeDetail } from './InitiativeDetail';
 import { InitiativeShell } from './InitiativeShell';
 
 const W = 'w1';
@@ -44,7 +50,7 @@ function upsert(v: number, type: Change['type'], entity: Entity): Change {
   };
 }
 
-function renderShell() {
+function renderScreen() {
   const store = new Store(W);
   store.applyChanges([
     upsert(1, 'initiative', {
@@ -66,7 +72,9 @@ function renderShell() {
       <KeymapProvider>
         <EngineProvider engine={engine} status={{ phase: 'idle' }}>
           <Routes>
-            <Route path="/initiative/:initiativeId" element={<InitiativeShell />} />
+            <Route path="/initiative/:initiativeId" element={<InitiativeShell />}>
+              <Route index element={<InitiativeDetail />} />
+            </Route>
           </Routes>
         </EngineProvider>
       </KeymapProvider>
@@ -77,7 +85,7 @@ function renderShell() {
 
 describe('Initiative rename', () => {
   it('opens the name for editing with e, focused', async () => {
-    const { user } = renderShell();
+    const { user } = renderScreen();
     await user.keyboard('e');
     const field = screen.getByLabelText('Name');
     expect(field).toBe(document.activeElement);
@@ -85,7 +93,7 @@ describe('Initiative rename', () => {
   });
 
   it('refuses an empty name and puts the stored one back rather than saving nothing', async () => {
-    const { mutate, user } = renderShell();
+    const { mutate, user } = renderScreen();
     await user.keyboard('e');
     await user.clear(screen.getByLabelText('Name'));
     await user.tab();
@@ -97,7 +105,7 @@ describe('Initiative rename', () => {
   });
 
   it('saves a name typed in its place', async () => {
-    const { mutate, user } = renderShell();
+    const { mutate, user } = renderScreen();
     await user.keyboard('e');
     const field = screen.getByLabelText('Name');
     await user.clear(field);
@@ -109,7 +117,7 @@ describe('Initiative rename', () => {
   });
 
   it('does not write when the name is unchanged', async () => {
-    const { mutate, user } = renderShell();
+    const { mutate, user } = renderScreen();
     await user.keyboard('e');
     await user.tab();
     expect(mutate).not.toHaveBeenCalled();

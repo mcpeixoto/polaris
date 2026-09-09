@@ -68,7 +68,12 @@
 }
 
 /*
- * Name · labels · status · health · projects · owner · target · progress.
+ * Name · health · status · labels · owner · target · projects · progress.
+ *
+ * Linear's six — name, health, owner, target date, projects, progress — in Linear's order,
+ * with the two columns this product has that Linear does not (status and labels) slotted
+ * after health rather than appended at the end, where a status reading after a progress bar
+ * would be the last thing on a row about the first thing anybody asks.
  *
  * One template for the column header and the rows, so the two cannot drift. `overflow:
  * hidden` alongside the fixed height, because a fixed-height row is a promise the row
@@ -80,8 +85,8 @@
   --initiative-health: 16ch;
   --initiative-target: 11ch;
   --initiative-progress: 9ch;
-  --initiative-grid: minmax(0, 1fr) var(--initiative-labels) 11ch var(--initiative-health) 8ch 14ch
-    var(--initiative-target) var(--initiative-progress);
+  --initiative-grid: minmax(0, 1fr) var(--initiative-health) 11ch var(--initiative-labels) 14ch
+    var(--initiative-target) 8ch var(--initiative-progress);
 
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -200,7 +205,7 @@
   grid-template-columns: var(--initiative-grid);
   align-items: center;
   gap: var(--space-3);
-  height: 51px;
+  height: 39px;
   overflow: hidden;
   padding-inline: var(--space-2) var(--space-4);
   color: inherit;

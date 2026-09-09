@@ -27,6 +27,10 @@ export interface Progress {
 export interface InitiativeProjectRow {
   readonly projectId: UUID;
   readonly name: string;
+  /** The project's stored glyph — an emoji or an `icon:<name>` token — for `EntityIcon`. */
+  readonly icon: string | undefined;
+  /** The project's stored tint. Optional in the replica, so every reader falls back. */
+  readonly color: string | undefined;
   readonly statusCategory: ProjectStatusCategory;
   readonly statusName: string;
   readonly health: ProjectUpdateHealth | null;
@@ -95,6 +99,8 @@ export function listInitiativeProjectRows(
     rows.push({
       projectId,
       name: project.name,
+      icon: project.icon,
+      color: project.color,
       statusCategory: status?.category ?? 'backlog',
       statusName: status?.name ?? 'No status',
       health: latestProjectUpdate(store, projectId)?.health ?? null,

@@ -35,9 +35,75 @@ An initiative that has never been given one falls back to the generic initiative
 grey, which is what the column defaults to.
 
 It can be set when the initiative is created, changed by clicking the icon in the initiatives
-list or in the initiative header, and changed from the Icon row at the top of the properties
-rail. This is newer than the project equivalent — initiatives had no icon at all until the
+list, in the initiative header or beside the name on the overview, and changed from the Icon
+row at the top of the properties rail. This is newer than the project equivalent — initiatives had no icon at all until the
 column was added — so an initiative created before that has no icon rather than a bad one.
+
+## The screens
+
+Two of them, and they are the project screens' shape: a list that is read for six facts, and
+a detail page that is a reading column with a property rail beside it.
+
+### The list
+
+Columns, in order: **Name · Health · Status · Labels · Owner · Target date · Projects ·
+Progress**. Name, Status and Projects are the row's identity and are always drawn; the other
+five are toggled in Display. Rows are 39px.
+
+- The **name** cell carries the initiative's mark, and the mark is a button: clicking it opens
+  the icon picker without opening the initiative. It is the same picker the header and the
+  rail open, and it writes one half of the pair per act — a glyph or a colour, never both.
+- **Health** is the latest initiative update read as `icon · word · age` — "On track · 2w" —
+  or "No updates" when nobody has posted one. The age is what turns a green word into a claim
+  somebody can weigh.
+- **Projects** is the roll-up of every contained project's own latest update, descendants
+  included.
+- A parent carries a chevron before its mark and folds its descendants away, remembered per
+  person. The tree flattens itself under a status filter or a grouping, because an indent
+  under a parent that is not on screen points at nothing.
+
+The status tabs above the table read **Active · Planned · All initiatives · Proposed ·
+Completed · Canceled**: the two scopes somebody is nearly always after, then everything, then
+the rest. The scope rides in the URL, so a link shows what its sender was looking at. Grouping
+by status still lists the headings in the lifecycle's own order, proposed through canceled — a
+toolbar's order of convenience is not a ranking of states.
+
+### The overview
+
+One header row — `Initiatives › [mark] name`, the star and the `…` menu — then the sections
+(`Overview · Activity`) with the rail toggle at the far end of the same row. The name in the
+last crumb is plain text: a trail says where you are, and the initiative is renamed where its
+name is the heading rather than a step in a path.
+
+The reading column, centred and capped so prose is not set across a 2000px window:
+
+1. The **mark and the name**. A 32px icon that opens the icon picker, and under it the name,
+   which is text until you put the caret in it. The screen's one heading is a visually hidden
+   `<h1>` beside that field — a `<textarea>` inside an `<h1>` would leave the heading with no
+   accessible name at all, and the heading list is how somebody with a screen reader finds
+   out which initiative they opened. A right-click anywhere on this block opens the same `…`
+   menu the header does.
+2. The **properties** as a row of pills — status, priority, owner, target date, lead team —
+   with the current health at the end of the row, named "Initiative health".
+3. The **update** card. When nothing has been posted it says "Write first initiative update"
+   and keeps the composer open beneath: the reason an initiative has no updates is almost
+   never that somebody could not find the form.
+4. The **description**, autosaving on blur.
+5. **Projects**: one row per contributing project — `[icon] name · health · lead · target ·
+   progress` — with the projects reached through a sub-initiative listed beside the ones this
+   initiative owns and marked "Via a sub-initiative", because only a direct link can be
+   removed here.
+6. **Sub-initiatives**: nest an existing one from the picker, or start one under this
+   objective.
+
+The rail holds the same properties again, one named row each, plus Icon and Labels which the
+pill row has no space for; and **Progress**, which is the project counts, the roll-up bar and
+the initiative graph. Both rail sections fold, and the fold is remembered per person the way
+every other fold in the product is (`features/view/collapse`). So is the rail itself: the
+toggle lives in the sections row so that hiding it survives a trip to Activity and back.
+
+**Not built yet:** Resources. Documents and links attach to issues and projects in this
+product and not to initiatives, so the row Linear draws there has nothing behind it.
 
 ## Creating and organising
 
