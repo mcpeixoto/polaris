@@ -1,0 +1,22 @@
+/*
+ * The colour dot in front of a label's name, in the menu's Labels cascade.
+ *
+ * The same mark `LabelPicker` draws, and drawn again here rather than imported from that
+ * component's stylesheet: a feature reaching into another feature's CSS module is the kind of
+ * coupling `08-ui-composition.md` spends a section on. Two rules of four lines is the cheaper
+ * of the two mistakes available.
+ */
+.swatch {
+  /*
+   * Declared as well as set inline, and the default is the point: a label whose colour
+   * failed to arrive gets a visible neutral rather than `transparent`, which is what an
+   * undeclared custom property resolves to.
+   */
+  --label-color: var(--text-tertiary);
+
+  display: block;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-full);
+  background-color: var(--label-color);
+}

@@ -62,6 +62,8 @@ import { LabelList } from '~/features/labels/LabelList';
 import { getPrefs, personName, subscribePrefs } from '~/features/prefs/prefs';
 import { isOverdue, whenDay } from '~/features/time';
 import type { DisplayGroupBy, DisplayOptions, DisplayProperty } from '~/filter';
+import { RelationFlag } from '~/features/issue/RelationFlag';
+import { blockedBy, blockedTitle } from '~/features/issue/relationLinks';
 import { contextMenuPoint } from '~/hooks/useContextMenu';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -1007,6 +1009,8 @@ interface BoardCardProps {
 interface CardData {
   readonly identifier: string;
   readonly title: string;
+  /** The issues still in this one's way, named. Empty when nothing is. */
+  readonly blockedBy: readonly string[];
   readonly priority: number;
   readonly stateName: string;
   readonly stateCategory: StateCategory;
@@ -1061,7 +1065,9 @@ const BoardCard = memo(function BoardCard({
   );
   const issue = useLiveQuery(
     (store) => cardOf(store, id),
-    ['issue', 'team', 'user', 'workflowState', 'project'],
+    // `issueRelation` for the blocked flag: a blocker linked elsewhere has to reach the card
+    // it blocks, and nothing else in this list would wake it.
+    ['issue', 'team', 'user', 'workflowState', 'project', 'issueRelation'],
     [id, fullNames],
   );
 
@@ -1113,6 +1119,14 @@ const BoardCard = memo(function BoardCard({
     >
       <div className={styles.top}>
         <span className={styles.identifier}>{issue.identifier}</span>
+        {/* The same mark the list row draws, in the same place relative to the identifier, so
+            a person who learns it on one layout has learned it on both. */}
+        {issue.blockedBy.length === 0 ? null : (
+          <span className={styles.blocked} title={blockedTitle(issue.blockedBy)}>
+            <RelationFlag kind="blockedBy" />
+            <span className={styles.srOnly}>{blockedTitle(issue.blockedBy)}</span>
+          </span>
+        )}
         <span className={styles.spacer} />
         {/* The unassigned card had nothing at all a pointer could press, and the assigned one
             had a bare Avatar — less than the list row beside it, which at least linked to the
@@ -1289,6 +1303,7 @@ function cardOf(store: Store, id: UUID): CardData | null {
   return {
     identifier: store.identifierOf(found),
     title: found.title,
+    blockedBy: blockedBy(store, id),
     priority: found.priority,
     stateName: state?.name ?? 'No status',
     stateCategory: state?.category ?? ('backlog' as StateCategory),

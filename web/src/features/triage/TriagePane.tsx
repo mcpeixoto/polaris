@@ -41,7 +41,22 @@ import {
 import { PlusGlyph, ProjectGlyph, UnassignedGlyph } from '~/features/issue/glyphs';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
 import { report, updateIssue, updateIssues } from '~/features/issue/mutations';
-import { issueRowMenuItems, type IssuePropertyKind } from '~/features/issue/rowMenu';
+import { copyRich, titleAsLink } from '~/features/issue/copy';
+import { useOptionalCreateIssue } from '~/features/issue/create-context';
+import { copyText } from '~/features/github/copy';
+import {
+  issueRowMenuItems,
+  type IssuePropertyKind,
+  type RelatedKind,
+} from '~/features/issue/rowMenu';
+import {
+  applyIssueMenuValue,
+  copySeedOf,
+  createRelatedIssue,
+  markIssueRelation,
+  toggleIssueLabel,
+} from '~/features/issue/rowMenuActions';
+import { useIssueRowMenuOptions } from '~/features/issue/rowMenuOptions';
 import { TitleField } from '~/views/IssueDetail';
 import { LabelPicker } from '~/features/labels/LabelPicker';
 import { labelViewPath, userViewPath } from '~/features/labels/labelView';
@@ -51,6 +66,7 @@ import { exact, when } from '~/features/time';
 import { contextMenuPoint, contextMenuPointOn } from '~/hooks/useContextMenu';
 import { useContextMenuHandoff } from '~/hooks/useContextMenuHandoff';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useViewerId } from '~/hooks/useViewer';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import type { StateCategory, Store, UUID } from '~/store';
 
@@ -112,6 +128,13 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
   const contextAnchor = useRef<HTMLDivElement>(null);
   const [contextAt, setContextAt] = useState<{ x: number; y: number } | null>(null);
   const [contextOpen, setContextOpen] = useState(false);
+  const createIssue = useOptionalCreateIssue();
+  const viewerId = useViewerId();
+  /* The cascades, about the issue being triaged. Asked only while its menu is open. */
+  const { options: rowMenuOptions, reset: resetRowMenu } = useIssueRowMenuOptions({
+    issueId,
+    enabled: contextOpen,
+  });
   const contextHandoff = useContextMenuHandoff();
   /**
    * Which decision is waiting on a priority.
@@ -529,6 +552,7 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
             open={contextOpen}
             onClose={() => {
               setContextOpen(false);
+              resetRowMenu();
               if (contextHandoff.consume()) return;
               setContextAt(null);
             }}
@@ -549,6 +573,53 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
                   labels: issue.labels,
                 },
                 {
+                  copyLink: () =>
+                    void copyText(`${window.location.origin}/issue/${issue.identifier}`),
+                  copyIdentifier: () => void copyText(issue.identifier),
+                  copyTitle: () => void copyText(issue.title),
+                  copyTitleAsLink: () =>
+                    void copyRich(
+                      titleAsLink(
+                        issue.identifier,
+                        issue.title,
+                        `${window.location.origin}/issue/${issue.identifier}`,
+                      ),
+                    ),
+                  set: (kind, value) => {
+                    setContextOpen(false);
+                    setContextAt(null);
+                    applyIssueMenuValue(engine, [issueId], kind, value, viewerId);
+                  },
+                  toggleLabel: (labelId, applied, displaces) => {
+                    toggleIssueLabel(
+                      engine,
+                      [issueId],
+                      labelId as UUID,
+                      applied,
+                      displaces as readonly UUID[],
+                    );
+                  },
+                  markAs: (kind, otherId) => {
+                    setContextOpen(false);
+                    setContextAt(null);
+                    markIssueRelation(engine, issueId, kind, otherId as UUID, viewerId);
+                  },
+                  // Only inside the shell, which owns the composer these two open.
+                  ...(createIssue === null
+                    ? {}
+                    : {
+                        createRelated: (kind: RelatedKind) => {
+                          setContextOpen(false);
+                          setContextAt(null);
+                          createRelatedIssue(createIssue, engine, issueId, kind, viewerId);
+                        },
+                        makeCopy: () => {
+                          setContextOpen(false);
+                          setContextAt(null);
+                          const seed = copySeedOf(engine.store, issueId);
+                          if (seed !== null) createIssue.open(seed);
+                        },
+                      }),
                   pick: (kind: IssuePropertyKind) => {
                     const trigger =
                       kind === 'status'
@@ -571,6 +642,7 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
                 // The list's chords, and they do fire here: `Triage` mounts `IssueList`
                 // beside this pane and its cursor is the issue this menu is about.
                 { status: 's', assignee: 'a', priority: 'p', project: 'shift+p', labels: 'l' },
+                rowMenuOptions,
               ),
               { kind: 'separator' },
               /*

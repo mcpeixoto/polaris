@@ -103,6 +103,22 @@ import { CyclePicker } from '~/features/cycles/CyclePicker';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { DueDatePicker, DueDateValue, EstimatePicker } from '~/features/issue/properties';
 import { Relations, SubIssues } from '~/features/issue/relations';
+import { copyRich, titleAsLink } from '~/features/issue/copy';
+import { useOptionalCreateIssue } from '~/features/issue/create-context';
+import {
+  issueRowMenuItems,
+  type IssuePropertyKind,
+  type IssueRowMenuChords,
+  type RelatedKind,
+} from '~/features/issue/rowMenu';
+import {
+  applyIssueMenuValue,
+  copySeedOf,
+  createRelatedIssue,
+  markIssueRelation,
+  toggleIssueLabel,
+} from '~/features/issue/rowMenuActions';
+import { useIssueRowMenuOptions } from '~/features/issue/rowMenuOptions';
 import { Links } from '~/features/attachments/Links';
 import { Reactions } from '~/features/reaction/Reactions';
 import { detectPlatform } from '~/keys';
@@ -325,6 +341,17 @@ export function IssueDetail() {
   // The header's "…": the actions that are not worth a button of their own.
   const more = useMenuTrigger();
   const contextMenu = useContextMenu<string>();
+  const createIssue = useOptionalCreateIssue();
+  /*
+   * The same cascades the row menu draws, about this issue. Asked only while one of the two
+   * menus is open: the rail beside it already reads every one of these lists, and a second
+   * standing subscription to the workspace's projects would be paid on every keystroke in the
+   * description.
+   */
+  const { options: rowMenuOptions, reset: resetRowMenu } = useIssueRowMenuOptions({
+    issueId,
+    enabled: more.open || contextMenu.at !== null,
+  });
 
   const { registry, context } = useKeymap();
 
@@ -781,20 +808,109 @@ export function IssueDetail() {
   /**
    * The ⋯ menu and the right-click on the header render this one array, so they cannot drift.
    *
-   * Unlike the other detail screens this is not `entityRowMenuItems`: an issue's list
-   * counterpart is `issueRowMenuItems`, which is mostly property pickers — status, assignee,
-   * priority, labels — and every one of those is already a control in the rail beside it.
+   * It is `issueRowMenuItems` now — the same tree the list, the board, peek, triage and the
+   * inbox draw — plus the four things only this screen has. That is a reversal of what the
+   * comment here used to say: the argument for a separate builder was that every property in
+   * it is already a control in the rail beside it, which was true while the menu was nine
+   * hand-off rows and stopped being true when they became cascades. A cascade sets the value
+   * in two gestures without moving the pointer to the rail, and a person who learned the menu
+   * on a list row is entitled to find the same menu here.
+   *
+   * "Open issue" is absent for the obvious reason. Delete keeps this screen's own wording —
+   * the shared builder writes "Delete ENG-7", and the header's item has always been the bare
+   * word next to a button that says the same thing.
    */
-  const headerMenuItems = (): MenuNode[] =>
-    moreItems(issue, viewerId, viewer?.role ?? null, {
-      toggleSubscribe: () => commands.current.toggleSubscribe(),
+  const headerMenuItems = (): MenuNode[] => [
+    ...issueRowMenuItems(
+      {
+        count: 1,
+        editable: !issue.archived,
+        canSetStatus: true,
+        identifier: issue.identifier,
+        estimates: issue.estimatesEnabled,
+        cycles: true,
+        // A milestone belongs to a project, so the row exists only where there is one — the
+        // same gate `issueDetail.milestone` registers its chord behind.
+        milestone: issue.projectId !== null,
+        subscribed: issue.subscribed,
+        favorited: favourite,
+      },
+      {
+        pick: (kind) => pickProperty(kind),
+        set: (kind, value) => applyIssueMenuValue(engine, [issue.id], kind, value, viewerId),
+        toggleLabel: (labelId, applied, displaces) =>
+          toggleIssueLabel(
+            engine,
+            [issue.id],
+            labelId as UUID,
+            applied,
+            displaces as readonly UUID[],
+          ),
+        markAs: (kind, otherId) =>
+          markIssueRelation(engine, issue.id, kind, otherId as UUID, viewerId),
+        // Only inside the shell, which owns the composer these two open.
+        ...(createIssue === null
+          ? {}
+          : {
+              createRelated: (kind: RelatedKind) =>
+                createRelatedIssue(createIssue, engine, issue.id, kind, viewerId),
+              makeCopy: () => {
+                const seed = copySeedOf(engine.store, issue.id);
+                if (seed !== null) createIssue.open(seed);
+              },
+            }),
+        // Both go through the registry rather than through a ref into another component:
+        // the actions already exist, the panels that own them registered them, and invoking
+        // one is how the rest of this screen reaches the Links box already.
+        addLink: () => registry.invoke('issueDetail.addLink', { source: 'menu', context }),
+        rename: () => commands.current.focusTitle(),
+        copyLink: () => commands.current.copyLink(),
+        copyIdentifier: () => commands.current.copyIdentifier(),
+        copyTitle: () => void copyText(issue.title),
+        copyTitleAsLink: () =>
+          void copyRich(
+            titleAsLink(
+              issue.identifier,
+              issue.title,
+              `${window.location.origin}/issue/${issue.identifier}`,
+            ),
+          ),
+        copyGitBranch: () => commands.current.copyGitBranch(),
+        ...(viewerId === null
+          ? {}
+          : {
+              toggleSubscribe: () => commands.current.toggleSubscribe(),
+              toggleFavorite: () => commands.current.toggleFavourite(),
+            }),
+      },
+      DETAIL_CHORDS,
+      rowMenuOptions,
+    ),
+    ...detailExtras(issue, viewer?.role ?? null, {
       makeRecurring: () => commands.current.makeRecurring(),
       editRecurring: () => commands.current.editRecurring(),
       stopRecurring: () => commands.current.stopRecurring(),
       addRequest: () => setRequestOpen(true),
       copyModelUuid: () => commands.current.copyModelUuid(),
       askDelete: () => commands.current.askDelete(),
-    });
+    }),
+  ];
+
+  /** A cascade's escape hatch — "Custom date…" — and every property this screen still hands off. */
+  const pickProperty = (kind: IssuePropertyKind) => {
+    const open = {
+      status: commands.current.pickStatus,
+      assignee: commands.current.pickAssignee,
+      priority: commands.current.pickPriority,
+      project: commands.current.pickProject,
+      milestone: commands.current.pickMilestone,
+      cycle: commands.current.pickCycle,
+      estimate: commands.current.pickEstimate,
+      due: commands.current.pickDue,
+      labels: commands.current.pickLabels,
+    }[kind];
+    open();
+  };
 
   return (
     <div className={styles.screen}>
@@ -879,7 +995,10 @@ export function IssueDetail() {
 
       <Menu
         open={more.open}
-        onClose={more.hide}
+        onClose={() => {
+          more.hide();
+          resetRowMenu();
+        }}
         trigger={more.ref}
         label="More actions"
         placement="bottom-end"
@@ -889,7 +1008,10 @@ export function IssueDetail() {
       {contextMenu.at === null ? null : <div {...contextMenu.anchorProps} />}
       <Menu
         open={contextMenu.at !== null}
-        onClose={contextMenu.close}
+        onClose={() => {
+          contextMenu.close();
+          resetRowMenu();
+        }}
         trigger={contextMenu.anchorRef}
         label={`Options for ${issue.identifier}`}
         items={headerMenuItems()}
@@ -1465,19 +1587,46 @@ export function IssueDetail() {
 }
 
 /**
- * The header's overflow menu: the actions that are not worth a button each.
+ * The chords this screen has actually registered, for the shared builder to print.
  *
- * Subscribe leads because it is the one people reach for; delete is last and red because
- * it is the one they must not reach for by accident. Each entry is gated the way its
- * action is — a guest gets no customer request, a recurring issue is not offered
- * "Make recurring" — so the menu never lists something that would refuse.
+ * Never defaulted and never guessed: `IssueRowMenuChords` exists because a cap is a promise
+ * about what a key does to the thing you are looking at, and on this screen every one of
+ * these is bound in the `detail` context and acts on the issue being viewed. The three
+ * relation sequences are `Relations`' own, registered in the panel below the fold.
  */
-function moreItems(
-  issue: { readonly subscribed: boolean; readonly recurring: unknown },
-  viewerId: UUID | null,
+const DETAIL_CHORDS: IssueRowMenuChords = {
+  status: 's',
+  priority: 'p',
+  assignee: 'a',
+  due: 'shift+d',
+  labels: 'l',
+  project: 'shift+p',
+  estimate: 'shift+e',
+  cycle: 'shift+c',
+  milestone: 'shift+m',
+  subscribe: 'shift+s',
+  copyLink: 'mod+shift+comma',
+  copyGitBranch: 'mod+shift+period',
+  rename: 'e',
+  addLink: 'mod+shift+u',
+  createSubIssue: 'mod+shift+o',
+  markBlockedBy: 'm b',
+  markBlocking: 'm x',
+  markRelated: 'm r',
+};
+
+/**
+ * The four things this screen has that a list row does not.
+ *
+ * A schedule, a customer request, the model's own uuid, and a delete worded as this header
+ * has always worded it. Each entry is gated the way its action is — a guest gets no customer
+ * request, a recurring issue is not offered "Make recurring" — so the menu never lists
+ * something that would refuse.
+ */
+function detailExtras(
+  issue: { readonly recurring: unknown },
   role: UserRole | null,
   run: {
-    toggleSubscribe(): void;
     makeRecurring(): void;
     editRecurring(): void;
     stopRecurring(): void;
@@ -1487,17 +1636,7 @@ function moreItems(
   },
 ): MenuNode[] {
   return [
-    ...(viewerId === null
-      ? []
-      : [
-          {
-            id: 'subscribe',
-            label: issue.subscribed ? 'Unsubscribe' : 'Subscribe',
-            icon: <BellGlyph />,
-            keys: 'shift+s',
-            onSelect: run.toggleSubscribe,
-          },
-        ]),
+    { kind: 'separator' },
     // Never both halves: an issue is on a schedule or it is not, and a menu offering to make
     // a recurring issue recurring is a menu that has not read the issue.
     ...(issue.recurring === null

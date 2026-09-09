@@ -127,6 +127,15 @@ export interface CreateIssueModalProps {
    * apart and the shortcut looks like it works about half the time.
    */
   onFiling?: ((filing: boolean) => void) | undefined;
+  /**
+   * The issue's id, once the server has taken it.
+   *
+   * "Create related ▸ Blocked issue…" is two writes: the issue, then the relation that says
+   * what it is to the issue it was filed from. Only the second one needs an id, and nothing
+   * outside this dialog knows when there is one — the composer stays open for "create more",
+   * and an opener watching `onClose` would write its relation against the wrong issue or none.
+   */
+  onCreated?: ((issueId: UUID) => void) | undefined;
 }
 
 interface StateOption {
@@ -168,11 +177,18 @@ function isBlankSeed(seed: IssueComposerSeed | undefined): boolean {
     seed.estimate === undefined &&
     seed.cycleId === undefined &&
     seed.projectId === undefined &&
+    seed.parentId === undefined &&
     (seed.labelIds === undefined || seed.labelIds.length === 0)
   );
 }
 
-export function CreateIssueModal({ open = true, onClose, seed, onFiling }: CreateIssueModalProps) {
+export function CreateIssueModal({
+  open = true,
+  onClose,
+  seed,
+  onFiling,
+  onCreated,
+}: CreateIssueModalProps) {
   const engine = useEngine();
   const viewerId = useViewerId();
   const formId = useId();
@@ -823,7 +839,7 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
     const finalEstimate = estimate ?? template?.estimate;
     const finalLabelIds = labelIds.length > 0 ? labelIds : template?.labelIds;
     try {
-      await createIssue(engine, {
+      const createdId = await createIssue(engine, {
         teamId,
         title: resolvedTitle,
         description:
@@ -850,6 +866,9 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
         ...(seed?.projectMilestoneId === undefined
           ? null
           : { projectMilestoneId: seed.projectMilestoneId }),
+        // Carried on the create rather than written afterwards: a child that exists for a
+        // moment without its parent is one the sub-issue panel would draw at top level.
+        ...(seed?.parentId === undefined ? null : { parentId: seed.parentId }),
         ...(resolvedProjectId === null ? null : { projectId: resolvedProjectId }),
         ...(resolvedCycleId === null || !teamRunsCycles ? null : { cycleId: resolvedCycleId }),
         ...(fromTriage ? { fromTriage: true } : null),
@@ -872,6 +891,9 @@ export function CreateIssueModal({ open = true, onClose, seed, onFiling }: Creat
         creatorId: viewerId ?? undefined,
       });
       clearLocalSlot();
+      // After the await and before either exit, so it runs for "create more" as well as for
+      // the close below — both are a filed issue, and only one of them unmounts anything.
+      onCreated?.(createdId);
       if (seed?.draftId !== undefined && !draftCleared.current) {
         draftCleared.current = true;
         void deleteDraft(seed.draftId);

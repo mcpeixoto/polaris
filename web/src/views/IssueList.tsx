@@ -72,7 +72,19 @@ import {
   updateIssues,
   type ReorderTarget,
 } from '~/features/issue/mutations';
+import { copyRich, titleAsLink } from '~/features/issue/copy';
+import { useOptionalCreateIssue } from '~/features/issue/create-context';
+import { RelationFlag } from '~/features/issue/RelationFlag';
+import { blockedBy, blockedTitle } from '~/features/issue/relationLinks';
 import { issueRowMenuItems, type IssuePropertyKind } from '~/features/issue/rowMenu';
+import {
+  applyIssueMenuValue,
+  copySeedOf,
+  createRelatedIssue,
+  markIssueRelation,
+  toggleIssueLabel,
+} from '~/features/issue/rowMenuActions';
+import { useIssueRowMenuOptions } from '~/features/issue/rowMenuOptions';
 import { MilestonePicker } from '~/features/project-milestones/MilestonePicker';
 import { contextMenuPoint, contextMenuPointOn } from '~/hooks/useContextMenu';
 import { useContextMenuHandoff } from '~/hooks/useContextMenuHandoff';
@@ -953,6 +965,19 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
       origin === null || selection.ids.has(origin.id) ? targets : ([origin.id] as readonly UUID[]),
     [origin, selection.ids, targets],
   );
+
+  /*
+   * The candidate lists behind the right-click menu's cascades, and the search box behind
+   * "Mark as". Asked only while the menu is open — `enabled` is what keeps a scrolled list
+   * from ranking every project in the workspace on every frame — and about `actOn`, so the
+   * ticks say what the selection agrees on rather than what the row under the pointer holds.
+   */
+  const { options: rowMenuOptions, reset: resetRowMenu } = useIssueRowMenuOptions({
+    issueId: contextRow?.id ?? null,
+    targets: actOn,
+    enabled: contextOpen,
+  });
+  const createIssue = useOptionalCreateIssue();
 
   /**
    * How the board scrolls one of its cards into view, handed up by `Board` while it is
@@ -1976,6 +2001,9 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
   const closeContext = useCallback(() => {
     const handoff = contextHandoff.consume();
     setContextOpen(false);
+    // Whatever was typed into a "Mark as" box goes with the menu. Left behind, it would be
+    // the eight issues somebody searched for last time, sitting under a box that reads empty.
+    resetRowMenu();
     // A hand-off keeps the anchor — the picker is about to hang off it — and keeps its hands
     // off the focus: the frame below would land after the picker has focused its first item
     // and yank the keyboard straight back out of the menu that just opened.
@@ -1984,7 +2012,7 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
     // After the menu's own restore, not instead of it: it hands focus back to the anchor,
     // which is about to be unmounted, so the list takes it in the following frame.
     requestAnimationFrame(() => scrollRef.current?.focus());
-  }, [contextHandoff]);
+  }, [contextHandoff, resetRowMenu]);
 
   /** A context-menu property item: close the menu, and open the picker where the menu was. */
   const handOffContext = useCallback(
@@ -2605,6 +2633,60 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
               closeContext();
               commands.current.copyGitBranch();
             },
+            copyTitleAsLink: () => {
+              closeContext();
+              const id = contextRow?.id;
+              const row = id === undefined ? undefined : engine.store.get('issue', id);
+              if (row === undefined) return;
+              const identifier = engine.store.identifierOf(row);
+              void copyRich(
+                titleAsLink(identifier, row.title, `${window.location.origin}/issue/${identifier}`),
+              );
+            },
+            /*
+             * A value chosen in a cascade, written straight to `actOn`.
+             *
+             * The picker hand-off above is still here and still reached — the due date's
+             * "Custom date…" opens a calendar, which is a panel and not a list — so the two
+             * paths coexist rather than one replacing the other.
+             */
+            set: (kind, value) => {
+              closeContext();
+              applyIssueMenuValue(engine, actOn, kind, value, viewerId);
+            },
+            toggleLabel: (labelId, applied, displaces) => {
+              closeContext();
+              toggleIssueLabel(
+                engine,
+                actOn,
+                labelId as UUID,
+                applied,
+                displaces as readonly UUID[],
+              );
+            },
+            ...(contextRow === null
+              ? {}
+              : {
+                  markAs: (kind, otherId) => {
+                    closeContext();
+                    markIssueRelation(engine, contextRow.id, kind, otherId as UUID, viewerId);
+                  },
+                }),
+            // Only inside the shell: the composer belongs to it, and a row menu rendered
+            // without one offers no item rather than an item that throws.
+            ...(contextRow === null || createIssue === null
+              ? {}
+              : {
+                  createRelated: (kind) => {
+                    closeContext();
+                    createRelatedIssue(createIssue, engine, contextRow.id, kind, viewerId);
+                  },
+                  makeCopy: () => {
+                    closeContext();
+                    const seed = copySeedOf(engine.store, contextRow.id);
+                    if (seed !== null) createIssue.open(seed);
+                  },
+                }),
             ...(contextIssue.assigneeId === null
               ? {}
               : {
@@ -2647,6 +2729,7 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
             subscribe: 'shift+s',
             copyGitBranch: 'mod+shift+period',
           },
+          rowMenuOptions,
         )}
       />
 
@@ -3434,6 +3517,10 @@ const IssueRow = memo(function IssueRow({
       return {
         identifier: store.identifierOf(found),
         parentIdentifier: parent === undefined ? null : store.identifierOf(parent),
+        // Who is in the way, and only while they still are — `blockedBy` drops a blocker that
+        // has been finished or cancelled, because a flag nobody can act on is a flag people
+        // learn to ignore.
+        blockedBy: blockedBy(store, id),
         title: found.title,
         projectName:
           found.projectId === undefined
@@ -3465,7 +3552,9 @@ const IssueRow = memo(function IssueRow({
         overdue: found.dueDate !== undefined && isOverdue(found.dueDate, zone),
       };
     },
-    ['issue', 'team', 'user', 'workflowState', 'project', 'cycle'],
+    // `issueRelation` for the blocked flag: a blocker linked in another session has to reach
+    // the row it blocks, and that row is subscribed to nothing else that would wake it.
+    ['issue', 'team', 'user', 'workflowState', 'project', 'cycle', 'issueRelation'],
     [id, fullNames],
   );
 
@@ -3536,6 +3625,16 @@ const IssueRow = memo(function IssueRow({
         </span>
       </span>
       <span className={styles.identifier}>{issue.identifier}</span>
+      {/* The flag the relations panel has always drawn, on the row that is actually stuck.
+          `title` for a pointer, `srOnly` for a reader, and the flag itself `aria-hidden`:
+          colour alone must never be the carrier, and a blocked row is exactly the row
+          somebody is scanning for. */}
+      {issue.blockedBy.length === 0 ? null : (
+        <span className={styles.blocked} title={blockedTitle(issue.blockedBy)}>
+          <RelationFlag kind="blockedBy" />
+          <span className={styles.srOnly}>{blockedTitle(issue.blockedBy)}</span>
+        </span>
+      )}
       {issue.parentIdentifier === null ? null : (
         // The parent as a crumb rather than as an indent alone: an indent says "this is under
         // something" and does not say what, which in a filtered list is the only half of the

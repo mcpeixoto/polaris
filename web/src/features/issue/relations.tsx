@@ -57,34 +57,23 @@ import {
 } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { copyText } from '~/features/github/copy';
+import { copyRich, titleAsLink } from './copy';
 import { personName } from '~/features/prefs/prefs';
 import { useContextMenu } from '~/hooks/useContextMenu';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewerId } from '~/hooks/useViewer';
-import {
-  subIssueProgress,
-  type RelationType,
-  type StateCategory,
-  type Store,
-  type UUID,
-} from '~/store';
+import { subIssueProgress, type StateCategory, type Store, type UUID } from '~/store';
 
 import { CrossGlyph, PlusGlyph, UnassignedGlyph } from './glyphs';
-import { createRelation, createSubIssue, deleteRelation, report, updateIssue } from './mutations';
+import { createSubIssue, deleteRelation, report, updateIssue } from './mutations';
 import { AssigneePicker, StatusPicker } from './pickers';
+import { RelationFlag } from './RelationFlag';
+import { kindOf, markIssueAs, searchIssues, type RelationKind } from './relationLinks';
 import { issueRowMenuItems, type IssuePropertyKind } from './rowMenu';
+import { applyIssueMenuValue } from './rowMenuActions';
+import { useIssueRowMenuOptions } from './rowMenuOptions';
 import styles from './relations.module.css';
-
-/**
- * How many issues the link picker offers at once.
- *
- * It is the one picker in the product whose candidate set is the whole corpus, and it renders
- * inline under a search box rather than in a scrolling menu — so the cap is a handful rather
- * than the fifty the filter bar allows itself. Past that the answer is to type more, which is
- * why there is a box.
- */
-const MAX_RESULTS = 8;
 
 /* ---------------------------------------------------------------------------------------
  * Sub-issues.
@@ -421,6 +410,7 @@ function SubIssueRow({ child, onRemove }: { child: Child; onRemove: () => void }
   const assignee = useMenuTrigger();
   const row = useRef<HTMLLIElement>(null);
   const context = useContextMenu({ returnFocusTo: row });
+  const rowMenu = useIssueRowMenuOptions({ issueId: child.id, enabled: context.at !== null });
 
   const assigneeName = child.assigneeName ?? 'Unassigned';
 
@@ -444,10 +434,35 @@ function SubIssueRow({ child, onRemove }: { child: Child; onRemove: () => void }
       },
       open: () => void navigate(`/issue/${child.identifier}`),
       copyLink: () => void copyText(`${window.location.origin}/issue/${child.identifier}`),
+      copyIdentifier: () => void copyText(child.identifier),
+      copyTitle: () => void copyText(child.title),
+      copyTitleAsLink: () =>
+        void copyRich(
+          titleAsLink(
+            child.identifier,
+            child.title,
+            `${window.location.origin}/issue/${child.identifier}`,
+          ),
+        ),
+      // The two properties this panel has pickers for, written straight from the cascade
+      // rather than handed off. Everything else in `options` is left out below, so the
+      // builder falls back to a hand-off item and `UNSERVED_PROPERTIES` drops it.
+      set: (kind, value) => {
+        context.close();
+        applyIssueMenuValue(engine, [child.id], kind, value, viewerId ?? null);
+      },
     },
     // Per-surface and never defaulted. This panel has no chord that acts on a *child* — `S`
     // and `A` belong to the issue being viewed — so it draws none. See `IssueRowMenuChords`.
     {},
+    // Status and assignee are the two the panel can answer for; the rest of the lists are
+    // absent on purpose, because a project picker mounted per child is a live query per row.
+    {
+      states: rowMenu.options.states,
+      stateId: rowMenu.options.stateId,
+      people: rowMenu.options.people,
+      assigneeId: rowMenu.options.assigneeId,
+    },
   ).filter((node) => !('id' in node) || !UNSERVED_PROPERTIES.has(node.id));
 
   // Detaching is not deleting, and the shared builder's danger item says "Delete ENG-2".
@@ -567,41 +582,6 @@ function SubIssueRow({ child, onRemove }: { child: Child; onRemove: () => void }
  * Relations.
  */
 
-/**
- * The five ways one issue can be linked to another, as a reader meets them.
- *
- * Five, from three stored types, because two of them read differently from each end. That is
- * the asymmetry the whole panel exists to hide: the reader thinks in "blocked by" and the
- * database only knows "blocks".
- */
-type RelationKind = 'blockedBy' | 'blocking' | 'related' | 'duplicateOf' | 'duplicatedBy';
-
-/**
- * The flag beside a section heading, or nothing.
- *
- * Only the two blocking kinds carry one. A flag on "Related" would be decoration, and a
- * palette where everything is marked marks nothing — these two exist because they are the
- * only relations that say work cannot proceed.
- *
- * `aria-hidden`, because the heading it sits in already says "Blocked by" in words. A screen
- * reader that also announced an image here would read the same fact twice.
- */
-function RelationFlag({ kind }: { kind: RelationKind }) {
-  if (kind !== 'blockedBy' && kind !== 'blocking') return null;
-  const tone = kind === 'blockedBy' ? styles.flagBlocked : styles.flagBlocking;
-  return (
-    <svg
-      className={[styles.flag, tone].join(' ')}
-      viewBox="0 0 12 12"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path d="M3 1.5v9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-      <path d="M3 2.25h5.5L7 4.5l1.5 2.25H3z" fill="currentColor" />
-    </svg>
-  );
-}
-
 const KIND_HEADINGS: Readonly<Record<RelationKind, string>> = {
   blockedBy: 'Blocked by',
   blocking: 'Blocking',
@@ -659,31 +639,6 @@ const ADD_ACTIONS: readonly {
   { kind: 'duplicateOf', id: 'issueDetail.markDuplicateOf', title: 'Mark as duplicate of…' },
 ];
 
-interface NewLink {
-  readonly issueId: UUID;
-  readonly relatedIssueId: UUID;
-  readonly type: RelationType;
-}
-
-/**
- * Which row to write for each thing a person can add, and which way round.
- *
- * `blockedBy` is the load-bearing entry: there is no inverse type, so a blocker is a `blocks`
- * row with the two ids the other way about. Getting this backwards produces a relation that is
- * present, well-formed and says the opposite of what the user asked for — which is why it has
- * a test of its own.
- *
- * `related` is handed over in the order it was given. `createRelation` normalises the pair to
- * smaller-id-first because that is how the server stores it, and doing it here as well would be
- * a second copy of a rule that must not be able to disagree with itself.
- */
-const NEW_LINK: Readonly<Record<string, (issueId: UUID, otherId: UUID) => NewLink>> = {
-  blockedBy: (issueId, otherId) => ({ issueId: otherId, relatedIssueId: issueId, type: 'blocks' }),
-  blocking: (issueId, otherId) => ({ issueId, relatedIssueId: otherId, type: 'blocks' }),
-  related: (issueId, otherId) => ({ issueId, relatedIssueId: otherId, type: 'related' }),
-  duplicateOf: (issueId, otherId) => ({ issueId, relatedIssueId: otherId, type: 'duplicate' }),
-};
-
 interface RelationRow {
   readonly relationId: UUID;
   readonly kind: RelationKind;
@@ -707,12 +662,6 @@ interface RelationRow {
   readonly color: string | undefined;
   /** The other end's team, when it is known. Named on every row: a link crosses teams often. */
   readonly teamName: string | null;
-}
-
-interface Candidate {
-  readonly id: UUID;
-  readonly identifier: string;
-  readonly title: string;
 }
 
 export interface RelationsProps {
@@ -787,48 +736,30 @@ export function Relations({ issueId, className }: RelationsProps) {
   );
 
   /**
-   * Writes the link, and — for a duplicate — closes the issue it was written from.
+   * Writes the link, and puts the box back when the server refuses it.
    *
-   * Marking something a duplicate is a decision about the issue's *status* as much as about
-   * its neighbours: 03-issue-properties.md has the duplicate taking the team's reserved
-   * Duplicate status, and until now the panel wrote the relation row alone and left the issue
-   * open in every list it was in. The status is system-managed and `StatusPicker` deliberately
-   * refuses to offer it, so this is the only way it is ever reached from the client — which is
-   * why it happens here rather than being left to whoever notices.
-   *
-   * The relation is the write that matters, so the status follows it rather than gating it: a
-   * team whose replica has not yet received its Duplicate state still gets the link, and gets
-   * the status from the server's own side of the same decision.
-   *
-   * A refusal restores the search box with what was typed. The optimistic row is rolled back,
-   * and a link that appears and then silently leaves is the failure this panel had.
+   * The write itself — which row, which way round, and the status a duplicate also takes —
+   * is `markIssueAs`, shared with the row context menu. What stays here is this panel's own
+   * behaviour on a refusal: the optimistic row is rolled back, and a link that appears and
+   * then silently leaves is the failure this panel had.
    */
   const link = (otherId: UUID) => {
-    const make = NEW_LINK[kind];
-    if (make === undefined) return;
     const typed = query;
     const linking = kind;
     setQuery('');
     setAdding(false);
     setRefusal(null);
-    createRelation(engine, { ...make(issueId, otherId), createdBy: viewerId ?? undefined })
-      .then(() => {
-        if (linking !== 'duplicateOf') return;
-        const stateId = duplicateStateFor(engine.store, issueId);
-        if (stateId === null) return;
-        return updateIssue(engine, issueId, { stateId });
-      })
-      .catch((error: unknown) => {
-        report(error);
-        setKind(linking);
-        setAdding(true);
-        setQuery(typed);
-        setRefusal(
-          error instanceof ApiError && error.message !== ''
-            ? error.message
-            : 'That link could not be added.',
-        );
-      });
+    markIssueAs(engine, issueId, linking, otherId, viewerId ?? null).catch((error: unknown) => {
+      report(error);
+      setKind(linking);
+      setAdding(true);
+      setQuery(typed);
+      setRefusal(
+        error instanceof ApiError && error.message !== ''
+          ? error.message
+          : 'That link could not be added.',
+      );
+    });
   };
 
   const unlink = (relationId: UUID, label: string) => {
@@ -1033,25 +964,6 @@ function RelationSubject({ row }: { row: RelationRow }) {
   );
 }
 
-/**
- * The team's reserved Duplicate status, or null when this replica cannot name it.
- *
- * One per team and system-managed — `domain.seedReservedStatuses` creates it — so it is found
- * by category and by the `isSystem` flag rather than by name, which a team may not rename but
- * a future one might. Null is a real answer: a team whose statuses have not arrived yet, or an
- * issue that has left the replica, and in both cases the link is still worth writing.
- */
-function duplicateStateFor(store: Store, issueId: UUID): UUID | null {
-  const issue = store.issues.get(issueId);
-  if (issue === undefined) return null;
-  for (const id of store.workflowStateIdsFor(issue.teamId)) {
-    const state = store.get('workflowState', id);
-    if (state === undefined || state.archivedAt !== undefined) continue;
-    if (state.category === 'duplicate' && state.isSystem) return state.id;
-  }
-  return null;
-}
-
 /** Reads one relation row from the end this issue is standing at, and appends it. */
 function collect(store: Store, out: RelationRow[], relationId: UUID, fromOtherEnd: boolean): void {
   const relation = store.get('issueRelation', relationId);
@@ -1097,71 +1009,4 @@ function collect(store: Store, out: RelationRow[], relationId: UUID, fromOtherEn
     color: state?.color,
     teamName,
   });
-}
-
-/**
- * Which section a stored row belongs in, given which end of it this issue is.
- *
- * The comparisons are against the store's lower-case spelling and must stay that way. GraphQL
- * declares `RelationType` and its values are `BLOCKS`, `RELATED`, `DUPLICATE`; the client
- * converts at its boundary in `~/gql/enums`. A reader here that compared against the wire form
- * would match nothing at all for a relation that is sitting right there in the replica.
- */
-function kindOf(type: RelationType, fromOtherEnd: boolean): RelationKind | null {
-  switch (type) {
-    case 'blocks':
-      return fromOtherEnd ? 'blockedBy' : 'blocking';
-    case 'related':
-      // Symmetric: the row is stored smaller-id-first, so this issue is at whichever end that
-      // put it, and both readings are the same word.
-      return 'related';
-    case 'duplicate':
-      return fromOtherEnd ? 'duplicatedBy' : 'duplicateOf';
-    default:
-      // A newer server may stream a type this build has never heard of. Dropping the row is
-      // better than inventing a heading for it.
-      return null;
-  }
-}
-
-/**
- * Issues that could be linked to this one, by identifier or by title.
- *
- * Two narrowings, because the two things a person types are indexed differently. Titles come
- * out of the trigram index — that is what `store.index.search` is — so a workspace of five
- * thousand issues costs a set intersection rather than a scan. Identifiers cannot: they are
- * derived from the team key at read time and are in no index at all, so they are a walk, and
- * the walk stops at `MAX_RESULTS` rather than at the end of the corpus.
- *
- * Anything already linked is left out. Offering it would produce a duplicate row on the server
- * or a silent no-op, and neither of those is a thing the person clicking it asked for.
- */
-function searchIssues(store: Store, issueId: UUID, query: string): Candidate[] {
-  const needle = query.trim().toLowerCase();
-  // Nothing until something is typed. The alternative is an arbitrary eight issues appearing
-  // under the box, which reads as a suggestion the product is not in a position to make.
-  if (needle === '') return [];
-
-  const linked = new Set<UUID>([issueId]);
-  for (const id of store.relationIdsFrom(issueId)) {
-    const row = store.get('issueRelation', id);
-    if (row !== undefined) linked.add(row.relatedIssueId);
-  }
-  for (const id of store.relationIdsTo(issueId)) {
-    const row = store.get('issueRelation', id);
-    if (row !== undefined) linked.add(row.issueId);
-  }
-
-  const byTitle = store.index.search(needle);
-  const found: Candidate[] = [];
-  for (const issue of store.issues.values()) {
-    if (issue.archivedAt !== undefined || linked.has(issue.id)) continue;
-    const identifier = store.identifierOf(issue);
-    if (!byTitle.has(issue.id) && !identifier.toLowerCase().includes(needle)) continue;
-    found.push({ id: issue.id, identifier, title: issue.title });
-    if (found.length >= MAX_RESULTS) break;
-  }
-  // Ordered within the page rather than across the corpus: which eight you get is the store's
-  // order, and typing more is how you reach a particular one.
-  return found.sort((a, b) => a.identifier.localeCompare(b.identifier));
 }

@@ -100,6 +100,7 @@ export interface AppShellProps {
     onClose: () => void;
     seed?: IssueComposerSeed;
     onFiling: (filing: boolean) => void;
+    onCreated: (issueId: UUID) => void;
   }) => ReactNode;
   /**
    * Same split as create-issue: the action is global (command menu from any screen) and
@@ -458,9 +459,14 @@ export function AppShell({
 
   /** What the current sitting's opener asked to be told when the composer shuts. */
   const onComposerClosed = useRef<(() => void) | undefined>(undefined);
+  /** What this sitting's opener asked to be told when the issue is actually filed. */
+  const onComposerCreated = useRef<((issueId: UUID) => void) | undefined>(undefined);
 
   const openCreate = useCallback(
-    (seed?: IssueComposerSeed, options?: { onClosed?: () => void }) => {
+    (
+      seed?: IssueComposerSeed,
+      options?: { onClosed?: () => void; onCreated?: (issueId: UUID) => void },
+    ) => {
       // Asking for a composer that is already up is asking for something you have. Starting a
       // new sitting here would throw away a half-written issue, so the request is dropped and
       // the dialog on screen keeps the floor. The caller is told, because a screen that opened
@@ -471,6 +477,7 @@ export function AppShell({
       composerFiling.current = false;
       currentSitting.current += 1;
       onComposerClosed.current = options?.onClosed;
+      onComposerCreated.current = options?.onCreated;
       setSitting(currentSitting.current);
       setCreateSeed(seed);
       setCreateOpen(true);
@@ -490,6 +497,7 @@ export function AppShell({
       setCreateSeed(undefined);
       const closed = onComposerClosed.current;
       onComposerClosed.current = undefined;
+      onComposerCreated.current = undefined;
       closed?.();
       if (pathname === '/new' || /\/team\/[^/]+\/new$/.test(pathname)) {
         void navigate('/');
@@ -1698,6 +1706,7 @@ export function AppShell({
             onFiling: (filing: boolean) => {
               composerFiling.current = filing;
             },
+            onCreated: (issueId: UUID) => onComposerCreated.current?.(issueId),
           })}
         </Fragment>
         {/*

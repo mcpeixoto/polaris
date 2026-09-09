@@ -48,7 +48,17 @@ import {
   updateIssueProperties,
   setSubscribed,
 } from '~/features/issue/mutations';
+import { copyRich, titleAsLink } from '~/features/issue/copy';
+import { useOptionalCreateIssue } from '~/features/issue/create-context';
 import { issueRowMenuItems, type IssuePropertyKind } from '~/features/issue/rowMenu';
+import {
+  applyIssueMenuValue,
+  copySeedOf,
+  createRelatedIssue,
+  markIssueRelation,
+  toggleIssueLabel,
+} from '~/features/issue/rowMenuActions';
+import { useIssueRowMenuOptions } from '~/features/issue/rowMenuOptions';
 import { isFavorite, toggleFavorite } from '~/features/view/mutations';
 import { exact, when } from '~/features/time';
 import { useContextMenu } from '~/hooks/useContextMenu';
@@ -159,6 +169,16 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
   const factRefs = useRef<Partial<Record<IssuePropertyKind, HTMLButtonElement | null>>>({});
 
   const context = useContextMenu<UUID>();
+  const createIssue = useOptionalCreateIssue();
+  /*
+   * The cascades, about the one issue this panel shows — never about the list's selection.
+   * Peek draws one issue, and a status chosen here with six rows selected would write six
+   * while showing the reader one.
+   */
+  const { options: rowMenuOptions, reset: resetRowMenu } = useIssueRowMenuOptions({
+    issueId,
+    enabled: context.at !== null,
+  });
 
   const write = useCallback(
     (fields: Parameters<typeof updateIssue>[2]) => {
@@ -500,7 +520,10 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
           <div {...context.anchorProps} />
           <Menu
             open
-            onClose={context.close}
+            onClose={() => {
+              context.close();
+              resetRowMenu();
+            }}
             trigger={context.anchorRef}
             label="Issue actions"
             keysPresentation="kbd"
@@ -532,6 +555,42 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
                 copyLink: () =>
                   void copyText(`${window.location.origin}/issue/${issue.identifier}`),
                 copyIdentifier: () => void copyText(issue.identifier),
+                copyTitle: () => void copyText(issue.title),
+                copyTitleAsLink: () =>
+                  void copyRich(
+                    titleAsLink(
+                      issue.identifier,
+                      issue.title,
+                      `${window.location.origin}/issue/${issue.identifier}`,
+                    ),
+                  ),
+                set: (kind, value) => {
+                  applyIssueMenuValue(engine, [issueId], kind, value, viewerId);
+                },
+                toggleLabel: (labelId, applied, displaces) => {
+                  toggleIssueLabel(
+                    engine,
+                    [issueId],
+                    labelId as UUID,
+                    applied,
+                    displaces as readonly UUID[],
+                  );
+                },
+                markAs: (kind, otherId) => {
+                  markIssueRelation(engine, issueId, kind, otherId as UUID, viewerId);
+                },
+                // Only inside the shell, which owns the composer these two open.
+                ...(createIssue === null
+                  ? {}
+                  : {
+                      createRelated: (kind) => {
+                        createRelatedIssue(createIssue, engine, issueId, kind, viewerId);
+                      },
+                      makeCopy: () => {
+                        const seed = copySeedOf(engine.store, issueId);
+                        if (seed !== null) createIssue.open(seed);
+                      },
+                    }),
                 ...(issue.assigneeId === null
                   ? {}
                   : {
@@ -557,6 +616,7 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
                 },
               },
               CHORDS,
+              rowMenuOptions,
             )}
           />
         </>
