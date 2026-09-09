@@ -482,11 +482,14 @@ export function InitiativeDetail() {
               </div>
             </dl>
             <ProgressBar progress={progress} label={initiative.name} />
-            <p className={styles.muted}>
-              {progress.total === 0
-                ? 'No issues in the linked projects yet.'
-                : `${progress.completed} of ${progress.total} issues completed.`}
-            </p>
+            {/* Only once there is something to count. With no issues the bar already says
+                "No issues", and a sentence under it saying so again is the third thing on
+                this panel making the same claim. */}
+            {progress.total === 0 ? null : (
+              <p className={styles.muted}>
+                {progress.completed} of {progress.total} issues completed
+              </p>
+            )}
             <InitiativeGraph initiativeId={initiative.id} />
           </InitiativeRailSection>
         </aside>
