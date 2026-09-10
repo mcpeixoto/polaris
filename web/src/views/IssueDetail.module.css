@@ -527,17 +527,13 @@
 }
 
 /*
- * Comments are markdown text, shown as written until the M2 editor lands. `pre-wrap` is what
- * makes that honest: the paragraph breaks somebody typed are the paragraph breaks that get
- * read, rather than being collapsed into one block by HTML's whitespace rules.
+ * Comments are markdown, rendered through the shared Markdown component. Spacing and
+ * emphasis come from that stylesheet; this only sizes the body to the thread.
  */
 .commentBody {
-  margin: 0;
   color: var(--text-primary);
   font-size: var(--font-size-md);
   line-height: var(--line-height-normal);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 
 /*

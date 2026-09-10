@@ -42,7 +42,20 @@ export interface InlineLink {
   readonly children: readonly Inline[];
 }
 
-export type Inline = InlineText | InlineStrong | InlineEmphasis | InlineCode | InlineLink;
+/**
+ * A person named in the body: `@[Display Name](user:<uuid>)`.
+ *
+ * Rendered as `@Name` rather than as a URL, because `user:` is not a scheme a browser can
+ * follow — and because the id is what the notify path keys on, not what a reader needs to see.
+ */
+export interface InlineMention {
+  readonly kind: 'mention';
+  readonly userId: string;
+  readonly name: string;
+}
+
+export type Inline =
+  InlineText | InlineStrong | InlineEmphasis | InlineCode | InlineLink | InlineMention;
 
 export interface HeadingBlock {
   readonly kind: 'heading';
@@ -89,6 +102,8 @@ export type Block = HeadingBlock | ParagraphBlock | CodeBlock | ListBlock | Quot
  */
 const SAFE_SCHEME = /^(https?:|mailto:)/i;
 const HAS_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+const MENTION =
+  /^@\[([^\]]*)\]\(user:([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\)/;
 
 export function safeHref(href: string): string | null {
   const trimmed = href.trim();
@@ -231,6 +246,20 @@ export function parseInline(source: string): readonly Inline[] {
       flush();
       nodes.push({ kind: 'code', text: code[1] ?? '' });
       index += code[0].length;
+      continue;
+    }
+
+    // Mentions before ordinary links: both use `[…](…)`, and the leading `@` is what makes
+    // this the notify token rather than a URL somebody wrote by hand.
+    const mention = MENTION.exec(rest);
+    if (mention !== null) {
+      flush();
+      nodes.push({
+        kind: 'mention',
+        name: mention[1] ?? '',
+        userId: mention[2] ?? '',
+      });
+      index += mention[0].length;
       continue;
     }
 

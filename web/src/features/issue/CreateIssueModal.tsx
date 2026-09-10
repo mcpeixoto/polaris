@@ -57,9 +57,9 @@ import {
   StateIcon,
   STATE_LABELS,
   Switch,
-  Textarea,
   type MenuNode,
 } from '~/components';
+import { WritingField } from '~/editor/WritingField';
 import { createDraft, deleteDraft, updateDraft } from '~/features/drafts/mutations';
 import { estimateLabel, estimateOptions, estimatesEnabled } from '~/features/estimate';
 import { EntityIcon } from '~/features/icon/EntityIcon';
@@ -1338,7 +1338,7 @@ export function CreateIssueModal({
             }
           />
 
-          <Textarea
+          <WritingField
             ref={descriptionRef}
             label="Description"
             hideLabel
@@ -1352,7 +1352,7 @@ export function CreateIssueModal({
                 ? 'Type over the ⟦prompts⟧, then create'
                 : 'Add description…'
             }
-            onChange={(event) => setDescription(event.target.value)}
+            onChange={setDescription}
           />
           {template === null || template.subIssues.length === 0 ? null : (
             <p className={styles.dropped}>
