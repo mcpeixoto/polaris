@@ -242,10 +242,14 @@ npx prettier --check "web/src/**/*.{ts,tsx,css}" "web/e2e/**/*.ts" "ee/web/**/*.
 pnpm -C web typecheck
 pnpm -C web test --run
 pnpm -C web e2e
-go vet ./... && go test ./... -race
+go vet ./... && go test ./...
 ./scripts/lint-imports.sh && ./scripts/lint-keymap.sh && ./scripts/lint-tokens.sh \
   && ./scripts/lint-routes.sh && ./scripts/lint-compose.sh && node scripts/lint-menu-chords.mjs
 ```
+
+Local Go matches `make test-go` (cache allowed, no race detector). CI `go` / `go-ee`
+jobs still run `go test ./... -race -count=1`; `make test-go-race` is the local parity
+check.
 
 Every colour is a `var(--token)`; every shortcut goes through the keymap registry. The
 discipline lints are gates, not suggestions.

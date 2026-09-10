@@ -15,6 +15,7 @@ services/api
 services/sync
 services/worker
 web/dist/
+web/dist-ee/
 desktop/dist/
 sdk/dist/
 # Packaged installers. A single macOS dmg is ~95 MB and the unpacked app is several hundred;

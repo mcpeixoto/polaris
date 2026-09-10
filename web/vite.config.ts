@@ -10,10 +10,33 @@ import { aliases } from './edition';
 const API_TARGET = process.env.POLARIS_API_URL ?? 'http://localhost:8088';
 const SYNC_TARGET = process.env.POLARIS_SYNC_URL ?? 'ws://localhost:8089';
 
-// The dev server proxies the API and the socket so the browser sees ONE origin, exactly
-// as it will in production behind Caddy or nginx. Developing against two origins would
-// mean cookies and CORS behave differently in development than in production — which is
-// how an auth bug reaches staging.
+// The same proxy table for `vite` and `vite preview`. Preview does not inherit
+// server.proxy, and e2e in CI serves a production build — without this, GraphQL and
+// the socket would 404 on the preview origin while `pnpm dev` still worked.
+//
+// The browser sees ONE origin, exactly as it will in production behind Caddy or nginx.
+// Developing against two origins would mean cookies and CORS behave differently in
+// development than in production — which is how an auth bug reaches staging.
+const proxy = {
+  '/graphql': API_TARGET,
+  '/auth': API_TARGET,
+  '/oauth/token': API_TARGET,
+  '/oauth/revoke': API_TARGET,
+  // Not '/oauth': /oauth/authorize is the consent screen and must stay with the SPA,
+  // the same split the Caddyfile makes at the edge.
+  '/oauth/register': API_TARGET,
+  '/mcp': API_TARGET,
+  '/agent': API_TARGET,
+  '/files': API_TARGET,
+  '/asks': API_TARGET,
+  '/billing': API_TARGET,
+  '/webhooks': API_TARGET,
+  '/calendars': API_TARGET,
+  '/.well-known': API_TARGET,
+  '/sync/bootstrap': API_TARGET,
+  '/sync': { target: SYNC_TARGET, ws: true },
+};
+
 export default defineConfig({
   plugins: [react()],
   // `@ee` resolves to the commercial modules or to the stubs that stand in for them,
@@ -25,25 +48,13 @@ export default defineConfig({
     host: true,
     port: 5173,
     strictPort: true,
-    proxy: {
-      '/graphql': API_TARGET,
-      '/auth': API_TARGET,
-      '/oauth/token': API_TARGET,
-      '/oauth/revoke': API_TARGET,
-      // Not '/oauth': /oauth/authorize is the consent screen and must stay with the SPA,
-      // the same split the Caddyfile makes at the edge.
-      '/oauth/register': API_TARGET,
-      '/mcp': API_TARGET,
-      '/agent': API_TARGET,
-      '/files': API_TARGET,
-      '/asks': API_TARGET,
-      '/billing': API_TARGET,
-      '/webhooks': API_TARGET,
-      '/calendars': API_TARGET,
-      '/.well-known': API_TARGET,
-      '/sync/bootstrap': API_TARGET,
-      '/sync': { target: SYNC_TARGET, ws: true },
-    },
+    proxy,
+  },
+  preview: {
+    host: true,
+    port: 5173,
+    strictPort: true,
+    proxy,
   },
   build: {
     target: 'es2022',

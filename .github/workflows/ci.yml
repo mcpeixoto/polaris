@@ -153,33 +153,52 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: npx prettier --check "web/src/**/*.{ts,tsx,css}" "web/e2e/**/*.ts" "web/*.{ts,json}" "ee/web/**/*.{ts,tsx,css}" "desktop/src/**/*.{ts,cts}"
-      - run: pnpm -C web typecheck
-      # The desktop shell's two tsc invocations. They ran in no workflow at all: ci.yml
-      # prettier-checks these files and lint-desktop.sh only reads electron-builder.yml, and
-      # desktop.yml — which compiles them as a side effect of packaging — does not trigger on
-      # every pull request. A couple of seconds for the one check that reads main.ts.
-      - run: pnpm -C desktop lint
-      # The enterprise resolution of `@ee`. tsconfig.json pins the alias to the stubs so that
-      # the ordinary typecheck has something that always exists to check against — which
-      # means the commercial modules are not compiled by the line above at all, and would
-      # otherwise first be compiled inside the release build.
-      - run: pnpm -C web typecheck:ee
-      - run: pnpm -C web lint
-      # An optimistic create under a stand-in id that nothing can pair with the server's row.
-      # Five features shipped that independently and each was found by a user seeing their
-      # own comment twice. `SyncEngine.mutate` asserts the same rule at runtime; this is the
-      # half that reaches code no test runs.
-      - run: node scripts/lint-optimistic-reconcile.mjs
-      # The iOS client writes its GraphQL as Swift string literals, so a renamed field still
-      # compiles and fails at runtime on a device, inside a 200 response. Nothing else in CI
-      # reads those documents.
-      - run: node scripts/lint-ios-graphql.mjs
+      # Independent checks overlapped: none of these write a shared artefact the next
+      # one needs. Fail the job if any pid fails. Why each exists:
+      #
+      # prettier — a separate CI step rather than part of `pnpm -r lint`; a branch that
+      # skips it still fails.
+      # typecheck — the community TypeScript graph, including e2e.
+      # desktop lint — the desktop shell's two tsc invocations. They ran in no workflow
+      # at all: ci.yml prettier-checks these files and lint-desktop.sh only reads
+      # electron-builder.yml, and desktop.yml — which compiles them as a side effect of
+      # packaging — does not trigger on every pull request. A couple of seconds for the
+      # one check that reads main.ts.
+      # typecheck:ee — the enterprise resolution of `@ee`. tsconfig.json pins the alias
+      # to the stubs so that the ordinary typecheck has something that always exists to
+      # check against — which means the commercial modules are not compiled by that line
+      # at all, and would otherwise first be compiled inside the release build.
+      # web lint — eslint on web and ee/web.
+      # lint-optimistic-reconcile — an optimistic create under a stand-in id that
+      # nothing can pair with the server's row. Five features shipped that independently
+      # and each was found by a user seeing their own comment twice. `SyncEngine.mutate`
+      # asserts the same rule at runtime; this is the half that reaches code no test runs.
+      # lint-ios-graphql — the iOS client writes its GraphQL as Swift string literals, so
+      # a renamed field still compiles and fails at runtime on a device, inside a 200
+      # response. Nothing else in CI reads those documents.
+      - name: Lint and typecheck
+        run: |
+          set -euo pipefail
+          pids=()
+          npx prettier --check "web/src/**/*.{ts,tsx,css}" "web/e2e/**/*.ts" "web/*.{ts,json}" "ee/web/**/*.{ts,tsx,css}" "desktop/src/**/*.{ts,cts}" & pids+=($!)
+          pnpm -C web typecheck & pids+=($!)
+          pnpm -C web typecheck:ee & pids+=($!)
+          pnpm -C desktop lint & pids+=($!)
+          pnpm -C web lint & pids+=($!)
+          node scripts/lint-optimistic-reconcile.mjs & pids+=($!)
+          node scripts/lint-ios-graphql.mjs & pids+=($!)
+          fail=0
+          for pid in "${pids[@]}"; do
+            wait "$pid" || fail=1
+          done
+          exit "$fail"
       - run: pnpm -C web test -- --run
       # The same suite resolved against the commercial modules, plus their own specs.
       # A core run resolves `@ee` to the stubs, so without this the enterprise bundle's
       # components are never rendered by any test — and the bundle the cloud serves is the
       # enterprise one.
+      #
+      # Sequential on purpose: two full suites in parallel on a 4-core runner oversubscribe.
       - run: pnpm -C web test:ee
       # The community bundle, and then the assertion that it does not contain the
       # commercial one. This is the web half of scripts/lint-editions.sh: that script reads
@@ -190,7 +209,10 @@ jobs:
       # community bundle. A commercial module that leaked in through a stray import would
       # bring its documents with it, and operation names survive minification because they
       # are string literals sent to the server.
-      - run: pnpm -C web build
+      #
+      # `vite build` only — skip `tsc -b`; typecheck already ran. `pnpm -C web build`
+      # would typecheck again.
+      - run: pnpm -C web exec vite build
       - name: Fail if the community bundle contains commercial code
         run: |
           set -euo pipefail
@@ -216,7 +238,10 @@ jobs:
       # Proves the enterprise client actually bundles. `tsc` and vitest both accept a
       # missing CSS module import; only the bundler notices — see the note on `build-web`
       # in the Makefile, which is there because that exact state reached this repository.
-      - run: POLARIS_EDITION=ee pnpm -C web build
+      #
+      # `--outDir dist-ee` so this build does not clobber web/dist, which the community
+      # leak check just read. Skip `tsc -b` here too.
+      - run: POLARIS_EDITION=ee pnpm -C web exec vite build --outDir dist-ee
 
   e2e:
     name: End-to-end — the browser-only acceptance tests
@@ -269,6 +294,22 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Browser binaries keyed on the resolved Playwright version in the lockfile, not
+      # the range in package.json. A hit skips the download; a miss still runs
+      # `playwright install --with-deps chromium` below.
+      - name: Playwright version from lockfile
+        id: playwright
+        run: |
+          version=$(grep -m1 -oE "'@playwright/test@[0-9]+\.[0-9]+\.[0-9]+'" pnpm-lock.yaml | tr -d "'" | cut -d@ -f3)
+          if [ -z "$version" ]; then
+            echo "::error::could not read @playwright/test version from pnpm-lock.yaml"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-ms-playwright-${{ steps.playwright.outputs.version }}
       # `--with-deps` runs `apt-get update`, which reads every repo the runner image has
       # configured — including Google's Chrome one, which periodically serves a Packages.gz
       # whose hash disagrees with its own Release file and fails the whole update. Playwright
