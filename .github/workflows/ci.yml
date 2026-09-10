@@ -278,6 +278,12 @@ jobs:
       # mode — an invitation is redeemed on the register call whether or not open signup is
       # allowed.
       POLARIS_REGISTRATION_MODE: open
+      # Four Playwright workers each mint an account per test, and the anonymous budget
+      # (120/min by default) is keyed by address — every worker shares 127.0.0.1. Under that
+      # cap the suite fails on `/auth/register` with RATELIMITED mid-run, which is a limiter
+      # doing its job against a trusted local process rather than an attacker. Raise it for
+      # CI only; production keeps the default.
+      POLARIS_RATE_LIMIT_ANON_REQUESTS: '10000'
       # POLARIS_ENV=development would otherwise mint a loopback session for
       # whoever owns the oldest workspace. The suite drives the sign-in form
       # and invitation links; auto-login hides both.
