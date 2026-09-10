@@ -102,6 +102,18 @@ func run() error {
 	svc.SetAgentEnabled(cfg.AgentEnabled())
 	svc.SetAgentMetered(cfg.AICreditsEnabled)
 
+	// Billing says nothing when it is off, which is right for a self-host and expensive
+	// for a deployment that meant to sell something: Settings -> Billing reports there is
+	// nothing to buy, and no log line names the variable that would change it. Half-set
+	// credentials are the case worth a warning — somebody was mid-setup and the product
+	// has been quietly refusing money since.
+	if cfg.BillingHalfConfigured() {
+		log.Warn("billing stays off until every required variable is set; no checkout is offered",
+			"missing", strings.Join(cfg.BillingMissing(), ", "))
+	} else {
+		log.Info("billing", "enabled", cfg.BillingEnabled())
+	}
+
 	router := httpapi.NewRouter(httpapi.Deps{
 		Service:     svc,
 		Tokens:      tokens,

@@ -265,6 +265,25 @@ For a hosted deployment, in Stripe:
 4. Put the secret key in `POLARIS_STRIPE_SECRET_KEY`. It is a credential: it belongs in the
    same place as `POLARIS_JWT_SECRET`, never in the repository.
 
+Three of those are load-bearing — `POLARIS_STRIPE_SECRET_KEY`,
+`POLARIS_STRIPE_WEBHOOK_SECRET` and `POLARIS_STRIPE_PRICE_PRO_MONTHLY`. Anything short of
+all three leaves billing off, deliberately: a deployment that can charge a card but cannot
+verify the event confirming it would leave a paying customer on the free plan.
+
+To check what a running deployment made of them:
+
+```
+curl https://<your host>/billing/config     # {"enabled":true} once all three are set
+```
+
+`api` answers the same question at startup. All three empty logs `billing enabled=false`
+and nothing more, because that is the ordinary self-host. Some but not all of them set logs
+a warning naming the ones still empty — the state that otherwise presents as a Billing page
+saying there is nothing to buy, with nothing anywhere explaining why.
+
+Remember the variables reach the containers through `env_file`, so an edited env file does
+nothing until the stack is recreated.
+
 What then happens: an administrator opens Settings → Billing and gets a Stripe Checkout
 session for the seats their workspace uses. Stripe posts back, the signature is verified
 against a five-minute window, and the subscription is applied to the workspace named in the

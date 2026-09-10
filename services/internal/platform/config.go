@@ -358,9 +358,44 @@ func (c Config) AppleSignInAudiences() []string {
 // a signing secret without a key would offer an upgrade button that cannot open a checkout.
 // Neither half-state is worth supporting, so neither is representable.
 func (c Config) BillingEnabled() bool {
-	return strings.TrimSpace(c.StripeSecretKey) != "" &&
-		strings.TrimSpace(c.StripeWebhookSecret) != "" &&
-		strings.TrimSpace(c.StripePriceProMonthly) != ""
+	return len(c.BillingMissing()) == 0
+}
+
+// BillingMissing names the variables BillingEnabled demands and this deployment has left
+// empty, in the order docs/05-infrastructure/11-self-hosting.md walks through them.
+//
+// It exists so a process can say which one is absent. "Billing is off" is the answer a
+// self-host wants and the answer that wastes an afternoon for somebody who meant to sell
+// something: the settings page reports nothing to buy, and nothing anywhere names the
+// variable that would have changed it.
+func (c Config) BillingMissing() []string {
+	var missing []string
+	for _, v := range c.billingRequired() {
+		if strings.TrimSpace(v.value) == "" {
+			missing = append(missing, v.name)
+		}
+	}
+	return missing
+}
+
+// BillingHalfConfigured reports the state worth interrupting somebody over: Stripe
+// credentials were started and not finished, so the deployment refuses to sell anything
+// while looking, to whoever set them, as though it should.
+//
+// All three empty is not this. That is the ordinary self-host and needs no comment.
+func (c Config) BillingHalfConfigured() bool {
+	missing := c.BillingMissing()
+	return len(missing) > 0 && len(missing) < len(c.billingRequired())
+}
+
+// billingRequired pairs each variable BillingEnabled demands with its value, so the check
+// and the message that explains the check cannot drift apart.
+func (c Config) billingRequired() []struct{ name, value string } {
+	return []struct{ name, value string }{
+		{"POLARIS_STRIPE_SECRET_KEY", c.StripeSecretKey},
+		{"POLARIS_STRIPE_WEBHOOK_SECRET", c.StripeWebhookSecret},
+		{"POLARIS_STRIPE_PRICE_PRO_MONTHLY", c.StripePriceProMonthly},
+	}
 }
 
 // AgentEnabled reports whether the in-app agent can run here. A key is the whole test:
