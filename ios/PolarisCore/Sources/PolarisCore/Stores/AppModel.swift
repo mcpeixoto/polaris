@@ -1,6 +1,29 @@
 import Foundation
 import Observation
 
+/// A store that holds issues and can take one that changed somewhere else.
+///
+/// There is no local replica here, so the same issue is held by several stores at once — the
+/// list it was opened from, the team screen behind that, the detail screen on top — and none
+/// of them knows the others exist. This is the seam `AppModel.issueDidChange` fans a
+/// server-confirmed issue through, so they stop disagreeing the moment one of them writes.
+@MainActor
+public protocol IssueMerging: AnyObject {
+    /// Accepts an issue confirmed by the server. A no-op in a store that does not hold it.
+    func merge(_ updated: Issue)
+}
+
+/// A store that also performs writes, and so has something to fan out.
+@MainActor
+public protocol IssueWriting: IssueMerging {
+    /// Called with the server's own issue once a write from this store lands.
+    ///
+    /// Only confirmed values, never optimistic ones: a refused write that had already been
+    /// pushed into four other stores would leave every one of them showing a status the
+    /// server rejected, and none of them has the original to roll back to.
+    var onWriteConfirmed: (@MainActor (Issue) -> Void)? { get set }
+}
+
 /// The composition root.
 ///
 /// Holds the one API client and the per-screen stores, and owns the session lifecycle. Every
@@ -51,6 +74,18 @@ public final class AppModel {
     private var isLoadingAuthProviders = false
 
     private let environment: PolarisEnvironment
+
+    /// The issue-holding stores a screen owns, held weakly.
+    ///
+    /// A team screen, a project, a cycle, a search: each is built by the view that shows it
+    /// and dies with it, so this cannot own them and must not keep them alive. Weak entries
+    /// are swept on every fan-out rather than unregistered by a departing screen, because a
+    /// screen that forgets to unregister is the sort of bug that only shows up as a leak.
+    private var issueObservers: [IssueObserver] = []
+
+    private struct IssueObserver {
+        weak var store: (any IssueMerging)?
+    }
 
     /// The host this build talks to, for screens that show an address to the reader.
     public var displayHost: String { environment.displayHost }
@@ -104,12 +139,57 @@ public final class AppModel {
         issues.onUnauthorized = { [weak self] error in self?.sessionExpired(error) }
         workspaceData.onUnauthorized = { [weak self] error in self?.sessionExpired(error) }
         inbox.onUnauthorized = { [weak self] error in self?.sessionExpired(error) }
+        issues.onWriteConfirmed = { [weak self] updated in
+            self?.issueDidChange(updated, from: self?.issues)
+        }
     }
 
     /// Attaches the same handler to a store a screen owns — the detail screen's, the search
     /// screen's — so a session that dies three screens deep ends in the same place.
     public func adopt(_ handler: inout (@MainActor (PolarisError) -> Void)?) {
         handler = { [weak self] error in self?.sessionExpired(error) }
+    }
+
+    /// Registers a screen-owned store to receive writes confirmed anywhere else in the app.
+    ///
+    /// Idempotent, so a `.task` that runs a second time does not double the store up.
+    public func observeIssueWrites(_ store: any IssueMerging) {
+        sweepIssueObservers()
+        guard !issueObservers.contains(where: { $0.store === store }) else { return }
+        issueObservers.append(IssueObserver(store: store))
+    }
+
+    /// Registers a screen-owned store and points its own confirmed writes back here, so the
+    /// traffic runs both ways.
+    public func adoptIssueWrites(_ store: any IssueWriting) {
+        observeIssueWrites(store)
+        // `weak store` as well as `weak self`: the store holds the closure that holds it.
+        store.onWriteConfirmed = { [weak self, weak store] updated in
+            self?.issueDidChange(updated, from: store)
+        }
+    }
+
+    /// Hands a server-confirmed issue to every store that holds its id.
+    ///
+    /// The one place a write fans out. Before it, each screen picked its own two or three
+    /// stores to tell by hand — the detail screen told My Issues and nobody else — so a
+    /// status changed from a team list's detail screen left the team list, the project and
+    /// the cycle showing the old one until something forced a refetch, which `refreshIfStale`
+    /// will not do because the version moved for a change this client made.
+    ///
+    /// `origin` is the store that already applied the value, skipped so it is not asked to
+    /// re-sort a list it has just sorted.
+    public func issueDidChange(_ updated: Issue, from origin: (any IssueMerging)? = nil) {
+        sweepIssueObservers()
+        if origin !== issues { issues.merge(updated) }
+        for observer in issueObservers {
+            guard let store = observer.store, store !== origin else { continue }
+            store.merge(updated)
+        }
+    }
+
+    private func sweepIssueObservers() {
+        issueObservers.removeAll { $0.store == nil }
     }
 
     /// One refused read is enough. Signing out is idempotent, but re-entering `.signedOut`

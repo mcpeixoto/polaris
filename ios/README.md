@@ -105,6 +105,20 @@ While the last read failed with something a retry could fix — no network, a ti
 the shell shows an "Offline" / "Reconnecting" pill (`ConnectionBanner`) at the top. A refused
 read is not a pill; it is a sentence on the screen it happened on.
 
+### One write, every store that holds it
+
+No replica also means several stores hold the same issue at once — My Issues, a team's list, a
+project, a cycle, the search results, the detail screen on top — and none of them knows the
+others exist. `AppModel.issueDidChange(_:from:)` is the one place a *server-confirmed* issue is
+handed to every store holding that id; a screen registers its own store with
+`observeIssueWrites` (or `adoptIssueWrites`, which also routes that store's writes back out),
+and the registry holds them weakly, so a popped screen leaves on its own. Only confirmed
+values go through it: fanning out the optimistic one would leave every other list showing a
+status the server rejected, and none of them has the original to roll back to. The other half
+of the same rule lives in the stores — `setState` asked about a row a list does not hold sends
+the write anyway rather than returning, because a guard that drops a write is
+indistinguishable from a tap that missed.
+
 ## Deep links
 
 `polaris://` is registered in `project.yml` (`CFBundleURLTypes`) — the same scheme the desktop

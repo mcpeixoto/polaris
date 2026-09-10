@@ -66,13 +66,17 @@ struct IssueDetailView: View {
             // the most common self-inflicted slowness in a list-detail app.
             if store == nil {
                 let created = IssueDetailStore(api: model.api, issue: seed, viewerId: model.currentUser?.id) { updated in
-                    // Otherwise the row and the "N open" count keep the old status after the
+                    // Otherwise every list holding this row keeps the old status after the
                     // reader comes back: nothing reloads on return, and refreshIfStale
                     // short-circuits because the version did not move — this client made the
-                    // change.
-                    model.issues.merge(updated)
+                    // change. This used to tell My Issues and nobody else, so a status set
+                    // from a team, project, cycle or search row stayed stale behind it.
+                    model.issueDidChange(updated)
                 }
                 model.adopt(&created.onUnauthorized)
+                // And the traffic runs the other way: a swipe on the list underneath this
+                // screen reaches the screen.
+                model.observeIssueWrites(created)
                 store = created
                 draftTitle = seed.title
             }
