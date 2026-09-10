@@ -326,8 +326,11 @@ jobs:
           retention-days: 7
 
   ios:
+    # macos-26, not macos-15: the older image's swift-testing expands `#expect` to an
+    # unqualified `Comment`, which is ambiguous against PolarisCore's own `Comment` and fails
+    # to compile tests that pass a message. The Macs this is developed on are Xcode 26.
     name: iOS — PolarisCore tests
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       # The whole testable surface of the iOS client lives in this package, and it is
