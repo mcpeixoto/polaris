@@ -218,6 +218,8 @@ export function dragBlockedReason(groupBy: DisplayGroupBy): string | null {
       return 'A column here is a calendar day, and a drop would quietly make that day the deadline.';
     case 'parent':
       return "Re-parenting moves an issue into another issue's checklist rather than setting a property on it.";
+    case 'focus':
+      return 'Focus sections are a curated route, not a field a drop can write.';
   }
 }
 

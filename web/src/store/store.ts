@@ -935,6 +935,23 @@ export class Store {
     return this.subscriberUsers.get(issueId);
   }
 
+  /**
+   * Issues one person is subscribed to — the Subscribed tab of My Issues.
+   *
+   * Built from the subscription rows rather than a second index: a person's subscriptions
+   * are a short list, and keeping a reverse map in step with unsubscribe flags would be a
+   * second answer to a question the row already answers.
+   */
+  issueIdsSubscribedBy(userId: UUID): ReadonlySet<UUID> {
+    const out = new Set<UUID>();
+    for (const subId of this.subscriptionUser.get(userId)) {
+      const row = this.issueSubscriptions.get(subId);
+      if (row === undefined || row.unsubscribed) continue;
+      out.add(row.issueId);
+    }
+    return out;
+  }
+
   /** Subscribers as a map, the shape the filter compiler's context takes. */
   subscribersByIssue(): ReadonlyMap<UUID, ReadonlySet<UUID>> {
     return this.subscriberUsers.asMap();

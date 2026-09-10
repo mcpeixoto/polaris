@@ -154,6 +154,9 @@ const SCREEN_NAMES: Readonly<Record<string, string>> = {
 export function screenNameFor(pathname: string): string {
   const known = SCREEN_NAMES[pathname];
   if (known !== undefined) return known;
+  // Tabs under My Issues are still My Issues — announcing "Created" after G M would say
+  // they left the screen they asked for.
+  if (pathname === '/my-issues' || pathname.startsWith('/my-issues/')) return 'My issues';
   const segments = pathname.split('/').filter((part) => part !== '');
   const last = segments.length > 1 ? segments[segments.length - 1] : segments[0];
   if (last === undefined) return 'Home';

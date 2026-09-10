@@ -101,6 +101,13 @@ export interface DisplayMenuProps {
   /** The triage inbox: snoozed rows have a display toggle Linear documents as view options. */
   readonly triage?: boolean | undefined;
   /**
+   * Offers Focus grouping — the curated Assigned route for My Issues.
+   *
+   * Absent on every other screen: Focus is not a general-purpose dimension, and putting it
+   * on a team board would invent columns that mean nothing there.
+   */
+  readonly allowFocus?: boolean | undefined;
+  /**
    * Saves what is on screen as the page's default for everybody who opens it.
    *
    * Offered only where a shared default has somewhere to live — a saved view, whose `display`
@@ -131,6 +138,7 @@ const LAYOUT_LABELS: Readonly<Record<ViewLayout, string>> = {
 
 const GROUP_LABELS: Readonly<Record<DisplayGroupBy, string>> = {
   none: 'No grouping',
+  focus: 'Focus',
   state: 'Status',
   stateCategory: 'Status category',
   assignee: 'Assignee',
@@ -183,6 +191,7 @@ export const PROPERTY_LABELS: Readonly<Record<DisplayProperty, string>> = {
 const LAYOUT_ORDER: readonly ViewLayout[] = ['list', 'board'];
 const GROUP_ORDER: readonly DisplayGroupBy[] = [
   'none',
+  'focus',
   'state',
   'stateCategory',
   'assignee',
@@ -192,6 +201,11 @@ const GROUP_ORDER: readonly DisplayGroupBy[] = [
   'dueDate',
   'parent',
 ];
+
+/** Groupings offered on every screen; Focus is My Issues only — see `groupOptions`. */
+const GROUP_ORDER_COMMON: readonly DisplayGroupBy[] = GROUP_ORDER.filter(
+  (value) => value !== 'focus',
+);
 const ORDER_ORDER: readonly DisplayOrderBy[] = [
   'manual',
   'priority',
@@ -346,6 +360,7 @@ export function DisplayMenu({
   trigger,
   className,
   triage = false,
+  allowFocus = false,
   onSetDefault,
   canSetDefault = true,
 }: DisplayMenuProps) {
@@ -355,6 +370,14 @@ export function DisplayMenu({
   // Positioning settles once per opening: the shift is measured from the panel's rendered
   // rect, and re-measuring after moving it would chase its own tail.
   const settledRef = useRef(false);
+
+  // Focus is My Issues only, but a shared link (or a preference left from an older visit)
+  // may still carry it — keep the option visible while it is the current value so the
+  // select is not blank, and so turning it off does not require guessing.
+  const groupOptions = useMemo(() => {
+    if (allowFocus || display.groupBy === 'focus') return GROUP_ORDER;
+    return GROUP_ORDER_COMMON;
+  }, [allowFocus, display.groupBy]);
 
   // Held on screen for the length of its exit. `open` keeps its meaning everywhere else in
   // this file — the keyboard context is handed back, the outside-click listener is dropped
@@ -613,11 +636,11 @@ export function DisplayMenu({
               // Matched against the list this select was built from rather than cast: a cast
               // here would be a promise about a string the DOM produced, and the lookup costs
               // nine comparisons once per change.
-              const next = GROUP_ORDER.find((candidate) => candidate === event.target.value);
+              const next = groupOptions.find((candidate) => candidate === event.target.value);
               if (next !== undefined) onChange({ groupBy: next });
             }}
           >
-            {GROUP_ORDER.map((value) => (
+            {groupOptions.map((value) => (
               <option key={value} value={value}>
                 {GROUP_LABELS[value]}
               </option>
@@ -645,20 +668,20 @@ export function DisplayMenu({
             // group is simply a grouping — which the control above already is.
             disabled={display.groupBy === 'none'}
             onChange={(event) => {
-              const next = GROUP_ORDER.find((candidate) => candidate === event.target.value);
+              const next = groupOptions.find((candidate) => candidate === event.target.value);
               if (next !== undefined) onChange({ subGroupBy: next });
             }}
           >
             {/* "No sub-grouping" rather than GROUP_LABELS' "No grouping": the same value, and
                 a different sentence, because this select is answering a different question. */}
             <option value="none">No sub-grouping</option>
-            {GROUP_ORDER.filter((value) => value !== 'none' && value !== display.groupBy).map(
-              (value) => (
+            {groupOptions
+              .filter((value) => value !== 'none' && value !== display.groupBy)
+              .map((value) => (
                 <option key={value} value={value}>
                   {GROUP_LABELS[value]}
                 </option>
-              ),
-            )}
+              ))}
           </Select>
         </div>
         {display.groupBy === 'none' ? (

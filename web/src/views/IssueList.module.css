@@ -121,6 +121,19 @@
 }
 
 /*
+ * My Issues tabs: Assigned / Created / Subscribed.
+ *
+ * Directly under the header and above the filter bar, because it is the coarser question —
+ * which of the three lists — and the filter narrows whichever one is open. Same placement
+ * as Inbox's tabs for the same reason.
+ */
+.tabs {
+  flex: none;
+  padding-inline: var(--space-4) var(--space-3);
+  overflow-x: auto;
+}
+
+/*
  * Nothing on this row shrinks except the breadcrumb, and inside it only the title.
  *
  * Every other child is a product string or a control — `08-ui-composition.md` forbids

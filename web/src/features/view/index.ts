@@ -15,3 +15,6 @@ export type { ViewClock } from './context';
 
 export { groupIssues, sortIssues, subGroupIssues } from './group';
 export type { IssueGroup } from './group';
+
+export { FOCUS_KEYS, FOCUS_LABELS, focusKeyOf, focusRank, sortFocusIssues } from './focus';
+export type { FocusKey } from './focus';
