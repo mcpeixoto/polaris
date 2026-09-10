@@ -27,6 +27,28 @@
   }
 }
 
+/*
+ * Menu and issue glance as one composition, centred together. Without this the palette
+ * stays centred and the peek pushes past the right edge; with it, arrowing onto an issue
+ * shifts the pair as a unit the way Linear's palette does.
+ */
+.stage {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  max-width: calc(100vw - var(--space-8));
+}
+
+/*
+ * Hide the glance when the pair would not fit. Prefer a readable palette over a crushed
+ * peek — the list still names the issue; the drawer is the bonus.
+ */
+@media (max-width: 1120px) {
+  .peekSlot {
+    display: none;
+  }
+}
+
 .panel {
   width: min(760px, calc(100vw - var(--space-8)));
   max-height: min(60vh, 560px);

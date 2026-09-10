@@ -94,6 +94,22 @@ export interface PeekProps {
    * pointer. The list owns the state, so it owns the close; this is the request.
    */
   onClose?: (() => void) | undefined;
+  /**
+   * Where the panel sits.
+   *
+   * `docked` (default) is the list's right-hand drawer. `float` is the command-menu glance:
+   * an elevated card beside the palette that never becomes the full-bleed cover docked Peek
+   * turns into under 720px.
+   */
+  placement?: 'docked' | 'float';
+  /**
+   * Whether this instance registers Peek's list chords (`.` for the context menu).
+   *
+   * The list mounts one Peek for as long as the screen is up. The command menu mounts
+   * another while an issue row is highlighted. Two registrars of `peek.actions` throw —
+   * so the floating glance skips the binding and leaves the list's alone.
+   */
+  registerActions?: boolean;
 }
 
 /**
@@ -118,12 +134,19 @@ const CHORDS = {
   labels: 'l',
 } as const;
 
-export function Peek({ open, issueId, onClose }: PeekProps) {
+export function Peek({
+  open,
+  issueId,
+  onClose,
+  placement = 'docked',
+  registerActions = true,
+}: PeekProps) {
   const panelRef = useRef<HTMLElement>(null);
   const engine = useEngine();
   const viewerId = useViewerId();
   const navigate = useNavigate();
   const { present, exitProps } = usePresence(open, panelRef);
+  const panelClass = placement === 'float' ? `${styles.panel} ${styles.float}` : styles.panel;
 
   const issue = useLiveQuery(
     (store) => (!present || issueId === null ? null : readPeek(store, issueId)),
@@ -225,27 +248,32 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
    *
    * Anchored on the panel, which is what a right-click anywhere in it uses too.
    */
-  useActions([
-    {
-      id: 'peek.actions',
-      title: 'Show actions for the peeked issue',
-      keys: ['.'],
-      when: 'list',
-      group: 'Issues',
-      enabled: () => open && issueId !== null,
-      run: () => {
-        const element = panelRef.current;
-        if (element === null || issueId === null) return;
-        context.openOn(element, issueId);
-      },
-    },
-  ]);
+  useActions(
+    registerActions
+      ? [
+          {
+            id: 'peek.actions',
+            title: 'Show actions for the peeked issue',
+            keys: ['.'],
+            when: 'list',
+            group: 'Issues',
+            enabled: () => open && issueId !== null,
+            run: () => {
+              const element = panelRef.current;
+              if (element === null || issueId === null) return;
+              context.openOn(element, issueId);
+            },
+          },
+        ]
+      : [],
+    [registerActions, open, issueId],
+  );
 
   if (!present) return null;
 
   if (issueId === null) {
     return (
-      <aside ref={panelRef} className={styles.panel} aria-label="Peek" {...exitProps}>
+      <aside ref={panelRef} className={panelClass} aria-label="Peek" {...exitProps}>
         <EmptyState
           title="Nothing under the cursor"
           description="Move to a row, then press Space. Enter opens the issue for real."
@@ -256,7 +284,7 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
 
   if (issue === null) {
     return (
-      <aside ref={panelRef} className={styles.panel} aria-label="Peek" {...exitProps}>
+      <aside ref={panelRef} className={panelClass} aria-label="Peek" {...exitProps}>
         <EmptyState
           title="This issue is not here yet"
           description="It may still be arriving, or it belongs to a team you are not in."
@@ -270,7 +298,7 @@ export function Peek({ open, issueId, onClose }: PeekProps) {
   return (
     <aside
       ref={panelRef}
-      className={styles.panel}
+      className={panelClass}
       aria-label={`Peek ${issue.identifier}`}
       onContextMenu={(event) => {
         context.openFromEvent(event, issueId);

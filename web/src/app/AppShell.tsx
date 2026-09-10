@@ -66,6 +66,7 @@ import { useWorkspaceSession } from './Boot';
 import { useEngine, useQuery, useSyncStatus } from './context';
 import { useActions } from './keymap';
 import { CommandMenu } from './CommandMenu';
+import { CommandMenuPeekEnabled } from './commandMenuPeek';
 import { HelpOverlay } from './HelpOverlay';
 import { pathToActiveIssues, pathToBacklogIssues } from './teamIssuePaths';
 import {
@@ -1686,7 +1687,9 @@ export function AppShell({
         <UpdateBanner />
         {/* The sidebar's right-click menu, mounted once for every row in the column. */}
         {rowMenu.node}
-        <CommandMenu open={commandOpen} onClose={() => setCommandOpen(false)} />
+        <CommandMenuPeekEnabled>
+          <CommandMenu open={commandOpen} onClose={() => setCommandOpen(false)} />
+        </CommandMenuPeekEnabled>
         <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
         {/* Mounted whether or not it is open, and told which, so it can animate out. */}
         <AgentPanel open={agentOpen} onClose={closeAgent} />

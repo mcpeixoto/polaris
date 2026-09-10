@@ -11,9 +11,9 @@ The command menu already listed every registered action. This slice adds the res
 - Cmd+K prefixes: `>` commands, `#` issues, `@` people. Unprefixed search still ranks commands and, once there is a query, matching issues
 - `O I` / `O P` / `O T` open filterable pickers for issues, projects, and teams (alongside existing `O U` / `O L`)
 - Issue and project screens: command-menu "Copy model UUID"
+- Peek preview of the highlighted issue while arrowing the menu (same Peek panel, floated beside the palette)
 
 ## Deferred
 
-- Peek preview of the highlighted issue while the menu is open
 - Document / view / favorite prefixes
 - Recency ranking of commands
