@@ -8,6 +8,24 @@ import Observation
 /// Loaded once after sign-in and held, because it changes on a scale of days while an issue
 /// list changes on a scale of seconds. Refetching it per screen would triple the request count
 /// for data that is effectively static.
+/// What is known about one team's workflow states.
+///
+/// Three answers, because the two the store used to give could not be told apart: an empty
+/// list meant both "this team has no statuses" and "nobody has asked yet". A status control
+/// reading the second as the first is the whole of the bug this type exists to stop — a cold
+/// start hydrated from the issue cache showed every issue with a dead status chip claiming
+/// the team had no statuses, and nothing ever asked again.
+public enum StatesAvailability: Sendable, Hashable {
+    /// Nothing has asked for this team's states yet.
+    case unknown
+    /// A request is in flight.
+    case loading
+    /// The server answered. The list it gave may legitimately be empty.
+    case loaded
+    /// The request was refused or could not be made. Worth retrying, unlike `loaded`.
+    case failed
+}
+
 @MainActor
 @Observable
 public final class WorkspaceDataStore {
@@ -22,6 +40,9 @@ public final class WorkspaceDataStore {
     /// none. Without the distinction a transient network failure silently disables the status
     /// picker for the rest of the session.
     public private(set) var statesFailedForTeam: Set<String> = []
+    /// What is known about each team's states, which is three things and not two — see
+    /// `StatesAvailability`. Absent means nothing has asked yet.
+    public private(set) var statesAvailabilityByTeam: [String: StatesAvailability] = [:]
     /// The last refused favourite toggle. A star that un-stars itself needs a sentence.
     public private(set) var favoriteError: PolarisError?
 
@@ -29,6 +50,9 @@ public final class WorkspaceDataStore {
     public var onUnauthorized: (@MainActor (PolarisError) -> Void)?
 
     private let api: any PolarisAPI
+    /// Teams with a states request already in flight, so a screen full of status controls
+    /// appearing at once makes one request per team rather than one per control.
+    private var statesInFlight: Set<String> = []
 
     public init(api: any PolarisAPI) {
         self.api = api
@@ -66,6 +90,9 @@ public final class WorkspaceDataStore {
         // States are per-team and the app needs them the moment a status picker opens, which
         // is too late to start a request. Fetched concurrently, once.
         if case .loaded(let loadedTeams) = teams {
+            for team in loadedTeams where statesAvailabilityByTeam[team.id] == nil {
+                statesAvailabilityByTeam[team.id] = .loading
+            }
             await withTaskGroup(of: (String, [WorkflowState], Bool).self) { group in
                 for team in loadedTeams {
                     group.addTask {
@@ -77,14 +104,58 @@ public final class WorkspaceDataStore {
                     }
                 }
                 for await (teamId, states, ok) in group {
-                    if ok {
-                        statesByTeam[teamId] = states.sorted { $0.position < $1.position }
-                        statesFailedForTeam.remove(teamId)
-                    } else {
-                        statesFailedForTeam.insert(teamId)
-                    }
+                    record(teamId: teamId, states: states, ok: ok)
                 }
             }
+        }
+    }
+
+    /// Makes sure a team's states are on their way, and does nothing if they are already here.
+    ///
+    /// Every status control calls this as it appears. The bulk fetch in `load()` runs once per
+    /// session, at sign-in, and until this existed a single failed request — or a cold start
+    /// that showed the cached issue list before `load()` finished — left the status picker
+    /// dead for the rest of the session with no way to ask again.
+    ///
+    /// A previous failure is retried; a team that genuinely has no statuses is not asked twice.
+    public func ensureStates(forTeam teamId: String) async {
+        guard statesAvailabilityByTeam[teamId] != .loaded else { return }
+        await fetchStates(forTeam: teamId)
+    }
+
+    /// Asks again, whatever the last answer was. This is the retry behind the failed chip.
+    public func reloadStates(forTeam teamId: String) async {
+        await fetchStates(forTeam: teamId)
+    }
+
+    /// What is known about this team's states.
+    public func statesAvailability(forTeam teamId: String) -> StatesAvailability {
+        statesAvailabilityByTeam[teamId] ?? .unknown
+    }
+
+    private func fetchStates(forTeam teamId: String) async {
+        guard !statesInFlight.contains(teamId) else { return }
+        statesInFlight.insert(teamId)
+        statesAvailabilityByTeam[teamId] = .loading
+        defer { statesInFlight.remove(teamId) }
+        do {
+            let states = try await api.workflowStates(teamId: teamId)
+            record(teamId: teamId, states: states, ok: true)
+        } catch {
+            record(teamId: teamId, states: [], ok: false)
+            let mapped = PolarisError.mapped(error)
+            if case .unauthorized = mapped { onUnauthorized?(mapped) }
+        }
+    }
+
+    private func record(teamId: String, states: [WorkflowState], ok: Bool) {
+        if ok {
+            statesByTeam[teamId] = states.sorted { $0.position < $1.position }
+            statesFailedForTeam.remove(teamId)
+            statesAvailabilityByTeam[teamId] = .loaded
+        } else {
+            statesFailedForTeam.insert(teamId)
+            statesAvailabilityByTeam[teamId] = .failed
         }
     }
 

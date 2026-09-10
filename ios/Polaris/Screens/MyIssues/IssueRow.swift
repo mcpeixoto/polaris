@@ -10,6 +10,11 @@ import PolarisCore
 struct IssueRow: View {
     let issue: Issue
     var isPending: Bool = false
+    /// The statuses this issue's team defines. Empty leaves the mark as the plain glyph it
+    /// has always been — there is nothing to offer.
+    var states: [WorkflowState] = []
+    /// Applies a status picked from the mark. Nil is a row that only reports status.
+    var onSetState: ((WorkflowState) -> Void)?
 
     var body: some View {
         HStack(spacing: Theme.Space.sm) {
@@ -21,7 +26,7 @@ struct IssueRow: View {
                 .lineLimit(1)
                 .frame(minWidth: 48, alignment: .leading)
 
-            StateIcon(state: issue.state)
+            statusMark
 
             Text(issue.title)
                 .font(PolarisText.rowTitle)
@@ -60,6 +65,47 @@ struct IssueRow: View {
         // The row opens the issue, and says so: the link that does the opening sits behind
         // it with no label of its own.
         .accessibilityAddTraits(.isButton)
+        // The row is one element, so the mark's menu is invisible to VoiceOver. The same
+        // statuses are offered here instead, in the rotor, where a custom action belongs.
+        .accessibilityActions {
+            if let onSetState {
+                ForEach(states) { state in
+                    Button(String(localized: "Set status to \(state.name)")) { onSetState(state) }
+                }
+            }
+        }
+    }
+
+    /// The status mark, which is also the fastest way to change it.
+    ///
+    /// Tapping the glyph is how a status is changed in the product this one follows, and it
+    /// was the one gesture missing here: the list had a swipe and a long-press, both of which
+    /// have to be discovered, and the mark itself did nothing. It stays a plain glyph when
+    /// the team's statuses are not known yet, rather than opening an empty menu.
+    @ViewBuilder
+    private var statusMark: some View {
+        if let onSetState, !states.isEmpty {
+            Menu {
+                ForEach(states) { state in
+                    Button {
+                        onSetState(state)
+                    } label: {
+                        SwiftUI.Label(state.name, systemImage: state.category.symbolName)
+                    }
+                }
+            } label: {
+                StateIcon(state: issue.state)
+                    // A 16pt glyph is not a touch target. The mark keeps its size and the
+                    // area around it is what catches the tap, matching the avatar at the
+                    // other end of the row.
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHidden(true)
+        } else {
+            StateIcon(state: issue.state)
+        }
     }
 
     private var accessibilityDescription: String {

@@ -230,6 +230,7 @@ struct ProjectDetailView: View {
                 pendingIDs: pendingIDs,
                 grouping: .status,
                 statesFor: { model.workspaceData.states(forTeam: $0.team.id) },
+                ensureStates: { await model.workspaceData.ensureStates(forTeam: $0.team.id) },
                 setState: { issue, state in
                     Task { await setState(issue, to: state, store: store) }
                 }

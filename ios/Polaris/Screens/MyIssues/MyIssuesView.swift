@@ -50,6 +50,15 @@ struct MyIssuesView: View {
             .padding(.horizontal, Theme.Space.lg)
             .padding(.vertical, Theme.Space.sm)
             .readableColumn()
+            // A refused status change used to be a row that quietly snapped back, which reads
+            // as a tap that missed rather than as a server saying no.
+            if let error = model.issues.writeError {
+                InlineErrorLabel(text: error.displayMessage)
+                    .padding(.horizontal, Theme.Space.lg)
+                    .padding(.bottom, Theme.Space.sm)
+                    .readableColumn()
+                    .accessibilityIdentifier("issues.writeError")
+            }
             HairlineDivider()
             content
         }
@@ -272,6 +281,7 @@ struct MyIssuesView: View {
                 pendingIDs: model.issues.pendingIssueIDs,
                 grouping: groupByStatus ? .status : .none,
                 statesFor: { model.workspaceData.states(forTeam: $0.team.id) },
+                ensureStates: { await model.workspaceData.ensureStates(forTeam: $0.team.id) },
                 setState: { issue, state in
                     Task { await model.issues.setState(issueID: issue.id, to: state) }
                 }

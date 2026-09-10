@@ -152,7 +152,10 @@ column on an iPad without knowing which it is in.
 
 Every screen uses the system navigation bar with an inline title and plain toolbar glyphs. An
 issue row is one 44pt line — priority glyph, identifier, status glyph, title, then label dots,
-due date and assignee — with a hairline under it and no card around it. A team's list and a
+due date and assignee — with a hairline under it and no card around it. The status glyph is a
+button: tapping it opens that team's statuses, which is how a status is changed in the product
+this one follows, and it sits alongside the leading swipe (complete), the trailing swipe (next
+open state) and the row's long-press menu. A team's list and a
 search result are grouped by workflow state (`IssueListView(grouping: .status)`), started work
 first and closed work last; My Issues stays flat in priority order, which is also Linear's
 default for that view. The inbox is grouped by day, the detail screen lays its properties out
@@ -193,6 +196,15 @@ JSON file in Application Support and put back on screen before the first request
 launch — marked as a saved copy, and replaced the moment a request answers. That is the
 cold-start half of offline; live updates while the app sits open come over the socket, or the
 poll while the socket is down.
+
+Only issues are cached, which is why `WorkspaceDataStore` distinguishes three answers about a
+team's workflow states rather than two. That cached list can be on screen before — or instead
+of — the bulk reference-data fetch, and an empty `states(forTeam:)` used to mean both "this
+team has no statuses" and "nobody has asked yet". The picker read the second as the first, said
+so, and disabled itself for the rest of the session; one failed request at launch was enough.
+`statesAvailability(forTeam:)` is the difference, and every status control calls
+`ensureStates(forTeam:)` as it appears, so the answer arrives whether or not the bulk fetch
+ever did.
 
 ## Sign in with Google
 

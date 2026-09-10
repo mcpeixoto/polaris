@@ -102,6 +102,12 @@ struct IssueDetailView: View {
                     }
                 }
                 .padding(.top, Theme.Space.xl)
+                // The status picker needs this team's states and the bulk fetch runs once, at
+                // sign-in. Asking here as well is what makes the picker work on a screen
+                // opened before that finished, after it failed, or on a team created since.
+                .task(id: issue.team.id) {
+                    await model.workspaceData.ensureStates(forTeam: issue.team.id)
+                }
 
                 SubIssuesSection(
                     children: detail?.children ?? [],
@@ -500,18 +506,29 @@ struct IssueDetailView: View {
     private func statusChip(issue: Issue, store: IssueDetailStore) -> some View {
         let states = model.workspaceData.states(forTeam: issue.team.id)
         if states.isEmpty {
-            // A disabled control that explains nothing is worse than an absent one. The two
-            // reasons need different sentences, and only one of them is worth retrying.
-            if model.workspaceData.statesFailedForTeam.contains(issue.team.id) {
+            // A disabled control that explains nothing is worse than an absent one, and there
+            // are three reasons this list can be empty, not two: the request failed, nobody
+            // has made it yet, or the team really has no statuses. Only the last of those is
+            // a sentence about the workspace, and saying it while the answer is still on its
+            // way is how the picker came to look broken on a cold start.
+            switch model.workspaceData.statesAvailability(forTeam: issue.team.id) {
+            case .failed:
                 Button {
-                    Task { await model.workspaceData.load() }
+                    Task { await model.workspaceData.reloadStates(forTeam: issue.team.id) }
                 } label: {
                     PropertyChip(text: String(localized: "Status: couldn't load — retry"), tint: Theme.accentBright) {
                         StateIcon(state: issue.state, size: 14)
                     }
                 }
                 .buttonStyle(.plain)
-            } else {
+                .accessibilityIdentifier("issue.status.retry")
+            case .unknown, .loading:
+                PropertyChip(text: issue.state.name, tint: Theme.textSecondary) {
+                    StateIcon(state: issue.state, size: 14)
+                }
+                .accessibilityLabel(Text("Status, \(issue.state.name), loading the rest"))
+                .accessibilityIdentifier("issue.status.loading")
+            case .loaded:
                 PropertyChip(text: String(localized: "No statuses in this team"), tint: Theme.textSecondary) {
                     StateIcon(state: issue.state, size: 14)
                 }
