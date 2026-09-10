@@ -291,3 +291,27 @@
     border-left: 0;
   }
 }
+
+/*
+ * Command-menu glance: same facts as the docked drawer, drawn as an elevated card beside
+ * the palette rather than a list sibling. The border-left that marks the list's split is
+ * wrong here — the card has its own edge — and the narrow-window cover rule above must not
+ * fire: a glance that swallowed the palette would hide the thing it was glancing from.
+ */
+.float {
+  border-left: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-modal);
+  background: var(--bg-elevated);
+  max-height: min(60vh, 560px);
+}
+
+@media (max-width: 720px) {
+  .float {
+    position: static;
+    inset: auto;
+    width: 360px;
+    border-left: none;
+  }
+}

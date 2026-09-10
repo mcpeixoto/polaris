@@ -9,6 +9,10 @@
  * documents and saved views, each under its own heading. They are here because this is how
  * people get anywhere in this product, and a palette that could not name a project made the
  * project list the only route to one.
+ *
+ * Highlighting an issue mounts the same Peek panel the list uses, floated beside the
+ * palette — Linear's glance-while-arrowing — and clears it when the highlight leaves
+ * issues or the menu closes.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -21,6 +25,7 @@ import { useViewerId } from '~/hooks/useViewer';
 import { usePresence } from '~/hooks/usePresence';
 import { type Action, type Platform } from '~/keys';
 import { os } from '~/platform/runtime';
+import type { UUID } from '~/store';
 
 import {
   buildIssueIndex,
@@ -39,6 +44,7 @@ import {
   type RecentUses,
 } from './commandMenuRecents';
 import { commandGlyph } from './commandMenuGlyphs';
+import { CommandMenuIssuePeek, useCommandMenuPeekEnabled } from './commandMenuPeek';
 import { useKeymap } from './keymap';
 import styles from './CommandMenu.module.css';
 
@@ -51,6 +57,7 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
   const engine = useEngine();
   const navigate = useNavigate();
   const viewerId = useViewerId();
+  const peekEnabled = useCommandMenuPeekEnabled();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -275,114 +282,137 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
   if (!present) return null;
 
   const activeRow = rows[active];
+  /*
+    Linear peeks the highlighted issue while arrowing the palette. Same Peek panel as the
+    list, floated beside the menu. Cleared when the highlight leaves issues or the menu
+    closes (`present` falls with the exit). Gated on `peekEnabled` so unit tests that mock
+    a thin context never mount Peek; AppShell wraps the menu with CommandMenuPeekEnabled.
+  */
+  const peekIssueId: UUID | null =
+    peekEnabled && activeRow?.kind === 'entity' && activeRow.id.startsWith('issue:')
+      ? activeRow.hit.id
+      : null;
 
   return (
     <div ref={backdropRef} className={styles.backdrop} onMouseDown={onClose} {...exitProps}>
-      <div
-        ref={panelRef}
-        className={styles.panel}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Command menu"
-        // The trap's fallback focus target when the panel holds nothing focusable, which is
-        // the empty-result case. Programmatic only.
-        tabIndex={-1}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className={styles.inputRow}>
-          <input
-            ref={inputRef}
-            className={styles.input}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={onInputKeyDown}
-            placeholder="Type a command or search…"
-            aria-label="Search commands"
-            aria-controls="command-menu-results"
-            aria-activedescendant={activeRow ? `command-${activeRow.id}` : undefined}
-            role="combobox"
-            aria-expanded="true"
-            autoComplete="off"
-            spellCheck={false}
-          />
-          {/* The scoping grammar, where the eye lands after the placeholder. It used to be
-              the placeholder itself, which made the box read as a syntax reference rather
-              than a search field; the sentence form survives in the empty state, which is
-              where somebody who typed the wrong thing is looking. */}
-          <span className={styles.grammar} aria-hidden="true">
-            <span className={styles.grammarItem}>
-              <span className={styles.prefix}>&gt;</span> commands
-            </span>
-            <span className={styles.grammarItem}>
-              <span className={styles.prefix}>#</span> issues
-            </span>
-            <span className={styles.grammarItem}>
-              <span className={styles.prefix}>@</span> people
-            </span>
-          </span>
-        </div>
-
-        <ul
-          className={styles.results}
-          id="command-menu-results"
-          role="listbox"
-          ref={listRef}
-          onPointerMove={() => {
-            pointerMovedRef.current = true;
-          }}
+      <div className={styles.stage}>
+        <div
+          ref={panelRef}
+          className={styles.panel}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Command menu"
+          // The trap's fallback focus target when the panel holds nothing focusable, which is
+          // the empty-result case. Programmatic only.
+          tabIndex={-1}
+          onMouseDown={(e) => e.stopPropagation()}
         >
-          {rows.length === 0 && (
-            <li className={styles.empty} role="presentation">
-              <span className={styles.emptyTitle}>{emptyTitle(parsed.scope, parsed.needle)}</span>
-              <span className={styles.emptyHint}>
-                Try &gt; for commands, # for issues, @ for people, or press Esc
+          <div className={styles.inputRow}>
+            <input
+              ref={inputRef}
+              className={styles.input}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={onInputKeyDown}
+              placeholder="Type a command or search…"
+              aria-label="Search commands"
+              aria-controls="command-menu-results"
+              aria-activedescendant={activeRow ? `command-${activeRow.id}` : undefined}
+              role="combobox"
+              aria-expanded="true"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            {/* The scoping grammar, where the eye lands after the placeholder. It used to be
+                the placeholder itself, which made the box read as a syntax reference rather
+                than a search field; the sentence form survives in the empty state, which is
+                where somebody who typed the wrong thing is looking. */}
+            <span className={styles.grammar} aria-hidden="true">
+              <span className={styles.grammarItem}>
+                <span className={styles.prefix}>&gt;</span> commands
               </span>
-            </li>
-          )}
-          {grouped(rows).flatMap((section) => {
-            const header = (
-              <li key={`group-${section.key}`} className={styles.groupHeader} role="presentation">
-                {section.group}
+              <span className={styles.grammarItem}>
+                <span className={styles.prefix}>#</span> issues
+              </span>
+              <span className={styles.grammarItem}>
+                <span className={styles.prefix}>@</span> people
+              </span>
+            </span>
+          </div>
+
+          <ul
+            className={styles.results}
+            id="command-menu-results"
+            role="listbox"
+            ref={listRef}
+            onPointerMove={() => {
+              pointerMovedRef.current = true;
+            }}
+          >
+            {rows.length === 0 && (
+              <li className={styles.empty} role="presentation">
+                <span className={styles.emptyTitle}>{emptyTitle(parsed.scope, parsed.needle)}</span>
+                <span className={styles.emptyHint}>
+                  Try &gt; for commands, # for issues, @ for people, or press Esc
+                </span>
               </li>
-            );
-            const items = section.rows.map((row) => {
-              const i = rows.indexOf(row);
-              return (
-                <li
-                  key={row.id}
-                  id={`command-${row.id}`}
-                  role="option"
-                  aria-selected={i === active}
-                  data-active={i === active}
-                  className={styles.item}
-                  onMouseEnter={() => {
-                    if (pointerMovedRef.current) setActive(i);
-                  }}
-                  onClick={() => run(row)}
-                >
-                  <span className={styles.icon}>{rowGlyph(row)}</span>
-                  <span className={styles.title}>
-                    {row.kind === 'action' ? row.action.title : row.hit.title}
-                  </span>
-                  {/* The metadata the row already computed and used to throw away. An
-                      identifier beside an issue, a handle beside a person: the thing that
-                      tells two similarly-titled rows apart, in the densest picker in the
-                      product. */}
-                  {row.kind === 'entity' && row.hit.hint !== '' && (
-                    <span className={styles.hint}>{row.hit.hint}</span>
-                  )}
-                  {row.kind === 'action' && row.action.keys?.[0] && (
-                    // The registry's own handwriting. This drew its own <kbd> and formatted
-                    // the spec by hand, which is a second opinion about how a chord is
-                    // spelled in the surface people learn chords from.
-                    <Kbd keys={row.action.keys[0]} platform={platform()} />
-                  )}
+            )}
+            {grouped(rows).flatMap((section) => {
+              const header = (
+                <li key={`group-${section.key}`} className={styles.groupHeader} role="presentation">
+                  {section.group}
                 </li>
               );
-            });
-            return [header, ...items];
-          })}
-        </ul>
+              const items = section.rows.map((row) => {
+                const i = rows.indexOf(row);
+                return (
+                  <li
+                    key={row.id}
+                    id={`command-${row.id}`}
+                    role="option"
+                    aria-selected={i === active}
+                    data-active={i === active}
+                    className={styles.item}
+                    onMouseEnter={() => {
+                      if (pointerMovedRef.current) setActive(i);
+                    }}
+                    onClick={() => run(row)}
+                  >
+                    <span className={styles.icon}>{rowGlyph(row)}</span>
+                    <span className={styles.title}>
+                      {row.kind === 'action' ? row.action.title : row.hit.title}
+                    </span>
+                    {/* The metadata the row already computed and used to throw away. An
+                        identifier beside an issue, a handle beside a person: the thing that
+                        tells two similarly-titled rows apart, in the densest picker in the
+                        product. */}
+                    {row.kind === 'entity' && row.hit.hint !== '' && (
+                      <span className={styles.hint}>{row.hit.hint}</span>
+                    )}
+                    {row.kind === 'action' && row.action.keys?.[0] && (
+                      // The registry's own handwriting. This drew its own <kbd> and formatted
+                      // the spec by hand, which is a second opinion about how a chord is
+                      // spelled in the surface people learn chords from.
+                      <Kbd keys={row.action.keys[0]} platform={platform()} />
+                    )}
+                  </li>
+                );
+              });
+              return [header, ...items];
+            })}
+          </ul>
+        </div>
+
+        {/*
+          Mounted only while an issue is highlighted. Instant unmount when the highlight
+          leaves is the same bargain the list accepts when the cursor clears. Clicks on the
+          glance must not dismiss the menu the way a scrim click does.
+        */}
+        {peekIssueId !== null ? (
+          <div className={styles.peekSlot} onMouseDown={(e) => e.stopPropagation()}>
+            <CommandMenuIssuePeek issueId={peekIssueId} />
+          </div>
+        ) : null}
       </div>
     </div>
   );
