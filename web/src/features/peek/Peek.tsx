@@ -39,6 +39,7 @@ import { EntityIcon } from '~/features/icon/EntityIcon';
 import { labelViewPath, userViewPath } from '~/features/labels/labelView';
 import { applyLabel, removeLabel } from '~/features/labels/mutations';
 import { LabelPicker } from '~/features/labels/LabelPicker';
+import { Markdown } from '~/features/markdown/Markdown';
 import { CyclePicker } from '~/features/cycles/CyclePicker';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
@@ -309,13 +310,13 @@ export function Peek({
 
       <h2 className={styles.title}>{issue.title}</h2>
 
-      <p className={styles.description}>
-        {issue.description === '' ? (
+      {issue.description === '' ? (
+        <p className={styles.description}>
           <span className={styles.unset}>No description.</span>
-        ) : (
-          issue.description
-        )}
-      </p>
+        </p>
+      ) : (
+        <Markdown source={issue.description} className={styles.description} />
+      )}
 
       <h3 className={styles.railTitle}>Properties</h3>
       <dl className={styles.facts}>
