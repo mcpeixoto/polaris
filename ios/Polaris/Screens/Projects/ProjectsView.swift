@@ -21,8 +21,9 @@ struct ProjectsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             // Projects load with the rest of the reference data at sign-in; this only fills a
-            // gap left by a failed or not-yet-finished load.
-            if model.workspaceData.projects.value == nil { await model.workspaceData.load() }
+            // gap left by a failed or not-yet-finished load — and asks for projects alone,
+            // rather than re-running all six collections to fetch one of them.
+            await model.workspaceData.ensure(.projects)
         }
     }
 
@@ -43,7 +44,7 @@ struct ProjectsView: View {
             LoadingView(label: String(localized: "Loading projects"))
 
         case .failed(let error):
-            ErrorStateView(error: error) { Task { await model.workspaceData.load() } }
+            ErrorStateView(error: error) { Task { await model.workspaceData.reload(.projects) } }
                 .readableColumn()
 
         case .loaded:
@@ -60,7 +61,7 @@ struct ProjectsView: View {
                     .readableColumn()
                 }
                 .scrollIndicators(.hidden)
-                .refreshable { await model.workspaceData.load() }
+                .refreshable { await model.workspaceData.reload(.projects) }
             } else {
                 let open = list.filter { $0.status.category.isOpen }
                 let closed = list.filter { !$0.status.category.isOpen }
@@ -76,7 +77,7 @@ struct ProjectsView: View {
                 .scrollIndicators(.hidden)
                 .environment(\.defaultMinListRowHeight, Theme.rowHeight)
                 .readableColumn()
-                .refreshable { await model.workspaceData.load() }
+                .refreshable { await model.workspaceData.reload(.projects) }
             }
         }
     }

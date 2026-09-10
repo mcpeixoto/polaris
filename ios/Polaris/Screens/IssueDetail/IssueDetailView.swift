@@ -112,6 +112,12 @@ struct IssueDetailView: View {
                 .task(id: issue.team.id) {
                     await model.workspaceData.ensureStates(forTeam: issue.team.id)
                 }
+                // The same argument for the property chips beside it: the assignee, label and
+                // project pickers all read collections fetched once at sign-in, and an empty
+                // picker is indistinguishable from a workspace with nobody in it.
+                .task {
+                    await model.workspaceData.ensureReferenceData([.users, .labels, .projects])
+                }
 
                 SubIssuesSection(
                     children: detail?.children ?? [],
