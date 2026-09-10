@@ -15,7 +15,8 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react';
 
 import { useEngine } from '~/app/context';
-import { Button, Textarea } from '~/components';
+import { Button } from '~/components';
+import { WritingField } from '~/editor/WritingField';
 import type { Comment } from '~/store';
 import { ApiError } from '~/sync/api';
 
@@ -81,14 +82,15 @@ export function CommentEditor({ comment, onDone }: CommentEditorProps) {
 
   return (
     <form className={styles.form} onSubmit={onSubmit}>
-      <Textarea
+      <WritingField
         label="Edit comment"
         hideLabel
         minRows={2}
         maxRows={16}
         autoFocus
         value={body}
-        onChange={(event) => setBody(event.target.value)}
+        blocks={false}
+        onChange={setBody}
         // keymap-lint-allow: see onKeyDown above — a trap, not a shortcut
         onKeyDown={onKeyDown}
       />

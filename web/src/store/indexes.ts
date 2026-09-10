@@ -159,6 +159,7 @@ export class IssueIndex {
   private readonly assignee = new SetIndex<UUID>();
   /** Kept apart from `assignee` so "unassigned" is a bucket rather than a sentinel id. */
   private readonly unassigned = new Set<UUID>();
+  private readonly creator = new SetIndex<UUID>();
   private readonly priority = new SetIndex<number>();
   private readonly parent = new SetIndex<UUID>();
   private readonly project = new SetIndex<UUID>();
@@ -193,6 +194,7 @@ export class IssueIndex {
     this.state.add(issue.stateId, issue.id);
     if (issue.assigneeId === undefined) this.unassigned.add(issue.id);
     else this.assignee.add(issue.assigneeId, issue.id);
+    if (issue.creatorId !== undefined) this.creator.add(issue.creatorId, issue.id);
     this.priority.add(issue.priority, issue.id);
     if (issue.parentId === undefined) this.rootIssues.add(issue.id);
     else this.parent.add(issue.parentId, issue.id);
@@ -231,6 +233,10 @@ export class IssueIndex {
       else this.assignee.remove(previous.assigneeId, id);
       if (next.assigneeId === undefined) this.unassigned.add(id);
       else this.assignee.add(next.assigneeId, id);
+    }
+    if (previous.creatorId !== next.creatorId) {
+      if (previous.creatorId !== undefined) this.creator.remove(previous.creatorId, id);
+      if (next.creatorId !== undefined) this.creator.add(next.creatorId, id);
     }
     if (previous.priority !== next.priority) {
       this.priority.remove(previous.priority, id);
@@ -272,6 +278,7 @@ export class IssueIndex {
     this.state.remove(issue.stateId, id);
     if (issue.assigneeId === undefined) this.unassigned.delete(id);
     else this.assignee.remove(issue.assigneeId, id);
+    if (issue.creatorId !== undefined) this.creator.remove(issue.creatorId, id);
     this.priority.remove(issue.priority, id);
     if (issue.parentId === undefined) this.rootIssues.delete(id);
     else this.parent.remove(issue.parentId, id);
@@ -300,6 +307,7 @@ export class IssueIndex {
     this.state.clear();
     this.assignee.clear();
     this.unassigned.clear();
+    this.creator.clear();
     this.priority.clear();
     this.parent.clear();
     this.project.clear();
@@ -332,6 +340,11 @@ export class IssueIndex {
   /** `null` asks for the unassigned bucket; there is no id that means "nobody". */
   byAssignee(assigneeId: UUID | null): ReadonlySet<UUID> {
     return assigneeId === null ? this.unassigned : this.assignee.get(assigneeId);
+  }
+
+  /** Issues one person filed. An issue with no creator is in no bucket here. */
+  byCreator(creatorId: UUID): ReadonlySet<UUID> {
+    return this.creator.get(creatorId);
   }
 
   byPriority(priority: number): ReadonlySet<UUID> {

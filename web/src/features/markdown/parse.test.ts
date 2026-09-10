@@ -83,6 +83,13 @@ describe('parseInline', () => {
     expect(parseInline('\\*not italic\\*')).toEqual([{ kind: 'text', text: '*not italic*' }]);
   });
 
+  it('reads a mention as a mention rather than as a broken link', () => {
+    const id = '11111111-1111-4111-8111-111111111111';
+    expect(parseInline(`@[Bob](user:${id})`)).toEqual([
+      { kind: 'mention', name: 'Bob', userId: id },
+    ]);
+  });
+
   it('reads a link', () => {
     expect(parseInline('[docs](https://example.com/x)')).toEqual([
       {

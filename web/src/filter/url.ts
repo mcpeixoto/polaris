@@ -305,6 +305,7 @@ export function parseDisplayParams(params: URLSearchParams): DisplayOptions {
 
 const GROUP_BY: ReadonlySet<string> = new Set<string>([
   'none',
+  'focus',
   'state',
   'stateCategory',
   'assignee',

@@ -50,6 +50,11 @@
   text-underline-offset: 2px;
 }
 
+.mention {
+  color: var(--accent-text);
+  font-weight: var(--font-weight-medium);
+}
+
 .code {
   padding: 0.1em 0.3em;
   border-radius: var(--radius-sm);

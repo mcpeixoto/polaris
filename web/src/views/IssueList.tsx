@@ -56,7 +56,9 @@ import {
   PriorityIcon,
   PropertyTrigger,
   StateIcon,
+  Tabs,
   Tooltip,
+  type TabItem,
 } from '~/components';
 import { copyText, gitBranchNameFor } from '~/features/github/copy';
 import { issueIdsForAdhocList } from '~/features/issue/adhocList';
@@ -154,11 +156,13 @@ import { useSelection } from '~/hooks/useSelection';
 import { browserTimezone } from '~/features/locale';
 import { isOverdue, whenDay } from '~/features/time';
 import {
+  DEFAULT_DISPLAY,
   EMPTY_FILTER,
   isFilterGroup,
   parseDisplayParams,
   toFilterParam,
   type DisplayGroupBy,
+  type DisplayOptions,
   type DisplayProperty,
   type FilterNode,
 } from '~/filter';
@@ -237,6 +241,16 @@ export type IssueListSource =
       readonly includeCompleted?: boolean | undefined;
     }
   | {
+      /** Issues this person filed — the Created tab of My Issues. */
+      readonly kind: 'creator';
+      readonly userId: UUID;
+    }
+  | {
+      /** Issues this person is subscribed to — the Subscribed tab of My Issues. */
+      readonly kind: 'subscriber';
+      readonly userId: UUID;
+    }
+  | {
       readonly kind: 'project';
       readonly projectId: UUID;
     }
@@ -294,6 +308,12 @@ export interface IssueListProps {
   /** The heading, for a source that is not a team and so has no name of its own. */
   readonly heading?: string | undefined;
   /**
+   * Tab row drawn under the heading — My Issues Assigned / Created / Subscribed.
+   *
+   * Link tabs; the parent owns the routes. Absent on every other source.
+   */
+  readonly tabs?: readonly TabItem[] | undefined;
+  /**
    * Told whenever the keyboard cursor lands on a different issue.
    *
    * For a screen that puts this list beside something showing the cursor row — the triage
@@ -303,6 +323,14 @@ export interface IssueListProps {
    */
   readonly onCursorChange?: ((id: UUID | null) => void) | undefined;
 }
+
+/** Assigned My Issues: Focus sections, hide empty ones, priority within. */
+export const MY_ISSUES_ASSIGNED_DISPLAY: Required<DisplayOptions> = {
+  ...DEFAULT_DISPLAY,
+  groupBy: 'focus',
+  showEmptyGroups: false,
+  orderBy: 'priority',
+};
 
 /**
  * What the list is over, resolved from the route.
@@ -461,7 +489,12 @@ interface ListCommands {
   canCollapse(): boolean;
 }
 
-export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: IssueListProps = {}) {
+export function IssueList({
+  source = TEAM_SOURCE,
+  heading,
+  tabs,
+  onCursorChange,
+}: IssueListProps = {}) {
   const { teamKey = '' } = useParams<{ teamKey: string }>();
   const navigate = useNavigate();
   const engine = useEngine();
@@ -477,17 +510,21 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
       ? `team:${teamKey}`
       : source.kind === 'assignee'
         ? `assignee:${source.userId}`
-        : source.kind === 'project'
-          ? `project:${source.projectId}`
-          : source.kind === 'cycle'
-            ? `cycle:${source.cycleId}`
-            : source.kind === 'triage'
-              ? `triage:${source.teamId}`
-              : source.kind === 'label'
-                ? `label:${source.labelId}`
-                : source.kind === 'adhoc'
-                  ? `adhoc:${source.identifiers.join(',')}`
-                  : `view:${source.viewId}`;
+        : source.kind === 'creator'
+          ? `creator:${source.userId}`
+          : source.kind === 'subscriber'
+            ? `subscriber:${source.userId}`
+            : source.kind === 'project'
+              ? `project:${source.projectId}`
+              : source.kind === 'cycle'
+                ? `cycle:${source.cycleId}`
+                : source.kind === 'triage'
+                  ? `triage:${source.teamId}`
+                  : source.kind === 'label'
+                    ? `label:${source.labelId}`
+                    : source.kind === 'adhoc'
+                      ? `adhoc:${source.identifiers.join(',')}`
+                      : `view:${source.viewId}`;
 
   /**
    * What this screen's display options are remembered under, or nothing.
@@ -502,6 +539,11 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
    */
   const preferenceKey = source.kind === 'adhoc' ? undefined : sourceKey;
   const includeCompleted = source.kind === 'assignee' && source.includeCompleted === true;
+  // My Issues (Assigned / Created / Subscribed), not a profile: Focus is the curated route.
+  const allowFocus =
+    (source.kind === 'assignee' && source.includeCompleted !== true) ||
+    source.kind === 'creator' ||
+    source.kind === 'subscriber';
   const inTriage = source.kind === 'triage';
   const [searchParams] = useSearchParams();
   const showSnoozed = inTriage && parseDisplayParams(searchParams).showSnoozed === true;
@@ -613,7 +655,12 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
     sourceFilter: inTriage ? TRIAGE_SOURCE_FILTER : undefined,
     teamId: scope.team?.id,
     preferenceKey,
-    defaultDisplay: savedMeta?.display,
+    // Assigned My Issues defaults to Focus; a saved view's own display still wins when set.
+    defaultDisplay:
+      savedMeta?.display ??
+      (source.kind === 'assignee' && source.includeCompleted !== true
+        ? MY_ISSUES_ASSIGNED_DISPLAY
+        : undefined),
   });
 
   /**
@@ -2237,6 +2284,10 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
         </div>
       </header>
 
+      {tabs === undefined || tabs.length === 0 ? null : (
+        <Tabs className={styles.tabs} aria-label="My issues tabs" items={tabs} />
+      )}
+
       {/*
        * The toolbar: which issues, the filter, and how they are drawn.
        *
@@ -2398,6 +2449,7 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
         onClose={display.hide}
         trigger={display.ref}
         triage={inTriage}
+        allowFocus={allowFocus}
         onSetDefault={setViewDefault}
         canSetDefault={savedMeta !== null && savedMeta.signature !== displaySignature(view.display)}
       />
@@ -2860,9 +2912,13 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
                           ? 'No issues with this label yet'
                           : source.kind === 'assignee'
                             ? 'Nothing assigned'
-                            : source.kind === 'adhoc'
-                              ? 'None of these issues are here'
-                              : 'No issues in this team yet'
+                            : source.kind === 'creator'
+                              ? 'Nothing created'
+                              : source.kind === 'subscriber'
+                                ? 'Nothing subscribed'
+                                : source.kind === 'adhoc'
+                                  ? 'None of these issues are here'
+                                  : 'No issues in this team yet'
             }
             description={
               findQuery.trim() !== ''
@@ -2877,9 +2933,13 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
                         ? 'Unreviewed work from outside the team lands here. Press C to file into triage, or 1 / 2 / 3 / H to accept, merge, decline or snooze. MM also marks a duplicate.'
                         : source.kind === 'label' || source.kind === 'assignee'
                           ? 'Issues that pick up this assignment will appear here.'
-                          : source.kind === 'adhoc'
-                            ? 'They may have been deleted, or they belong to a team you are not in.'
-                            : 'Press C to file the first one. It will land here the moment you save.'
+                          : source.kind === 'creator'
+                            ? 'Issues you file will appear here.'
+                            : source.kind === 'subscriber'
+                              ? 'Issues you subscribe to will appear here.'
+                              : source.kind === 'adhoc'
+                                ? 'They may have been deleted, or they belong to a team you are not in.'
+                                : 'Press C to file the first one. It will land here the moment you save.'
             }
             action={
               findQuery.trim() !== '' ? (
@@ -3914,10 +3974,10 @@ function scopeOf(
   teamKey: string,
   heading: string | undefined,
 ): ListScope {
-  // Assignee first, because it is the case with no team: an issue assigned to somebody can
-  // be in any team they can reach, which is exactly why the settings link and the team name
-  // are absent from this list rather than guessed at.
-  if (source.kind === 'assignee') {
+  // Assignee / creator / subscriber first, because they are the cases with no team: an
+  // issue assigned to somebody can be in any team they can reach, which is exactly why the
+  // settings link and the team name are absent from this list rather than guessed at.
+  if (source.kind === 'assignee' || source.kind === 'creator' || source.kind === 'subscriber') {
     return { heading: heading ?? 'My issues', team: null, timezone: browserTimezone() };
   }
 
@@ -4054,6 +4114,8 @@ function corpusIdsOf(
   teamId: UUID | undefined,
 ): ReadonlySet<UUID> | null {
   if (source.kind === 'assignee') return store.index.byAssignee(source.userId);
+  if (source.kind === 'creator') return store.index.byCreator(source.userId);
+  if (source.kind === 'subscriber') return store.issueIdsSubscribedBy(source.userId);
   if (source.kind === 'project') return store.index.byProject(source.projectId);
   if (source.kind === 'cycle') return store.index.byCycle(source.cycleId);
   if (source.kind === 'label') return issueIdsForLabelView(store, source.labelId);

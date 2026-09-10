@@ -31,6 +31,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 
 import { DescriptionEditor } from '~/editor/DescriptionEditor';
 import { isInlineRoot } from '~/editor/marks';
+import { WritingField } from '~/editor/WritingField';
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext, useKeymap } from '~/app/keymap';
 import {
@@ -44,7 +45,6 @@ import {
   priorityLabel,
   Skeleton,
   StateIcon,
-  Textarea,
   TitleField as EditableTitle,
   Tooltip,
   type MenuNode,
@@ -55,6 +55,7 @@ import {
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { estimatesEnabled, issueEstimateLabel } from '~/features/estimate';
 import { EntityIcon } from '~/features/icon/EntityIcon';
+import { Markdown } from '~/features/markdown/Markdown';
 import { maybeExpandEmoticons } from '~/features/prefs/emoticons';
 import { personName, getPrefs, subscribePrefs } from '~/features/prefs/prefs';
 import {
@@ -2133,7 +2134,7 @@ export function Comments({
         submit(key);
       }}
     >
-      <Textarea
+      <WritingField
         className={styles.composerField}
         surface="plain"
         label={label}
@@ -2145,8 +2146,9 @@ export function Comments({
         value={drafts[key] ?? ''}
         error={refusal !== null && refusal.key === key ? refusal.message : undefined}
         data-submit-chord={enterSubmits ? 'enter' : undefined}
+        blocks={false}
         onFocus={() => setFocused(key)}
-        onChange={(event) => persist(key, event.target.value)}
+        onChange={(next) => persist(key, next)}
       />
       <div className={styles.composerActions}>
         {/* Ghost, like every other cancel in the product: abandoning a reply is not a second
@@ -2446,13 +2448,13 @@ function CommentBody({
             : (names[comment.resolvedBy] ?? 'somebody')}
         </p>
       ) : null}
-      {/* Markdown is shown as it was written. Rendering it is the M2 editor's job, and a
-          half-implementation that handled bold but not links would be worse than neither. */}
+      {/* Bodies are markdown: bold, lists, links and @mentions render rather than showing
+          their source. Editing still uses a textarea so a correction stays the same sentence. */}
       {editing ? (
         <CommentEditor comment={comment} onDone={onDone} />
       ) : (
         <>
-          <p className={styles.commentBody}>{comment.body}</p>
+          <Markdown source={comment.body} className={styles.commentBody} />
           {/* Reactions belong to the comment and not to the thread, so a reply carries its
               own row. The subject names which comment, because a thread of six otherwise
               announces six identical controls. */}

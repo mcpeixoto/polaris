@@ -105,6 +105,16 @@ describe('IssueIndex', () => {
     expect(index.size).toBe(1);
   });
 
+  it('files an issue under its creator for the Created tab of My Issues', () => {
+    const index = new IssueIndex();
+    index.add(issue('i1', { creatorId: 'u1' }));
+    index.add(issue('i2', { creatorId: 'u2' }));
+    index.add(issue('i3'));
+
+    expect([...index.byCreator('u1')]).toEqual(['i1']);
+    expect(index.byCreator('u3').size).toBe(0);
+  });
+
   it('files an unassigned issue in its own bucket rather than under a sentinel id', () => {
     const index = new IssueIndex();
     index.add(issue('i1'));

@@ -51,6 +51,11 @@ function hrefFor(url: string): string | null {
  */
 const INLINE: readonly { readonly kind: string; readonly pattern: RegExp }[] = [
   { kind: 'code', pattern: /`([^`\n]+)`/ },
+  {
+    kind: 'mention',
+    pattern:
+      /@\[([^\]\n]*)\]\(user:([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\)/,
+  },
   { kind: 'link', pattern: /\[([^\]\n]*)\]\(([^)\s]*)\)/ },
   { kind: 'strong', pattern: /\*\*([^\n]+?)\*\*/ },
   { kind: 'strong', pattern: /__([^\n]+?)__/ },
@@ -87,6 +92,12 @@ function renderInline(text: string, key: string): ReactNode[] {
         <code key={childKey} className={styles.code}>
           {inner}
         </code>,
+      );
+    } else if (kind === 'mention') {
+      out.push(
+        <span key={childKey} className={styles.mention} data-user-id={match[2] ?? ''}>
+          @{inner}
+        </span>,
       );
     } else if (kind === 'link') {
       const href = hrefFor(match[2] ?? '');

@@ -123,6 +123,14 @@ function InlineNode({ node, interactive }: { node: Inline; interactive: boolean 
       );
     case 'code':
       return <code className={styles.code}>{node.text}</code>;
+    case 'mention':
+      // Not a link: `user:` is not a navigable scheme. The name is what was typed; the id is
+      // kept on the node so a later surface can deep-link to a profile without re-parsing.
+      return (
+        <span className={styles.mention} data-user-id={node.userId}>
+          @{node.name}
+        </span>
+      );
     case 'link':
       // `noreferrer` as well as `noopener`: a document is a surface anyone with write access
       // to the workspace can edit, and the referrer would tell wherever it points which
