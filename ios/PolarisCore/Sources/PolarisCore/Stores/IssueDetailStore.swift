@@ -125,6 +125,17 @@ public final class IssueDetailStore {
         if case .unauthorized = error { onUnauthorized?(error) }
     }
 
+    /// Accepts the issue as another store has just had it confirmed — a status changed by a
+    /// swipe on the list underneath this screen, say.
+    ///
+    /// Ignores anything that is not this issue, and anything arriving before the screen has
+    /// one: seeding `issue` from a merge would put a row on a screen that is still deciding
+    /// whether it can show it at all.
+    public func merge(_ updated: Issue) {
+        guard updated.id == issueID, issue.value != nil else { return }
+        setIssue(updated)
+    }
+
     /// Writes the issue to both places it is held.
     private func setIssue(_ updated: Issue) {
         issue = .loaded(updated)
@@ -461,19 +472,26 @@ public final class IssueDetailStore {
 
     /// Attaches a link card. Shown at once under a provisional id and swapped for the
     /// server's row — which may be an *existing* card, because the same URL twice is one.
+    ///
+    /// The card is only shown ahead of the reply when there is a `detail` to show it in. A
+    /// detail that has not arrived, or whose fetch failed, used to make this return false
+    /// without sending anything and without setting an error — a link the reader typed,
+    /// submitted, and watched vanish.
     @discardableResult
     public func addLink(url: String, title: String?) async -> Bool {
         let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, var current = detail.value else { return false }
+        guard !trimmed.isEmpty else { return false }
         propertyError = nil
-        let before = current
+        let before = detail
         let placeholder = Attachment(
             id: "pending-\(UUIDv7.string())", url: trimmed,
             title: title?.isEmpty == false ? title! : trimmed,
             subtitle: nil, iconUrl: nil, createdAt: Date()
         )
-        current.attachments.append(placeholder)
-        detail = .loaded(current)
+        if var current = detail.value {
+            current.attachments.append(placeholder)
+            detail = .loaded(current)
+        }
         do {
             let created = try await api.createAttachment(
                 issueId: issueID, url: trimmed, title: title, opId: UUIDv7.string()
@@ -485,7 +503,7 @@ public final class IssueDetailStore {
             }
             return true
         } catch {
-            detail = .loaded(before)
+            detail = before
             let mapped = PolarisError.mapped(error)
             propertyError = mapped
             report(mapped)
@@ -519,12 +537,16 @@ public final class IssueDetailStore {
 
     /// Files a sub-issue under this one. The child appears in `detail.children` with a
     /// provisional identifier until the server assigns the number.
+    ///
+    /// Like `addLink`, the placeholder is conditional and the write is not: everything the
+    /// draft needs comes from `issue`, so a `detail` that never arrived is no reason to
+    /// refuse — and refusing it silently was indistinguishable from the server saying no.
     @discardableResult
     public func createSubIssue(title: String) async -> Bool {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let current = issue.value, var currentDetail = detail.value else { return false }
+        guard !trimmed.isEmpty, let current = issue.value else { return false }
         propertyError = nil
-        let before = currentDetail
+        let before = detail
         let draft = IssueDraft(teamId: current.team.id, title: trimmed, parentId: current.id)
         let placeholder = Issue(
             id: draft.id,
@@ -536,8 +558,10 @@ public final class IssueDetailStore {
             parentId: current.id,
             parent: current.ref
         )
-        currentDetail.children.append(placeholder)
-        detail = .loaded(currentDetail)
+        if var currentDetail = detail.value {
+            currentDetail.children.append(placeholder)
+            detail = .loaded(currentDetail)
+        }
         do {
             let created = try await api.createIssue(draft)
             if var latest = detail.value {
@@ -546,7 +570,7 @@ public final class IssueDetailStore {
             }
             return true
         } catch {
-            detail = .loaded(before)
+            detail = before
             let mapped = PolarisError.mapped(error)
             propertyError = mapped
             report(mapped)
@@ -584,3 +608,5 @@ public final class IssueDetailStore {
         }
     }
 }
+
+extension IssueDetailStore: IssueMerging {}

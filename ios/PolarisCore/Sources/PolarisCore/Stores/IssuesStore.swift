@@ -34,6 +34,9 @@ public final class IssuesStore {
     /// Called on a refused read, so a session that expired while the app was open ends at the
     /// sign-in screen instead of on a list with no way back.
     public var onUnauthorized: (@MainActor (PolarisError) -> Void)?
+    /// Called with the server's issue once a write from this list lands — see
+    /// `AppModel.issueDidChange`.
+    public var onWriteConfirmed: (@MainActor (Issue) -> Void)?
 
     private let api: any PolarisAPI
     private let cache: (any IssueCache)?
@@ -142,7 +145,15 @@ public final class IssuesStore {
     /// (`startedAt`, an automation) is not lost.
     public func setState(issueID: String, to state: WorkflowState) async {
         guard let list = issues.value, let index = list.firstIndex(where: { $0.id == issueID })
-        else { return }
+        else {
+            // Asked about an issue this list does not hold — a search result, a row from a
+            // team screen. Returning here sent no request, showed no error and moved
+            // nothing, which from the outside is a tap that missed. The write goes out
+            // regardless; the reader asked for it, and which list they asked from is not the
+            // server's business.
+            await writeUnheld(issueID: issueID, to: state)
+            return
+        }
 
         let original = list[index]
         pendingIssueIDs.insert(issueID)
@@ -163,6 +174,7 @@ public final class IssuesStore {
                 current[position] = updated
                 issues = .loaded(sort(current))
             }
+            onWriteConfirmed?(updated)
         } catch {
             // Deliberately not written to `lastRefreshError`, which is about *reads*: a
             // sentence in the header about a stale list would be about something else. It
@@ -178,6 +190,26 @@ public final class IssuesStore {
                 // medium one, which reads as a second, stranger bug than the failed write.
                 issues = .loaded(sort(current))
             }
+        }
+    }
+
+    /// The same write with nothing here to be optimistic about.
+    ///
+    /// No row to move ahead of the reply and none to roll back, so the row is only marked as
+    /// settling and the outcome is either fanned out to the stores that do hold the issue or
+    /// said out loud. Slower to feel than the optimistic path, and the honest cost of asking
+    /// a list about a row that is not in it.
+    private func writeUnheld(issueID: String, to state: WorkflowState) async {
+        pendingIssueIDs.insert(issueID)
+        writeError = nil
+        defer { pendingIssueIDs.remove(issueID) }
+        do {
+            let updated = try await api.updateIssue(IssueChange(id: issueID, stateId: state.id))
+            onWriteConfirmed?(updated)
+        } catch {
+            let mapped = PolarisError.mapped(error)
+            writeError = mapped
+            if case .unauthorized = mapped { onUnauthorized?(mapped) }
         }
     }
 
@@ -197,6 +229,8 @@ public final class IssuesStore {
     /// Open work first, ordered by priority, then by how recently it moved.
     private func sort(_ list: [Issue]) -> [Issue] { IssueOrder.sorted(list) }
 }
+
+extension IssuesStore: IssueWriting {}
 
 /// The one order every issue list in the app is in.
 ///

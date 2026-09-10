@@ -163,7 +163,7 @@ struct TriageView: View {
                     ? try await model.api.acceptTriageIssue(id: issue.id, opId: UUIDv7.string())
                     : try await model.api.declineTriageIssue(id: issue.id, opId: UUIDv7.string())
                 store.merge(updated)
-                model.issues.merge(updated)
+                model.issueDidChange(updated, from: store)
             } catch {
                 self.error = PolarisError.mapped(error)
             }

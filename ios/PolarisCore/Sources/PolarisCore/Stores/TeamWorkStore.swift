@@ -48,6 +48,9 @@ public final class TeamWorkStore {
     public private(set) var writeError: PolarisError?
 
     public var onUnauthorized: (@MainActor (PolarisError) -> Void)?
+    /// Called with the server's issue once a write from this list lands — see
+    /// `AppModel.issueDidChange`.
+    public var onWriteConfirmed: (@MainActor (Issue) -> Void)?
 
     private let api: any PolarisAPI
 
@@ -118,7 +121,12 @@ public final class TeamWorkStore {
     /// Optimistic status change, as a swipe action calls it.
     public func setState(issueID: String, to state: WorkflowState) async {
         guard let list = issues.value, let index = list.firstIndex(where: { $0.id == issueID })
-        else { return }
+        else {
+            // Not in this team's list — the same silent drop `IssuesStore.setState` had, and
+            // the same answer: send it anyway rather than eating the tap.
+            await writeUnheld(issueID: issueID, to: state)
+            return
+        }
         let original = list[index]
         writeError = nil
         var optimistic = list
@@ -127,8 +135,23 @@ public final class TeamWorkStore {
         do {
             let updated = try await api.updateIssue(IssueChange(id: issueID, stateId: state.id))
             replace(updated)
+            onWriteConfirmed?(updated)
         } catch {
             replace(original)
+            let mapped = PolarisError.mapped(error)
+            writeError = mapped
+            report(mapped)
+        }
+    }
+
+    /// The write for an issue this list does not hold: nothing to apply ahead of the reply,
+    /// nothing to roll back, and the outcome either fanned out or said out loud.
+    private func writeUnheld(issueID: String, to state: WorkflowState) async {
+        writeError = nil
+        do {
+            let updated = try await api.updateIssue(IssueChange(id: issueID, stateId: state.id))
+            onWriteConfirmed?(updated)
+        } catch {
             let mapped = PolarisError.mapped(error)
             writeError = mapped
             report(mapped)
@@ -156,6 +179,12 @@ public final class TeamWorkStore {
         if case .unauthorized = error { onUnauthorized?(error) }
     }
 }
+
+extension TeamWorkStore: IssueWriting {}
+
+extension ProjectStore: IssueMerging {}
+
+extension CycleStore: IssueMerging {}
 
 /// One project and the issues in it, gathered from every team the project spans.
 @MainActor
