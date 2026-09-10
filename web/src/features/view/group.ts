@@ -24,6 +24,8 @@ import {
 import { priorityLabel } from '~/components';
 import { personName } from '~/features/prefs/prefs';
 
+import { FOCUS_LABELS, focusKeyOf, focusRank, sortFocusIssues } from './focus';
+
 export interface IssueGroup {
   /** Stable across renders and unique within the view: the DOM key and the board column id. */
   readonly key: string;
@@ -80,6 +82,9 @@ export function groupIssues(
 
   for (const issue of issues) {
     switch (groupBy) {
+      case 'focus':
+        put(focusKeyOf(issue, store), issue);
+        break;
       case 'state':
         put(issue.stateId, issue);
         break;
@@ -149,7 +154,13 @@ export function groupIssues(
   for (const [key, bucket] of buckets) {
     groups.push({
       ...describe(key, groupBy, store),
-      issues: sortIssues(bucket, store, orderBy, direction),
+      // Focus ignores the menu's order-by: the sections are a curated route, and within each
+      // the rule is fixed (started first, then priority). Letting "updated" reshuffle Urgent
+      // would undo what the grouping is for.
+      issues:
+        groupBy === 'focus'
+          ? sortFocusIssues(bucket, store)
+          : sortIssues(bucket, store, orderBy, direction),
     });
   }
   groups.sort((a, b) => compareGroups(a, b, groupBy, store));
@@ -161,6 +172,11 @@ function describe(key: string, groupBy: DisplayGroupBy, store: Store): Omit<Issu
     return { key, label: emptyLabelFor(groupBy) };
   }
   switch (groupBy) {
+    case 'focus':
+      return {
+        key,
+        label: FOCUS_LABELS[key as keyof typeof FOCUS_LABELS] ?? key,
+      };
     case 'state': {
       const state = store.workflowStates.get(key);
       return { key, label: state?.name ?? 'Unknown status', stateId: key };
@@ -226,6 +242,9 @@ function compareGroups(
   if (b.key === NONE) return -1;
 
   switch (groupBy) {
+    case 'focus':
+      // The curated route order, not alphabetical — Urgent before Active is the product.
+      return focusRank(a.key) - focusRank(b.key);
     case 'state': {
       const left = store.workflowStates.get(a.key);
       const right = store.workflowStates.get(b.key);

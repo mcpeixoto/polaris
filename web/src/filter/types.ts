@@ -352,6 +352,7 @@ export type ViewLayout = 'list' | 'board';
 
 export type DisplayGroupBy =
   | 'none'
+  | 'focus'
   | 'state'
   | 'stateCategory'
   | 'assignee'

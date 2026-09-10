@@ -1,33 +1,57 @@
 /**
- * My Issues: everything assigned to the viewer, across every team they can reach.
+ * My Issues: Assigned, Created, and Subscribed — the morning routing surface.
  *
- * Deliberately thin. It is the issue list with a different source — same virtualiser, same
- * selection model, same eleven registered shortcuts, same bulk pickers — because a second
- * copy of all of that is where a shortcut gets fixed in one list and not the other, and
- * nobody notices for a month.
+ * Still the issue list with a different source for each tab: same virtualiser, same
+ * selection model, same shortcuts. Assigned defaults to Focus ordering (urgent → SLA →
+ * blockers → cycle → active → triage → backlog → completed); Created and Subscribed use
+ * the ordinary display defaults, with Focus available in the menu.
  *
- * The one real difference is what a selection can span. A team's list is by construction all
- * one team; this one is not, and statuses belong to a team — so the bulk status control is
- * unavailable for a cross-team selection rather than offering one team's statuses for
- * another team's issues. That is handled in IssueList, where the selection lives.
+ * Activity is skipped. That tab is a cross-issue event feed (created, updated, commented,
+ * reacted, opened PR). Per-issue activity is already a network fetch, not replica data, and
+ * wiring a personal activity corpus would be a new backend surface — not a thin source swap.
  */
 
 import { useMemo } from 'react';
+import { useLocation } from 'react-router';
 
-import { EmptyState } from '~/components';
+import { EmptyState, type TabItem } from '~/components';
 import { EntityLoading, useStoreSettled } from '~/features/entity-gate/EntityGate';
 import { useViewerId } from '~/hooks/useViewer';
+import type { UUID } from '~/store';
+
 import { IssueList, type IssueListSource } from './IssueList';
+
+export type MyIssuesTab = 'assigned' | 'created' | 'subscribed';
+
+export function myIssuesTabFromPath(pathname: string): MyIssuesTab {
+  if (pathname.endsWith('/created')) return 'created';
+  if (pathname.endsWith('/subscribed')) return 'subscribed';
+  return 'assigned';
+}
+
+export function myIssuesSource(tab: MyIssuesTab, viewerId: UUID): IssueListSource {
+  if (tab === 'created') return { kind: 'creator', userId: viewerId };
+  if (tab === 'subscribed') return { kind: 'subscriber', userId: viewerId };
+  return { kind: 'assignee', userId: viewerId };
+}
+
+const TAB_ITEMS: readonly TabItem[] = [
+  { id: 'assigned', label: 'Assigned', to: '/my-issues', end: true },
+  { id: 'created', label: 'Created', to: '/my-issues/created' },
+  { id: 'subscribed', label: 'Subscribed', to: '/my-issues/subscribed' },
+];
 
 export function MyIssues() {
   const viewerId = useViewerId();
   const settled = useStoreSettled();
+  const { pathname } = useLocation();
+  const tab = myIssuesTabFromPath(pathname);
 
   // Memoised because the source is part of the list's query identity: an object built
   // inline would be a new one every render, and the query would never be reused.
   const source = useMemo<IssueListSource | null>(
-    () => (viewerId === null ? null : { kind: 'assignee', userId: viewerId }),
-    [viewerId],
+    () => (viewerId === null ? null : myIssuesSource(tab, viewerId)),
+    [viewerId, tab],
   );
 
   if (source === null) {
@@ -46,5 +70,5 @@ export function MyIssues() {
     );
   }
 
-  return <IssueList source={source} heading="My issues" />;
+  return <IssueList source={source} heading="My issues" tabs={TAB_ITEMS} />;
 }
