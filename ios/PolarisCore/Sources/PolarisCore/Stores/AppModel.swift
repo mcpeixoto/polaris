@@ -320,6 +320,7 @@ public final class AppModel {
         } else {
             await inbox.refreshBadge()
         }
+        await loadWorkspaceDataIfMissing()
         return issues.lastRefreshError
     }
 
@@ -328,7 +329,19 @@ public final class AppModel {
     public func pollForFreshness() async -> PolarisError? {
         await issues.refreshIfStale()
         await inbox.refreshBadge()
+        await loadWorkspaceDataIfMissing()
         return issues.lastRefreshError
+    }
+
+    /// Teams, people, labels and projects — refetched only if they never arrived at all.
+    ///
+    /// The bootstrap fetch runs once, right after sign-in. When it failed there was nothing
+    /// that would ever run it again, so a launch on a bad connection spent the whole session
+    /// with no teams strip, no assignee picker and no statuses. A tick that is a no-op in the
+    /// normal case is the cheapest way to make that self-healing.
+    public func loadWorkspaceDataIfMissing() async {
+        guard workspaceData.teams.value == nil else { return }
+        await workspaceData.load()
     }
 
     /// The unread count for the app icon, from a background launch that has no scene.

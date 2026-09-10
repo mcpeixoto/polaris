@@ -28,6 +28,10 @@ struct IssueListView: View {
     /// The states this issue's team defines, for the swipe action and the context menu. Empty
     /// disables both rather than offering a menu with nothing in it.
     let statesFor: (Issue) -> [WorkflowState]
+    /// Asks the caller to make sure this issue's team has its states. Called once per team on
+    /// screen, because `statesFor` can only report what is already held and a list whose
+    /// reference data never arrived is a list with no way to change a status at all.
+    var ensureStates: (Issue) async -> Void = { _ in }
     let setState: (Issue, WorkflowState) -> Void
 
     /// Bumped whenever a status change is applied, which is what drives the haptic. A trigger
@@ -69,10 +73,27 @@ struct IssueListView: View {
         // list with no motion tying the two positions together.
         .animation(Theme.easing(0.3), value: issues.map(\.id))
         .sensoryFeedback(.impact(weight: .light), trigger: stateChanges)
+        .task(id: teamsOnScreen.map(\.team.id)) {
+            for issue in teamsOnScreen {
+                await ensureStates(issue)
+            }
+        }
+    }
+
+    /// One issue per team in the list, which is all `ensureStates` needs: the states are
+    /// per-team, not per-issue.
+    private var teamsOnScreen: [Issue] {
+        var seen: Set<String> = []
+        return issues.filter { seen.insert($0.team.id).inserted }
     }
 
     private func row(_ issue: Issue) -> some View {
-        IssueRow(issue: issue, isPending: pendingIDs.contains(issue.id))
+        IssueRow(
+            issue: issue,
+            isPending: pendingIDs.contains(issue.id),
+            states: statesFor(issue),
+            onSetState: { apply(issue, $0) }
+        )
             // The link is behind the row rather than around it, so the cell does not draw
             // the disclosure chevron — Linear's rows have none, and forty chevrons down the
             // right edge are forty marks saying nothing. A tap on the cell still activates

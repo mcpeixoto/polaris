@@ -325,6 +325,17 @@ jobs:
           path: web/playwright-report/
           retention-days: 7
 
+  ios:
+    name: iOS — PolarisCore tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      # The whole testable surface of the iOS client lives in this package, and it is
+      # platform-portable on purpose so it runs host-side with no simulator in the loop.
+      # Nothing checked the client at all until this job existed: a store could ship a
+      # regression that only a person tapping a phone would ever find.
+      - run: swift test --package-path ios/PolarisCore
+
   # The checks that read two artefacts and compare them. Each exists because the two sides
   # compile, lint and test independently and can still disagree — which is the only kind of
   # bug none of the jobs above can see.
@@ -412,7 +423,7 @@ jobs:
   deploy:
     name: Deploy to production
     runs-on: ubuntu-latest
-    needs: [go, go-ee, generated, web, e2e, discipline, secrets]
+    needs: [go, go-ee, generated, web, e2e, ios, discipline, secrets]
     # Tags only. Merging to main is integration, not release: main is where changes
     # land and get proven, and a tag is the decision to put them in front of people.
     #
