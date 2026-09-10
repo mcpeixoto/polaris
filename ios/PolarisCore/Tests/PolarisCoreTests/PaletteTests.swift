@@ -6,8 +6,8 @@ import Testing
 ///
 /// The two clients had drifted a long way: the accent was `#5A5DE8` against the web's
 /// `#5e6ad2`, priority high and medium were a whole hue-step apart, `low` was the accent on
-/// iOS and blue on the web, and `completed` was green on one and indigo on the other. Two
-/// people looking at the same issue on a phone and a laptop saw different colours for the
+/// iOS and blue on the web, and the two clients did not even agree on the hue of `completed`.
+/// Two people looking at the same issue on a phone and a laptop saw different colours for the
 /// same fact.
 ///
 /// The web values are checked in here as literals on purpose. Reading `tokens.css` at test
@@ -28,6 +28,7 @@ struct PaletteParityTests {
         static let amber400: UInt32 = 0xF2C94C
         static let orange400: UInt32 = 0xFF9057
         static let red400: UInt32 = 0xF26D70
+        static let green400: UInt32 = 0x20B670
     }
 
     @Test("the brand accent is the web's accent-500")
@@ -51,9 +52,10 @@ struct PaletteParityTests {
         #expect(Palette.state(.triage, .dark).hex == Web.orange400)
         #expect(Palette.state(.backlog, .dark).hex == Web.neutral400)
         #expect(Palette.state(.started, .dark).hex == Web.amber400)
-        // Indigo, not green. The web treats a completed issue as accent-coloured, and the two
-        // clients disagreeing about the colour of "done" is the worst place to disagree.
-        #expect(Palette.state(.completed, .dark).hex == Web.accent400)
+        // Green since the accent stopped carrying "done": the constant moved, the rule did
+        // not. Two clients disagreeing about the colour of "done" is the worst place to
+        // disagree, and this line is what makes a one-sided recolour fail rather than ship.
+        #expect(Palette.state(.completed, .dark).hex == Web.green400)
         #expect(Palette.state(.canceled, .dark).hex == Web.neutral500)
     }
 
