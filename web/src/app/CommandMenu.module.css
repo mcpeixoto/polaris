@@ -43,7 +43,7 @@
  * Hide the glance when the pair would not fit. Prefer a readable palette over a crushed
  * peek — the list still names the issue; the drawer is the bonus.
  */
-@media (max-width: 1120px) {
+@media (max-width: 1100px) {
   .peekSlot {
     display: none;
   }
