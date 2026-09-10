@@ -49,6 +49,8 @@ import {
   type CommentAnchor,
   type TextSegment,
 } from './marks';
+import { insertMention } from './mentions';
+import { MentionMenu } from './MentionMenu';
 import { SlashMenu } from './SlashMenu';
 import styles from './DescriptionEditor.module.css';
 
@@ -86,6 +88,7 @@ export function DescriptionEditor({
   const areaRef = useRef<HTMLTextAreaElement | null>(null);
   const backdropRef = useRef<HTMLPreElement | null>(null);
   const slashAnchorRef = useRef<HTMLSpanElement | null>(null);
+  const mentionAnchorRef = useRef<HTMLSpanElement | null>(null);
   const [draft, setDraft] = useState<string | null>(null);
   const [selection, setSelection] = useState<Draft | null>(null);
   const [pending, setPending] = useState<Draft | null>(null);
@@ -96,6 +99,8 @@ export function DescriptionEditor({
   const [refusal, setRefusal] = useState<string | null>(null);
   /** Offset of the `/` that opened the block menu, or null when it is closed. */
   const [slashAt, setSlashAt] = useState<number | null>(null);
+  /** Offset of the `@` that opened the mention menu, or null when it is closed. */
+  const [mentionAt, setMentionAt] = useState<number | null>(null);
 
   const text = draft ?? description;
 
@@ -269,12 +274,26 @@ export function DescriptionEditor({
     areaRef.current?.focus();
   };
 
+  const closeMention = () => {
+    setMentionAt(null);
+    areaRef.current?.focus();
+  };
+
   const chooseBlock = (kind: BlockKind) => {
     const from = slashAt;
     const state = stateOf();
     setSlashAt(null);
     if (from === null || state === null) return;
     applyEdit(insertBlock(state, from, kind));
+    areaRef.current?.focus();
+  };
+
+  const chooseMention = (user: { readonly id: UUID; readonly name: string }) => {
+    const from = mentionAt;
+    const state = stateOf();
+    setMentionAt(null);
+    if (from === null || state === null) return;
+    applyEdit(insertMention(state, from, user.name, user.id));
     areaRef.current?.focus();
   };
 
@@ -299,11 +318,25 @@ export function DescriptionEditor({
       const before = state.text.slice(state.caret - 1, state.caret);
       if (state.caret !== 0 && before !== '' && !/\s/.test(before)) return;
       event.preventDefault();
+      setMentionAt(null);
       applyEdit({
         text: `${state.text.slice(0, state.caret)}/${state.text.slice(state.caret)}`,
         caret: state.caret + 1,
       });
       setSlashAt(state.caret);
+      return;
+    }
+
+    if (event.key === '@') {
+      const before = state.text.slice(state.caret - 1, state.caret);
+      if (state.caret !== 0 && before !== '' && !/\s/.test(before)) return;
+      event.preventDefault();
+      setSlashAt(null);
+      applyEdit({
+        text: `${state.text.slice(0, state.caret)}@${state.text.slice(state.caret)}`,
+        caret: state.caret + 1,
+      });
+      setMentionAt(state.caret);
       return;
     }
 
@@ -450,7 +483,7 @@ export function DescriptionEditor({
   );
 
   /**
-   * The paint layer, with a zero-width marker spliced in at the `/` that opened the block
+   * The paint layer, with a zero-width marker spliced in at the `/` or `@` that opened a
    * menu.
    *
    * The menu belongs at the caret rather than at the foot of a thirty-line field, and this
@@ -478,19 +511,25 @@ export function DescriptionEditor({
       );
     };
 
-    const marker = <span key="slash-anchor" ref={slashAnchorRef} className={styles.slashAnchor} />;
+    const anchorAt = slashAt ?? mentionAt;
+    const marker =
+      slashAt !== null ? (
+        <span key="slash-anchor" ref={slashAnchorRef} className={styles.slashAnchor} />
+      ) : (
+        <span key="mention-anchor" ref={mentionAnchorRef} className={styles.slashAnchor} />
+      );
     const nodes: ReactNode[] = [];
     let at = 0;
-    let placed = slashAt === null;
+    let placed = anchorAt === null;
     segments.forEach((segment, index) => {
       const end = at + segment.text.length;
-      if (!placed && slashAt !== null && slashAt > at && slashAt < end) {
-        nodes.push(renderSegment(segment, segment.text.slice(0, slashAt - at), `${index}-a`));
+      if (!placed && anchorAt !== null && anchorAt > at && anchorAt < end) {
+        nodes.push(renderSegment(segment, segment.text.slice(0, anchorAt - at), `${index}-a`));
         nodes.push(marker);
-        nodes.push(renderSegment(segment, segment.text.slice(slashAt - at), `${index}-b`));
+        nodes.push(renderSegment(segment, segment.text.slice(anchorAt - at), `${index}-b`));
         placed = true;
       } else {
-        if (!placed && slashAt === at) {
+        if (!placed && anchorAt === at) {
           nodes.push(marker);
           placed = true;
         }
@@ -500,7 +539,7 @@ export function DescriptionEditor({
     });
     if (!placed) nodes.push(marker);
     return nodes;
-  }, [segments, open, slashAt]);
+  }, [segments, open, slashAt, mentionAt]);
 
   return (
     <div className={styles.wrap}>
@@ -548,11 +587,11 @@ export function DescriptionEditor({
             }
           }}
           onBlur={() => {
-            // The block menu takes focus for as long as it is open, and that is not the
-            // writer leaving the field. Saving here would also hand `useNativeValue` the
+            // The block / mention menu takes focus for as long as it is open, and that is not
+            // the writer leaving the field. Saving here would also hand `useNativeValue` the
             // last *saved* description while the caret is still in the typed one, which puts
             // the text back a paragraph the moment a block is chosen.
-            if (slashAt !== null) return;
+            if (slashAt !== null || mentionAt !== null) return;
             const next = draft;
             setDraft(null);
             flight.current = null;
@@ -566,6 +605,12 @@ export function DescriptionEditor({
         onClose={closeSlash}
         trigger={slashAnchorRef}
         onInsert={chooseBlock}
+      />
+      <MentionMenu
+        open={mentionAt !== null}
+        onClose={closeMention}
+        trigger={mentionAnchorRef}
+        onSelect={chooseMention}
       />
 
       {commentable && selection !== null && pending === null ? (

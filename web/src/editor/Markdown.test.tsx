@@ -93,4 +93,13 @@ describe('Markdown', () => {
     expect(root.querySelector('a')).toBeNull();
     expect(root.textContent).toBe('click');
   });
+
+  it('renders an @mention as @Name rather than the wire token', () => {
+    const id = '11111111-1111-4111-8111-111111111111';
+    const root = draw(`see @[Bob](user:${id})`);
+    const mention = root.querySelector('[data-user-id]');
+    expect(mention?.textContent).toBe('@Bob');
+    expect(mention?.getAttribute('data-user-id')).toBe(id);
+    expect(root.textContent).toBe('see @Bob');
+  });
 });

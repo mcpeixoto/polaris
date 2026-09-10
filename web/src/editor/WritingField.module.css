@@ -1,0 +1,18 @@
+/*
+ * Thin wrap around a Textarea so slash and mention menus have a positioning anchor near the
+ * field. The field itself keeps its own surface; this adds no chrome.
+ */
+
+.wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.anchor {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  width: 0;
+  height: 1.2em;
+  pointer-events: none;
+}
