@@ -91,7 +91,6 @@
   color: var(--text-primary);
   font-size: var(--font-size-md);
   line-height: var(--line-height-normal);
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
   max-height: 12rem;
   overflow: hidden;

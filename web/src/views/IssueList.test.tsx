@@ -928,3 +928,44 @@ describe('an ad-hoc identifier URL', () => {
     expect(screen.queryByText('Ship the importer')).toBeNull();
   });
 });
+
+/**
+ * In-view find is the list's Cmd/Ctrl+F — temporary, title/ID only, not the URL filter.
+ * The inbox already has this; the issue list did not, which is what made Linear's find
+ * feel missing on the screen people spend the day on.
+ */
+describe('in-view find', () => {
+  it('filters the list from the find box by title', async () => {
+    const { user } = renderList();
+
+    await user.type(screen.getByRole('textbox', { name: 'Find in list' }), 'importer');
+    expect(screen.getByText('Ship the importer')).toBeTruthy();
+    expect(screen.queryByText('Fix the flake')).toBeNull();
+    expect(screen.queryByText('Rewrite the seeder')).toBeNull();
+  });
+
+  it('filters by issue identifier', async () => {
+    const { user } = renderList();
+
+    await user.type(screen.getByRole('textbox', { name: 'Find in list' }), 'ENG-3');
+    expect(screen.getByText('Rewrite the seeder')).toBeTruthy();
+    expect(screen.queryByText('Fix the flake')).toBeNull();
+  });
+
+  it('says a find matched nothing, and clears it from the empty state', async () => {
+    const { user } = renderList();
+
+    await user.type(screen.getByRole('textbox', { name: 'Find in list' }), 'nothingatall');
+    expect(screen.getByText('No matches')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Clear find' }));
+    expect(screen.getByText('Fix the flake')).toBeTruthy();
+  });
+
+  it('focuses the find box from mod+f', async () => {
+    const { user } = renderList();
+
+    await user.keyboard(`{${MOD}>}f{/${MOD}}`);
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Find in list' }));
+  });
+});

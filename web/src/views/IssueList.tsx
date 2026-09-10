@@ -51,6 +51,7 @@ import {
   Checkbox,
   EmptyState,
   IconButton,
+  Input,
   Menu,
   PriorityIcon,
   PropertyTrigger,
@@ -59,6 +60,7 @@ import {
 } from '~/components';
 import { copyText, gitBranchNameFor } from '~/features/github/copy';
 import { issueIdsForAdhocList } from '~/features/issue/adhocList';
+import { listFindHits } from '~/features/issue/listFind';
 import { buildCreateURL } from '~/features/issue/create-url';
 import { EntityIcon } from '~/features/icon/EntityIcon';
 import { ArchiveGlyph } from '~/features/issue/glyphs';
@@ -504,6 +506,14 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
   const [searchParams] = useSearchParams();
   const showSnoozed = inTriage && parseDisplayParams(searchParams).showSnoozed === true;
   const viewId = source.kind === 'view' ? source.viewId : null;
+  /**
+   * In-view find (`Cmd/Ctrl+F`): a temporary title/ID filter over whatever this list already
+   * shows. Local state, not the URL — a find is how you skim the current page, and putting it
+   * in a shareable link would confuse the filter bar's own clauses with a keystroke nobody
+   * meant to keep.
+   */
+  const [findQuery, setFindQuery] = useState('');
+  const findRef = useRef<HTMLInputElement>(null);
 
   const scope = useLiveQuery(
     (store) => scopeOf(store, source, teamKey, heading),
@@ -595,8 +605,9 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
    * that is `useView`, and is the same code the board and the saved views run.
    */
   const view = useView({
-    issues: (store) => corpusOf(store, source, scope.team?.id, includeCompleted, now, showSnoozed),
-    inputs: [sourceKey, scope.team?.id ?? '', includeCompleted, now, showSnoozed],
+    issues: (store) =>
+      corpusOf(store, source, scope.team?.id, includeCompleted, now, showSnoozed, findQuery),
+    inputs: [sourceKey, scope.team?.id ?? '', includeCompleted, now, showSnoozed, findQuery],
     timezone: scope.timezone,
     now: inTriage ? now : undefined,
     sourceFilter: inTriage ? TRIAGE_SOURCE_FILTER : undefined,
@@ -1542,6 +1553,32 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
         run: () => commands.current.clearSelection(),
       },
       {
+        id: 'issueList.find',
+        title: 'Find in list',
+        keys: ['mod+f'],
+        when: 'list',
+        group: 'Issues',
+        run: () => findRef.current?.focus(),
+      },
+      {
+        id: 'issueList.find.clear',
+        title: 'Clear list find',
+        keys: ['Escape'],
+        when: 'list',
+        group: 'Issues',
+        hidden: true,
+        // After selection and peek: Escape clears the find only once those are already gone,
+        // matching the inbox, so a chord that meant "deselect" does not also wipe the find.
+        enabled: () =>
+          findQuery.trim() !== '' &&
+          !commands.current.peekOpen() &&
+          !commands.current.hasSelection(),
+        run: () => {
+          setFindQuery('');
+          findRef.current?.blur();
+        },
+      },
+      {
         id: 'issueList.peek',
         title: 'Peek issue',
         keys: ['space'],
@@ -1908,8 +1945,8 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
     ],
     // `estimatesPossible` too, because it decides whether one of these actions is in the list
     // at all: a team turning estimates on has to re-register the keymap, or `⇧E` stays unbound
-    // until the screen is remounted.
-    [viewerId, estimatesPossible],
+    // until the screen is remounted. `findQuery` for the Escape that clears find.
+    [viewerId, estimatesPossible, findQuery],
   );
 
   const onOpenRow = useCallback(
@@ -2225,6 +2262,16 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
             ))}
           </div>
         ) : null}
+        <div className={styles.find}>
+          <Input
+            ref={findRef}
+            label="Find in list"
+            hideLabel
+            placeholder="Find"
+            value={findQuery}
+            onChange={(event) => setFindQuery(event.target.value)}
+          />
+        </div>
         <FilterBar
           className={styles.filters}
           filter={view.filter}
@@ -2799,39 +2846,53 @@ export function IssueList({ source = TEAM_SOURCE, heading, onCursorChange }: Iss
           <EmptyState
             className={styles.empty}
             title={
-              filtered
-                ? 'Nothing matches this filter'
-                : source.kind === 'project'
-                  ? 'No issues in this project yet'
-                  : source.kind === 'cycle'
-                    ? 'No issues in this cycle yet'
-                    : source.kind === 'triage'
-                      ? 'Inbox is clear'
-                      : source.kind === 'label'
-                        ? 'No issues with this label yet'
-                        : source.kind === 'assignee'
-                          ? 'Nothing assigned'
-                          : source.kind === 'adhoc'
-                            ? 'None of these issues are here'
-                            : 'No issues in this team yet'
+              findQuery.trim() !== ''
+                ? 'No matches'
+                : filtered
+                  ? 'Nothing matches this filter'
+                  : source.kind === 'project'
+                    ? 'No issues in this project yet'
+                    : source.kind === 'cycle'
+                      ? 'No issues in this cycle yet'
+                      : source.kind === 'triage'
+                        ? 'Inbox is clear'
+                        : source.kind === 'label'
+                          ? 'No issues with this label yet'
+                          : source.kind === 'assignee'
+                            ? 'Nothing assigned'
+                            : source.kind === 'adhoc'
+                              ? 'None of these issues are here'
+                              : 'No issues in this team yet'
             }
             description={
-              filtered
-                ? 'Every issue here is excluded by a clause in the filter bar above.'
-                : source.kind === 'project'
-                  ? 'Press C to file the first one. It will land in this project the moment you save.'
-                  : source.kind === 'cycle'
-                    ? 'Press C to file the first one. It will land in this cycle the moment you save.'
-                    : source.kind === 'triage'
-                      ? 'Unreviewed work from outside the team lands here. Press C to file into triage, or 1 / 2 / 3 / H to accept, merge, decline or snooze. MM also marks a duplicate.'
-                      : source.kind === 'label' || source.kind === 'assignee'
-                        ? 'Issues that pick up this assignment will appear here.'
-                        : source.kind === 'adhoc'
-                          ? 'They may have been deleted, or they belong to a team you are not in.'
-                          : 'Press C to file the first one. It will land here the moment you save.'
+              findQuery.trim() !== ''
+                ? 'Nothing in this list matches that find. Escape clears it.'
+                : filtered
+                  ? 'Every issue here is excluded by a clause in the filter bar above.'
+                  : source.kind === 'project'
+                    ? 'Press C to file the first one. It will land in this project the moment you save.'
+                    : source.kind === 'cycle'
+                      ? 'Press C to file the first one. It will land in this cycle the moment you save.'
+                      : source.kind === 'triage'
+                        ? 'Unreviewed work from outside the team lands here. Press C to file into triage, or 1 / 2 / 3 / H to accept, merge, decline or snooze. MM also marks a duplicate.'
+                        : source.kind === 'label' || source.kind === 'assignee'
+                          ? 'Issues that pick up this assignment will appear here.'
+                          : source.kind === 'adhoc'
+                            ? 'They may have been deleted, or they belong to a team you are not in.'
+                            : 'Press C to file the first one. It will land here the moment you save.'
             }
             action={
-              filtered ? (
+              findQuery.trim() !== '' ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setFindQuery('');
+                    findRef.current?.focus();
+                  }}
+                >
+                  Clear find
+                </Button>
+              ) : filtered ? (
                 <Button variant="secondary" onClick={() => view.setFilter(EMPTY_FILTER)}>
                   Clear the filter
                 </Button>
@@ -3959,11 +4020,15 @@ function* corpusOf(
   includeCompleted: boolean,
   now: number,
   showSnoozed: boolean,
+  findQuery: string,
 ): Generator<Issue> {
   const ids = corpusIdsOf(store, source, teamId);
   if (ids === null) return;
 
+  const findHits = listFindHits(store, ids, findQuery);
+
   for (const id of ids) {
+    if (findHits !== null && !findHits.has(id)) continue;
     const issue = store.issues.get(id);
     if (issue === undefined) continue;
     if (source.kind === 'assignee' && !includeCompleted) {

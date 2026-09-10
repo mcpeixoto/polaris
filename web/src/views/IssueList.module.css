@@ -173,9 +173,19 @@
 .viewbar .filters {
   flex: 0 1 auto;
   min-width: 0;
-  margin-left: auto;
   padding: 0;
   border-bottom: 0;
+}
+
+/*
+ * In-view find. Grows into the gap between the scope pills and the filter bar so a typed
+ * query is always in the same place as Linear's, without stealing the filter bar's own
+ * chips for a temporary skim.
+ */
+.find {
+  flex: 1 1 8rem;
+  min-width: 5rem;
+  max-width: 16rem;
 }
 
 /*
