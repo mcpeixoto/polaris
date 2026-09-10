@@ -71,6 +71,13 @@ public enum Palette {
     public static let red400: UInt32 = 0xF26D70
     public static let red600: UInt32 = 0xCC3339
 
+    /// The fifth hue, and the only one that is not a warning. `green500` is unusually dark
+    /// for a green because green is intrinsically luminous: it is the stop a workspace's Done
+    /// state actually *stores*, so the same hex is drawn on a white page and a near-black one
+    /// and has to clear 3:1 on both — 4.37:1 and 4.36:1, the balance `accent500` strikes.
+    public static let green400: UInt32 = 0x20B670
+    public static let green500: UInt32 = 0x188A55
+
     // MARK: - Scheme
 
     public enum Scheme: Sendable, Hashable, CaseIterable {
@@ -211,7 +218,10 @@ public enum Palette {
         case .backlog: Token(dark ? neutral400 : neutral600)
         case .unstarted: Token(dark ? neutral300 : neutral700)
         case .started: Token(dark ? amber400 : amber600)
-        case .completed: Token(dark ? accent400 : accent500)
+        // Green, not the accent. Done is the one state the eye should find without reading,
+        // and the accent is already the selected row, the focused field and the primary
+        // button — a disc drawn in it is the one mark on the row that says nothing.
+        case .completed: Token(dark ? green400 : green500)
         case .canceled, .duplicate: Token(neutral500)
         }
     }

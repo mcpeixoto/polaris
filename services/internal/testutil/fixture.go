@@ -138,7 +138,7 @@ func NewFixture(t *testing.T, db *store.DB) *Fixture {
 			{&f.Backlog, "Backlog", "backlog", "a0", "#bec2c8", true},
 			{&f.Todo, "Todo", "unstarted", "a1", "#e2e2e2", false},
 			{&f.InProgress, "In Progress", "started", "a2", "#f2c94c", false},
-			{&f.Done, "Done", "completed", "a3", "#5e6ad2", false},
+			{&f.Done, "Done", "completed", "a3", "#188a55", false},
 			{&f.Canceled, "Canceled", "canceled", "a4", "#95a2b3", false},
 		}
 		for _, s := range states {
@@ -171,7 +171,7 @@ func NewFixture(t *testing.T, db *store.DB) *Fixture {
 			{"Backlog", "backlog", "a0", "#bec2c8", true},
 			{"Planned", "planned", "a1", "#e2e2e2", false},
 			{"In Progress", "started", "a2", "#f2c94c", false},
-			{"Completed", "completed", "a3", "#5e6ad2", false},
+			{"Completed", "completed", "a3", "#188a55", false},
 			{"Canceled", "canceled", "a4", "#95a2b3", false},
 		}
 		for _, s := range projectStatuses {

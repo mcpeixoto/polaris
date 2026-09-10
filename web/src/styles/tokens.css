@@ -91,7 +91,7 @@
 
   /* --- Functional hues ------------------------------------------------
    * Priority and workflow state are the only two places in Polaris where hue carries
-   * meaning rather than decoration, so the palette stops at four hues and goes no
+   * meaning rather than decoration, so the palette stops at five hues and goes no
    * further. 500 is each hue's anchor; 400 and 600 exist because a single value cannot
    * clear 3:1 against both a white page and a near-black one, and these colours are load
    * bearing — a priority icon nobody can see is a priority nobody sets.
@@ -111,6 +111,20 @@
   --color-red-400: #f26d70;
   --color-red-500: #e5484d;
   --color-red-600: #cc3339;
+
+  /* The fifth hue, and the only one that is not a warning. It exists for one fact —
+   * finished — which the accent used to carry and should not: the accent is already the
+   * selected row, the focused field and the primary button, so a done disc drawn in it is
+   * the one mark on the row that says nothing by being coloured.
+   *
+   * 500 is unusually dark for a green because green is intrinsically luminous: this is the
+   * stop a workspace's Done state actually stores, so the same hex is rendered on a white
+   * page and on a near-black one and has to clear 3:1 on both — 4.37:1 and 4.36:1, the same
+   * balance accent-500 strikes. 400 is the dark theme's stop and 600 completes the ramp.
+   */
+  --color-green-400: #20b670;
+  --color-green-500: #188a55;
+  --color-green-600: #147247;
 
   /* --- Spacing -------------------------------------------------------
    * 4px base. --space-0-5 earns its place because a 32px row cannot separate an icon
@@ -375,14 +389,16 @@
    *
    * Backlog and unstarted are both grey because the icon's shape — dashed ring versus
    * solid ring — is what separates them; the colour only says "not started". Canceled is
-   * the faintest of the three so that dead work recedes, and completed borrows the accent
-   * hue because done is the one state the eye should find without reading.
+   * the faintest of the three so that dead work recedes, and completed is green: done is
+   * the one state the eye should find without reading, and it used to be the accent, which
+   * is the one hue on the row that cannot single anything out because everything selected,
+   * focused or primary already wears it.
    */
   --state-triage: var(--color-orange-600);
   --state-backlog: var(--color-neutral-600);
   --state-unstarted: var(--color-neutral-700);
   --state-started: var(--color-amber-600);
-  --state-completed: var(--color-accent-500);
+  --state-completed: var(--color-green-500);
   --state-canceled: var(--color-neutral-500);
 
   /* The third and last place hue means something. A relation flag is not a priority and not
@@ -454,7 +470,7 @@
   --state-backlog: var(--color-neutral-400);
   --state-unstarted: var(--color-neutral-300);
   --state-started: var(--color-amber-400);
-  --state-completed: var(--color-accent-400);
+  --state-completed: var(--color-green-400);
   --state-canceled: var(--color-neutral-500);
 
   --relation-blocked: var(--color-orange-400);
@@ -524,7 +540,7 @@
     --state-backlog: var(--color-neutral-400);
     --state-unstarted: var(--color-neutral-300);
     --state-started: var(--color-amber-400);
-    --state-completed: var(--color-accent-400);
+    --state-completed: var(--color-green-400);
     --state-canceled: var(--color-neutral-500);
 
     --relation-blocked: var(--color-orange-400);

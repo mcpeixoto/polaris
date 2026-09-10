@@ -52,7 +52,11 @@ var defaultStates = []struct {
 	{"Backlog", CategoryBacklog, "#bec2c8", true},
 	{"Todo", CategoryUnstarted, "#e2e2e2", false},
 	{"In Progress", CategoryStarted, "#f2c94c", false},
-	{"Done", CategoryCompleted, "#5e6ad2", false},
+	// Green, where the source product uses its indigo accent. This is the one default we
+	// deliberately do not copy: done is the state the eye should find without reading, and
+	// an accent-coloured disc is indistinguishable from every other accent-coloured thing
+	// on the row. Migration 000088 moves the workspaces that were seeded with the old value.
+	{"Done", CategoryCompleted, "#188a55", false},
 	{"Canceled", CategoryCanceled, "#95a2b3", false},
 }
 

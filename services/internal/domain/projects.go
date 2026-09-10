@@ -35,7 +35,7 @@ var defaultProjectStatuses = []struct {
 	{"Backlog", model.ProjectCategoryBacklog, "#bec2c8", true},
 	{"Planned", model.ProjectCategoryPlanned, "#e2e2e2", false},
 	{"In Progress", model.ProjectCategoryStarted, "#f2c94c", false},
-	{"Completed", model.ProjectCategoryCompleted, "#5e6ad2", false},
+	{"Completed", model.ProjectCategoryCompleted, "#188a55", false},
 	{"Canceled", model.ProjectCategoryCanceled, "#95a2b3", false},
 }
 
