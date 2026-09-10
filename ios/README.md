@@ -118,6 +118,20 @@ While the last read failed with something a retry could fix — no network, a ti
 the shell shows an "Offline" / "Reconnecting" pill (`ConnectionBanner`) at the top. A refused
 read is not a pill; it is a sentence on the screen it happened on.
 
+### One write, every store that holds it
+
+No replica also means several stores hold the same issue at once — My Issues, a team's list, a
+project, a cycle, the search results, the detail screen on top — and none of them knows the
+others exist. `AppModel.issueDidChange(_:from:)` is the one place a *server-confirmed* issue is
+handed to every store holding that id; a screen registers its own store with
+`observeIssueWrites` (or `adoptIssueWrites`, which also routes that store's writes back out),
+and the registry holds them weakly, so a popped screen leaves on its own. Only confirmed
+values go through it: fanning out the optimistic one would leave every other list showing a
+status the server rejected, and none of them has the original to roll back to. The other half
+of the same rule lives in the stores — `setState` asked about a row a list does not hold sends
+the write anyway rather than returning, because a guard that drops a write is
+indistinguishable from a tap that missed.
+
 ## Deep links
 
 `polaris://` is registered in `project.yml` (`CFBundleURLTypes`) — the same scheme the desktop
@@ -309,3 +323,20 @@ ERROR: Cannot determine the Apple ID from Bundle ID 'com.peixotolabs.polaris' an
 which names neither the cause nor the fix — hence this paragraph. App names are globally
 unique on the App Store, so `Polaris` may already be taken; the record's name does not have to
 match `productName`.
+
+## Failures that say what happened, and offer a way back
+
+Two things had to be true before a screen could be honest about a failure, and neither was.
+`PolarisError.from(urlError:)` named four `URLError` codes and sent everything else to
+`.badResponse` — "Polaris sent an unexpected response", not retryable — so a stopped API
+container (`cannotConnectToHost`), a mistyped self-hosted address (`cannotFindHost`) and an
+expired certificate (`serverCertificateHasBadDate`) all read as a bug in the app, with no
+Retry button and no Offline pill. The codes are now grouped by what the reader should do:
+`.offline` for a device with no network, `.serverUnreachable` for a device that has one and an
+address that will not answer, `.insecureConnection` for TLS (never "you're offline" — that
+sends somebody to reset a router that works), and `.cancelled` for a screen that walked away
+from its own request. And the six reference collections — teams, users, labels, projects,
+project statuses, favourites — got what the per-team workflow states already had:
+`ensure(_:)`, `reload(_:)` and `failure(of:)` on `WorkspaceDataStore`, written once over a
+`ReferenceCollection` rather than six times, so one refused `teams()` at sign-in no longer
+disables the composer's Create button and hides every team screen for the life of the session.

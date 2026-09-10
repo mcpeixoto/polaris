@@ -36,6 +36,9 @@ struct CycleDetailView: View {
             if store == nil {
                 let created = CycleStore(api: model.api, cycle: seed)
                 model.adopt(&created.onUnauthorized)
+                // A status set on the detail screen this list opens, or on any other list
+                // holding the same row, lands here too.
+                model.observeIssueWrites(created)
                 store = created
             }
             await store?.load()
@@ -151,7 +154,7 @@ struct CycleDetailView: View {
         do {
             let updated = try await model.api.updateIssue(IssueChange(id: issue.id, stateId: state.id))
             store.merge(updated)
-            model.issues.merge(updated)
+            model.issueDidChange(updated, from: store)
         } catch {
             writeError = PolarisError.mapped(error)
         }

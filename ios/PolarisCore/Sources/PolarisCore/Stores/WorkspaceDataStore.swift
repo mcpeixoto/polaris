@@ -26,6 +26,20 @@ public enum StatesAvailability: Sendable, Hashable {
     case failed
 }
 
+/// The six reference collections the workspace loads once, named so the fetch, the
+/// in-flight guard and the retry can be written once instead of six times.
+///
+/// Per-team workflow states are deliberately not a member: they are keyed by team rather
+/// than being one value, and `ensureStates(forTeam:)` already carries them.
+public enum ReferenceCollection: String, CaseIterable, Sendable, Hashable {
+    case teams
+    case users
+    case labels
+    case projects
+    case projectStatuses
+    case favorites
+}
+
 @MainActor
 @Observable
 public final class WorkspaceDataStore {
@@ -53,6 +67,9 @@ public final class WorkspaceDataStore {
     /// Teams with a states request already in flight, so a screen full of status controls
     /// appearing at once makes one request per team rather than one per control.
     private var statesInFlight: Set<String> = []
+    /// The same guard for the six collections: a composer that wants teams, people, labels
+    /// and projects as it opens must not double every one of them on a second appearance.
+    private var referenceInFlight: Set<ReferenceCollection> = []
 
     public init(api: any PolarisAPI) {
         self.api = api
@@ -87,27 +104,129 @@ public final class WorkspaceDataStore {
             if case .unauthorized = failure { onUnauthorized?(failure) }
         }
 
-        // States are per-team and the app needs them the moment a status picker opens, which
-        // is too late to start a request. Fetched concurrently, once.
         if case .loaded(let loadedTeams) = teams {
-            for team in loadedTeams where statesAvailabilityByTeam[team.id] == nil {
-                statesAvailabilityByTeam[team.id] = .loading
-            }
-            await withTaskGroup(of: (String, [WorkflowState], Bool).self) { group in
-                for team in loadedTeams {
-                    group.addTask {
-                        do {
-                            return (team.id, try await self.api.workflowStates(teamId: team.id), true)
-                        } catch {
-                            return (team.id, [], false)
-                        }
+            await loadStates(for: loadedTeams)
+        }
+    }
+
+    /// Every team's states, concurrently, once.
+    ///
+    /// States are per-team and the app needs them the moment a status picker opens, which is
+    /// too late to start a request. Shared with the teams retry: getting the teams back
+    /// without their states would leave every status picker as dead as it was.
+    private func loadStates(for teams: [Team]) async {
+        for team in teams where statesAvailabilityByTeam[team.id] == nil {
+            statesAvailabilityByTeam[team.id] = .loading
+        }
+        await withTaskGroup(of: (String, [WorkflowState], PolarisError?).self) { group in
+            for team in teams {
+                group.addTask {
+                    do {
+                        return (team.id, try await self.api.workflowStates(teamId: team.id), nil)
+                    } catch {
+                        return (team.id, [], PolarisError.mapped(error))
                     }
                 }
-                for await (teamId, states, ok) in group {
-                    record(teamId: teamId, states: states, ok: ok)
-                }
+            }
+            for await (teamId, states, failure) in group {
+                record(teamId: teamId, states: states, failure: failure)
             }
         }
+    }
+
+    // MARK: - Reference collections
+
+    /// Fetches one collection unless its answer is already here.
+    ///
+    /// `load()` runs once, at sign-in. Until this existed, a collection that failed there —
+    /// or a screen opened before it finished — stayed empty for the rest of the session with
+    /// nothing able to ask again: a `.loaded([])` and a `.failed` looked the same to every
+    /// picker in the app, which is how one refused `teams()` disabled the composer's Create
+    /// button until somebody killed the process.
+    ///
+    /// A previous failure is retried; a collection that is genuinely empty is not asked twice.
+    public func ensure(_ collection: ReferenceCollection) async {
+        guard !status(collection).hasValue else { return }
+        await refetch(collection)
+    }
+
+    /// Asks again whatever the last answer was. This is the retry behind a "couldn't load"
+    /// chip, and the counterpart of `reloadStates(forTeam:)`.
+    public func reload(_ collection: ReferenceCollection) async {
+        await refetch(collection)
+    }
+
+    /// Several at once, for a screen whose pickers span more than one of them — the composer
+    /// offers a team, an assignee, labels and a project, and wants all four or an explanation.
+    public func ensureReferenceData(_ collections: [ReferenceCollection]) async {
+        await withTaskGroup(of: Void.self) { group in
+            for collection in Set(collections) {
+                group.addTask { await self.ensure(collection) }
+            }
+        }
+    }
+
+    /// Why a collection is not here, for a screen that wants to say so and offer the retry.
+    /// Nil covers both "loaded" and "nobody has asked yet" — the second is a spinner, not a
+    /// sentence.
+    public func failure(of collection: ReferenceCollection) -> PolarisError? {
+        status(collection).failure
+    }
+
+    private func refetch(_ collection: ReferenceCollection) async {
+        guard !referenceInFlight.contains(collection) else { return }
+        referenceInFlight.insert(collection)
+        defer { referenceInFlight.remove(collection) }
+
+        switch collection {
+        case .teams: await refetch(into: \.teams) { try await self.api.teams() }
+        case .users: await refetch(into: \.users) { try await self.api.users() }
+        case .labels: await refetch(into: \.labels) { try await self.api.labels() }
+        case .projects: await refetch(into: \.projects) { try await self.api.projects() }
+        case .projectStatuses: await refetch(into: \.projectStatuses) { try await self.api.projectStatuses() }
+        case .favorites: await refetch(into: \.favorites) { try await self.api.favorites() }
+        }
+
+        if collection == .teams, let loadedTeams = teams.value {
+            await loadStates(for: loadedTeams)
+        }
+        if let failure = status(collection).failure, case .unauthorized = failure {
+            onUnauthorized?(failure)
+        }
+    }
+
+    private func refetch<T: Sendable>(
+        into keyPath: ReferenceWritableKeyPath<WorkspaceDataStore, Loadable<[T]>>,
+        using operation: @Sendable @escaping () async throws -> [T]
+    ) async {
+        // Only a collection with nothing in it shows a spinner. Blanking a list the reader is
+        // looking at, to fetch the same list again, is a flash of empty screen for nothing.
+        if self[keyPath: keyPath].value == nil { self[keyPath: keyPath] = .loading }
+        let fresh = await fetch(operation)
+        self[keyPath: keyPath] = settle(self[keyPath: keyPath], fresh)
+    }
+
+    /// The two things the generic machinery needs to know about a collection without caring
+    /// what is in it.
+    private func status(_ collection: ReferenceCollection) -> (hasValue: Bool, failure: PolarisError?) {
+        switch collection {
+        case .teams: (teams.value != nil, teams.error)
+        case .users: (users.value != nil, users.error)
+        case .labels: (labels.value != nil, labels.error)
+        case .projects: (projects.value != nil, projects.error)
+        case .projectStatuses: (projectStatuses.value != nil, projectStatuses.error)
+        case .favorites: (favorites.value != nil, favorites.error)
+        }
+    }
+
+    /// What a collection becomes after a refetch.
+    ///
+    /// The list-freshness rule, plus the one thing that is not a failure at all: a cancelled
+    /// request goes back to `.idle` rather than `.failed`, so the next screen to ask fetches
+    /// it instead of offering a retry for something nobody did wrong.
+    private func settle<T>(_ current: Loadable<T>, _ fresh: Loadable<T>) -> Loadable<T> {
+        if case .failed(.cancelled) = fresh { return current.value == nil ? .idle : current }
+        return keep(current, unless: fresh)
     }
 
     /// Makes sure a team's states are on their way, and does nothing if they are already here.
@@ -140,20 +259,26 @@ public final class WorkspaceDataStore {
         defer { statesInFlight.remove(teamId) }
         do {
             let states = try await api.workflowStates(teamId: teamId)
-            record(teamId: teamId, states: states, ok: true)
+            record(teamId: teamId, states: states, failure: nil)
         } catch {
-            record(teamId: teamId, states: [], ok: false)
             let mapped = PolarisError.mapped(error)
+            record(teamId: teamId, states: [], failure: mapped)
             if case .unauthorized = mapped { onUnauthorized?(mapped) }
         }
     }
 
-    private func record(teamId: String, states: [WorkflowState], ok: Bool) {
-        if ok {
+    private func record(teamId: String, states: [WorkflowState], failure: PolarisError?) {
+        switch failure {
+        case nil:
             statesByTeam[teamId] = states.sorted { $0.position < $1.position }
             statesFailedForTeam.remove(teamId)
             statesAvailabilityByTeam[teamId] = .loaded
-        } else {
+        case .cancelled:
+            // A screen torn down mid-fetch is not a team whose statuses are broken. Back to
+            // whatever was known before, so the next control that appears asks again rather
+            // than offering a retry chip for a request nobody wanted an answer to.
+            statesAvailabilityByTeam[teamId] = statesByTeam[teamId] == nil ? nil : .loaded
+        default:
             statesFailedForTeam.insert(teamId)
             statesAvailabilityByTeam[teamId] = .failed
         }

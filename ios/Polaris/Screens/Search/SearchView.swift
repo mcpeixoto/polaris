@@ -16,7 +16,7 @@ struct SearchView: View {
     /// For `polaris://search?q=…` only: the link selects this tab and parks its query, and
     /// this screen is the one place that takes it.
     @Environment(DeepLinkRouter.self) private var router
-    @State private var session: SearchSession?
+    @State private var session: SearchStore?
     @State private var text = ""
     @State private var teamId: String?
     @State private var assignedToMe = false
@@ -69,8 +69,11 @@ struct SearchView: View {
         .refreshOnRealtime { await session?.refresh(teamId: teamId, filter: filter) }
         .task {
             if session == nil {
-                let created = SearchSession(api: model.api)
+                let created = SearchStore(api: model.api)
                 model.adopt(&created.onUnauthorized)
+                // A result row's status change is written here, and the confirmed issue goes
+                // back out to every other list holding the same row.
+                model.adoptIssueWrites(created)
                 session = created
             }
             runPendingLinkQuery()
@@ -152,7 +155,7 @@ struct SearchView: View {
     }
 
     @ViewBuilder
-    private func content(session: SearchSession) -> some View {
+    private func content(session: SearchStore) -> some View {
         switch session.results {
         case .idle:
             if recents.items.isEmpty {
@@ -201,9 +204,9 @@ struct SearchView: View {
                     .padding(.vertical, Theme.Space.sm)
                     .readableColumn()
                     .accessibilityIdentifier("search.count")
-                // The write goes to the shared issue store, so its refusal is reported here
-                // rather than being swallowed by a row that snaps back.
-                if let error = model.issues.writeError {
+                // A refused status change, said out loud. The row rolling back on its own
+                // reads as a tap that missed.
+                if let error = session.writeError {
                     InlineErrorLabel(text: error.displayMessage)
                         .padding(.horizontal, Theme.Space.lg)
                         .padding(.bottom, Theme.Space.sm)
@@ -211,13 +214,15 @@ struct SearchView: View {
                 }
                 IssueListView(
                     issues: results.issues,
+                    pendingIDs: session.pendingIssueIDs,
                     grouping: .status,
                     statesFor: { model.workspaceData.states(forTeam: $0.team.id) },
                     ensureStates: { await model.workspaceData.ensureStates(forTeam: $0.team.id) },
-                    // Routed through the shared issue store, so a result row that is also in
-                    // My Issues does not end up with two different statuses in two lists.
+                    // To the store that holds this row. It went to `model.issues` before,
+                    // which holds the reader's own issues and almost never a search result —
+                    // so the write was dropped by a guard and the tap did nothing at all.
                     setState: { issue, state in
-                        Task { await model.issues.setState(issueID: issue.id, to: state) }
+                        Task { await session.setState(issueID: issue.id, to: state) }
                     }
                 )
                 .readableColumn()
@@ -314,82 +319,5 @@ struct SearchView: View {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         Task { await session?.submit(trimmed, teamId: teamId, filter: filter) }
-    }
-}
-
-/// The search runner for this screen: `SearchStore`'s debounce and stale-response guard,
-/// plus the team and the filter AST, which that store has no way to carry. It lives beside
-/// the screen rather than in Core because it is the only caller that narrows a search.
-@MainActor
-@Observable
-final class SearchSession {
-    private(set) var results: Loadable<SearchResults> = .idle
-    /// What the last completed search was for, so the screen can say "no results for …"
-    /// using the query that was actually run rather than whatever is in the field now.
-    private(set) var lastQuery = ""
-
-    var onUnauthorized: (@MainActor (PolarisError) -> Void)?
-
-    private let api: any PolarisAPI
-    private var generation = 0
-    private var inFlight: Task<Void, Never>?
-
-    init(api: any PolarisAPI) {
-        self.api = api
-    }
-
-    /// Called on every keystroke. Cancels the pending request, waits, then searches.
-    func query(_ text: String, teamId: String?, filter: JSONValue?, debounce: Duration = SearchStore.debounce) {
-        inFlight?.cancel()
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            // An empty field is `.idle`, not "no results": the screen shows its recents
-            // rather than telling somebody who has typed nothing that nothing matched.
-            generation += 1
-            results = .idle
-            lastQuery = ""
-            return
-        }
-        inFlight = Task { [weak self] in
-            try? await Task.sleep(for: debounce)
-            guard !Task.isCancelled else { return }
-            await self?.run(trimmed, teamId: teamId, filter: filter)
-        }
-    }
-
-    /// Runs the last completed search again, for a sync signal. Silent: `run` only shows the
-    /// skeleton when there is nothing on screen, so results already up are replaced in place.
-    /// Nothing to do before the first search — an idle screen is showing recents, not a list
-    /// that can be stale.
-    func refresh(teamId: String?, filter: JSONValue?) async {
-        guard !lastQuery.isEmpty else { return }
-        await run(lastQuery, teamId: teamId, filter: filter)
-    }
-
-    /// Searches immediately — the return key, a recent row, a changed chip, the retry button.
-    func submit(_ text: String, teamId: String?, filter: JSONValue?) async {
-        inFlight?.cancel()
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        await run(trimmed, teamId: teamId, filter: filter)
-    }
-
-    private func run(_ trimmed: String, teamId: String?, filter: JSONValue?) async {
-        generation += 1
-        let mine = generation
-        if results.value == nil { results = .loading }
-        do {
-            let found = try await api.search(query: trimmed, teamId: teamId, first: nil, filter: filter)
-            // A slower earlier query must not overwrite a faster later one.
-            guard mine == generation else { return }
-            results = .loaded(found)
-            lastQuery = trimmed
-        } catch {
-            guard mine == generation else { return }
-            let mapped = PolarisError.mapped(error)
-            results = .failed(mapped)
-            lastQuery = trimmed
-            if case .unauthorized = mapped { onUnauthorized?(mapped) }
-        }
     }
 }
