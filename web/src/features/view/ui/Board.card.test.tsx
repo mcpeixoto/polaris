@@ -198,6 +198,29 @@ describe('a card', () => {
 
     expect(screen.getByText('overdue', { exact: false })).toBeTruthy();
   });
+
+  it('draws project and due date as buttons when the card can edit in place', () => {
+    renderBoard(['project', 'dueDate'], { onProperty: vi.fn() });
+
+    expect(screen.getByRole('button', { name: 'Onboarding' })).toBeTruthy();
+    // The seed's due date is in the past; whenDay turns it into a relative label, and that
+    // label is the button's accessible name — the same bargain status and assignee use.
+    expect(screen.getByRole('button', { name: /overdue/i })).toBeTruthy();
+  });
+
+  it('reports project and due presses to the same onProperty the glyph triggers use', async () => {
+    const onProperty = vi.fn();
+    renderBoard(['project', 'dueDate'], { onProperty });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Onboarding' }));
+    expect(onProperty.mock.calls[0]?.[0]).toBe('project');
+    expect(onProperty.mock.calls[0]?.[1]).toBe('issue-1');
+
+    onProperty.mockClear();
+    await user.click(screen.getByRole('button', { name: /overdue/i }));
+    expect(onProperty.mock.calls[0]?.[0]).toBe('due');
+  });
 });
 
 /**

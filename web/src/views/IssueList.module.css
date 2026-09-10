@@ -679,11 +679,62 @@
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-full);
   color: var(--text-secondary);
+  background: transparent;
+  font: inherit;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   font-variant-numeric: tabular-nums;
   line-height: var(--line-height-none);
   white-space: nowrap;
+  cursor: pointer;
+}
+
+button.pill:hover {
+  background-color: var(--bg-hover);
+}
+
+button.pill:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/*
+ * The ⋯ that reveals the row's context menu without a right-click. Invisible until the row
+ * is hovered or focused-within, so a dense list stays dense — and always reachable from the
+ * keyboard once the row is the active descendant's focus parent.
+ */
+.rowMore {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+  margin-inline-start: var(--space-1);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--text-tertiary);
+  background: transparent;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.row:hover .rowMore,
+.row:focus-within .rowMore,
+.active .rowMore {
+  opacity: 1;
+}
+
+.rowMore:hover {
+  color: var(--text-secondary);
+  background-color: var(--bg-hover);
+}
+
+.rowMore:focus-visible {
+  opacity: 1;
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .pillText {

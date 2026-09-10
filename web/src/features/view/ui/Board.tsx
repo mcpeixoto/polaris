@@ -39,6 +39,7 @@ import {
   useState,
   useSyncExternalStore,
   type DragEvent,
+  type ReactNode,
 } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
@@ -983,6 +984,51 @@ function ProjectGlyph() {
   );
 }
 
+/**
+ * A text meta pill that opens a picker when the board can edit in place.
+ *
+ * Status / priority / assignee are glyph-only `PropertyTrigger`s. Project, estimate and due
+ * date carry a label, so they are a real button painted as the same pill the inert span used
+ * to be — same footprint, same type, a pointer can press them.
+ */
+function MetaPill({
+  name,
+  action,
+  open,
+  overdue = false,
+  onOpen,
+  children,
+}: {
+  name: string;
+  action: string;
+  open: boolean;
+  overdue?: boolean | undefined;
+  onOpen: ((element: HTMLElement) => void) | undefined;
+  children: ReactNode;
+}) {
+  const className = [styles.pill, overdue ? styles.overdue : null].filter(Boolean).join(' ');
+  const label = overdue ? `${name} overdue` : name;
+  if (onOpen === undefined) {
+    return <span className={className}>{children}</span>;
+  }
+  return (
+    <button
+      type="button"
+      className={className}
+      aria-label={label}
+      title={action}
+      aria-haspopup="menu"
+      aria-expanded={open}
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpen(event.currentTarget);
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 interface BoardCardProps {
   id: UUID;
   /** Where the card is in its column, so a right-click can put the cursor on it. */
@@ -1225,7 +1271,16 @@ const BoardCard = memo(function BoardCard({
           </PropertyTrigger>
         )}
         {properties.has('project') && issue.projectName !== null ? (
-          <span className={styles.pill}>
+          <MetaPill
+            name={issue.projectName}
+            action="Set project"
+            open={openProperty === 'project'}
+            onOpen={
+              onProperty === undefined
+                ? undefined
+                : (element) => onProperty('project', id, index, element)
+            }
+          >
             <span className={styles.pillGlyph}>
               <EntityIcon
                 icon={issue.projectIcon ?? undefined}
@@ -1235,18 +1290,33 @@ const BoardCard = memo(function BoardCard({
               />
             </span>
             <span className={styles.pillText}>{issue.projectName}</span>
-          </span>
+          </MetaPill>
         ) : null}
         {properties.has('estimate') && issue.estimate !== null ? (
-          <span className={styles.pill}>
+          <MetaPill
+            name={issue.estimate}
+            action="Set estimate"
+            open={openProperty === 'estimate'}
+            onOpen={
+              onProperty === undefined
+                ? undefined
+                : (element) => onProperty('estimate', id, index, element)
+            }
+          >
             <span className={styles.pillText}>{issue.estimate}</span>
-          </span>
+          </MetaPill>
         ) : null}
         {properties.has('dueDate') && issue.dueDate !== null ? (
-          <span
-            className={[styles.pill, issue.overdue ? styles.overdue : null]
-              .filter(Boolean)
-              .join(' ')}
+          <MetaPill
+            name={issue.dueDate}
+            action="Set due date"
+            open={openProperty === 'due'}
+            overdue={issue.overdue}
+            onOpen={
+              onProperty === undefined
+                ? undefined
+                : (element) => onProperty('due', id, index, element)
+            }
           >
             <span className={styles.pillGlyph}>
               <CalendarGlyph />
@@ -1255,7 +1325,7 @@ const BoardCard = memo(function BoardCard({
             {/* The tone alone never carries it — the text says "Yesterday", which does not
                 mean overdue. The list row draws exactly this. */}
             {issue.overdue ? <span className={styles.srOnly}> overdue</span> : null}
-          </span>
+          </MetaPill>
         ) : null}
         {properties.has('labels') ? (
           <LabelList
