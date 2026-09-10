@@ -229,10 +229,15 @@ lint-web:
 	$(PNPM) -r lint
 
 .PHONY: test
-test: test-go test-web ## All tests
+test: ## All tests
+	$(MAKE) -j2 test-go test-web
 
 .PHONY: test-go
 test-go:
+	cd $(SVC) && $(GO) test ./...
+
+.PHONY: test-go-race
+test-go-race: ## Go tests with the race detector (CI flags)
 	cd $(SVC) && $(GO) test ./... -race -count=1
 
 # The enterprise edition is a second artefact, not a variant, so it gets its own run.

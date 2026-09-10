@@ -27,7 +27,7 @@ export default defineConfig({
 
   // Serial locally so a failure is easy to watch; parallel in CI where nobody is watching.
   fullyParallel: !!process.env.CI,
-  workers: process.env.CI ? 2 : 1,
+  workers: process.env.CI ? 4 : 1,
 
   // A test that only passes on a retry is a flaky test, and a flaky test in this suite
   // usually means a real race in the sync engine. Retries are allowed in CI so a
@@ -50,14 +50,21 @@ export default defineConfig({
     },
   ],
 
-  // The dev server is started by the harness rather than here when POLARIS_E2E_URL is
+  // The app server is started by the harness rather than here when POLARIS_E2E_URL is
   // set, so the same suite can run against a built preview or a deployed environment.
+  //
+  // CI serves a production build: 124 tests each loading the SPA through the
+  // transform pipeline is the long pole. Local keeps `pnpm dev` so a change is
+  // visible without waiting for a rebuild. Skip `tsc -b` in the CI command; the
+  // web job already typechecks.
   webServer: process.env.POLARIS_E2E_URL
     ? undefined
     : {
-        command: 'pnpm dev',
+        command: process.env.CI
+          ? 'pnpm exec vite build && pnpm exec vite preview --host --port 5173 --strictPort'
+          : 'pnpm dev',
         url: 'http://localhost:5173',
         reuseExistingServer: !process.env.CI,
-        timeout: 60_000,
+        timeout: process.env.CI ? 120_000 : 60_000,
       },
 });
