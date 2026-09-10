@@ -93,6 +93,16 @@ func (c *Client) CreateCheckoutSession(ctx context.Context, in CheckoutInput) (s
 	}
 	if in.AutomaticTax {
 		form.Set("automatic_tax[enabled]", "true")
+		// Stripe Tax needs a customer location. Without this, the session opens with
+		// automatic_tax.status=requires_location_inputs and never calculates VAT — which
+		// is the same as tax being off, except the Dashboard says it is on.
+		form.Set("billing_address_collection", "required")
+		// When reusing a customer, Checkout must be allowed to write the address back onto
+		// that record; otherwise Tax still has nowhere to look.
+		if in.CustomerID != "" {
+			form.Set("customer_update[address]", "auto")
+			form.Set("customer_update[name]", "auto")
+		}
 	}
 
 	var out struct {
