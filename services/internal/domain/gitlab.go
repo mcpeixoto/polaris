@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -57,6 +58,7 @@ type LinkGitLabMergeRequestInput struct {
 	Number          int
 	Draft           bool
 	Merged          bool
+	Closed          bool
 	MergeableState  string
 	ReviewRequested bool
 }
@@ -409,6 +411,7 @@ func (s *Service) LinkGitLabMergeRequest(
 			BranchName: in.BranchName,
 			MagicClass: string(t.class),
 			Merged:     in.Merged,
+			Closed:     in.Closed,
 			Draft:      in.Draft,
 		})
 		att, version, err := s.CreateAttachment(ctx, p, CreateAttachmentInput{
@@ -600,6 +603,10 @@ func normaliseGitLabInstanceURL(raw *string) (string, error) {
 	if u.Scheme != "https" && u.Scheme != "http" {
 		return "", platform.Validation("instanceUrl", "the instance URL must be http or https")
 	}
+	if !GitLabInstanceCarriesTokenSafely(u.Scheme + "://" + u.Host) {
+		return "", platform.Validation("instanceUrl",
+			"the instance URL must be https — the access token is sent to it on every request")
+	}
 	if u.Path != "" && u.Path != "/" {
 		return "", platform.Validation("instanceUrl", "the instance URL must not include a path")
 	}
@@ -607,6 +614,28 @@ func normaliseGitLabInstanceURL(raw *string) (string, error) {
 		return "", platform.Validation("instanceUrl", "the instance URL must not include a query")
 	}
 	return strings.ToLower(u.Scheme) + "://" + u.Host, nil
+}
+
+// GitLabInstanceCarriesTokenSafely reports whether the access token may be sent to this
+// instance. Polaris puts a workspace's personal access token in a `PRIVATE-TOKEN` header on
+// every linkback, so a plaintext instance hands that token — `api` scope, no expiry unless
+// the user set one — to anything on the path. https is therefore required, with one
+// exception: a loopback host never leaves the machine, and refusing it would make a local
+// GitLab impossible to develop against for no gain.
+func GitLabInstanceCarriesTokenSafely(base string) bool {
+	u, err := url.Parse(strings.TrimRight(strings.TrimSpace(base), "/"))
+	if err != nil || u.Host == "" {
+		return false
+	}
+	if strings.EqualFold(u.Scheme, "https") {
+		return true
+	}
+	host := u.Hostname()
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func newGitLabWebhookSecret() (string, error) {

@@ -2,6 +2,7 @@ package gitlab
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/peixotolabs/polaris/services/internal/domain"
@@ -45,5 +46,21 @@ func TestCommentRequest(t *testing.T) {
 	}
 	if payload["note"] != "hi" {
 		t.Fatalf("commit payload uses note, got %+v", payload)
+	}
+}
+
+func TestCommentClient_RefusesToSendTheTokenInCleartext(t *testing.T) {
+	t.Parallel()
+	err := CommentClient{}.Post(context.Background(), "glpat-secret", domain.GitLabComment{
+		InstanceURL: "http://gitlab.internal",
+		Project:     "acme/app",
+		Number:      12,
+		Body:        "linked",
+	})
+	if err == nil {
+		t.Fatal("a plaintext instance must not receive the access token")
+	}
+	if !strings.Contains(err.Error(), "plaintext") {
+		t.Fatalf("the refusal must say why: %v", err)
 	}
 }
