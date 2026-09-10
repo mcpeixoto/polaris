@@ -68,6 +68,15 @@ public final class SearchStore {
         }
     }
 
+    /// Runs the last completed search again, for a sync signal. Silent: `run` only shows the
+    /// skeleton when there is nothing on screen, so results already up are replaced in place.
+    /// Nothing to do before the first search — an idle screen is showing recents, not a list
+    /// that can be stale.
+    public func refresh(teamId: String? = nil, filter: JSONValue? = nil) async {
+        guard !lastQuery.isEmpty else { return }
+        await run(lastQuery, teamId: teamId, filter: filter)
+    }
+
     /// Searches immediately — the return key, a recent row, a changed chip, the retry button.
     public func submit(_ text: String, teamId: String? = nil, filter: JSONValue? = nil) async {
         inFlight?.cancel()

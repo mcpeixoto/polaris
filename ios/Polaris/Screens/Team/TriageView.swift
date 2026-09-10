@@ -37,6 +37,9 @@ struct TriageView: View {
             if store == nil { store = TeamWorkStores.shared.store(for: team, model: model) }
             await store?.load()
         }
+        // A decision in flight is a row the server has not answered about yet; reloading over
+        // it puts the issue back in the queue the reader just cleared it from.
+        .refreshOnRealtime(isSuspended: !pendingIDs.isEmpty) { await store?.load() }
     }
 
     @ViewBuilder

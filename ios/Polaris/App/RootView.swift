@@ -196,7 +196,7 @@ struct SignedInShell: View {
         case .myIssues:
             select(.myIssues)
         case .search(let query):
-            router.pendingSearchQuery = query
+            router.park(searchQuery: query)
             select(.search)
         case .issue(let reference):
             do {

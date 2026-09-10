@@ -43,6 +43,9 @@ struct CycleDetailView: View {
             }
             await store?.load()
         }
+        // The cycle store has no optimistic write, so a row mid-change is showing a spinner
+        // over the old status; a reload would land the old status as if it were news.
+        .refreshOnRealtime(isSuspended: !pendingIDs.isEmpty) { await store?.load() }
     }
 
     private func header(store: CycleStore) -> some View {

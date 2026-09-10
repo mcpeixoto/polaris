@@ -51,19 +51,58 @@ struct ConnectionBanner: View {
 /// detail screen or a team's list holds a store of its own that the coordinator has never
 /// heard of. Those adopt this: `.refreshOnRealtime { await store.load() }`. The trigger is
 /// `changeVersion`, which bumps once per coalesced signal, so a burst of deltas is one reload.
+///
+/// Two things suspend the reload, and `RealtimeRefreshGate` replays whichever signal was
+/// missed once they lift:
+///
+/// - **Off screen.** A pushed-away screen keeps its `onChange` — the four screens under a
+///   team hub even share one store — so without this a signal costs one read per screen in
+///   the stack, none of them visible. The replay on return is the useful half: coming back to
+///   a hub that went stale while you were three screens deep reloads it.
+/// - **Busy**, which the screen defines: an open composer, a picker sheet, a write in flight.
+///   Reloading under a cursor replaces text somebody is typing, and reloading over an
+///   optimistic row rolls it back to a state the server has not been told about yet.
 struct RefreshOnRealtime: ViewModifier {
     @Environment(AppModel.self) private var model
+    let isSuspended: Bool
     let action: @MainActor () async -> Void
+    @State private var gate = RealtimeRefreshGate()
+    @State private var isVisible = false
+    @State private var hasAppeared = false
 
     func body(content: Content) -> some View {
-        content.onChange(of: model.realtime.changeVersion) { _, _ in
-            Task { await action() }
-        }
+        content
+            .onAppear {
+                isVisible = true
+                // The first appearance rides in with the screen's own `.task`, which loads at
+                // whatever version stands now; refetching for it would be that same read twice.
+                guard hasAppeared else {
+                    hasAppeared = true
+                    gate.seed(model.realtime.changeVersion)
+                    return
+                }
+                refreshIfDue()
+            }
+            .onDisappear { isVisible = false }
+            .onChange(of: model.realtime.changeVersion) { _, _ in refreshIfDue() }
+            .onChange(of: isSuspended) { _, _ in refreshIfDue() }
+    }
+
+    private func refreshIfDue() {
+        let suspended = !isVisible || isSuspended
+        guard gate.reached(version: model.realtime.changeVersion, isSuspended: suspended) else { return }
+        Task { await action() }
     }
 }
 
 extension View {
-    func refreshOnRealtime(_ action: @escaping @MainActor () async -> Void) -> some View {
-        modifier(RefreshOnRealtime(action: action))
+    /// - Parameter isSuspended: True while a reload would be hostile — a composer with text in
+    ///   it, a sheet editing a value, a write the server has not answered yet. The signal is
+    ///   not dropped; it is replayed when this goes false.
+    func refreshOnRealtime(
+        isSuspended: Bool = false,
+        _ action: @escaping @MainActor () async -> Void
+    ) -> some View {
+        modifier(RefreshOnRealtime(isSuspended: isSuspended, action: action))
     }
 }

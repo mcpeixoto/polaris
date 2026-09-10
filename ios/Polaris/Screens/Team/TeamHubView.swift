@@ -34,6 +34,8 @@ struct TeamHubView: View {
             if store == nil { store = TeamWorkStores.shared.store(for: team, model: model) }
             await store?.load()
         }
+        // Nothing on the hub is edited in place, so a signal always lands.
+        .refreshOnRealtime { await store?.load() }
     }
 
     // MARK: - Summary

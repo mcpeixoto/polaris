@@ -58,6 +58,9 @@ struct TeamIssuesView: View {
             if store == nil { store = TeamWorkStores.shared.store(for: team, model: model) }
             await store?.load()
         }
+        // Not while the compose sheet is up: the list under it is about to gain the issue
+        // being written, and a reload behind a modal is a read nobody can see the result of.
+        .refreshOnRealtime(isSuspended: isComposing) { await store?.load() }
     }
 
     private func issues(in store: TeamWorkStore) -> [Issue] {

@@ -24,6 +24,8 @@ struct CyclesView: View {
             if store == nil { store = TeamWorkStores.shared.store(for: team, model: model) }
             await store?.load()
         }
+        // Read-only: every cycle's progress is computed from the team's list.
+        .refreshOnRealtime { await store?.load() }
     }
 
     @ViewBuilder
