@@ -179,10 +179,19 @@ struct SearchView: View {
                     .padding(.vertical, Theme.Space.sm)
                     .readableColumn()
                     .accessibilityIdentifier("search.count")
+                // The write goes to the shared issue store, so its refusal is reported here
+                // rather than being swallowed by a row that snaps back.
+                if let error = model.issues.writeError {
+                    InlineErrorLabel(text: error.displayMessage)
+                        .padding(.horizontal, Theme.Space.lg)
+                        .padding(.bottom, Theme.Space.sm)
+                        .readableColumn()
+                }
                 IssueListView(
                     issues: results.issues,
                     grouping: .status,
                     statesFor: { model.workspaceData.states(forTeam: $0.team.id) },
+                    ensureStates: { await model.workspaceData.ensureStates(forTeam: $0.team.id) },
                     // Routed through the shared issue store, so a result row that is also in
                     // My Issues does not end up with two different statuses in two lists.
                     setState: { issue, state in

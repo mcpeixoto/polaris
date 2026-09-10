@@ -24,6 +24,13 @@ public final class IssuesStore {
     /// The last failed background refresh. `refreshIfStale` used to swallow this entirely: a
     /// foregrounded app with a dead session did nothing at all and said nothing about it.
     public private(set) var lastRefreshError: PolarisError?
+    /// The last refused write from a list row, and the reason for it.
+    ///
+    /// A rolled-back row was the only thing a refused status change said, and a row that
+    /// snaps back is indistinguishable from a tap that missed — which is exactly what "I
+    /// can't change the status and I don't know why" looks like from the outside. The detail
+    /// screen has said why since it was written; the list said nothing.
+    public private(set) var writeError: PolarisError?
     /// Called on a refused read, so a session that expired while the app was open ends at the
     /// sign-in screen instead of on a list with no way back.
     public var onUnauthorized: (@MainActor (PolarisError) -> Void)?
@@ -58,6 +65,9 @@ public final class IssuesStore {
             issues = .loaded(sort(fetched))
             isShowingCachedIssues = false
             lastRefreshError = nil
+            // The list the refused write rolled back has just been replaced by the server's
+            // own, so the sentence about it no longer describes anything on screen.
+            writeError = nil
             // Only the unfiltered, assigned list is cached. Persisting a filtered one would
             // restore "everything including completed" — or "everything I created" — as if it
             // were the whole truth on the next cold start, under a filter that is off.
@@ -136,6 +146,7 @@ public final class IssuesStore {
 
         let original = list[index]
         pendingIssueIDs.insert(issueID)
+        writeError = nil
         defer { pendingIssueIDs.remove(issueID) }
 
         // Apply first, ask after. Without this the row does not move until the round trip
@@ -153,9 +164,13 @@ public final class IssuesStore {
                 issues = .loaded(sort(current))
             }
         } catch {
-            // Deliberately not written to `lastRefreshError`, which is about *reads*: the row
-            // snapping back is what tells the reader this write was refused, and a second
-            // sentence in the header about a stale list would be about something else.
+            // Deliberately not written to `lastRefreshError`, which is about *reads*: a
+            // sentence in the header about a stale list would be about something else. It
+            // goes to `writeError` instead, which the list surfaces on its own — the row
+            // snapping back was never enough on its own to tell a refusal from a missed tap.
+            let mapped = PolarisError.mapped(error)
+            writeError = mapped
+            if case .unauthorized = mapped { onUnauthorized?(mapped) }
             if var current = issues.value, let position = current.firstIndex(where: { $0.id == issueID }) {
                 current[position] = original
                 // Re-sorted, like the success path. Restoring the row's value without
@@ -164,6 +179,11 @@ public final class IssuesStore {
                 issues = .loaded(sort(current))
             }
         }
+    }
+
+    /// Dismisses the refused-write sentence, once the reader has read it.
+    public func clearWriteError() {
+        writeError = nil
     }
 
     public func create(_ draft: IssueDraft) async throws -> Issue {

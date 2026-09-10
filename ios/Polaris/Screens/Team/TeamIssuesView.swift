@@ -93,16 +93,27 @@ struct TeamIssuesView: View {
                 .scrollIndicators(.hidden)
                 .refreshable { await store.load() }
             } else {
-                IssueListView(
-                    issues: list,
-                    grouping: .status,
-                    statesFor: { model.workspaceData.states(forTeam: $0.team.id) },
-                    setState: { issue, state in
-                        Task { await store.setState(issueID: issue.id, to: state) }
+                VStack(spacing: 0) {
+                    // A refused status change, said out loud. The row rolling back on its own
+                    // reads as a tap that missed.
+                    if let error = store.writeError {
+                        InlineErrorLabel(text: error.displayMessage)
+                            .padding(.horizontal, Theme.Space.lg)
+                            .padding(.bottom, Theme.Space.sm)
+                            .readableColumn()
                     }
-                )
-                .readableColumn()
-                .refreshable { await store.load() }
+                    IssueListView(
+                        issues: list,
+                        grouping: .status,
+                        statesFor: { model.workspaceData.states(forTeam: $0.team.id) },
+                        ensureStates: { await model.workspaceData.ensureStates(forTeam: $0.team.id) },
+                        setState: { issue, state in
+                            Task { await store.setState(issueID: issue.id, to: state) }
+                        }
+                    )
+                    .readableColumn()
+                    .refreshable { await store.load() }
+                }
             }
         }
     }

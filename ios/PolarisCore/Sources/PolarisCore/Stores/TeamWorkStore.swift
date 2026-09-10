@@ -43,6 +43,9 @@ public final class TeamWorkStore {
     public let team: Team
     public private(set) var issues: Loadable<[Issue]> = .idle
     public private(set) var cycles: Loadable<[Cycle]> = .idle
+    /// The last refused status change, for the same reason `IssuesStore` keeps one: a row
+    /// that snaps back says something went wrong and nothing about what.
+    public private(set) var writeError: PolarisError?
 
     public var onUnauthorized: (@MainActor (PolarisError) -> Void)?
 
@@ -66,6 +69,9 @@ public final class TeamWorkStore {
         switch await fetchedIssues {
         case .success(let list):
             issues = .loaded(IssueOrder.sorted(list))
+            // The list the refused write rolled back has just been replaced by the server's
+            // own, so the sentence about it no longer describes anything on screen.
+            writeError = nil
         case .failure(let error):
             let mapped = PolarisError.mapped(error)
             if issues.value == nil { issues = .failed(mapped) }
@@ -114,6 +120,7 @@ public final class TeamWorkStore {
         guard let list = issues.value, let index = list.firstIndex(where: { $0.id == issueID })
         else { return }
         let original = list[index]
+        writeError = nil
         var optimistic = list
         optimistic[index].state = state
         issues = .loaded(IssueOrder.sorted(optimistic))
@@ -122,8 +129,15 @@ public final class TeamWorkStore {
             replace(updated)
         } catch {
             replace(original)
-            report(PolarisError.mapped(error))
+            let mapped = PolarisError.mapped(error)
+            writeError = mapped
+            report(mapped)
         }
+    }
+
+    /// Dismisses the refused-write sentence, once the reader has read it.
+    public func clearWriteError() {
+        writeError = nil
     }
 
     public func merge(_ updated: Issue) {

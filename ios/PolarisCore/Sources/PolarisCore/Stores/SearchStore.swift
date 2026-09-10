@@ -85,6 +85,9 @@ public final class SearchStore {
 public final class TeamIssuesStore {
     public private(set) var issues: Loadable<[Issue]> = .idle
     public let team: Team
+    /// The last refused status change, for the same reason `IssuesStore` keeps one: a row
+    /// that snaps back says something went wrong and nothing about what.
+    public private(set) var writeError: PolarisError?
 
     public var onUnauthorized: (@MainActor (PolarisError) -> Void)?
 
@@ -99,6 +102,9 @@ public final class TeamIssuesStore {
         if issues.value == nil { issues = .loading }
         do {
             issues = .loaded(IssueOrder.sorted(try await api.issues(teamId: team.id)))
+            // The list the refused write rolled back has just been replaced by the server's
+            // own, so the sentence about it no longer describes anything on screen.
+            writeError = nil
         } catch {
             let mapped = PolarisError.mapped(error)
             if issues.value == nil { issues = .failed(mapped) }
@@ -111,6 +117,7 @@ public final class TeamIssuesStore {
         guard let list = issues.value, let index = list.firstIndex(where: { $0.id == issueID })
         else { return }
         let original = list[index]
+        writeError = nil
         var optimistic = list
         optimistic[index].state = state
         issues = .loaded(IssueOrder.sorted(optimistic))
@@ -119,7 +126,15 @@ public final class TeamIssuesStore {
             replace(updated, fallback: nil)
         } catch {
             replace(original, fallback: original)
+            let mapped = PolarisError.mapped(error)
+            writeError = mapped
+            if case .unauthorized = mapped { onUnauthorized?(mapped) }
         }
+    }
+
+    /// Dismisses the refused-write sentence, once the reader has read it.
+    public func clearWriteError() {
+        writeError = nil
     }
 
     public func merge(_ updated: Issue) {
