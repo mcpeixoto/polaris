@@ -257,6 +257,12 @@ export function GitLabSettings() {
                     workspaceSave.clear();
                   }}
                   disabled={savingWorkspace}
+                  // A long-lived api-scoped credential. Not masked — the field is filled by
+                  // pasting from GitLab and read back to check the paste took, which is the
+                  // same argument SecretField makes — but the browser must not keep a copy
+                  // of it in autofill or hand it to a spellchecker.
+                  autoComplete="off"
+                  spellCheck={false}
                 />
               </SettingsRow>
               <SettingsRow>
@@ -317,6 +323,8 @@ export function GitLabSettings() {
                   workspaceSave.clear();
                 }}
                 disabled={!isAdmin || savingWorkspace}
+                autoComplete="off"
+                spellCheck={false}
               />
             </SettingsRow>
             <SettingsRow

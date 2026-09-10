@@ -32,6 +32,7 @@ type gitlabAttachmentMeta struct {
 	SHA        string `json:"sha,omitempty"`
 	MagicClass string `json:"magicClass,omitempty"`
 	Merged     bool   `json:"merged,omitempty"`
+	Closed     bool   `json:"closed,omitempty"`
 	Draft      bool   `json:"draft,omitempty"`
 }
 
@@ -44,6 +45,12 @@ func parseGitLabMeta(raw json.RawMessage) gitlabAttachmentMeta {
 func (s *Service) applyGitLabMRStatus(
 	ctx context.Context, p *authz.Principal, t gitHubTarget, in LinkGitLabMergeRequestInput,
 ) error {
+	// Closing a merge request without merging it says nothing about the issue: the work was
+	// abandoned, redone elsewhere, or split. Every other branch here moves the issue
+	// somewhere, and there is no honest destination for this one — so it moves nothing.
+	if in.Closed && !in.Merged {
+		return nil
+	}
 	ev := gitlabMRAutomationEvent(in)
 	auto, err := s.loadGitLabTeamAutomation(ctx, t.issue.WorkspaceID, t.issue.TeamID)
 	if err != nil {
@@ -103,6 +110,12 @@ func (s *Service) allGitLabMRsMerged(ctx context.Context, p *authz.Principal, is
 	for _, a := range atts {
 		m := parseGitLabMeta(a.Metadata)
 		if m.Source != "gitlab" || m.Kind != "merge_request" {
+			continue
+		}
+		// An abandoned merge request is not an unmerged one. Counting it would leave the
+		// issue permanently short of "every MR merged", so the one that did merge never
+		// closes it.
+		if m.Closed && !m.Merged {
 			continue
 		}
 		found = true

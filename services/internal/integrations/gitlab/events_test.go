@@ -120,3 +120,54 @@ func TestParsePipelineReady(t *testing.T) {
 		t.Fatalf("ready: %+v", got)
 	}
 }
+
+func TestParseMergeRequest_ClosedWithoutMerging(t *testing.T) {
+	t.Parallel()
+	// The payload GitLab actually sends when somebody presses Close: `merge_status` survives
+	// as "can_be_merged", because the branch is still mergeable — nobody is going to merge it.
+	body := []byte(`{
+		"object_kind": "merge_request",
+		"project": {"path_with_namespace": "acme/app", "web_url": "https://gitlab.com/acme/app"},
+		"object_attributes": {
+			"iid": 12,
+			"title": "Fixes ENG-1",
+			"state": "closed",
+			"action": "close",
+			"source_branch": "feat/eng-1-importer",
+			"url": "https://gitlab.com/acme/app/-/merge_requests/12",
+			"merge_status": "can_be_merged"
+		}
+	}`)
+	got, err := ParseMergeRequest(body)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if !got.Input.Closed {
+		t.Fatalf("a closed MR must be marked closed: %+v", got.Input)
+	}
+	if got.Input.Merged {
+		t.Fatalf("closing is not merging: %+v", got.Input)
+	}
+}
+
+func TestParseMergeRequest_MergedIsNotClosed(t *testing.T) {
+	t.Parallel()
+	body := []byte(`{
+		"object_kind": "merge_request",
+		"project": {"path_with_namespace": "acme/app"},
+		"object_attributes": {
+			"iid": 12,
+			"title": "Fixes ENG-1",
+			"state": "merged",
+			"action": "merge",
+			"url": "https://gitlab.com/acme/app/-/merge_requests/12"
+		}
+	}`)
+	got, err := ParseMergeRequest(body)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if !got.Input.Merged || got.Input.Closed {
+		t.Fatalf("a merged MR is merged and not closed: %+v", got.Input)
+	}
+}

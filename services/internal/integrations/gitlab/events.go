@@ -101,6 +101,10 @@ func ParseMergeRequest(body []byte) (MergeRequestEvent, error) {
 	}
 	action := strings.ToLower(strings.TrimSpace(mr.Action))
 	merged := mr.State == "merged" || action == "merge"
+	// A merge request someone abandoned. GitLab keeps `merge_status:"can_be_merged"` on the
+	// close payload — the branch *could* still have merged, it just never will — so without
+	// this the event reads as ready-for-merge and drags the issue forward.
+	closed := !merged && (action == "close" || mr.State == "closed")
 	draft := mr.Draft || mr.WIP
 	mergeable := mr.MergeStatus
 	switch action {
@@ -122,6 +126,7 @@ func ParseMergeRequest(body []byte) (MergeRequestEvent, error) {
 			Number:          mr.IID,
 			Draft:           draft,
 			Merged:          merged,
+			Closed:          closed,
 			MergeableState:  mergeable,
 			ReviewRequested: reviewRequested,
 		},

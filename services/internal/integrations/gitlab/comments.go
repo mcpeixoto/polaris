@@ -36,6 +36,12 @@ func (c CommentClient) Post(ctx context.Context, token string, comment domain.Gi
 	if err != nil {
 		return err
 	}
+	// Belt and braces with the validation on the way in: rows predating that check, or a
+	// future caller building this struct by hand, must not be able to put an api-scoped
+	// token on a cleartext request.
+	if !domain.GitLabInstanceCarriesTokenSafely(endpoint) {
+		return fmt.Errorf("gitlab comment: refusing to send the access token to a plaintext instance")
+	}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err

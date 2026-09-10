@@ -441,3 +441,102 @@ func TestCreateGitLabConnection_SelfHostedInstanceURL(t *testing.T) {
 		t.Fatal("a path on the instance URL must be refused")
 	}
 }
+
+func TestLinkGitLabMergeRequest_ClosedWithoutMergingMovesNothing(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	if _, _, _, err := svc.CreateGitLabConnection(ctx, p, domain.CreateGitLabConnectionInput{}); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	issue, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{TeamID: f.TeamID, Title: "Importer"})
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	before := issue.StateID
+
+	// GitLab keeps merge_status "can_be_merged" on a close, which used to read as
+	// ready-for-merge and drag the issue forward. An abandoned MR must move nothing.
+	if _, _, err := svc.LinkGitLabMergeRequest(ctx, p, domain.LinkGitLabMergeRequestInput{
+		URL:            "https://gitlab.com/acme/app/-/merge_requests/12",
+		Title:          "Fixes ENG-1",
+		Closed:         true,
+		MergeableState: "can_be_merged",
+	}); err != nil {
+		t.Fatalf("link: %v", err)
+	}
+	got, err := svc.GetIssue(ctx, p, issue.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.StateID != before {
+		t.Fatalf("a closed MR must not move the issue, state=%s want %s", got.StateID, before)
+	}
+}
+
+func TestIngestGitLabMergeRequest_AnAbandonedMRDoesNotHoldTheIssueOpen(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	if _, _, _, err := svc.CreateGitLabConnection(ctx, p, domain.CreateGitLabConnectionInput{}); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	issue, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{TeamID: f.TeamID, Title: "Importer"})
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+
+	// Two merge requests close the same issue. One is abandoned, the other merges. Counting
+	// the abandoned one as "not merged yet" would leave the issue open forever.
+	if _, _, err := svc.LinkGitLabMergeRequest(ctx, p, domain.LinkGitLabMergeRequestInput{
+		URL:    "https://gitlab.com/acme/app/-/merge_requests/11",
+		Title:  "Fixes ENG-1",
+		Closed: true,
+	}); err != nil {
+		t.Fatalf("link abandoned: %v", err)
+	}
+	if _, _, err := svc.LinkGitLabMergeRequest(ctx, p, domain.LinkGitLabMergeRequestInput{
+		URL:    "https://gitlab.com/acme/app/-/merge_requests/12",
+		Title:  "Fixes ENG-1",
+		Merged: true,
+	}); err != nil {
+		t.Fatalf("link merged: %v", err)
+	}
+	got, err := svc.GetIssue(ctx, p, issue.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.StateID != f.Done {
+		t.Fatalf("the merged MR must complete the issue, state=%s want %s", got.StateID, f.Done)
+	}
+}
+
+func TestCreateGitLabConnection_RefusesAPlaintextInstance(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+
+	// The access token rides in a PRIVATE-TOKEN header on every linkback.
+	plaintext := "http://gitlab.example.com"
+	if _, _, _, err := svc.CreateGitLabConnection(ctx, f.Principal(), domain.CreateGitLabConnectionInput{
+		InstanceURL: &plaintext,
+	}); err == nil {
+		t.Fatal("a plaintext instance URL must be refused")
+	}
+
+	// Loopback stays allowed: it never leaves the machine, and a local GitLab is how this
+	// gets developed against.
+	local := "http://localhost:8929"
+	if _, _, _, err := svc.CreateGitLabConnection(ctx, f.Principal(), domain.CreateGitLabConnectionInput{
+		InstanceURL: &local,
+	}); err != nil {
+		t.Fatalf("loopback must stay allowed: %v", err)
+	}
+}
