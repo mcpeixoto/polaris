@@ -210,7 +210,34 @@ struct MyIssuesView: View {
     /// hierarchy over teams, and this is its first rung.
     @ViewBuilder
     private var teamsStrip: some View {
-        if let teams = model.workspaceData.teams.value, !teams.isEmpty {
+        if let failure = model.workspaceData.failure(of: .teams) {
+            // Without this the strip is simply not drawn, and one refused `teams()` at
+            // sign-in takes every team screen in the app with it — silently, until somebody
+            // kills the process. The strip is the only route to them.
+            //
+            // A pill rather than a sentence: this row is one line shared with the scope tabs
+            // and the count, so the explanation goes in the accessibility label and on the
+            // screens with room for it.
+            Button {
+                Task { await model.workspaceData.reload(.teams) }
+            } label: {
+                HStack(spacing: Theme.Space.xs + 2) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .semibold))
+                    Text("Teams")
+                        .font(.system(.footnote).weight(.medium))
+                }
+                .foregroundStyle(Theme.accentBright)
+                .padding(.horizontal, Theme.Space.sm + 2)
+                .frame(minHeight: 28)
+                .background(Theme.raised)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+            }
+            .buttonStyle(PressableStyle())
+            .disabled(!failure.isRetryable)
+            .accessibilityLabel(Text("Couldn't load your teams. \(failure.displayMessage) Try again"))
+            .accessibilityIdentifier("teams.retry")
+        } else if let teams = model.workspaceData.teams.value, !teams.isEmpty {
             ScrollView(.horizontal) {
                 HStack(spacing: Theme.Space.sm) {
                     ForEach(teams) { team in

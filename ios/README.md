@@ -296,3 +296,20 @@ ERROR: Cannot determine the Apple ID from Bundle ID 'com.peixotolabs.polaris' an
 which names neither the cause nor the fix — hence this paragraph. App names are globally
 unique on the App Store, so `Polaris` may already be taken; the record's name does not have to
 match `productName`.
+
+## Failures that say what happened, and offer a way back
+
+Two things had to be true before a screen could be honest about a failure, and neither was.
+`PolarisError.from(urlError:)` named four `URLError` codes and sent everything else to
+`.badResponse` — "Polaris sent an unexpected response", not retryable — so a stopped API
+container (`cannotConnectToHost`), a mistyped self-hosted address (`cannotFindHost`) and an
+expired certificate (`serverCertificateHasBadDate`) all read as a bug in the app, with no
+Retry button and no Offline pill. The codes are now grouped by what the reader should do:
+`.offline` for a device with no network, `.serverUnreachable` for a device that has one and an
+address that will not answer, `.insecureConnection` for TLS (never "you're offline" — that
+sends somebody to reset a router that works), and `.cancelled` for a screen that walked away
+from its own request. And the six reference collections — teams, users, labels, projects,
+project statuses, favourites — got what the per-team workflow states already had:
+`ensure(_:)`, `reload(_:)` and `failure(of:)` on `WorkspaceDataStore`, written once over a
+`ReferenceCollection` rather than six times, so one refused `teams()` at sign-in no longer
+disables the composer's Create button and hides every team screen for the life of the session.

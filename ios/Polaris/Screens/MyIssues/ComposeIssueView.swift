@@ -138,6 +138,8 @@ struct ComposeIssueView: View {
                         .focused($focused, equals: .details)
                         .accessibilityLabel("Description")
 
+                        teamsProblem
+
                         if let error {
                             InlineErrorLabel(text: error.displayMessage)
                         }
@@ -197,6 +199,10 @@ struct ComposeIssueView: View {
                 focused = .title
             }
             .task(id: teamId) { await loadCycles() }
+            // Every picker on this sheet is one of the workspace's reference collections, and
+            // all of them are fetched once at sign-in. This is the screen that notices when
+            // that never landed — so it asks, rather than presenting empty menus.
+            .task { await model.workspaceData.ensureReferenceData([.teams, .users, .labels, .projects]) }
             // Teams may not have loaded when the sheet opens. Without this the selection stays
             // nil for ever and Create is permanently disabled with nothing explaining why.
             .onChange(of: teams) { _, loaded in
@@ -237,6 +243,34 @@ struct ComposeIssueView: View {
             .sheet(isPresented: $isPickingDueDate) {
                 DueDateSheet(date: $dueDate)
             }
+        }
+    }
+
+    /// Why Create is disabled, when the reason is not simply an empty title.
+    ///
+    /// An issue needs a team, and the only list of teams is reference data fetched once at
+    /// sign-in. When that fetch failed the picker held nothing, Create stayed grey for the
+    /// life of the session, and neither of them said a word about it — the reader was left
+    /// deciding whether the app was broken or they were. This is the sentence, and the way
+    /// back.
+    @ViewBuilder
+    private var teamsProblem: some View {
+        if let failure = model.workspaceData.failure(of: .teams) {
+            InlineErrorLabel(
+                text: String(localized: "Couldn't load your teams, so there's nowhere to file this yet. \(failure.displayMessage)"),
+                retryLabel: failure.isRetryable ? String(localized: "Try again") : nil,
+                onRetry: failure.isRetryable
+                    ? { Task { await model.workspaceData.reload(.teams) } }
+                    : nil
+            )
+            .accessibilityIdentifier("compose.teams.retry")
+        } else if teams.isEmpty, case .loaded = model.workspaceData.teams {
+            // The one case where an empty picker is the truth, and only sayable once the
+            // server has answered.
+            InlineErrorLabel(
+                text: String(localized: "You're not on a team yet, so there's nowhere to file this. Whoever runs this workspace can add you to one.")
+            )
+            .accessibilityIdentifier("compose.teams.none")
         }
     }
 
