@@ -56,6 +56,10 @@ final class TeamWorkStores {
         if let existing = stores[team.id] { return existing }
         let created = TeamWorkStore(api: model.api, team: team)
         model.adopt(&created.onUnauthorized)
+        // Both ways: this list's own confirmed writes reach the other stores, and theirs
+        // reach it. Without it a status set on the detail screen a team row opens left the
+        // team list, its triage queue and its cycle buckets showing the old one.
+        model.adoptIssueWrites(created)
         stores[team.id] = created
         return created
     }

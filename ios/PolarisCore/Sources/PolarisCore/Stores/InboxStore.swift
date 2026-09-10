@@ -82,15 +82,34 @@ public final class InboxStore {
         }
     }
 
-    /// Marks everything read, one row at a time is *not* what this does: the schema has a
-    /// dedicated mutation precisely so an inbox of two hundred does not mint two hundred sync
-    /// versions. This client does not select the returned list — it reloads instead, which is
-    /// one extra query and no divergence.
-    public func markAllRead() async {
-        guard let list = notifications.value else { return }
+    /// Marks everything read, one row at a time — which is exactly what the schema's
+    /// `markAllNotificationsRead` exists to avoid, and which this client cannot call because
+    /// the mutation is not on `PolarisAPI`. Until it is, an inbox of two hundred is two
+    /// hundred mutations and two hundred sync versions. The comment here used to claim the
+    /// opposite.
+    ///
+    /// - Returns: whether the inbox is now read, so the caller only plays a success sound for
+    ///   something that happened. It used to play one unconditionally, including for the tap
+    ///   below that did nothing at all.
+    @discardableResult
+    public func markAllRead() async -> Bool {
         actionError = nil
+        // The toolbar button is enabled off `unreadCount`, and `refreshBadge()` sets that
+        // from the server without the list ever arriving. So on a cold Inbox tab this was
+        // asked of a store holding nothing, and the guard turned the tap into a success
+        // haptic over an inbox that stayed entirely unread.
+        if notifications.value == nil {
+            await load()
+            guard notifications.value != nil else {
+                // The list could not be fetched, so nothing was marked. Said where the button
+                // is rather than left to look like it worked.
+                if let error = notifications.error { report(error) }
+                return false
+            }
+        }
+        guard let list = notifications.value else { return false }
         let unread = list.filter { !$0.isRead }
-        guard !unread.isEmpty else { return }
+        guard !unread.isEmpty else { return true }
         notifications = .loaded(list.map { row in
             var copy = row
             if copy.readAt == nil { copy.readAt = Date() }
@@ -101,11 +120,14 @@ public final class InboxStore {
             do {
                 _ = try await api.markNotificationRead(id: row.id, read: true)
             } catch {
+                // Some of them landed and some did not, and this client cannot say which, so
+                // the server's answer replaces the optimistic one wholesale.
                 report(PolarisError.mapped(error))
                 await load()
-                return
+                return false
             }
         }
+        return true
     }
 
     private func mutate(

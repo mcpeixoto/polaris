@@ -39,8 +39,10 @@ struct InboxView: View {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 filterMenu
                 Button {
-                    actions += 1
-                    Task { await inbox.markAllRead() }
+                    // Counted on the way out, not on the way in: this button is enabled off
+                    // the badge, which the poll can set without the list ever having loaded,
+                    // and it used to play a success haptic over an inbox nothing had touched.
+                    Task { if await inbox.markAllRead() { actions += 1 } }
                 } label: {
                     Image(systemName: "checkmark.circle")
                 }
