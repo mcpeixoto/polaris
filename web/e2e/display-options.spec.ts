@@ -40,10 +40,12 @@ test('display options are remembered per screen, and a link outranks them', asyn
   await openTeamList(page, workspace.teamKey);
   await expect(page).toHaveURL(/group=priority/);
 
-  // A different screen is a different decision. My Issues does not inherit it.
+  // A different screen is a different decision. My Issues does not inherit the team's
+  // priority grouping — it opens at its own Focus default (and says so in the bar).
   await page.goto('/my-issues');
   await page.getByRole('heading', { name: /my issues/i }).waitFor();
-  await expect(page).not.toHaveURL(/group=/);
+  await expect(page).toHaveURL(/group=focus/);
+  await expect(page).not.toHaveURL(/group=priority/);
 
   // A link that says how it should look wins, whatever the reader has remembered.
   await page.goto(`/team/${workspace.teamKey}?group=assignee`);
