@@ -68,10 +68,23 @@ two ways:
   check — there are no local rows a mismatch could corrupt — and strips the payload from every
   `delta` it sends (`services/internal/syncsrv/session.go`). The client reads a delta as
   nothing more than "something you can see moved to version N" and refetches: the issue list,
-  the inbox if it has been opened, the badge otherwise. A screen with a store of its own — the
-  detail screen, a team's list — adopts `.refreshOnRealtime { await store.load() }`, which
-  fires once per coalesced signal. The socket resumes from the `syncVersion` the last load
-  observed, so a reconnect after backgrounding replays what was missed as one signal.
+  the inbox if it has been opened, the badge otherwise. A screen with a store of its own
+  adopts `.refreshOnRealtime { await store.load() }`, which fires once per coalesced signal:
+  the issue detail, a team's hub, its issues, its triage queue and its cycles, a cycle, a
+  project, and search — which re-runs its last query. That list is the whole of it; a screen
+  not on it does not refresh on a signal. The socket resumes from the `syncVersion` the last
+  load observed, so a reconnect after backgrounding replays what was missed as one signal.
+
+  Two things hold a reload back, and neither loses it — `RealtimeRefreshGate` replays whichever
+  signal was sat out, once, when the hold lifts. A screen pushed off the top of the stack keeps
+  its `onChange` and would otherwise read on every signal while invisible, four times over
+  under a team hub, where all four screens share one store. And a screen defines when it is
+  busy: an open composer, a picker sheet, a status change the server has not answered. A
+  refetch under a cursor replaces text somebody is typing.
+
+  `changeVersion` moves on socket signals only. While the socket is down the poll below keeps
+  the issue list and the inbox current but does not bump it, so a screen holding its own store
+  is as stale as its last pull-to-refresh until the socket returns.
 - **The thirty-second `syncVersion` poll, as the fallback.** It ticks only while the socket is
   down. A poll alongside a live socket is a query every thirty seconds for information the
   socket already delivered, so the two are alternatives, never a pair. Under
@@ -118,10 +131,10 @@ parser. `DeepLink.parse` in `PolarisCore/Navigation/DeepLink.swift` is pure and 
 | `polaris://issue/ENG-1`, `/issue/ENG-1`, `/issue/<uuid>` | The issue, pushed onto the tab that is up |
 | `polaris://inbox`, `/inbox` | The inbox tab |
 | `polaris://my-issues`, `/my-issues` | The My Issues tab |
-| `polaris://search?q=…`, `/search?q=…` | The search tab; the query is parked on `DeepLinkRouter.pendingSearchQuery` for the search screen to read |
+| `polaris://search?q=…`, `/search?q=…` | The search tab, with the query in the field and run. It is parked on `DeepLinkRouter.pendingSearchQuery` and the screen takes it — once, so returning to the tab later does not re-run it |
 | `polaris://team/ENG`, `/team/ENG`, `/team/ENG/triage|cycles|projects` | The team, pushed on My Issues. The page is parsed but not yet routed — the hub opens on its issues |
 | `/projects` | The My Issues tab, where the team pills are; there is no projects list yet |
-| `/project/<id>` | Pushes the `Project` value; renders once a destination for it is declared |
+| `/project/<id>` | The project's detail screen, pushed as a `Project` value — the destination `PolarisNavigation` declares for one |
 
 A link that arrives before sign-in is queued by `DeepLinkRouter` and applied when the shell
 appears. A link to something that does not exist gets an alert, not silence. For UI tests,

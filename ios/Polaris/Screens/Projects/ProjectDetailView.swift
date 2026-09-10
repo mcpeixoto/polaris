@@ -44,6 +44,9 @@ struct ProjectDetailView: View {
             }
             await store?.load()
         }
+        // Same trade as the cycle screen: a row waiting on the server must not be reloaded
+        // back to the status it is being moved off.
+        .refreshOnRealtime(isSuspended: !pendingIDs.isEmpty) { await store?.load() }
     }
 
     // MARK: - Header

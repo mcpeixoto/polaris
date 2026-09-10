@@ -78,9 +78,26 @@ struct IssueDetailView: View {
             }
             await store?.load()
         }
+        .refreshOnRealtime(isSuspended: isEditing) { await store?.load() }
         .sensoryFeedback(.success, trigger: commentsPosted)
         .sensoryFeedback(.success, trigger: writes)
         .sensoryFeedback(.error, trigger: writeFailures)
+    }
+
+    /// Whether a signal-driven reload would land on top of something being written.
+    ///
+    /// This screen is the one where the whole page is editable in place: the title is a live
+    /// field, the composer holds an unsent draft, and every sheet above it is editing a value
+    /// `load()` would replace. The reload is not dropped — `refreshOnRealtime` replays it the
+    /// moment the last of these clears.
+    private var isEditing: Bool {
+        titleFocused
+            || commentFocused
+            || !draftComment.isEmpty
+            || sheet != nil
+            || editingDescription != nil
+            || editingComment != nil
+            || store?.isPostingComment == true
     }
 
     @ViewBuilder

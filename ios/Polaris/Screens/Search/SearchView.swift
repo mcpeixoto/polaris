@@ -13,6 +13,9 @@ import PolarisCore
 /// the count of what matched, not of what the phone kept.
 struct SearchView: View {
     @Environment(AppModel.self) private var model
+    /// For `polaris://search?q=…` only: the link selects this tab and parks its query, and
+    /// this screen is the one place that takes it.
+    @Environment(DeepLinkRouter.self) private var router
     @State private var session: SearchSession?
     @State private var text = ""
     @State private var teamId: String?
@@ -61,12 +64,31 @@ struct SearchView: View {
         .onChange(of: assignedToMe) { _, _ in resubmit() }
         .onChange(of: openOnly) { _, _ in resubmit() }
         .onSubmit(of: .search) { submit(text) }
+        // Results are a query answered at a moment in time, so a signal re-runs the last one
+        // rather than leaving a list somebody is reading two edits behind.
+        .refreshOnRealtime { await session?.refresh(teamId: teamId, filter: filter) }
         .task {
-            guard session == nil else { return }
-            let created = SearchSession(api: model.api)
-            model.adopt(&created.onUnauthorized)
-            session = created
+            if session == nil {
+                let created = SearchSession(api: model.api)
+                model.adopt(&created.onUnauthorized)
+                session = created
+            }
+            runPendingLinkQuery()
         }
+        // A second link while the tab is already up: the screen is on screen, so nothing else
+        // would notice the query change.
+        .onChange(of: router.pendingSearchQuery) { _, _ in runPendingLinkQuery() }
+    }
+
+    /// Takes the query a `search` deep link parked, if there is one, and runs it.
+    ///
+    /// Taken rather than read: the router is left clean, so the next link is a change the
+    /// screen can see, and coming back to this tab later does not re-run a search from a link
+    /// tapped an hour ago.
+    private func runPendingLinkQuery() {
+        guard let query = router.takePendingSearchQuery() else { return }
+        text = query
+        submit(query)
     }
 
     /// Which team, and the two quick filters, as one row of chips under the field.
@@ -333,6 +355,15 @@ final class SearchSession {
             guard !Task.isCancelled else { return }
             await self?.run(trimmed, teamId: teamId, filter: filter)
         }
+    }
+
+    /// Runs the last completed search again, for a sync signal. Silent: `run` only shows the
+    /// skeleton when there is nothing on screen, so results already up are replaced in place.
+    /// Nothing to do before the first search — an idle screen is showing recents, not a list
+    /// that can be stale.
+    func refresh(teamId: String?, filter: JSONValue?) async {
+        guard !lastQuery.isEmpty else { return }
+        await run(lastQuery, teamId: teamId, filter: filter)
     }
 
     /// Searches immediately — the return key, a recent row, a changed chip, the retry button.
