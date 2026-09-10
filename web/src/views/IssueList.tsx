@@ -3511,6 +3511,39 @@ function CycleGlyph() {
   );
 }
 
+function MetaPill({
+  name,
+  action,
+  open,
+  overdue = false,
+  onOpen,
+  children,
+}: {
+  name: string;
+  action: string;
+  open: boolean;
+  overdue?: boolean | undefined;
+  onOpen: (element: HTMLElement) => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={[styles.pill, overdue ? styles.overdue : null].filter(Boolean).join(' ')}
+      aria-label={overdue ? `${name} overdue` : name}
+      title={action}
+      aria-haspopup="menu"
+      aria-expanded={open}
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpen(event.currentTarget);
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 function ProjectGlyph() {
   return (
     <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
@@ -3791,7 +3824,12 @@ const IssueRow = memo(function IssueRow({
       ) : null}
       <span className={styles.meta}>
         {properties.has('project') && issue.projectName !== null ? (
-          <span className={styles.pill}>
+          <MetaPill
+            name={issue.projectName}
+            action="Set project"
+            open={openProperty === 'project'}
+            onOpen={(element) => onProperty('project', id, rowIndex, element)}
+          >
             <span className={styles.pillGlyph}>
               <EntityIcon
                 icon={issue.projectIcon ?? undefined}
@@ -3801,20 +3839,30 @@ const IssueRow = memo(function IssueRow({
               />
             </span>
             <span className={styles.pillText}>{issue.projectName}</span>
-          </span>
+          </MetaPill>
         ) : null}
         {properties.has('cycle') && issue.cycleName !== null ? (
-          <span className={styles.pill}>
+          <MetaPill
+            name={issue.cycleName}
+            action="Set cycle"
+            open={openProperty === 'cycle'}
+            onOpen={(element) => onProperty('cycle', id, rowIndex, element)}
+          >
             <span className={styles.pillGlyph}>
               <CycleGlyph />
             </span>
             <span className={styles.pillText}>{issue.cycleName}</span>
-          </span>
+          </MetaPill>
         ) : null}
         {properties.has('estimate') && issue.estimate !== null ? (
-          <span className={styles.pill}>
+          <MetaPill
+            name={issue.estimate}
+            action="Set estimate"
+            open={openProperty === 'estimate'}
+            onOpen={(element) => onProperty('estimate', id, rowIndex, element)}
+          >
             <span className={styles.pillText}>{issue.estimate}</span>
-          </span>
+          </MetaPill>
         ) : null}
         {/*
          * Overdue says the word, and says it to everybody.
@@ -3826,17 +3874,19 @@ const IssueRow = memo(function IssueRow({
          * urgency must not silently recolour a missed deadline.
          */}
         {properties.has('dueDate') && issue.dueDate !== null ? (
-          <span
-            className={[styles.pill, issue.overdue ? styles.overdue : null]
-              .filter(Boolean)
-              .join(' ')}
+          <MetaPill
+            name={issue.dueDate}
+            action="Set due date"
+            open={openProperty === 'due'}
+            overdue={issue.overdue}
+            onOpen={(element) => onProperty('due', id, rowIndex, element)}
           >
             <span className={styles.pillGlyph}>
               <CalendarGlyph />
             </span>
             <span className={styles.pillText}>{issue.dueDate}</span>
             {issue.overdue ? <span className={styles.srOnly}> overdue</span> : null}
-          </span>
+          </MetaPill>
         ) : null}
         {/* Only where there are some: a "0" on every row would be a column of noise about a
             structure most issues are not part of. */}
@@ -3891,6 +3941,23 @@ const IssueRow = memo(function IssueRow({
           <span className={styles.date}>{issue.updatedAt}</span>
         ) : null}
       </span>
+      {/*
+       * Discoverability without relying on right-click: the same menu the context click
+       * opens, from a control that appears when the pointer is on the row. Anchored to the
+       * button so the menu opens under the ⋯ rather than under a remembered pointer.
+       */}
+      <button
+        type="button"
+        className={styles.rowMore}
+        aria-label={`Actions for ${issue.identifier}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          const rect = event.currentTarget.getBoundingClientRect();
+          onContextMenu(id, rowIndex, rect.left, rect.bottom);
+        }}
+      >
+        <MoreGlyph />
+      </button>
     </div>
   );
 });

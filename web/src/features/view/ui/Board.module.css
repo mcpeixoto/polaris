@@ -339,11 +339,27 @@
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-full);
   color: var(--text-secondary);
+  background: transparent;
+  font: inherit;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   font-variant-numeric: tabular-nums;
   line-height: var(--line-height-none);
   white-space: nowrap;
+  cursor: default;
+}
+
+button.pill {
+  cursor: pointer;
+}
+
+button.pill:hover {
+  background-color: var(--bg-hover);
+}
+
+button.pill:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
 }
 
 /* A pill that is only its glyph — the priority, the status — is square rather than a capsule
