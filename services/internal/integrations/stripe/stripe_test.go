@@ -269,6 +269,54 @@ func TestCreateCheckoutSessionPrefersAnExistingCustomer(t *testing.T) {
 	}
 }
 
+func TestCreateCheckoutSessionCollectsAddressWhenTaxIsOn(t *testing.T) {
+	var got url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		got = r.PostForm
+		_, _ = w.Write([]byte(`{"url":"https://checkout.stripe.com/c/pay/cs_tax"}`))
+	}))
+	defer server.Close()
+
+	client := NewClient("sk_test_key", server.URL, 5*time.Second)
+	if _, err := client.CreateCheckoutSession(context.Background(), CheckoutInput{
+		WorkspaceID: uuid.Must(uuid.NewV7()).String(), PriceID: proMonthly, Seats: 1,
+		CustomerID: "cus_existing", AutomaticTax: true,
+	}); err != nil {
+		t.Fatalf("CreateCheckoutSession: %v", err)
+	}
+	if got.Get("billing_address_collection") != "required" {
+		t.Fatalf("billing_address_collection = %q — Tax cannot calculate without a location", got.Get("billing_address_collection"))
+	}
+	if got.Get("customer_update[address]") != "auto" || got.Get("customer_update[name]") != "auto" {
+		t.Fatalf("customer_update missing for an existing customer: %v", got)
+	}
+}
+
+func TestCreateCheckoutSessionOmitsCustomerUpdateWithoutACustomer(t *testing.T) {
+	var got url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		got = r.PostForm
+		_, _ = w.Write([]byte(`{"url":"https://checkout.stripe.com/c/pay/cs_tax2"}`))
+	}))
+	defer server.Close()
+
+	client := NewClient("sk_test_key", server.URL, 5*time.Second)
+	if _, err := client.CreateCheckoutSession(context.Background(), CheckoutInput{
+		WorkspaceID: uuid.Must(uuid.NewV7()).String(), PriceID: proMonthly, Seats: 1,
+		CustomerEmail: "owner@example.com", AutomaticTax: true,
+	}); err != nil {
+		t.Fatalf("CreateCheckoutSession: %v", err)
+	}
+	if got.Get("billing_address_collection") != "required" {
+		t.Fatalf("billing_address_collection = %q", got.Get("billing_address_collection"))
+	}
+	if got.Has("customer_update[address]") {
+		t.Fatal("customer_update without a customer id is a Stripe error")
+	}
+}
+
 // Stripe's message is the only thing that says which price id was wrong, and it is worth
 // carrying into the caller's error rather than reporting "500 from Stripe".
 func TestClientCarriesStripesErrorMessage(t *testing.T) {
