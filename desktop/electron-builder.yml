@@ -20,6 +20,8 @@ files:
   - assets/tray.png
   - assets/tray@2x.png
   - "!**/*.map"
+  - "!**/*.test.js"
+  - "!**/*.test.js.map"
 
 # The renderer is the SAME web/dist the nginx image serves, copied in at package time
 # rather than built again here. Building it twice is how a desktop release ends up a

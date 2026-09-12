@@ -19,7 +19,7 @@
     "release": "npm run build:electron && electron-builder --publish always",
     "smoke": "node scripts/smoke.mjs",
     "lint": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.preload.json --noEmit",
-    "test": "echo \"desktop has no unit tests; the smoke script drives the packaged app instead\" && exit 0"
+    "test": "npm run build:electron && node --test dist/main/googleOAuthCore.test.js"
   },
   "devDependencies": {
     "electron": "^44.2.0",

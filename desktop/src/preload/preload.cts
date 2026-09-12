@@ -86,6 +86,17 @@ export interface PolarisDesktop {
    * URL, so `location.reload()` there reloads the error rather than retrying the app.
    */
   reloadApp(): void;
+  /**
+   * Opens Google sign-in in the system browser and returns the ID token once the loopback
+   * redirect completes. The renderer cannot host Google Identity Services under the app's
+   * own scheme and CSP; see main/googleOAuth.ts.
+   */
+  signInWithGoogle(
+    clientId: string,
+  ): Promise<
+    | { ok: true; idToken: string; nonce: string }
+    | { ok: false; reason: string; cancelled?: boolean }
+  >;
 }
 
 function chromeOf(): DesktopChrome {
@@ -218,6 +229,9 @@ const api: PolarisDesktop = {
   reloadApp: () => {
     ipcRenderer.send('polaris:reload-app');
   },
+
+  signInWithGoogle: (clientId: string) =>
+    ipcRenderer.invoke('polaris:google-sign-in', String(clientId).slice(0, 256)),
 };
 
 contextBridge.exposeInMainWorld('polarisDesktop', api);
