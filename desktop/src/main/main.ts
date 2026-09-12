@@ -45,7 +45,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { signInWithGoogle, type GoogleSignInResult } from './googleOAuth.js';
+import {
+  deliverGoogleOAuthCallback,
+  googleOAuthProtocolScheme,
+  signInWithGoogle,
+  type GoogleSignInResult,
+} from './googleOAuth.js';
 
 const { autoUpdater } = electronUpdater;
 
@@ -243,7 +248,7 @@ if (!hasInstanceLock) {
 } else {
   app.on('second-instance', (_event, argv) => {
     focusMainWindow();
-    routeDeepLink(deepLinkFromArgv(argv));
+    ingestDeepLink(deepLinkFromArgv(argv));
   });
 }
 
@@ -834,7 +839,11 @@ function createLauncherMenus(): void {
  *   - Everywhere, already running: `second-instance` with the new process's argv.
  */
 function deepLinkFromArgv(argv: readonly string[]): string | undefined {
-  return argv.find((a) => a.startsWith('polaris://'));
+  // Google's custom-scheme callback uses `scheme:/path` (one slash). polaris:// deep links
+  // use two. Both arrive on argv the same way on Windows/Linux.
+  return argv.find(
+    (a) => a.startsWith('polaris://') || a.startsWith(`${googleOAuthProtocolScheme()}:`),
+  );
 }
 
 /**
@@ -870,12 +879,12 @@ function routeOf(url: string | undefined): string | null {
     return null;
   }
 
-  // Google sign-in on desktop uses a loopback redirect (see googleOAuth.ts), not this
-  // scheme. polaris://oauth remains reserved so a pasted or mis-fired callback never lands
-  // as a page path with an authorization code in the history — where it would stay,
-  // readable, long after it was spent.
+  // Google's reverse-DNS callback is handled before routing (see ingestDeepLink). polaris://
+  // oauth remains reserved so a pasted or mis-fired callback never lands as a page path with
+  // an authorization code in the history — where it would stay, readable, long after it was
+  // spent.
   if (parsed.host === 'oauth' || parsed.host === 'auth') {
-    log('oauth deep link ignored; desktop Google sign-in uses loopback, landing on /login');
+    log('oauth deep link ignored; desktop Google sign-in uses the Google client scheme');
     return '/login';
   }
 
@@ -890,6 +899,17 @@ function routeOf(url: string | undefined): string | null {
 
 /** Set when a link arrives before the app is ready; delivered by `whenReady`. */
 let pendingDeepLink: string | null = null;
+
+/**
+ * Entry point for every external URL the OS hands us.
+ *
+ * Google OAuth callbacks are consumed here rather than turned into routes: the authorization
+ * code must never enter the renderer's history. Everything else goes through `routeOf`.
+ */
+function ingestDeepLink(url: string | undefined): void {
+  if (url !== undefined && deliverGoogleOAuthCallback(url)) return;
+  routeDeepLink(url);
+}
 
 function routeDeepLink(url: string | undefined): void {
   const route = routeOf(url);
@@ -926,7 +946,7 @@ function navigateTo(route: string): void {
 
 app.on('open-url', (event, url) => {
   event.preventDefault();
-  routeDeepLink(url);
+  ingestDeepLink(url);
 });
 
 // --- the renderer ------------------------------------------------------------------
@@ -1422,10 +1442,17 @@ function onReady(): void {
   });
 
   // A link that launched the app arrives through `open-url` on macOS — before `ready`, hence
-  // the buffer — and in argv on Windows and Linux. Whichever it was, there is a window now.
-  const coldStartRoute = pendingDeepLink ?? routeOf(deepLinkFromArgv(process.argv));
-  pendingDeepLink = null;
-  if (coldStartRoute !== null) navigateTo(coldStartRoute);
+  // the buffer — and in argv on Windows and Linux. Google OAuth callbacks are consumed by
+  // ingestDeepLink (they must not become routes); everything else is a path to navigate.
+  const coldStartLink = deepLinkFromArgv(process.argv);
+  if (coldStartLink !== undefined && deliverGoogleOAuthCallback(coldStartLink)) {
+    // Sign-in was started after ready in the normal case; a cold-start callback with no
+    // pending attempt is dropped inside deliverGoogleOAuthCallback.
+  } else {
+    const coldStartRoute = pendingDeepLink ?? routeOf(coldStartLink);
+    pendingDeepLink = null;
+    if (coldStartRoute !== null) navigateTo(coldStartRoute);
+  }
 
   wireUpdater();
   if (!isDev) {
@@ -1445,19 +1472,22 @@ function onReady(): void {
 }
 
 /**
- * Claims `polaris://`.
+ * Claims `polaris://` and the Google OAuth reverse-DNS scheme.
  *
  * The one-argument form is wrong in development on Windows: it registers `electron.exe`, so
  * a link opened during a dev session launches a bare Electron rather than this app. The
  * three-argument form names the executable and the script it should be handed.
  */
 function registerProtocolClient(): void {
+  const schemes = ['polaris', googleOAuthProtocolScheme()];
   const script = isDev && process.platform === 'win32' ? process.argv[1] : undefined;
-  if (script !== undefined) {
-    app.setAsDefaultProtocolClient('polaris', process.execPath, [path.resolve(script)]);
-    return;
+  for (const scheme of schemes) {
+    if (script !== undefined) {
+      app.setAsDefaultProtocolClient(scheme, process.execPath, [path.resolve(script)]);
+    } else {
+      app.setAsDefaultProtocolClient(scheme);
+    }
   }
-  app.setAsDefaultProtocolClient('polaris');
 }
 
 app.on('window-all-closed', () => {
@@ -1510,18 +1540,20 @@ ipcMain.handle('polaris:platform', () => ({
 }));
 
 /**
- * Google sign-in via the system browser and a loopback redirect.
+ * Google sign-in via the system browser and the iOS client's custom-scheme redirect.
  *
- * Serialised: the loopback port is fixed, so two overlapping attempts would fight for it
- * and leave both browsers stranded. A second click while the first is open gets a clear
- * refusal rather than a hung spinner.
+ * Serialised: one pending waiter at a time. A second click while the first is open gets a
+ * clear refusal rather than two browsers racing one callback.
  */
 let googleSignInInFlight = false;
 
 ipcMain.handle(
   'polaris:google-sign-in',
   async (_event, clientId: unknown): Promise<GoogleSignInResult> => {
-    if (typeof clientId !== 'string' || clientId.length > 256) {
+    // The renderer passes the Web client id as a "Google is configured" signal; the shell
+    // ignores it and uses the installed-app client (see googleOAuth.ts). An empty string
+    // still means the server did not offer Google.
+    if (typeof clientId !== 'string' || clientId.length === 0 || clientId.length > 256) {
       return { ok: false, reason: 'Google sign-in is not configured on this server.' };
     }
     if (googleSignInInFlight) {

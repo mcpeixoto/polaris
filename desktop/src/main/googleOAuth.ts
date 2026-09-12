@@ -7,30 +7,38 @@
  * window. iOS already solved the same problem with an authorization-code + PKCE flow in the
  * system browser; this is that flow for the desktop shell.
  *
- * A loopback redirect on 127.0.0.1 rather than a custom URL scheme, because Google's desktop
- * guidance is loopback, and because claiming the iOS client's reversed-id scheme would fight
- * the iOS app for it on a Mac that has both. The port is fixed so a Web application OAuth
- * client can list one Authorized redirect URI; see docs/05-infrastructure/11-self-hosting.md.
+ * Desktop reuses the iOS OAuth client and its reverse-DNS redirect scheme, rather than the
+ * Web client + loopback. The Web client is what the browser GIS button uses; adding a
+ * loopback redirect to it needs a Google Cloud Console edit per deployment, and this
+ * environment cannot sign into that Console. The iOS client is already configured on
+ * production (`POLARIS_GOOGLE_CLIENT_IDS` includes it — iOS Google sign-in works), so
+ * Windows inherits a working audience with no Console step.
  *
  * What reaches Polaris at the end is the same ID token the browser GIS button sends, on
  * `POST /auth/oidc/google`. The authorization-code exchange happens here, against Google,
  * and never against Polaris — matching the product rule that Polaris holds no client secret.
  */
 
-import { createServer, type Server } from 'node:http';
 import { shell } from 'electron';
 
 import {
   buildAttempt,
+  DESKTOP_GOOGLE_CLIENT_ID,
+  DESKTOP_GOOGLE_REDIRECT_SCHEME,
+  DESKTOP_GOOGLE_REDIRECT_URI,
   formEncode,
-  GOOGLE_OAUTH_LOOPBACK_PORT,
-  GOOGLE_OAUTH_REDIRECT_URI,
   idTokenFromTokenResponse,
+  isGoogleOAuthCallback,
   readCallback,
   TOKEN_ENDPOINT,
 } from './googleOAuthCore.js';
 
-export { GOOGLE_OAUTH_LOOPBACK_PORT, GOOGLE_OAUTH_REDIRECT_URI } from './googleOAuthCore.js';
+export {
+  DESKTOP_GOOGLE_CLIENT_ID,
+  DESKTOP_GOOGLE_REDIRECT_SCHEME,
+  DESKTOP_GOOGLE_REDIRECT_URI,
+  isGoogleOAuthCallback,
+} from './googleOAuthCore.js';
 
 /** How long we wait for the browser to come back before calling the attempt abandoned. */
 const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000;
@@ -38,6 +46,17 @@ const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000;
 export type GoogleSignInResult =
   | { readonly ok: true; readonly idToken: string; readonly nonce: string }
   | { readonly ok: false; readonly reason: string; readonly cancelled?: boolean };
+
+interface PendingAttempt {
+  readonly codeVerifier: string;
+  readonly state: string;
+  readonly nonce: string;
+  readonly resolve: (url: string) => void;
+  readonly reject: (error: Error) => void;
+  readonly timer: ReturnType<typeof setTimeout>;
+}
+
+let pending: PendingAttempt | null = null;
 
 async function exchangeCode(
   code: string,
@@ -61,123 +80,72 @@ async function exchangeCode(
 }
 
 /**
- * Serves one OAuth redirect and then shuts down.
+ * Consumes a custom-scheme redirect if a Google sign-in is waiting for one.
  *
- * Bound to 127.0.0.1 only: the authorization code is a bearer credential for a few seconds,
- * and listening on every interface would let anything on the LAN race us for it.
+ * Called from the deep-link path (cold start argv, second-instance, macOS open-url). Returns
+ * true when the URL was an OAuth callback — whether or not an attempt was pending — so the
+ * caller does not also try to route it as an app path.
  */
-function waitForLoopbackCallback(expectedPath: string): {
-  server: Server;
-  callback: Promise<URL>;
-} {
-  let settle: ((url: URL) => void) | undefined;
-  let fail: ((error: Error) => void) | undefined;
-  const callback = new Promise<URL>((resolve, reject) => {
-    settle = resolve;
-    fail = reject;
-  });
-
-  const server = createServer((req, res) => {
-    const host = req.headers.host ?? `127.0.0.1:${String(GOOGLE_OAUTH_LOOPBACK_PORT)}`;
-    let url: URL;
-    try {
-      url = new URL(req.url ?? '/', `http://${host}`);
-    } catch {
-      res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.end('Bad request');
-      return;
-    }
-
-    if (url.pathname !== expectedPath) {
-      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.end('Not found');
-      return;
-    }
-
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(
-      '<!doctype html><meta charset="utf-8"><title>Polaris</title>' +
-        '<p style="font:16px/1.4 system-ui;margin:3rem;text-align:center">' +
-        'You can close this tab and return to Polaris.' +
-        '</p>',
-    );
-    settle?.(url);
-  });
-
-  server.on('error', (error) => {
-    fail?.(error instanceof Error ? error : new Error(String(error)));
-  });
-
-  return { server, callback };
-}
-
-function listen(server: Server, port: number): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const onError = (error: Error) => {
-      server.off('listening', onListening);
-      reject(error);
-    };
-    const onListening = () => {
-      server.off('error', onError);
-      resolve();
-    };
-    server.once('error', onError);
-    server.once('listening', onListening);
-    server.listen(port, '127.0.0.1');
-  });
-}
-
-function closeServer(server: Server): Promise<void> {
-  return new Promise((resolve) => {
-    server.close(() => resolve());
-  });
+export function deliverGoogleOAuthCallback(raw: string): boolean {
+  if (!isGoogleOAuthCallback(raw)) return false;
+  if (pending === null) {
+    // A callback with nobody waiting is a leftover from a killed attempt or a pasted URL.
+    // Drop it rather than navigating somewhere meaningless.
+    return true;
+  }
+  const current = pending;
+  pending = null;
+  clearTimeout(current.timer);
+  current.resolve(raw);
+  return true;
 }
 
 /**
- * Opens the system browser, catches the loopback redirect, exchanges the code, returns the
- * ID token. One attempt at a time — a second call while the first is open would race two
- * browsers for one port, so the IPC handler refuses overlapping calls.
+ * Opens the system browser and waits for the custom-scheme redirect, then exchanges the
+ * code. One attempt at a time — a second call while the first is open would leave two
+ * browsers racing one waiter.
+ *
+ * The `clientId` argument from the renderer is ignored on purpose: desktop always uses the
+ * installed-app client above. The renderer still only offers the button when the server
+ * lists Google as a provider (the Web client id being non-empty is that signal).
  */
-export async function signInWithGoogle(clientId: string): Promise<GoogleSignInResult> {
-  if (clientId.trim() === '') {
-    return { ok: false, reason: 'Google sign-in is not configured on this server.' };
+export async function signInWithGoogle(_clientId?: string): Promise<GoogleSignInResult> {
+  if (pending !== null) {
+    return {
+      ok: false,
+      reason: 'A Google sign-in is already open in your browser. Finish or cancel it first.',
+    };
   }
 
-  const redirectUri = GOOGLE_OAUTH_REDIRECT_URI;
-  const redirectPath = new URL(redirectUri).pathname;
+  const clientId = DESKTOP_GOOGLE_CLIENT_ID;
+  const redirectUri = DESKTOP_GOOGLE_REDIRECT_URI;
   const attempt = buildAttempt(clientId, redirectUri);
-  const { server, callback } = waitForLoopbackCallback(redirectPath);
 
-  try {
-    await listen(server, GOOGLE_OAUTH_LOOPBACK_PORT);
-  } catch (error) {
-    await closeServer(server);
-    const code =
-      typeof error === 'object' && error !== null && 'code' in error
-        ? String((error as { code?: unknown }).code)
-        : '';
-    if (code === 'EADDRINUSE') {
-      return {
-        ok: false,
-        reason: `Port ${String(GOOGLE_OAUTH_LOOPBACK_PORT)} is already in use, so Google sign-in cannot listen for the browser to return. Free that port and try again.`,
-      };
-    }
-    return { ok: false, reason: 'Google sign-in could not start.' };
-  }
+  const holder: { current: PendingAttempt | null } = { current: null };
+  const callback = new Promise<string>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      if (pending !== null) {
+        pending = null;
+        holder.current = null;
+        reject(new Error('timed out waiting for Google sign-in'));
+      }
+    }, CALLBACK_TIMEOUT_MS);
+    holder.current = {
+      codeVerifier: attempt.codeVerifier,
+      state: attempt.state,
+      nonce: attempt.nonce,
+      resolve,
+      reject,
+      timer,
+    };
+    pending = holder.current;
+  });
 
   try {
     // shell.openExternal rather than the renderer's window.open: we are already in main, and
     // this URL is one we built for accounts.google.com.
     await shell.openExternal(attempt.url);
-
-    const timedOut = new Promise<never>((_, reject) => {
-      setTimeout(
-        () => reject(new Error('timed out waiting for Google sign-in')),
-        CALLBACK_TIMEOUT_MS,
-      );
-    });
-
-    const callbackUrl = await Promise.race([callback, timedOut]);
+    const callbackUrl = await callback;
     const parsed = readCallback(callbackUrl, attempt.state);
     if ('cancelled' in parsed) {
       return { ok: false, reason: 'Sign-in was cancelled.', cancelled: true };
@@ -189,6 +157,12 @@ export async function signInWithGoogle(clientId: string): Promise<GoogleSignInRe
     const idToken = await exchangeCode(parsed.code, attempt.codeVerifier, clientId, redirectUri);
     return { ok: true, idToken, nonce: attempt.nonce };
   } catch (error) {
+    const leftover = holder.current;
+    if (leftover !== null) {
+      clearTimeout(leftover.timer);
+      if (pending === leftover) pending = null;
+      holder.current = null;
+    }
     const message = error instanceof Error ? error.message : 'Google sign-in failed.';
     if (message.includes('timed out')) {
       return {
@@ -197,7 +171,10 @@ export async function signInWithGoogle(clientId: string): Promise<GoogleSignInRe
       };
     }
     return { ok: false, reason: 'Google sign-in failed.' };
-  } finally {
-    await closeServer(server);
   }
+}
+
+/** Protocol scheme to claim with `app.setAsDefaultProtocolClient`. */
+export function googleOAuthProtocolScheme(): string {
+  return DESKTOP_GOOGLE_REDIRECT_SCHEME;
 }

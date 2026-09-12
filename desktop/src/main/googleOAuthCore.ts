@@ -1,12 +1,19 @@
 /**
  * Pure half of the desktop Google sign-in flow.
  *
- * Kept free of Electron and Node HTTP so it can be exercised with `node --test` without
- * booting a BrowserWindow. The loopback listener and `shell.openExternal` live in
- * `googleOAuth.ts`, which is the only file that needs either.
+ * Kept free of Electron so it can be exercised with `node --test` without booting a
+ * BrowserWindow. Opening the system browser and catching the redirect live in
+ * `googleOAuth.ts`.
  *
  * Mirrors `ios/PolarisCore/.../GoogleSignIn.swift`: same endpoints, same PKCE shape, same
  * claim that Polaris never sees an authorization code — only the ID token at the end.
+ *
+ * Desktop reuses the **iOS** OAuth client (custom URL scheme), not the Web client. The Web
+ * client is what GIS in the browser uses; it cannot accept a custom-scheme redirect, and
+ * registering a loopback URI on it needs a Google Cloud Console edit every deployment.
+ * The iOS client is already minted, already in `POLARIS_GOOGLE_CLIENT_IDS` on production
+ * (iOS sign-in works), and already has its reverse-DNS redirect — so Windows can share it
+ * without touching the Console.
  */
 
 import { createHash, randomBytes } from 'node:crypto';
@@ -16,12 +23,30 @@ export const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 export const SCOPE = 'openid email profile';
 
 /**
- * Fixed so the Google Cloud "Web application" client can name exactly one redirect URI.
- * Dynamic ports would each need their own console entry, which nobody configures.
+ * Same OAuth client the iOS app uses. Not a secret — it travels in every authorize URL —
+ * but it must stay in lockstep with `ios/.../GoogleSignIn.swift` and with
+ * `POLARIS_GOOGLE_CLIENT_IDS` on the server (the ID token's `aud` is this string).
  */
-export const GOOGLE_OAUTH_LOOPBACK_PORT = 42773;
+export const DESKTOP_GOOGLE_CLIENT_ID =
+  '415057540542-s7an2kfcima1eqccpre0qq5o79et8s4f.apps.googleusercontent.com';
 
-export const GOOGLE_OAUTH_REDIRECT_URI = `http://127.0.0.1:${String(GOOGLE_OAUTH_LOOPBACK_PORT)}/oauth2redirect`;
+/** `a.b.c` → `c.b.a`. Google's "reversed client id" custom scheme. */
+export function reversingComponents(value: string): string {
+  return value.split('.').reverse().join('.');
+}
+
+/**
+ * Custom scheme Google redirects through for this client: the client id with its
+ * components reversed. Registered as a protocol handler in electron-builder and at runtime.
+ */
+export const DESKTOP_GOOGLE_REDIRECT_SCHEME = reversingComponents(DESKTOP_GOOGLE_CLIENT_ID);
+
+/**
+ * Google's documented redirect shape for an iOS / installed client: the reversed client id,
+ * a single slash, and a path. A second slash would make `oauth2redirect` the *host*, which
+ * the registered client does not match.
+ */
+export const DESKTOP_GOOGLE_REDIRECT_URI = `${DESKTOP_GOOGLE_REDIRECT_SCHEME}:/oauth2redirect`;
 
 export interface GoogleAttempt {
   readonly url: string;
@@ -41,8 +66,8 @@ export function challengeFor(verifier: string): string {
 }
 
 export function buildAttempt(
-  clientId: string,
-  redirectUri: string = GOOGLE_OAUTH_REDIRECT_URI,
+  clientId: string = DESKTOP_GOOGLE_CLIENT_ID,
+  redirectUri: string = DESKTOP_GOOGLE_REDIRECT_URI,
   entropy: (bytes: number) => Buffer = (n) => randomBytes(n),
 ): GoogleAttempt {
   const codeVerifier = base64URL(entropy(32));
@@ -69,16 +94,24 @@ export function buildAttempt(
 export type CallbackRead =
   { readonly code: string } | { readonly cancelled: true } | { readonly error: string };
 
-export function readCallback(callbackUrl: URL, expectedState: string): CallbackRead {
-  if (callbackUrl.searchParams.get('state') !== expectedState) {
+/**
+ * Reads the authorization response out of a redirect URL.
+ *
+ * Accepts either a real `URL` or a raw string, because Windows hands custom-scheme
+ * callbacks to Electron as `scheme:/path?query` — a form `new URL` accepts, but callers
+ * often still have the argv string.
+ */
+export function readCallback(callbackUrl: URL | string, expectedState: string): CallbackRead {
+  const url = typeof callbackUrl === 'string' ? new URL(callbackUrl) : callbackUrl;
+  if (url.searchParams.get('state') !== expectedState) {
     return { error: 'that sign-in could not be verified' };
   }
-  const error = callbackUrl.searchParams.get('error');
+  const error = url.searchParams.get('error');
   if (error !== null) {
     if (error === 'access_denied') return { cancelled: true };
     return { error: 'that sign-in could not be completed' };
   }
-  const code = callbackUrl.searchParams.get('code');
+  const code = url.searchParams.get('code');
   if (code === null || code === '') {
     return { error: 'that sign-in could not be completed' };
   }
@@ -100,10 +133,15 @@ export function idTokenFromTokenResponse(body: unknown): string {
 }
 
 export function formEncode(pairs: ReadonlyArray<readonly [string, string]>): string {
-  // encodeURIComponent rather than a hand-rolled allowlist: the values that matter here
-  // (code, verifier, client id) are URL-safe already, and the standard encoder is what
-  // Google's token endpoint expects for application/x-www-form-urlencoded.
   return pairs
     .map(([name, value]) => `${encodeURIComponent(name)}=${encodeURIComponent(value)}`)
     .join('&');
+}
+
+/** True when `raw` is a Google OAuth redirect for this app's desktop client. */
+export function isGoogleOAuthCallback(raw: string): boolean {
+  return (
+    raw.startsWith(`${DESKTOP_GOOGLE_REDIRECT_SCHEME}:`) ||
+    raw.startsWith(`${DESKTOP_GOOGLE_REDIRECT_SCHEME}://`)
+  );
 }

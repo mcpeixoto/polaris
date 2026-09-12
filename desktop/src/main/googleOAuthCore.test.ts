@@ -1,9 +1,8 @@
 /**
  * Unit tests for the pure half of desktop Google sign-in.
  *
- * Run with `node --import tsx --test` is not wired: the desktop package compiles with tsc
- * first. These run after `npm run build:electron` via `node --test dist/main/googleOAuthCore.test.js`,
- * or directly against the TypeScript through the package's test script.
+ * Compiled by `tsc` with the rest of main, then run with `node --test` from the package
+ * test script after `build:electron`.
  */
 
 import assert from 'node:assert/strict';
@@ -14,10 +13,14 @@ import {
   base64URL,
   buildAttempt,
   challengeFor,
+  DESKTOP_GOOGLE_CLIENT_ID,
+  DESKTOP_GOOGLE_REDIRECT_SCHEME,
+  DESKTOP_GOOGLE_REDIRECT_URI,
   formEncode,
-  GOOGLE_OAUTH_REDIRECT_URI,
   idTokenFromTokenResponse,
+  isGoogleOAuthCallback,
   readCallback,
+  reversingComponents,
 } from './googleOAuthCore.js';
 
 describe('base64URL', () => {
@@ -26,7 +29,6 @@ describe('base64URL', () => {
     assert.equal(encoded.includes('+'), false);
     assert.equal(encoded.includes('/'), false);
     assert.equal(encoded.includes('='), false);
-    // Same bytes in standard base64 are '+/+/'; the URL form must differ only by alphabet.
     assert.equal(Buffer.from([0xfb, 0xff, 0xbf]).toString('base64'), '+/+/');
     assert.equal(encoded, '-_-_');
   });
@@ -34,11 +36,24 @@ describe('base64URL', () => {
 
 describe('challengeFor', () => {
   it('matches the RFC 7636 appendix B vector', () => {
-    // verifier from the RFC; challenge must be the published S256 value.
     const verifier = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
     const expected = base64URL(createHash('sha256').update(verifier, 'utf8').digest());
     assert.equal(challengeFor(verifier), expected);
     assert.equal(challengeFor(verifier), 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
+  });
+});
+
+describe('desktop client mirrors iOS', () => {
+  it('derives the reverse-DNS scheme from the client id', () => {
+    assert.equal(DESKTOP_GOOGLE_REDIRECT_SCHEME, reversingComponents(DESKTOP_GOOGLE_CLIENT_ID));
+    assert.equal(
+      DESKTOP_GOOGLE_REDIRECT_SCHEME,
+      'com.googleusercontent.apps.415057540542-s7an2kfcima1eqccpre0qq5o79et8s4f',
+    );
+    assert.equal(
+      DESKTOP_GOOGLE_REDIRECT_URI,
+      'com.googleusercontent.apps.415057540542-s7an2kfcima1eqccpre0qq5o79et8s4f:/oauth2redirect',
+    );
   });
 });
 
@@ -47,14 +62,14 @@ describe('buildAttempt', () => {
     const entropy = (n: number) => Buffer.alloc(n, n === 32 ? 1 : 2);
     const attempt = buildAttempt(
       'client.apps.googleusercontent.com',
-      GOOGLE_OAUTH_REDIRECT_URI,
+      DESKTOP_GOOGLE_REDIRECT_URI,
       entropy,
     );
     const url = new URL(attempt.url);
 
     assert.equal(url.origin + url.pathname, 'https://accounts.google.com/o/oauth2/v2/auth');
     assert.equal(url.searchParams.get('client_id'), 'client.apps.googleusercontent.com');
-    assert.equal(url.searchParams.get('redirect_uri'), GOOGLE_OAUTH_REDIRECT_URI);
+    assert.equal(url.searchParams.get('redirect_uri'), DESKTOP_GOOGLE_REDIRECT_URI);
     assert.equal(url.searchParams.get('response_type'), 'code');
     assert.equal(url.searchParams.get('scope'), 'openid email profile');
     assert.equal(url.searchParams.get('code_challenge_method'), 'S256');
@@ -69,19 +84,30 @@ describe('buildAttempt', () => {
 });
 
 describe('readCallback', () => {
-  it('accepts a matching code', () => {
-    const url = new URL('http://127.0.0.1:42773/oauth2redirect?state=s1&code=4/abc');
+  it('accepts a matching code from the custom-scheme redirect', () => {
+    const url = `${DESKTOP_GOOGLE_REDIRECT_URI}?state=s1&code=4/abc`;
     assert.deepEqual(readCallback(url, 's1'), { code: '4/abc' });
   });
 
   it('treats access_denied as a quiet cancel', () => {
-    const url = new URL('http://127.0.0.1:42773/oauth2redirect?state=s1&error=access_denied');
+    const url = `${DESKTOP_GOOGLE_REDIRECT_URI}?state=s1&error=access_denied`;
     assert.deepEqual(readCallback(url, 's1'), { cancelled: true });
   });
 
   it('rejects a mismatched state before reading the code', () => {
-    const url = new URL('http://127.0.0.1:42773/oauth2redirect?state=other&code=4/abc');
+    const url = `${DESKTOP_GOOGLE_REDIRECT_URI}?state=other&code=4/abc`;
     assert.deepEqual(readCallback(url, 's1'), { error: 'that sign-in could not be verified' });
+  });
+});
+
+describe('isGoogleOAuthCallback', () => {
+  it('recognises the reverse-DNS scheme with one or two slashes', () => {
+    assert.equal(isGoogleOAuthCallback(`${DESKTOP_GOOGLE_REDIRECT_URI}?code=1&state=s`), true);
+    assert.equal(
+      isGoogleOAuthCallback(`${DESKTOP_GOOGLE_REDIRECT_SCHEME}://oauth2redirect?code=1&state=s`),
+      true,
+    );
+    assert.equal(isGoogleOAuthCallback('polaris://issue/ENG-1'), false);
   });
 });
 
