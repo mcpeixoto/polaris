@@ -19,9 +19,9 @@ files:
   # invisible in development, where the same relative path resolves to the source tree.
   - assets/tray.png
   - assets/tray@2x.png
-  - "!**/*.map"
-  - "!**/*.test.js"
-  - "!**/*.test.js.map"
+  - '!**/*.map'
+  - '!**/*.test.js'
+  - '!**/*.test.js.map'
 
 # The renderer is the SAME web/dist the nginx image serves, copied in at package time
 # rather than built again here. Building it twice is how a desktop release ends up a
@@ -33,6 +33,10 @@ extraResources:
 protocols:
   - name: Polaris
     schemes: [polaris]
+  # Same reverse-DNS scheme the iOS app registers for Google sign-in. Desktop reuses the iOS
+  # OAuth client so Windows does not need a loopback redirect registered on the Web client.
+  - name: Polaris Google Sign-In
+    schemes: [com.googleusercontent.apps.415057540542-s7an2kfcima1eqccpre0qq5o79et8s4f]
 
 mac:
   category: public.app-category.developer-tools

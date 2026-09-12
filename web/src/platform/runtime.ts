@@ -54,7 +54,9 @@ interface DesktopBridge {
   installUpdate?(): void;
   /**
    * Desktop Google sign-in via the system browser. Absent on the web, where Google Identity
-   * Services renders its own button into the page instead.
+   * Services renders its own button into the page instead. The shell uses the iOS OAuth
+   * client and its custom-scheme redirect; the Web client id is only a "Google is offered"
+   * signal from the server.
    */
   signInWithGoogle?(
     clientId: string,
@@ -315,8 +317,9 @@ export function openExternalUrl(url: string): void {
  * Google sign-in for the Electron shell.
  *
  * Returns null on the web, where the caller mounts Google Identity Services instead. On
- * desktop the shell opens the system browser, catches a loopback redirect, and hands back
- * the ID token — the renderer never loads accounts.google.com under the app CSP.
+ * desktop the shell opens the system browser with the iOS OAuth client, catches that
+ * client's custom-scheme redirect, and hands back the ID token — the renderer never loads
+ * accounts.google.com under the app CSP.
  */
 export async function signInWithGoogleDesktop(
   clientId: string,

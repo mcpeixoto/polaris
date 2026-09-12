@@ -56,10 +56,9 @@ Plus: `session.setPermissionRequestHandler` denying everything not explicitly ne
 
 Google sign-in does not load Google Identity Services inside the shell: the CSP refuses
 third-party scripts, and `polaris-app://` is not an origin Google will initialise. The
-renderer draws a "Continue with Google" button; the main process opens the system browser,
-listens on `http://127.0.0.1:42773/oauth2redirect`, and exchanges the authorization code
-for an ID token (PKCE, same shape as iOS). That redirect URI must be listed on the Web
-OAuth client — see `docs/05-infrastructure/11-self-hosting.md`.
+renderer draws a "Continue with Google" button; the main process opens the system browser
+with the iOS OAuth client and catches that client's reverse-DNS redirect (PKCE, same shape
+as iOS). Production already accepts that client id via `POLARIS_GOOGLE_CLIENT_IDS`.
 
 ## Loading strategy: bundled, not remote
 
