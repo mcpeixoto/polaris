@@ -91,21 +91,45 @@
   cursor: pointer;
 }
 
+/*
+ * Desktop-only Google button. Same chrome as Apple: on the web Google draws its own iframe,
+ * and this class is never applied. The two providers stacked at the same height is the
+ * point — see the note on `.apple`.
+ */
+.google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  height: var(--auth-provider-height);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+
 /* This button had no focus treatment of any kind, so the only thing marking it on the
    keyboard path was whatever the browser happened to draw. Same ring as Button, from the
    same tokens, and :focus-visible so a mouse click does not draw one. */
-.apple:focus-visible {
+.apple:focus-visible,
+.google:focus-visible {
   outline: var(--focus-ring-width) solid var(--border-focus);
   outline-offset: var(--focus-ring-offset);
 }
 
 /* Keyed on aria-disabled rather than :disabled, because the element is no longer disabled —
    it stays focusable and refuses in the handler; see the note at the call site. */
-.apple:hover:not([aria-disabled='true']) {
+.apple:hover:not([aria-disabled='true']),
+.google:hover:not([aria-disabled='true']) {
   background-color: var(--bg-elevated);
 }
 
-.apple[aria-disabled='true'] {
+.apple[aria-disabled='true'],
+.google[aria-disabled='true'] {
   cursor: default;
   opacity: 0.6;
 }

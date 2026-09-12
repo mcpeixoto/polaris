@@ -15,6 +15,22 @@ vi.mock('~/sync/api', async (importOriginal) => {
   };
 });
 
+const desktopState = vi.hoisted(() => ({
+  isDesktop: false,
+  signInWithGoogleDesktop: vi.fn(),
+}));
+
+vi.mock('~/platform/runtime', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('~/platform/runtime')>();
+  return {
+    ...actual,
+    get isDesktop() {
+      return desktopState.isDesktop;
+    },
+    signInWithGoogleDesktop: desktopState.signInWithGoogleDesktop,
+  };
+});
+
 // The SDK boundary. Loading Google's and Apple's scripts is what `social.ts` is for; this
 // file is about what the screen does with the assertions they produce.
 vi.mock('./social', async (importOriginal) => {
@@ -40,6 +56,7 @@ const prepare = vi.mocked(prepareApple);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  desktopState.isDesktop = false;
 });
 
 function offering(names: ('google' | 'apple')[]) {
@@ -148,6 +165,52 @@ describe('SocialSignIn', () => {
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toMatch(/blocked/i);
     expect(alert.textContent).not.toContain('[object Object]');
+  });
+});
+
+describe('SocialSignIn on desktop', () => {
+  beforeEach(() => {
+    desktopState.isDesktop = true;
+  });
+
+  it('opens Google through the shell instead of mounting GIS', async () => {
+    offering(['google']);
+    desktopState.signInWithGoogleDesktop.mockResolvedValue({
+      ok: true,
+      idToken: 'g-token',
+      nonce: 'n-g',
+    });
+    exchange.mockResolvedValue({
+      accessToken: 'a',
+      expiresIn: 900,
+      accountId: 'acct',
+      workspaces: [],
+    });
+    const onSignedIn = vi.fn();
+
+    render(<SocialSignIn onSignedIn={onSignedIn} />);
+    await userEvent.click(await screen.findByRole('button', { name: /continue with google/i }));
+
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalled());
+    expect(google).not.toHaveBeenCalled();
+    expect(desktopState.signInWithGoogleDesktop).toHaveBeenCalledWith('google-client');
+    expect(exchange).toHaveBeenCalledWith('google', { idToken: 'g-token', nonce: 'n-g' });
+  });
+
+  it('stays quiet when the browser sign-in is cancelled', async () => {
+    offering(['google']);
+    desktopState.signInWithGoogleDesktop.mockResolvedValue({
+      ok: false,
+      reason: 'Sign-in was cancelled.',
+      cancelled: true,
+    });
+
+    render(<SocialSignIn onSignedIn={() => {}} />);
+    await userEvent.click(await screen.findByRole('button', { name: /continue with google/i }));
+
+    await waitFor(() => expect(desktopState.signInWithGoogleDesktop).toHaveBeenCalled());
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(exchange).not.toHaveBeenCalled();
   });
 });
 

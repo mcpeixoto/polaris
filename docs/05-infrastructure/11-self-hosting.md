@@ -240,6 +240,15 @@ that homepage, and a reachable privacy policy with real content on the same doma
 checks all three, and a brand that fails re-verification keeps serving the *previously*
 verified name rather than the one in the console.
 
+`POLARIS_GOOGLE_CLIENT_ID` is the Web application client the browser starts with. The desktop
+app reuses that same client id: it cannot host Google Identity Services under its own
+`polaris-app://` scheme, so it opens the system browser, listens on
+`http://127.0.0.1:42773/oauth2redirect`, and exchanges the code for an ID token locally —
+the same shape the iOS app uses. Add that exact URI under **Authorized redirect URIs** on
+the Web client, or every desktop Google sign-in fails with Google's `redirect_uri_mismatch`.
+Authorized JavaScript origins stay as they were for the website (the desktop flow does not
+use them).
+
 `POLARIS_APPLE_WEB_CLIENT_ID` has the same property for Apple, where the Services ID's
 description is what the sheet shows.
 

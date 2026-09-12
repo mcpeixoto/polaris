@@ -45,6 +45,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { signInWithGoogle, type GoogleSignInResult } from './googleOAuth.js';
+
 const { autoUpdater } = electronUpdater;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -868,15 +870,12 @@ function routeOf(url: string | undefined): string | null {
     return null;
   }
 
-  // The OAuth callback is not a page path, and routing it as one would push an authorisation
-  // code into the renderer's history — where it stays, readable, long after it was spent.
-  // It has its own branch that consumes the parameters and lands on a clean URL.
+  // Google sign-in on desktop uses a loopback redirect (see googleOAuth.ts), not this
+  // scheme. polaris://oauth remains reserved so a pasted or mis-fired callback never lands
+  // as a page path with an authorization code in the history — where it would stay,
+  // readable, long after it was spent.
   if (parsed.host === 'oauth' || parsed.host === 'auth') {
-    // Nothing consumes the parameters yet — the desktop OAuth flow is not built — so they
-    // are dropped here rather than carried. That is the safe half of the eventual handling,
-    // and the half that has to exist first: without this branch the query string was routed
-    // as a page path today.
-    log('oauth callback received; the desktop flow is not implemented, landing on /login');
+    log('oauth deep link ignored; desktop Google sign-in uses loopback, landing on /login');
     return '/login';
   }
 
@@ -1509,6 +1508,36 @@ ipcMain.handle('polaris:platform', () => ({
   version: app.getVersion(),
   isDesktop: true,
 }));
+
+/**
+ * Google sign-in via the system browser and a loopback redirect.
+ *
+ * Serialised: the loopback port is fixed, so two overlapping attempts would fight for it
+ * and leave both browsers stranded. A second click while the first is open gets a clear
+ * refusal rather than a hung spinner.
+ */
+let googleSignInInFlight = false;
+
+ipcMain.handle(
+  'polaris:google-sign-in',
+  async (_event, clientId: unknown): Promise<GoogleSignInResult> => {
+    if (typeof clientId !== 'string' || clientId.length > 256) {
+      return { ok: false, reason: 'Google sign-in is not configured on this server.' };
+    }
+    if (googleSignInInFlight) {
+      return {
+        ok: false,
+        reason: 'A Google sign-in is already open in your browser. Finish or cancel it first.',
+      };
+    }
+    googleSignInInFlight = true;
+    try {
+      return await signInWithGoogle(clientId);
+    } finally {
+      googleSignInInFlight = false;
+    }
+  },
+);
 
 /**
  * The renderer clears its own replica before calling this: a local database is a copy of one

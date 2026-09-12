@@ -54,6 +54,13 @@ new BrowserWindow({
 ```
 Plus: `session.setPermissionRequestHandler` denying everything not explicitly needed, a strict CSP, `shell.openExternal` only after URL validation, and `will-navigate` blocked to anything outside the app origin. An Electron app with `nodeIntegration: true` loading remote content is a remote-code-execution vector.
 
+Google sign-in does not load Google Identity Services inside the shell: the CSP refuses
+third-party scripts, and `polaris-app://` is not an origin Google will initialise. The
+renderer draws a "Continue with Google" button; the main process opens the system browser,
+listens on `http://127.0.0.1:42773/oauth2redirect`, and exchanges the authorization code
+for an ID token (PKCE, same shape as iOS). That redirect URI must be listed on the Web
+OAuth client — see `docs/05-infrastructure/11-self-hosting.md`.
+
 ## Loading strategy: bundled, not remote
 
 Ship `web/dist` **inside** the app and point it at the API.

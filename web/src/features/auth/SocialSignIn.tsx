@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { isDesktop, signInWithGoogleDesktop } from '~/platform/runtime';
 import { ApiError, auth } from '~/sync/api';
 import { AuthError } from '~/views/AuthLayout';
 
@@ -85,6 +86,10 @@ export function SocialSignIn({ onSignedIn, inviteToken }: SocialSignInProps) {
   );
 
   useEffect(() => {
+    // Desktop hosts Google through the system browser (see signInWithGoogleDesktop), not
+    // through GIS: the packaged app's scheme and CSP cannot load accounts.google.com, and
+    // pretending otherwise produced the "content blocker" error on every Windows install.
+    if (isDesktop) return;
     const slot = googleSlot.current;
     if (!providers.includes('google') || googleClientId === '' || slot === null) return;
     mountGoogleButton(
@@ -106,7 +111,11 @@ export function SocialSignIn({ onSignedIn, inviteToken }: SocialSignInProps) {
   // `AppleID.auth.signIn()` opens a popup and a browser only permits that while it can still
   // see the gesture. Awaiting a script download inside the handler is the difference between
   // a sign-in window and a silently blocked one.
+  //
+  // Skipped on desktop for the same CSP reason as Google: the script cannot load, and a
+  // click that only ever says "content blocker" is worse than a button that says so up front.
   useEffect(() => {
+    if (isDesktop) return;
     if (!providers.includes('apple') || appleClientId === '') return;
     void prepareApple(appleClientId).catch(() => {
       // Left to the click to report. An SDK that failed to load is not something to
@@ -114,9 +123,39 @@ export function SocialSignIn({ onSignedIn, inviteToken }: SocialSignInProps) {
     });
   }, [providers, appleClientId]);
 
+  const onGoogleDesktop = useCallback(() => {
+    if (busy || googleClientId === '') return;
+    setBusy(true);
+    setError(null);
+    void signInWithGoogleDesktop(googleClientId)
+      .then((result) => {
+        if (result === null) {
+          setBusy(false);
+          setError('Google sign-in is unavailable in this build.');
+          return;
+        }
+        if (!result.ok) {
+          setBusy(false);
+          if (!result.cancelled) setError(result.reason);
+          return;
+        }
+        return exchange('google', { idToken: result.idToken, nonce: result.nonce });
+      })
+      .catch(() => {
+        setBusy(false);
+        setError('Google sign-in failed. Try again.');
+      });
+  }, [busy, exchange, googleClientId]);
+
   const onApple = useCallback(() => {
     // Guarded here rather than by `disabled` on the element; see the button below.
     if (busy) return;
+    if (isDesktop) {
+      setError(
+        'Sign in with Apple is not available in the desktop app yet. Use email and password, or Continue with Google.',
+      );
+      return;
+    }
     setError(null);
     // Not awaited before `signInWithApple`: the popup has to be opened in the same task as
     // the click, or the browser blocks it.
@@ -154,8 +193,25 @@ export function SocialSignIn({ onSignedIn, inviteToken }: SocialSignInProps) {
 
       <AuthError message={error} />
 
-      {/* Google renders its own button in here — their terms require theirs, not ours. */}
-      {providers.includes('google') ? <div ref={googleSlot} className={styles.slot} /> : null}
+      {/* On the web, Google renders its own button in here — their terms require theirs, not
+          ours. On desktop we draw the button (same shape as Apple) and the shell opens the
+          system browser; GIS cannot run under polaris-app://. */}
+      {providers.includes('google') ? (
+        isDesktop ? (
+          <button
+            type="button"
+            className={styles.google}
+            aria-disabled={busy ? true : undefined}
+            aria-busy={busy ? true : undefined}
+            onClick={onGoogleDesktop}
+          >
+            <GoogleMark />
+            Continue with Google
+          </button>
+        ) : (
+          <div ref={googleSlot} className={styles.slot} />
+        )
+      ) : null}
 
       {providers.includes('apple') && appleClientId !== '' ? (
         // `aria-disabled`, not `disabled`, for the reason spelled out in Button: a disabled
@@ -176,5 +232,29 @@ export function SocialSignIn({ onSignedIn, inviteToken }: SocialSignInProps) {
         </button>
       ) : null}
     </div>
+  );
+}
+
+/** Google's "G" mark, four colours, as their branding asks for on a custom button. */
+function GoogleMark() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16">
+      <path
+        fill="#4285F4"
+        d="M15.7 8.2c0-.5-.05-1.1-.14-1.6H8v3h4.3c-.19 1-.75 1.9-1.6 2.4v2h2.6c1.5-1.4 2.4-3.5 2.4-5.8z"
+      />
+      <path
+        fill="#34A853"
+        d="M8 16c2.2 0 4-0.7 5.3-2l-2.6-2c-.7.5-1.6.8-2.7.8-2.1 0-3.8-1.4-4.4-3.3H.9v2.1C2.2 14.2 4.9 16 8 16z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M3.6 9.5c-.2-.5-.3-1-.3-1.5s.1-1.1.3-1.5V4.4H.9C.3 5.5 0 6.7 0 8s.3 2.5.9 3.6l2.7-2.1z"
+      />
+      <path
+        fill="#EA4335"
+        d="M8 3.2c1.2 0 2.3.4 3.1 1.2l2.3-2.3C13.9.8 12.1 0 8 0 4.9 0 2.2 1.8.9 4.4l2.7 2.1C4.2 4.6 5.9 3.2 8 3.2z"
+      />
+    </svg>
   );
 }

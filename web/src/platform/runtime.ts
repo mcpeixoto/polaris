@@ -52,6 +52,16 @@ interface DesktopBridge {
   onNavigate(handler: (route: string) => void): () => void;
   onUpdateStatus?(handler: (status: UpdateStatus) => void): () => void;
   installUpdate?(): void;
+  /**
+   * Desktop Google sign-in via the system browser. Absent on the web, where Google Identity
+   * Services renders its own button into the page instead.
+   */
+  signInWithGoogle?(
+    clientId: string,
+  ): Promise<
+    | { ok: true; idToken: string; nonce: string }
+    | { ok: false; reason: string; cancelled?: boolean }
+  >;
 }
 
 declare global {
@@ -299,4 +309,22 @@ export function openExternalUrl(url: string): void {
   if (opened === null) {
     window.location.assign(url);
   }
+}
+
+/**
+ * Google sign-in for the Electron shell.
+ *
+ * Returns null on the web, where the caller mounts Google Identity Services instead. On
+ * desktop the shell opens the system browser, catches a loopback redirect, and hands back
+ * the ID token — the renderer never loads accounts.google.com under the app CSP.
+ */
+export async function signInWithGoogleDesktop(
+  clientId: string,
+): Promise<
+  | { ok: true; idToken: string; nonce: string }
+  | { ok: false; reason: string; cancelled?: boolean }
+  | null
+> {
+  if (bridge?.signInWithGoogle === undefined) return null;
+  return bridge.signInWithGoogle(clientId);
 }
