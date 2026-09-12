@@ -30,10 +30,7 @@ import {
   TOKEN_ENDPOINT,
 } from './googleOAuthCore.js';
 
-export {
-  GOOGLE_OAUTH_LOOPBACK_PORT,
-  GOOGLE_OAUTH_REDIRECT_URI,
-} from './googleOAuthCore.js';
+export { GOOGLE_OAUTH_LOOPBACK_PORT, GOOGLE_OAUTH_REDIRECT_URI } from './googleOAuthCore.js';
 
 /** How long we wait for the browser to come back before calling the attempt abandoned. */
 const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000;
@@ -189,12 +186,7 @@ export async function signInWithGoogle(clientId: string): Promise<GoogleSignInRe
       return { ok: false, reason: parsed.error };
     }
 
-    const idToken = await exchangeCode(
-      parsed.code,
-      attempt.codeVerifier,
-      clientId,
-      redirectUri,
-    );
+    const idToken = await exchangeCode(parsed.code, attempt.codeVerifier, clientId, redirectUri);
     return { ok: true, idToken, nonce: attempt.nonce };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Google sign-in failed.';

@@ -45,7 +45,11 @@ describe('challengeFor', () => {
 describe('buildAttempt', () => {
   it('pins the authorization URL to the injected entropy', () => {
     const entropy = (n: number) => Buffer.alloc(n, n === 32 ? 1 : 2);
-    const attempt = buildAttempt('client.apps.googleusercontent.com', GOOGLE_OAUTH_REDIRECT_URI, entropy);
+    const attempt = buildAttempt(
+      'client.apps.googleusercontent.com',
+      GOOGLE_OAUTH_REDIRECT_URI,
+      entropy,
+    );
     const url = new URL(attempt.url);
 
     assert.equal(url.origin + url.pathname, 'https://accounts.google.com/o/oauth2/v2/auth');
@@ -86,9 +90,13 @@ describe('idTokenFromTokenResponse', () => {
     assert.equal(idTokenFromTokenResponse({ id_token: 'eyJ.header.sig' }), 'eyJ.header.sig');
   });
 
-  it('refuses an error body without echoing Google\'s developer sentence', () => {
+  it("refuses an error body without echoing Google's developer sentence", () => {
     assert.throws(
-      () => idTokenFromTokenResponse({ error: 'invalid_grant', error_description: 'Malformed auth code.' }),
+      () =>
+        idTokenFromTokenResponse({
+          error: 'invalid_grant',
+          error_description: 'Malformed auth code.',
+        }),
       /could not be completed/,
     );
   });
@@ -96,6 +104,12 @@ describe('idTokenFromTokenResponse', () => {
 
 describe('formEncode', () => {
   it('percent-encodes values', () => {
-    assert.equal(formEncode([['a', 'b c'], ['d', 'e=f']]), 'a=b%20c&d=e%3Df');
+    assert.equal(
+      formEncode([
+        ['a', 'b c'],
+        ['d', 'e=f'],
+      ]),
+      'a=b%20c&d=e%3Df',
+    );
   });
 });

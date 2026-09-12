@@ -91,7 +91,9 @@ export interface PolarisDesktop {
    * redirect completes. The renderer cannot host Google Identity Services under the app's
    * own scheme and CSP; see main/googleOAuth.ts.
    */
-  signInWithGoogle(clientId: string): Promise<
+  signInWithGoogle(
+    clientId: string,
+  ): Promise<
     | { ok: true; idToken: string; nonce: string }
     | { ok: false; reason: string; cancelled?: boolean }
   >;

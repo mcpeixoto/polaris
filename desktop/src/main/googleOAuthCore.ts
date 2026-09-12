@@ -32,11 +32,7 @@ export interface GoogleAttempt {
 
 /** base64url without padding — RFC 7636's alphabet. */
 export function base64URL(buffer: Buffer): string {
-  return buffer
-    .toString('base64')
-    .replaceAll('+', '-')
-    .replaceAll('/', '_')
-    .replaceAll('=', '');
+  return buffer.toString('base64').replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
 }
 
 /** PKCE S256 challenge: base64url of SHA-256 over the verifier's ASCII bytes. */
@@ -71,9 +67,7 @@ export function buildAttempt(
 }
 
 export type CallbackRead =
-  | { readonly code: string }
-  | { readonly cancelled: true }
-  | { readonly error: string };
+  { readonly code: string } | { readonly cancelled: true } | { readonly error: string };
 
 export function readCallback(callbackUrl: URL, expectedState: string): CallbackRead {
   if (callbackUrl.searchParams.get('state') !== expectedState) {
