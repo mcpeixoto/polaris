@@ -146,9 +146,64 @@ describe('SocialSignIn', () => {
 
   it('says nothing when the server cannot be asked', async () => {
     providers.mockRejectedValue(new Error('offline'));
-    const { container } = render(<SocialSignIn onSignedIn={() => {}} />);
+    const { container, unmount } = render(<SocialSignIn onSignedIn={() => {}} />);
     await waitFor(() => expect(providers).toHaveBeenCalled());
     expect(container.textContent).toBe('');
+    // Pending backoff retries would otherwise keep calling after the assertion; the
+    // interesting claim is that a failure draws nothing, not that it never asks again.
+    unmount();
+  });
+
+  /**
+   * The sleep-wake shape: the session is gone, the sign-in screen mounts, and the first
+   * `/auth/providers` ask fails because the network is not back yet. Without a retry the
+   * password form sat alone until a full reload — Google and Apple had been offered, just
+   * not heard. Coming online must ask again and draw the buttons.
+   */
+  it('draws the providers once the network returns after a failed ask', async () => {
+    providers.mockRejectedValueOnce(new Error('offline'));
+    render(<SocialSignIn onSignedIn={() => {}} />);
+    await waitFor(() => expect(providers).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('button', { name: /continue with apple/i })).toBeNull();
+
+    offering(['apple']);
+    window.dispatchEvent(new Event('online'));
+
+    expect(await screen.findByRole('button', { name: /continue with apple/i })).toBeTruthy();
+    expect(providers).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * Laptop lid: the browser never flips `navigator.onLine`, the API was simply unreachable
+   * for a moment, and the tab becomes visible again with an empty provider list. Same
+   * recovery as `online`, keyed off visibility so a wake without a network event still
+   * gets its buttons.
+   */
+  it('asks again when the tab becomes visible after a failed ask', async () => {
+    providers.mockRejectedValueOnce(new Error('offline'));
+    render(<SocialSignIn onSignedIn={() => {}} />);
+    await waitFor(() => expect(providers).toHaveBeenCalledTimes(1));
+
+    offering(['google', 'apple']);
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'visible',
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    expect(await screen.findByRole('button', { name: /continue with apple/i })).toBeTruthy();
+    expect(providers).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries on its own after a transient failure', async () => {
+    offering(['apple']);
+    providers.mockRejectedValueOnce(new Error('offline'));
+
+    render(<SocialSignIn onSignedIn={() => {}} />);
+    // First ask fails; the 500ms backoff asks again and the buttons appear without a
+    // reload or a network event — the sleep-wake case where `navigator.onLine` never flipped.
+    expect(await screen.findByRole('button', { name: /continue with apple/i })).toBeTruthy();
+    expect(providers).toHaveBeenCalledTimes(2);
   });
 
   /**

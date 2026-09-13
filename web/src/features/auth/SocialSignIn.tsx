@@ -47,19 +47,69 @@ export function SocialSignIn({ onSignedIn, inviteToken }: SocialSignInProps) {
 
   useEffect(() => {
     let cancelled = false;
-    fetchAuthProviders()
-      .then((body) => {
-        if (cancelled) return;
-        setProviders(body.providers);
-        setGoogleClientId(body.googleClientId);
-        setAppleClientId(body.appleClientId);
-      })
-      .catch(() => {
-        // Silent: a server that cannot answer this offers no providers, and an error message
-        // about a feature nobody asked for is noise on the one screen that has to stay calm.
-      });
+    let loaded = false;
+    let attempt = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+
+    // Backoff for the case the first ask loses a race with the network coming back — the
+    // ordinary shape after the laptop wakes and the session has already been dropped. Giving
+    // up on that one failure used to leave the password form alone forever: no Google, no
+    // Apple, until a full reload. The delays stay short; the screen is still the quiet one.
+    const retryDelaysMs = [500, 1500, 4000] as const;
+
+    const clearRetry = () => {
+      if (retryTimer === undefined) return;
+      clearTimeout(retryTimer);
+      retryTimer = undefined;
+    };
+
+    const ask = () => {
+      fetchAuthProviders()
+        .then((body) => {
+          if (cancelled) return;
+          loaded = true;
+          clearRetry();
+          setProviders(body.providers);
+          setGoogleClientId(body.googleClientId);
+          setAppleClientId(body.appleClientId);
+        })
+        .catch(() => {
+          // Silent on the page: a server that cannot answer this offers no providers, and an
+          // error about a feature nobody asked for is noise on the one screen that has to stay
+          // calm. The retry below is what turns a transient "offline at mount" into buttons
+          // once the network is back, rather than into a reload.
+          if (cancelled || loaded) return;
+          if (attempt >= retryDelaysMs.length) return;
+          const delay = retryDelaysMs[attempt]!;
+          attempt += 1;
+          clearRetry();
+          retryTimer = setTimeout(ask, delay);
+        });
+    };
+
+    // Wake / reconnect paths that do not remount this screen. `online` covers wifi coming
+    // back; `visibilitychange` covers the laptop lid opening when the browser never flipped
+    // `navigator.onLine` (the API was simply unreachable for a moment). Both only re-ask when
+    // we still have nothing — a successful empty answer (no providers configured) must not
+    // keep polling.
+    const kick = () => {
+      if (cancelled || loaded) return;
+      attempt = 0;
+      clearRetry();
+      ask();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') kick();
+    };
+
+    ask();
+    window.addEventListener('online', kick);
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       cancelled = true;
+      clearRetry();
+      window.removeEventListener('online', kick);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, []);
 
