@@ -31,6 +31,8 @@ import {
 import { useActions, useKeyContext } from '~/app/keymap';
 import { useEngine } from '~/app/context';
 import { Button, Checkbox, Textarea, useNativeValue } from '~/components';
+import { pasteImagesInto } from '~/features/files/pasteImages';
+import { imageFilesFromDataTransfer } from '~/features/files/upload';
 import { postComment, report, resolveComment } from '~/features/issue/mutations';
 import { maybeExpandEmoticons } from '~/features/prefs/emoticons';
 import { exact, when } from '~/features/time';
@@ -572,6 +574,37 @@ export function DescriptionEditor({
             flight.current = { text: next, base: description, save: onSave };
           }}
           onKeyDown={onKeyDown}
+          onPaste={(event) => {
+            if (imageFilesFromDataTransfer(event.clipboardData).length === 0) return;
+            event.preventDefault();
+            const state = stateOf();
+            if (state === null) return;
+            void pasteImagesInto(state, event.clipboardData, {
+              issueId: target.kind === 'issue' ? target.id : undefined,
+            })
+              .then((next) => {
+                if (next !== null) applyEdit(next);
+              })
+              .catch(report);
+          }}
+          onDragOver={(event) => {
+            if (imageFilesFromDataTransfer(event.dataTransfer).length === 0) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'copy';
+          }}
+          onDrop={(event) => {
+            if (imageFilesFromDataTransfer(event.dataTransfer).length === 0) return;
+            event.preventDefault();
+            const state = stateOf();
+            if (state === null) return;
+            void pasteImagesInto(state, event.dataTransfer, {
+              issueId: target.kind === 'issue' ? target.id : undefined,
+            })
+              .then((next) => {
+                if (next !== null) applyEdit(next);
+              })
+              .catch(report);
+          }}
           onScroll={syncScroll}
           onSelect={() => setSelection(readSelection())}
           onMouseUp={() => {

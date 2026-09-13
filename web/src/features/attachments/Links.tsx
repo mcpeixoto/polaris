@@ -1,17 +1,19 @@
 /**
- * Link cards on an issue: the URL-idempotent attachments.
+ * Link cards on an issue: the URL-idempotent attachments, plus image upload.
  *
- * Read from the replica. Add is a URL plus an optional title; remove is a confirm on the
- * row. `#` is archives restore, so this panel does not steal it.
+ * Read from the replica. Add is a URL plus an optional title, or a file from the picker /
+ * paste elsewhere; remove is a confirm on the row. `#` is archives restore, so this panel
+ * does not steal it.
  */
 
-import { useRef, useState, type FormEvent } from 'react';
+import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 
 import { useEngine } from '~/app/context';
 import { useActions } from '~/app/keymap';
 import { Button, IconButton, Input, Section } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { formatSubtitle } from '~/features/attachments/tokens';
+import { uploadImage } from '~/features/files/upload';
 import { CrossGlyph, PlusGlyph } from '~/features/issue/glyphs';
 import { report } from '~/features/issue/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
@@ -24,10 +26,12 @@ import styles from './Links.module.css';
 export function Links({ issueId }: { issueId: UUID }) {
   const engine = useEngine();
   const urlRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const [removing, setRemoving] = useState<Attachment | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const rows = useLiveQuery(
     (store) =>
@@ -61,11 +65,6 @@ export function Links({ issueId }: { issueId: UUID }) {
     setRefusal(null);
     setUrl('');
     setTitle('');
-    // `report` still writes the line, because a console trace is what a developer reads. It
-    // was the whole answer, which it cannot be: the server refuses a URL it cannot parse and
-    // one over 2048 characters, the optimistic card is rolled back, and the person who typed
-    // it watched it vanish with no reason given anywhere they were looking. So the message
-    // goes on the screen and the box gets its text back to correct.
     createAttachment(engine, { issueId, url: trimmed, title: typedTitle || undefined }).catch(
       (error: unknown) => {
         report(error);
@@ -80,15 +79,40 @@ export function Links({ issueId }: { issueId: UUID }) {
     );
   };
 
+  const onFile = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (file === undefined) return;
+    setRefusal(null);
+    setUploading(true);
+    // Upload without issueId: the link card is created here so the replica gets an
+    // optimistic row. The server upload path can also attach, but that would skip the
+    // client's reconcile and leave a gap until the next delta.
+    uploadImage(file)
+      .then((uploaded) =>
+        createAttachment(engine, {
+          issueId,
+          url: uploaded.absoluteUrl,
+          title: uploaded.name,
+        }),
+      )
+      .catch((error: unknown) => {
+        report(error);
+        setRefusal(
+          error instanceof ApiError && error.message !== ''
+            ? error.message
+            : 'That image could not be uploaded.',
+        );
+      })
+      .finally(() => setUploading(false));
+  };
+
   return (
     <Section
       title="Links"
       headingId={`${issueId}-links`}
       count={rows.length === 0 ? undefined : rows.length}
       action={
-        // "Attach", not "Add link": the relations panel above owns that name, and two buttons
-        // called the same thing on one page are one button as far as a screen reader is
-        // concerned. Same registered action as the chord, so the two cannot disagree.
         <IconButton
           size="sm"
           icon={<PlusGlyph />}
@@ -98,6 +122,14 @@ export function Links({ issueId }: { issueId: UUID }) {
         />
       }
     >
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/png,image/jpeg,image/gif,image/webp"
+        className={styles.fileInput}
+        onChange={onFile}
+      />
+
       {rows.length === 0 ? null : (
         <ul className={styles.list}>
           {rows.map((row) => (
@@ -138,6 +170,15 @@ export function Links({ issueId }: { issueId: UUID }) {
         <Button type="submit" size="sm" disabled={url.trim() === ''}>
           Add
         </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          disabled={uploading}
+          onClick={() => fileRef.current?.click()}
+        >
+          {uploading ? 'Uploading…' : 'Upload image'}
+        </Button>
       </form>
 
       {refusal === null ? null : (
@@ -162,25 +203,10 @@ export function Links({ issueId }: { issueId: UUID }) {
   );
 }
 
-/**
- * What the first line of the card says.
- *
- * The server already defaults a title-less attachment to its host, so `row.title` is very
- * often the host string rather than empty — which is why the fallback below cannot be the
- * only place the host is considered.
- */
 function shownTitle(row: { title: string; url: string }): string {
   return row.title === '' ? hostOf(row.url) : row.title;
 }
 
-/**
- * The second line, or nothing.
- *
- * A link with no metadata and no title of its own was rendering "github.com" above
- * "github.com": the title line falls back to the host, and so did this one, and neither knew
- * the other had. A subtitle that only repeats the line above it is not a quiet detail, it is
- * the card looking broken — so when the host is already the title, there is no second line.
- */
 function LinkSubtitle({
   row,
 }: {

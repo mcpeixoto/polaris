@@ -14,7 +14,7 @@
  * and is escaped by React on the way out.
  *
  * The grammar is deliberately the subset the editor's own input rules and slash menu can
- * produce: headings, emphasis, inline code, fenced code, links, quotes and both list kinds.
+ * produce: headings, emphasis, inline code, fenced code, links, images, quotes and both list kinds.
  * Tables, footnotes and reference links are not in it, and render as the source lines they
  * are rather than being silently swallowed.
  */
@@ -56,6 +56,8 @@ const INLINE: readonly { readonly kind: string; readonly pattern: RegExp }[] = [
     pattern:
       /@\[([^\]\n]*)\]\(user:([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\)/,
   },
+  // Image before link: `![alt](url)` would otherwise match as a link whose label is `!`.
+  { kind: 'image', pattern: /!\[([^\]\n]*)\]\(([^)\s]*)\)/ },
   { kind: 'link', pattern: /\[([^\]\n]*)\]\(([^)\s]*)\)/ },
   { kind: 'strong', pattern: /\*\*([^\n]+?)\*\*/ },
   { kind: 'strong', pattern: /__([^\n]+?)__/ },
@@ -98,6 +100,16 @@ function renderInline(text: string, key: string): ReactNode[] {
         <span key={childKey} className={styles.mention} data-user-id={match[2] ?? ''}>
           @{inner}
         </span>,
+      );
+    } else if (kind === 'image') {
+      const src = hrefFor(match[2] ?? '');
+      const alt = inner;
+      out.push(
+        src === null ? (
+          <Fragment key={childKey}>{alt || match[2] || ''}</Fragment>
+        ) : (
+          <img key={childKey} className={styles.image} src={src} alt={alt} loading="lazy" />
+        ),
       );
     } else if (kind === 'link') {
       const href = hrefFor(match[2] ?? '');

@@ -1146,6 +1146,19 @@ type TeamMembership struct {
 	UpdatedAt   time.Time
 }
 
+type UploadedFile struct {
+	ID            uuid.UUID
+	WorkspaceID   uuid.UUID
+	CreatorID     *uuid.UUID
+	StorageKey    string
+	ContentType   string
+	ByteSize      int64
+	OriginalName  string
+	Sha256        []byte
+	DownloadToken string
+	CreatedAt     time.Time
+}
+
 type User struct {
 	ID                uuid.UUID
 	WorkspaceID       uuid.UUID

@@ -446,6 +446,7 @@ type Querier interface {
 	// Replicated columns only. webhook_url and notify_cursor are never selected here.
 	CreateSlackConnection(ctx context.Context, arg CreateSlackConnectionParams) (CreateSlackConnectionRow, error)
 	CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, error)
+	CreateUploadedFile(ctx context.Context, arg CreateUploadedFileParams) (UploadedFile, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	// Saved views, the display preferences of the views that have no row, and favourites.
 	CreateView(ctx context.Context, arg CreateViewParams) (CreateViewRow, error)
@@ -727,6 +728,8 @@ type Querier interface {
 	GetTeam(ctx context.Context, id uuid.UUID) (Team, error)
 	GetTeamByEmailIntakeToken(ctx context.Context, token *string) (Team, error)
 	GetTeamByKey(ctx context.Context, arg GetTeamByKeyParams) (Team, error)
+	GetUploadedFile(ctx context.Context, id uuid.UUID) (UploadedFile, error)
+	GetUploadedFileBySHA(ctx context.Context, arg GetUploadedFileBySHAParams) (UploadedFile, error)
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByAccountAndWorkspace(ctx context.Context, arg GetUserByAccountAndWorkspaceParams) (User, error)
 	GetView(ctx context.Context, id uuid.UUID) (GetViewRow, error)

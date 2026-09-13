@@ -3,8 +3,10 @@
 **Goal:** an issue can carry link cards, the same URL on the same issue is one card, and
 those cards survive restore, duplicate-merge and a reload.
 
-This is inventory 6.8. File upload and authenticated blob serving stay out: there is no
-M1 `internal/files` path to extend. Webhooks are a separate slice.
+File upload for paste/drop images is a separate path (`internal/files`, `POST /files/upload`,
+`GET /files/{id}`). Uploaded images may create a link card whose URL is the absolute
+capability URL, and may also be inserted as markdown `![…](/files/…?token=…)` in
+descriptions and comments. Webhooks stay a separate slice.
 
 The visual bar is part of done. Links sit on the issue as a dense list, not a settings form.
 

@@ -33,12 +33,16 @@ same bundle the desktop app ships.
 idempotency keys, the full-text indexes. The sync fan-out is `LISTEN`/`NOTIFY` on the same
 connection pool, not a message broker. Rate-limit counters live in each process's memory.
 
-The bundled `docker-compose.yml` also starts a Valkey container and offers MinIO and
-Meilisearch behind profiles. **Nothing in the Go code connects to any of them today** —
-there is no Redis client in `services/go.mod`, and no `internal/files` or `internal/search`
-package for the S3 and Meilisearch variables in `.env.example` to configure. They are
-placed for work that is planned. You can run the whole product without them; if you are
-sizing a box, do not budget for them.
+Uploaded images (paste/drop screenshots) are stored by `internal/files`. The default
+driver is a directory on the API host (`POLARIS_FILES_PATH`, volume-mounted in compose).
+Set `POLARIS_FILES_DRIVER=s3` and the `POLARIS_S3_*` variables to use MinIO or any
+S3-compatible store instead — the MinIO service behind the compose `s3` profile is the
+local target for that.
+
+The bundled `docker-compose.yml` also starts a Valkey container and offers Meilisearch
+behind a profile. **Nothing in the Go code connects to Valkey or Meilisearch today** —
+there is no Redis client in `services/go.mod`, and no `internal/search` package. You can
+run the whole product without them; if you are sizing a box, do not budget for them.
 
 ## What it needs
 
@@ -104,20 +108,23 @@ sign in at once.**
 
 ### Disk
 
-Postgres is the only thing that grows. There is no attachment storage in this build, so
-there is no second growth curve to plan for.
+Postgres holds the rows; pasted images grow a second curve under `POLARIS_FILES_PATH`
+(or the S3 bucket when that driver is on). Each upload is capped at 25 MiB and content-
+addressed per workspace, so the same screenshot pasted twice stores once.
 
-| Table | Growth | Bounded by |
+| Table / store | Growth | Bounded by |
 |---|---|---|
 | `issue`, `comment`, `label`, … | With the work | Nothing. This is your data |
+| `uploaded_file` + files volume / bucket | With screenshots | 25 MiB per file; SHA dedupe per workspace |
 | `issue_history` | ~25 rows per issue | Nothing today. Retained deliberately |
 | `change_log` | One row per mutation, ~1.2 KB | 30 days, pruned by dropping monthly partitions |
 | `idempotency_key` | One row per mutation | 24 hours, pruned hourly |
 | `account_session` | One per device per 30 days | Refresh token TTL, pruned daily |
 
-A busy workspace of 100k issues lands in the low single-digit gigabytes. **Budget 20 GB and
-alert at 80%.** The failure mode of a full disk is that Postgres stops accepting writes,
-which presents to users as the entire product being read-only, and recovering needs free
+A busy workspace of 100k issues lands in the low single-digit gigabytes of Postgres.
+**Budget 20 GB for the database and another 20 GB for the files volume, and alert at 80%.**
+The failure mode of a full disk is that Postgres stops accepting writes (or uploads start
+failing), which presents to users as the product being read-only, and recovering needs free
 space you no longer have.
 
 ### CPU
@@ -912,8 +919,6 @@ the value.
 So you do not go looking. All of these are described somewhere in `docs/` as though they
 exist:
 
-- **Object storage and attachments.** No `internal/files` package, no attachment table. The
-  MinIO container and the `POLARIS_S3_*` variables in `.env.example` configure nothing.
 - **A search service.** Search is Postgres full-text and trigram indexes, which is a complete
   implementation and needs no extra service. The Meilisearch container and `POLARIS_MEILI_*`
   configure nothing.

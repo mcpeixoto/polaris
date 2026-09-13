@@ -102,4 +102,16 @@ describe('Markdown', () => {
     expect(mention?.getAttribute('data-user-id')).toBe(id);
     expect(root.textContent).toBe('see @Bob');
   });
+
+  it('renders a markdown image for a relative /files URL', () => {
+    const root = draw('![Shot](/files/abc?token=xyz)');
+    const img = root.querySelector('img');
+    expect(img?.getAttribute('src')).toBe('/files/abc?token=xyz');
+    expect(img?.getAttribute('alt')).toBe('Shot');
+  });
+
+  it('does not turn a javascript image into an img', () => {
+    const root = draw('![x](javascript:alert(1))');
+    expect(root.querySelector('img')).toBeNull();
+  });
 });

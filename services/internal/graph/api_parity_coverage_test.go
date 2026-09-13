@@ -46,6 +46,7 @@ import (
 var readPrefixes = []string{
 	"Get", "List", "Read", "Search", "My", "Stream", "Unread", "SubIssues", "IssuesByID",
 	"WorkspaceVersion", "Oldest", "Entitlement", "IssueProgress", "Listen", "AgentAutoApply", "AgentCreditsRemaining", "AgentMetered",
+	"Open",
 }
 
 // serverSideOnly names exported methods that are neither reads nor part of the public API,
@@ -97,6 +98,7 @@ var serverSideOnly = map[string]string{
 	"SubmitAsk":                  "POST /asks/{token}: public, token is the credential",
 	"SetGitHubCommentPoster":     "composition root: wires the GitHub HTTP client, not a caller mutation",
 	"SetGitLabCommentPoster":     "composition root: wires the GitLab HTTP client, not a caller mutation",
+	"SetFileStore":               "composition root: wires object storage for paste/drop uploads, not a caller mutation",
 }
 
 func isRead(name string) bool {

@@ -266,6 +266,14 @@ func NewRouter(d Deps) http.Handler {
 	mux.Handle("GET /agent/sessions/{id}/stream",
 		RequireWorkspace(d.Limits.GraphQL(http.HandlerFunc(agents.stream))))
 
+	// Uploaded images for paste/drop. Upload needs a workspace principal; download is
+	// authorised by the capability token in the URL (so <img> and a new tab work without
+	// a Bearer header) or by membership when a session is present.
+	fileH := &fileHandlers{svc: d.Service}
+	mux.Handle("POST /files/upload",
+		RequireWorkspace(d.Limits.GraphQL(http.HandlerFunc(fileH.upload))))
+	mux.Handle("GET /files/{id}", d.Limits.Anonymous(http.HandlerFunc(fileH.download)))
+
 	oauth := &oauthHandlers{svc: d.Service}
 	mux.Handle("POST /oauth/token", d.Limits.Anonymous(http.HandlerFunc(oauth.token)))
 	mux.Handle("POST /oauth/revoke", d.Limits.Anonymous(http.HandlerFunc(oauth.revoke)))
