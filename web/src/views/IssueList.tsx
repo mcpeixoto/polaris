@@ -131,9 +131,12 @@ import { CyclePicker } from '~/features/cycles/CyclePicker';
 import { Peek } from '~/features/peek/Peek';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { DuplicatePicker } from '~/features/triage/DuplicatePicker';
+import { CommentPrompt, type TriageCommentKind } from '~/features/triage/CommentPrompt';
 import {
-  acceptTriageIssues,
-  declineTriageIssues,
+  acceptTriageIssuesWithComment,
+  declineTriageIssuesWithComment,
+} from '~/features/triage/decide';
+import {
   markIssuesDuplicate,
   requiresPriorityToLeave,
   snoozeIssues,
@@ -843,6 +846,26 @@ export function IssueList({
   const more = useMenuTrigger();
   const duplicate = useMenuTrigger();
   const snooze = useMenuTrigger();
+  /** Accept button in the triage action bar — the comment prompt hangs off it. */
+  const triageAcceptRef = useRef<HTMLButtonElement>(null);
+  const triageDeclineRef = useRef<HTMLButtonElement>(null);
+  /**
+   * Always-mounted one-pixel anchor for the comment prompt.
+   *
+   * The Accept / Decline buttons live in the selection bar, which is absent until a
+   * selection or a picker is open. Opening the prompt is what *makes* the bar appear, so
+   * hanging the panel on those buttons would leave it with no box to measure on the first
+   * frame — and in the browser that meant a dialog whose buttons never became actionable.
+   */
+  const triageCommentAnchor = useRef<HTMLDivElement>(null);
+  /**
+   * Optional comment before accept/decline. The targets are captured when the prompt opens
+   * so a selection change underneath it does not re-aim the decision.
+   */
+  const [triageComment, setTriageComment] = useState<{
+    kind: TriageCommentKind;
+    ids: readonly UUID[];
+  } | null>(null);
 
   /**
    * What the header's star stands for: the team, the saved view or the label this list is
@@ -1272,7 +1295,7 @@ export function IssueList({
         priority.show();
         return;
       }
-      acceptTriageIssues(engine, targets).catch(report);
+      setTriageComment({ kind: 'accept', ids: [...targets] });
     },
     declineTriage: () => {
       if (targets.length === 0) return;
@@ -1280,7 +1303,7 @@ export function IssueList({
         priority.show();
         return;
       }
-      declineTriageIssues(engine, targets).catch(report);
+      setTriageComment({ kind: 'decline', ids: [...targets] });
     },
     pickDuplicate: () => {
       if (targets.length === 0) return;
@@ -2178,7 +2201,8 @@ export function IssueList({
     estimate.open ||
     due.open ||
     duplicate.open ||
-    snooze.open;
+    snooze.open ||
+    triageComment !== null;
   const shared = picking ? sharedProperties(engine.store, actOn) : NOTHING_SHARED;
   const canAct = actOn.length > 0;
   // Statuses belong to a team, so a selection spanning two of them has no correct set to
@@ -2559,6 +2583,37 @@ export function IssueList({
         trigger={priority.ref}
         value={shared.priority}
         onSelect={(priority) => updateIssues(engine, actOn, { priority }).catch(report)}
+      />
+      <CommentPrompt
+        open={triageComment !== null}
+        onClose={() => setTriageComment(null)}
+        trigger={triageCommentAnchor}
+        kind={triageComment?.kind ?? 'accept'}
+        identifier={triageCommentIdentifier(engine.store, triageComment?.ids ?? [])}
+        actionId="issueList.closeTriageComment"
+        onConfirm={(comment) => {
+          const pending = triageComment;
+          setTriageComment(null);
+          if (pending === null) return;
+          const write =
+            pending.kind === 'accept'
+              ? acceptTriageIssuesWithComment
+              : declineTriageIssuesWithComment;
+          write(engine, pending.ids, comment, viewerId).catch(report);
+        }}
+      />
+      {/* One-pixel box for the comment prompt. Not `hidden`: Popover measures its trigger. */}
+      <div
+        ref={triageCommentAnchor}
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          width: 1,
+          height: 1,
+          pointerEvents: 'none',
+        }}
       />
       <ProjectPicker
         open={project.open}
@@ -3171,6 +3226,7 @@ export function IssueList({
             <>
               <Tooltip label="Accept" keys="1">
                 <Button
+                  ref={triageAcceptRef}
                   variant="primary"
                   disabled={!canAct}
                   onClick={() => commands.current.acceptTriage()}
@@ -3184,7 +3240,11 @@ export function IssueList({
                 </Button>
               </Tooltip>
               <Tooltip label="Decline" keys="3">
-                <Button disabled={!canAct} onClick={() => commands.current.declineTriage()}>
+                <Button
+                  ref={triageDeclineRef}
+                  disabled={!canAct}
+                  onClick={() => commands.current.declineTriage()}
+                >
                   Decline
                 </Button>
               </Tooltip>
@@ -3313,6 +3373,22 @@ function createUrlForGroup(
     return buildCreateURL({ teamKey, assignee: row.userId });
   }
   return buildCreateURL({ teamKey });
+}
+
+/**
+ * What the comment prompt names in its accessible title.
+ *
+ * One id keeps the issue identifier; several keep a count, because listing every id in the
+ * dialog name is noise and naming only the first would pretend the others are not being
+ * decided.
+ */
+function triageCommentIdentifier(store: Store, ids: readonly UUID[]): string {
+  if (ids.length === 0) return 'issue';
+  if (ids.length === 1) {
+    const issue = store.get('issue', ids[0]!);
+    return issue === undefined ? 'issue' : store.identifierOf(issue);
+  }
+  return `${ids.length} issues`;
 }
 
 /**

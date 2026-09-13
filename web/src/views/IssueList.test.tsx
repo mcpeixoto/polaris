@@ -806,6 +806,9 @@ describe('triage', () => {
     expect(screen.queryByText('Fix the flake')).toBeNull();
 
     await user.keyboard('1');
+    // Optional comment prompt: confirm with empty note to finish the accept.
+    const prompt = await screen.findByRole('dialog', { name: /Accept/ });
+    await user.click(within(prompt).getByRole('button', { name: 'Accept' }));
     expect(mutate).toHaveBeenCalled();
     const sent = mutate.mock.calls[0]?.[0] as { mutation: string; variables: { id: string } };
     expect(sent.mutation).toContain('acceptTriageIssue');
@@ -864,6 +867,8 @@ describe('triage', () => {
     expect(screen.queryByText('Triage is off')).toBeNull();
 
     await user.keyboard('1');
+    const prompt = await screen.findByRole('dialog', { name: /Accept/ });
+    await user.click(within(prompt).getByRole('button', { name: 'Accept' }));
     const sent = mutate.mock.calls[0]?.[0] as { mutation: string; variables: { id: string } };
     expect(sent.mutation).toContain('acceptTriageIssue');
     expect(sent.variables.id).toBe('issue-9');

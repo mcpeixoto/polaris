@@ -108,6 +108,7 @@ import {
   report,
   snoozeNotification,
 } from '~/features/inbox/mutations';
+import { ReminderPicker } from '~/features/inbox/ReminderPicker';
 import { offerUndo } from '~/features/undo/UndoToast';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useSelection } from '~/hooks/useSelection';
@@ -205,6 +206,12 @@ export function Inbox() {
   const filterRef = useRef<HTMLButtonElement>(null);
   const bulkSnoozeRef = useRef<HTMLButtonElement>(null);
   const [bulkSnoozeOpen, setBulkSnoozeOpen] = useState(false);
+  /**
+   * Custom typed reminder. `'bulk'` is the selection; a UUID is one row. Distinct from the
+   * relative snooze menus so a phrase panel can hang off the same trigger without fighting
+   * them for `open`.
+   */
+  const [customReminder, setCustomReminder] = useState<'bulk' | UUID | null>(null);
   const [query, setQuery] = useState('');
   const viewerId = useViewerId();
   const timezone = browserTimezone();
@@ -1135,9 +1142,15 @@ export function Inbox() {
         }}
         trigger={bulkSnoozeRef}
         label="Snooze until"
-        items={snoozeOptions((until) => {
-          snooze(selection.ordered, until);
-          setBulkSnoozeOpen(false);
+        items={snoozeOptions({
+          onPick: (until) => {
+            snooze(selection.ordered, until);
+            setBulkSnoozeOpen(false);
+          },
+          onCustom: () => {
+            setBulkSnoozeOpen(false);
+            setCustomReminder('bulk');
+          },
         })}
       />
       <Menu
@@ -1148,10 +1161,33 @@ export function Inbox() {
         }}
         trigger={anchor}
         label="Snooze until"
-        items={snoozeOptions((until) => {
-          if (snoozeFor !== null) snoozeNotification(engine, snoozeFor, until).catch(report);
-          setSnoozeFor(null);
+        items={snoozeOptions({
+          onPick: (until) => {
+            if (snoozeFor !== null) snoozeNotification(engine, snoozeFor, until).catch(report);
+            setSnoozeFor(null);
+          },
+          onCustom: () => {
+            const id = snoozeFor;
+            setSnoozeFor(null);
+            if (id !== null) setCustomReminder(id);
+          },
         })}
+      />
+      <ReminderPicker
+        open={customReminder !== null}
+        onClose={() => {
+          setCustomReminder(null);
+          returnToList();
+        }}
+        trigger={customReminder === 'bulk' ? bulkSnoozeRef : anchor}
+        actionId="inbox.closeCustomReminder"
+        onSelect={(until) => {
+          if (customReminder === 'bulk') snooze(selection.ordered, until);
+          else if (customReminder !== null) {
+            snoozeNotification(engine, customReminder, until).catch(report);
+          }
+          setCustomReminder(null);
+        }}
       />
       <Menu
         open={contextFor !== null && picker === null}
@@ -1407,9 +1443,15 @@ function contextItems(
  *
  * Relative rather than absolute, and deliberately few. "Tomorrow" is a decision somebody
  * can make in a second; "next Tuesday at 09:00" is a calendar they have to open, and an
- * inbox that asks for a calendar is one people stop snoozing from.
+ * inbox that asks for a calendar is one people stop snoozing from. Custom is the escape
+ * hatch for the phrases a calendar cannot say — `til Friday`, `next quarter` — and opens
+ * the typed reminder box rather than living in this list.
  */
-function snoozeOptions(onPick: (until: Date | null) => void): MenuNode[] {
+function snoozeOptions(handlers: {
+  onPick: (until: Date | null) => void;
+  onCustom: () => void;
+}): MenuNode[] {
+  const { onPick, onCustom } = handlers;
   const at = (hours: number) => {
     const d = new Date();
     d.setHours(d.getHours() + hours, 0, 0, 0);
@@ -1433,6 +1475,7 @@ function snoozeOptions(onPick: (until: Date | null) => void): MenuNode[] {
     { id: 'tomorrow', label: 'Tomorrow morning', onSelect: () => onPick(tomorrowMorning()) },
     { id: 'week', label: 'Next week', onSelect: () => onPick(nextWeek()) },
     { kind: 'separator' },
+    { id: 'custom', label: 'Custom…', onSelect: onCustom },
     { id: 'clear', label: 'Do not snooze', onSelect: () => onPick(null) },
   ];
 }

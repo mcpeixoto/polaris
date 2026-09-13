@@ -71,15 +71,11 @@ import { useViewerId } from '~/hooks/useViewer';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import type { StateCategory, Store, UUID } from '~/store';
 
+import { CommentPrompt, type TriageCommentKind } from './CommentPrompt';
+import { acceptTriageIssueWithComment, declineTriageIssueWithComment } from './decide';
 import { DuplicatePicker } from './DuplicatePicker';
 import { nextInQueue } from './focus';
-import {
-  acceptTriageIssue,
-  declineTriageIssue,
-  markIssueDuplicate,
-  requiresPriorityToLeave,
-  snoozeIssue,
-} from './mutations';
+import { markIssueDuplicate, requiresPriorityToLeave, snoozeIssue } from './mutations';
 import { snoozeItems } from './snooze';
 import styles from './TriagePane.module.css';
 
@@ -95,9 +91,17 @@ export interface TriagePaneProps {
 export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
   const engine = useEngine();
   const acceptRef = useRef<HTMLButtonElement>(null);
+  const declineRef = useRef<HTMLButtonElement>(null);
   const duplicate = useMenuTrigger();
   const snooze = useMenuTrigger();
   const priority = useMenuTrigger();
+  /**
+   * Accept or decline waiting on the optional comment.
+   *
+   * The decision is not taken until the prompt confirms — empty Enter is still a confirm —
+   * so a reviewer who opens Accept and presses Escape has changed nothing.
+   */
+  const [commentFor, setCommentFor] = useState<TriageCommentKind | null>(null);
 
   /*
    * The property pickers the facts list opens, and the chords that open them.
@@ -224,9 +228,18 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
     run();
   };
 
-  const accept = () => guarded('accept', () => decide((id) => acceptTriageIssue(engine, id)));
-  const decline = () => guarded('decline', () => decide((id) => declineTriageIssue(engine, id)));
+  const accept = () => guarded('accept', () => setCommentFor('accept'));
+  const decline = () => guarded('decline', () => setCommentFor('decline'));
   const pickDuplicate = () => guarded('duplicate', () => duplicate.show());
+
+  const confirmDecision = (kind: TriageCommentKind, comment: string) => {
+    const authorId = viewerId;
+    if (kind === 'accept') {
+      decide((id) => acceptTriageIssueWithComment(engine, id, comment, authorId));
+    } else {
+      decide((id) => declineTriageIssueWithComment(engine, id, comment, authorId));
+    }
+  };
 
   return (
     <section
@@ -428,7 +441,9 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
           </Button>
         </Tooltip>
         <Tooltip label="Decline and cancel the issue" keys="3">
-          <Button onClick={decline}>Decline</Button>
+          <Button ref={declineRef} onClick={decline}>
+            Decline
+          </Button>
         </Tooltip>
         <Tooltip label="Snooze until later" keys="h">
           <Button {...snooze.props}>Snooze</Button>
@@ -476,11 +491,26 @@ export function TriagePane({ issueId, queueIds, onAdvance }: TriagePaneProps) {
           setBlocked(null);
           updateIssues(engine, [issueId], { priority: value })
             .then(() => {
-              if (kind === 'accept') decide((id) => acceptTriageIssue(engine, id));
-              else if (kind === 'decline') decide((id) => declineTriageIssue(engine, id));
+              // Priority finishes the first half of the sentence; the optional comment is
+              // still owed before accept or decline actually leave the queue.
+              if (kind === 'accept') setCommentFor('accept');
+              else if (kind === 'decline') setCommentFor('decline');
               else if (kind === 'duplicate') duplicate.show();
             })
             .catch(report);
+        }}
+      />
+      <CommentPrompt
+        open={commentFor !== null}
+        onClose={() => setCommentFor(null)}
+        trigger={commentFor === 'decline' ? declineRef : acceptRef}
+        kind={commentFor ?? 'accept'}
+        identifier={issue.identifier}
+        actionId="triage.closeComment"
+        onConfirm={(comment) => {
+          const kind = commentFor;
+          setCommentFor(null);
+          if (kind !== null) confirmDecision(kind, comment);
         }}
       />
 

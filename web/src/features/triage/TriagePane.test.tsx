@@ -7,7 +7,7 @@
  * forty rows, and it is invisible in the source unless somebody asserts it.
  */
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
@@ -64,6 +64,10 @@ describe('TriagePane', () => {
     renderPane({ onAdvance });
 
     await user.click(screen.getByRole('button', { name: 'Accept' }));
+    // The optional comment: confirming with an empty box is the same as the old
+    // one-keystroke accept, so the queue does not grow a second press for saying nothing.
+    const prompt = await screen.findByRole('dialog', { name: 'Accept ENG-1' });
+    await user.click(within(prompt).getByRole('button', { name: 'Accept' }));
 
     expect(store.get('issue', FIRST)?.stateId).toBe(TODO);
     // The next id, not the head of the queue the write has just reshaped.
@@ -76,9 +80,40 @@ describe('TriagePane', () => {
     renderPane({ onAdvance });
 
     await user.click(screen.getByRole('button', { name: 'Decline' }));
+    const prompt = await screen.findByRole('dialog', { name: 'Decline ENG-1' });
+    await user.click(within(prompt).getByRole('button', { name: 'Decline' }));
 
     expect(store.get('issue', FIRST)?.stateId).toBe(CANCELED);
     expect(onAdvance).toHaveBeenCalledWith(SECOND);
+  });
+
+  it('posts an optional comment before accepting', async () => {
+    const onAdvance = vi.fn();
+    const user = userEvent.setup();
+    renderPane({ onAdvance });
+
+    await user.click(screen.getByRole('button', { name: 'Accept' }));
+    const prompt = await screen.findByRole('dialog', { name: 'Accept ENG-1' });
+    await user.type(within(prompt).getByPlaceholderText(/note for the reporter/i), 'Taking this.');
+    await user.click(within(prompt).getByRole('button', { name: 'Accept' }));
+
+    expect([...store.comments.values()].map((comment) => comment.body)).toEqual(['Taking this.']);
+    expect(store.get('issue', FIRST)?.stateId).toBe(TODO);
+    expect(onAdvance).toHaveBeenCalledWith(SECOND);
+  });
+
+  it('cancels the decision when the comment prompt is dismissed', async () => {
+    const onAdvance = vi.fn();
+    const user = userEvent.setup();
+    renderPane({ onAdvance });
+
+    await user.click(screen.getByRole('button', { name: 'Accept' }));
+    expect(await screen.findByRole('dialog', { name: 'Accept ENG-1' })).toBeTruthy();
+    await user.keyboard('{Escape}');
+
+    expect(store.get('issue', FIRST)?.stateId).toBe(TRIAGE);
+    expect(onAdvance).not.toHaveBeenCalled();
+    expect(store.comments.size).toBe(0);
   });
 
   it('asks for a priority before letting work leave a team that requires one', async () => {
