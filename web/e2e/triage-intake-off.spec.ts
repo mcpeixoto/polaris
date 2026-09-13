@@ -68,11 +68,12 @@ test('a queue outlives the switch that filled it', async ({ page, workspace }) =
 
   // Still read-write: the same key that accepts with triage on accepts with it off, and
   // the server agrees, because `1` is about the issue's status and not the team's switch.
-  // Optional comment first — empty confirm is the polite-skip path.
+  // Optional comment first — Enter with an empty box is the skip path.
   await page.keyboard.press('1');
-  const acceptPrompt = page.getByRole('dialog', { name: /Accept/ });
+  const acceptPrompt = page.getByRole('dialog', { name: /^Accept / });
   await expect(acceptPrompt).toBeVisible();
-  await acceptPrompt.getByRole('button', { name: 'Accept' }).click();
+  await acceptPrompt.getByPlaceholder(/Optional/).click();
+  await page.keyboard.press('Enter');
   await expect(row).toBeHidden();
 
   // Drained, the screen retires itself — off now means off, with nothing left to hold it.
@@ -109,9 +110,10 @@ test('the inbox explains its keys once it is clear', async ({ page, workspace })
   const row = page.getByRole('option', { name: /Something to clear/ });
   await expect(row).toBeVisible();
   await page.keyboard.press('1');
-  const acceptPrompt = page.getByRole('dialog', { name: /Accept/ });
+  const acceptPrompt = page.getByRole('dialog', { name: /^Accept / });
   await expect(acceptPrompt).toBeVisible();
-  await acceptPrompt.getByRole('button', { name: 'Accept' }).click();
+  await acceptPrompt.getByPlaceholder(/Optional/).click();
+  await page.keyboard.press('Enter');
   await expect(row).toBeHidden();
 
   await expect(page.getByText('Inbox is clear')).toBeVisible();

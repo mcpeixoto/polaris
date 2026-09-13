@@ -849,6 +849,15 @@ export function IssueList({
   const triageAcceptRef = useRef<HTMLButtonElement>(null);
   const triageDeclineRef = useRef<HTMLButtonElement>(null);
   /**
+   * Always-mounted one-pixel anchor for the comment prompt.
+   *
+   * The Accept / Decline buttons live in the selection bar, which is absent until a
+   * selection or a picker is open. Opening the prompt is what *makes* the bar appear, so
+   * hanging the panel on those buttons would leave it with no box to measure on the first
+   * frame — and in the browser that meant a dialog whose buttons never became actionable.
+   */
+  const triageCommentAnchor = useRef<HTMLDivElement>(null);
+  /**
    * Optional comment before accept/decline. The targets are captured when the prompt opens
    * so a selection change underneath it does not re-aim the decision.
    */
@@ -2577,7 +2586,7 @@ export function IssueList({
       <CommentPrompt
         open={triageComment !== null}
         onClose={() => setTriageComment(null)}
-        trigger={triageComment?.kind === 'decline' ? triageDeclineRef : triageAcceptRef}
+        trigger={triageCommentAnchor}
         kind={triageComment?.kind ?? 'accept'}
         identifier={triageCommentIdentifier(engine.store, triageComment?.ids ?? [])}
         actionId="issueList.closeTriageComment"
@@ -2590,6 +2599,19 @@ export function IssueList({
               ? acceptTriageIssuesWithComment
               : declineTriageIssuesWithComment;
           write(engine, pending.ids, comment, viewerId).catch(report);
+        }}
+      />
+      {/* One-pixel box for the comment prompt. Not `hidden`: Popover measures its trigger. */}
+      <div
+        ref={triageCommentAnchor}
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          width: 1,
+          height: 1,
+          pointerEvents: 'none',
         }}
       />
       <ProjectPicker
