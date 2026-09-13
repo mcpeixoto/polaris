@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { auth, sessionMayExist } from './api';
+import { auth, isSignedIn, onAuthLost, sessionMayExist } from './api';
 
 /**
  * The session hint is the flag `Boot` reads to decide whether asking `/auth/refresh` is worth
@@ -84,5 +84,99 @@ describe('the session hint across a failed refresh', () => {
     // The other direction still has to work, or the hint would outlive every dead cookie and
     // every boot would spend a pointless request.
     expect(sessionMayExist()).toBe(false);
+  });
+
+  /**
+   * The hint surviving is not enough if Boot has already been told the session is gone.
+   * `clearSession` always fires `onAuthLost`, and that callback is what flips a running
+   * app onto the sign-in card. An unanswered refresh must not fire it — that is the
+   * sleep-wake sign-out: access JWT dead, network still coming back, cookie still valid.
+   */
+  it('does not tell the app the session is gone when the API is unreachable', async () => {
+    const lost = vi.fn();
+    const unsubscribe = onAuthLost(lost);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))),
+    );
+
+    expect(await auth.refresh()).toBeNull();
+    expect(lost).not.toHaveBeenCalled();
+    unsubscribe();
+  });
+
+  it('does not tell the app the session is gone on a 5xx', async () => {
+    const lost = vi.fn();
+    const unsubscribe = onAuthLost(lost);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ error: { code: 'INTERNAL', message: 'internal error' } }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        ),
+      ),
+    );
+
+    expect(await auth.refresh()).toBeNull();
+    expect(lost).not.toHaveBeenCalled();
+    unsubscribe();
+  });
+
+  it('does tell the app the session is gone when the credential is refused', async () => {
+    const lost = vi.fn();
+    const unsubscribe = onAuthLost(lost);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              error: { code: 'UNAUTHENTICATED', message: 'invalid refresh token' },
+            }),
+            { status: 401, headers: { 'Content-Type': 'application/json' } },
+          ),
+        ),
+      ),
+    );
+
+    expect(await auth.refresh()).toBeNull();
+    expect(lost).toHaveBeenCalled();
+    unsubscribe();
+  });
+
+  /**
+   * Dropping the in-memory access token on an unanswered refresh is what stopped the
+   * sync socket reconnecting after sleep (`ensureFreshToken` returned null and `open`
+   * bailed without scheduling another attempt). The expired JWT can stay; the next
+   * successful refresh replaces it.
+   */
+  it('keeps an in-memory session when refresh cannot be answered', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              accessToken: 'tok',
+              expiresIn: 900,
+              accountId: 'acct',
+              workspaces: [],
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          ),
+        )
+        .mockRejectedValueOnce(new TypeError('Failed to fetch')),
+    );
+
+    await auth.login('ada@example.com', 'password');
+    expect(isSignedIn()).toBe(true);
+
+    expect(await auth.refresh()).toBeNull();
+    expect(isSignedIn()).toBe(true);
+    expect(sessionMayExist()).toBe(true);
   });
 });
