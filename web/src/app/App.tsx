@@ -372,6 +372,9 @@ export function SignedInShell() {
     to the same dead end.
   */
   if (pathname === '/signin' || pathname === '/signup') return <Navigate to="/" replace />;
+  // The packaged desktop app boots at app://polaris/index.html, so the entry document is the
+  // first pathname the router sees — including right after sign-in. It is not a route.
+  if (pathname === '/index.html') return <Navigate to="/" replace />;
   if (pathname === '/welcome') return <Landing />;
   if (pathname === '/downloads') return <Downloads />;
   /*

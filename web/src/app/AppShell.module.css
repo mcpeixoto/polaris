@@ -508,6 +508,22 @@
   white-space: nowrap;
 }
 
+.planButton {
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.planButton:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.planButton:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
 /*
  * The folder name, edited in place.
  *

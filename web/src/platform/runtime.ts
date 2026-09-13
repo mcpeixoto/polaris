@@ -304,13 +304,33 @@ export function isWindowFocused(): boolean {
  * application with a page that has no way back. In a browser tab the popup is the same
  * gesture as a target=_blank link, and if the popup is blocked the fallback navigates.
  *
- * `noopener` because the opened page must not get a handle on this one.
+ * Two things make `null` from `window.open` mean something other than "blocked", and each
+ * turned one click into two openings. The shell's handler answers `deny` after handing the URL
+ * to the system browser, so on desktop `null` is success — and the fallback navigation was
+ * then caught by `will-navigate` and opened the browser a second time. And a `noopener`
+ * feature string makes every browser return `null` by spec, so on the web the popup opened
+ * and this tab navigated to Stripe as well. The opener is cut after opening instead, which
+ * keeps the opened page from getting a handle on this one without hiding the result.
  */
-export function openExternalUrl(url: string): void {
-  const opened = window.open(url, '_blank', 'noopener');
+export function openExternalUrl(
+  url: string,
+  env: {
+    desktop: boolean;
+    open: (url: string, target: string) => Window | null;
+    assign: (url: string) => void;
+  } = {
+    desktop: isDesktop,
+    open: (u, target) => window.open(u, target),
+    assign: (u) => window.location.assign(u),
+  },
+): void {
+  const opened = env.open(url, '_blank');
+  if (env.desktop) return;
   if (opened === null) {
-    window.location.assign(url);
+    env.assign(url);
+    return;
   }
+  opened.opener = null;
 }
 
 /**
