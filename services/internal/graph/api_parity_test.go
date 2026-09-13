@@ -103,6 +103,11 @@ var notInTheAPI = map[string]string{
 
 	"SetGitHubCommentPoster": "composition root: wires the GitHub HTTP client, not a caller mutation",
 	"SetGitLabCommentPoster": "composition root: wires the GitLab HTTP client, not a caller mutation",
+	"SetFileStore":           "composition root: wires object storage for paste/drop uploads, not a caller mutation",
+
+	// Multipart uploads are not GraphQL: the browser posts a file body, and the download
+	// URL is a capability token so <img> and a new tab work without a Bearer header.
+	"UploadImage": "POST /files/upload — multipart image upload for paste/drop",
 
 	// M1 scope. Listed so the omission is a decision rather than an oversight.
 	"InviteToWorkspace": "M1: the invite UI ships with member management",
