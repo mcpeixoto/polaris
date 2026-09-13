@@ -25,6 +25,7 @@ import (
 	"github.com/peixotolabs/polaris/services/internal/agent"
 	"github.com/peixotolabs/polaris/services/internal/domain"
 	"github.com/peixotolabs/polaris/services/internal/entitlement"
+	"github.com/peixotolabs/polaris/services/internal/files"
 	"github.com/peixotolabs/polaris/services/internal/graph"
 	"github.com/peixotolabs/polaris/services/internal/graph/generated"
 	"github.com/peixotolabs/polaris/services/internal/httpapi"
@@ -79,6 +80,21 @@ func run() error {
 	svc.PublicURL = cfg.PublicURL
 	svc.SetGitHubCommentPoster(ghclient.CommentClient{})
 	svc.SetGitLabCommentPoster(glclient.CommentClient{})
+
+	fileStore, err := files.OpenFromConfig(cfg.FilesDriver, cfg.FilesPath, files.S3Config{
+		Endpoint:  cfg.S3Endpoint,
+		Bucket:    cfg.S3Bucket,
+		AccessKey: cfg.S3AccessKey,
+		SecretKey: cfg.S3SecretKey,
+		Region:    cfg.S3Region,
+		PathStyle: cfg.S3PathStyle,
+	})
+	if err != nil {
+		return fmt.Errorf("files store: %w", err)
+	}
+	svc.SetFileStore(fileStore)
+	log.Info("files", "driver", cfg.FilesDriver)
+
 	tokens := httpapi.NewTokens(cfg.JWTSecret, cfg.AccessTokenTTL)
 
 	// Built once and shared: the router charges requests to these buckets and the GraphQL

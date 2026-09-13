@@ -2147,6 +2147,7 @@ export function Comments({
         error={refusal !== null && refusal.key === key ? refusal.message : undefined}
         data-submit-chord={enterSubmits ? 'enter' : undefined}
         blocks={false}
+        issueId={issueId}
         onFocus={() => setFocused(key)}
         onChange={(next) => persist(key, next)}
       />

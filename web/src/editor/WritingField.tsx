@@ -9,12 +9,18 @@
 import {
   useRef,
   useState,
+  type ClipboardEvent as ReactClipboardEvent,
+  type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type Ref,
   type TextareaHTMLAttributes,
 } from 'react';
 
 import { Textarea } from '~/components';
+import { pasteImagesInto } from '~/features/files/pasteImages';
+import { imageFilesFromDataTransfer } from '~/features/files/upload';
+import { report } from '~/features/issue/mutations';
+import type { UUID } from '~/store';
 
 import { insertBlock, type BlockKind } from './blocks';
 import { applyEnterRule, applySpaceRule, type EditorState } from './inputRules';
@@ -41,6 +47,11 @@ export interface WritingFieldProps extends Omit<
   readonly blocks?: boolean | undefined;
   /** `@` mention picker. On by default wherever this field is used. */
   readonly mentions?: boolean | undefined;
+  /**
+   * When set, a pasted / dropped image is also attached to this issue as a link card.
+   * Create dialogs leave it unset — there is no issue yet.
+   */
+  readonly issueId?: UUID | undefined;
 }
 
 export function WritingField({
@@ -56,8 +67,12 @@ export function WritingField({
   ref,
   blocks = true,
   mentions = true,
+  issueId,
   onKeyDown,
   onBlur,
+  onPaste,
+  onDrop,
+  onDragOver,
   ...rest
 }: WritingFieldProps) {
   const areaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -65,6 +80,7 @@ export function WritingField({
   const mentionAnchorRef = useRef<HTMLSpanElement | null>(null);
   const [slashAt, setSlashAt] = useState<number | null>(null);
   const [mentionAt, setMentionAt] = useState<number | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const setRefs = (node: HTMLTextAreaElement | null) => {
     areaRef.current = node;
@@ -114,6 +130,25 @@ export function WritingField({
     if (from === null || state === null) return;
     applyEdit(insertMention(state, from, user.name, user.id));
     areaRef.current?.focus();
+  };
+
+  const handleImages = async (data: DataTransfer | null) => {
+    const state = stateOf();
+    if (state === null) return false;
+    if (imageFilesFromDataTransfer(data).length === 0) return false;
+    setUploading(true);
+    try {
+      const next = await pasteImagesInto(state, data, { issueId });
+      if (next === null) return false;
+      applyEdit(next);
+      return true;
+    } catch (error) {
+      report(error);
+      return true;
+    } finally {
+      setUploading(false);
+      areaRef.current?.focus();
+    }
   };
 
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
@@ -166,7 +201,7 @@ export function WritingField({
   };
 
   return (
-    <div className={styles.wrap}>
+    <div className={styles.wrap} data-uploading={uploading ? 'true' : undefined}>
       <Textarea
         {...rest}
         ref={setRefs}
@@ -180,6 +215,27 @@ export function WritingField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={handleKeyDown}
+        onPaste={(event: ReactClipboardEvent<HTMLTextAreaElement>) => {
+          onPaste?.(event);
+          if (event.defaultPrevented) return;
+          if (imageFilesFromDataTransfer(event.clipboardData).length === 0) return;
+          event.preventDefault();
+          void handleImages(event.clipboardData);
+        }}
+        onDragOver={(event: ReactDragEvent<HTMLTextAreaElement>) => {
+          onDragOver?.(event);
+          if (event.defaultPrevented) return;
+          if (imageFilesFromDataTransfer(event.dataTransfer).length === 0) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = 'copy';
+        }}
+        onDrop={(event: ReactDragEvent<HTMLTextAreaElement>) => {
+          onDrop?.(event);
+          if (event.defaultPrevented) return;
+          if (imageFilesFromDataTransfer(event.dataTransfer).length === 0) return;
+          event.preventDefault();
+          void handleImages(event.dataTransfer);
+        }}
         onBlur={(event) => {
           // Menus take focus while open; that is not the writer leaving the field.
           if (slashAt !== null || mentionAt !== null) return;

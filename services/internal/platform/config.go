@@ -285,6 +285,20 @@ type Config struct {
 	// JSON is accepted so a local `curl` can file an issue without a mail server.
 	// Production must set this — an empty secret outside development refuses every post.
 	EmailWebhookSecret string `envconfig:"POLARIS_EMAIL_WEBHOOK_SECRET"`
+
+	// Object storage for pasted / dropped images. Default is a local directory so self-host
+	// and `make api` work with no extra service. Set POLARIS_FILES_DRIVER=s3 (and the
+	// POLARIS_S3_* variables) to point at MinIO or any S3-compatible store.
+	FilesDriver string `envconfig:"POLARIS_FILES_DRIVER" default:"filesystem"`
+	FilesPath   string `envconfig:"POLARIS_FILES_PATH" default:"data/files"`
+
+	S3Endpoint  string `envconfig:"POLARIS_S3_ENDPOINT"`
+	S3Bucket    string `envconfig:"POLARIS_S3_BUCKET" default:"polaris"`
+	S3AccessKey string `envconfig:"POLARIS_S3_ACCESS_KEY"`
+	S3SecretKey string `envconfig:"POLARIS_S3_SECRET_KEY"`
+	S3Region    string `envconfig:"POLARIS_S3_REGION" default:"eu-central-1"`
+	// Path-style addressing. Empty follows the endpoint (path for MinIO / non-AWS).
+	S3PathStyle bool `envconfig:"POLARIS_S3_PATH_STYLE"`
 }
 
 // Registration modes.
@@ -442,6 +456,17 @@ func LoadConfig() (Config, error) {
 	// an import cycle. The composition root knows both and is where the process decides
 	// whether it is willing to start.
 	c.DefaultPlan = strings.ToLower(strings.TrimSpace(c.DefaultPlan))
+
+	c.FilesDriver = strings.ToLower(strings.TrimSpace(c.FilesDriver))
+	switch c.FilesDriver {
+	case "", "filesystem", "fs", "local", "s3":
+		if c.FilesDriver == "" {
+			c.FilesDriver = "filesystem"
+		}
+	default:
+		return Config{}, fmt.Errorf(
+			"POLARIS_FILES_DRIVER must be filesystem or s3, not %q", c.FilesDriver)
+	}
 
 	return c, nil
 }

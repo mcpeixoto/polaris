@@ -90,6 +90,7 @@ export function CommentEditor({ comment, onDone }: CommentEditorProps) {
         autoFocus
         value={body}
         blocks={false}
+        issueId={comment.issueId}
         onChange={setBody}
         // keymap-lint-allow: see onKeyDown above — a trap, not a shortcut
         onKeyDown={onKeyDown}

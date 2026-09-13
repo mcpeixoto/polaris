@@ -80,6 +80,10 @@ services:
       # on. A self-host on a public host must keep the password form. Local
       # `make api` is the only process that mints a loopback session.
       POLARIS_DEV_AUTOLOGIN: "0"
+      # Pasted images land here when POLARIS_FILES_DRIVER=filesystem (the default).
+      POLARIS_FILES_PATH: /var/lib/polaris/files
+    volumes:
+      - polaris_uploads:/var/lib/polaris/files
     depends_on:
       postgres: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
@@ -274,6 +278,7 @@ networks:
     internal: true
 
 volumes:
+  polaris_uploads:
   polaris_pgdata:
   polaris_cache:
   polaris_minio:

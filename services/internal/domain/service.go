@@ -15,6 +15,7 @@ package domain
 import (
 	"time"
 
+	"github.com/peixotolabs/polaris/services/internal/files"
 	"github.com/peixotolabs/polaris/services/internal/store"
 )
 
@@ -27,6 +28,10 @@ type Service struct {
 	// GitHub linkback comments. Empty is valid in tests: the comment then carries a
 	// path, not a host.
 	PublicURL string
+
+	// files holds uploaded image bytes. Nil means uploads are refused — tests and a
+	// process that failed to open a driver leave it unset rather than writing nowhere.
+	files files.Store
 
 	agentEnabled   bool
 	agentMetered   bool
@@ -75,6 +80,11 @@ func (s *Service) SetGitHubCommentPoster(p GitHubCommentPoster) {
 // SetGitLabCommentPoster is how the API process posts GitLab linkbacks. Tests inject a recorder.
 func (s *Service) SetGitLabCommentPoster(p GitLabCommentPoster) {
 	s.gitlabComments = p
+}
+
+// SetFileStore wires object storage for paste/drop image uploads.
+func (s *Service) SetFileStore(store files.Store) {
+	s.files = store
 }
 
 // DB exposes the pool for the read-only paths that legitimately need it — the bootstrap
