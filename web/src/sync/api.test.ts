@@ -11,7 +11,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiError, gql, gqlDetailed, onAuthLost, retryAfterMs } from './api';
+import { ApiError, auth, gql, gqlDetailed, onAuthLost, retryAfterMs } from './api';
 
 /** A response, in the shape `request()` actually reads. */
 function answer(
@@ -83,6 +83,37 @@ describe('classifying a failure', () => {
     // The point of getting the code right: this is what signs the user out rather than
     // leaving them in an app where nothing works and nothing says why.
     expect(lost).toHaveBeenCalled();
+  });
+
+  /**
+   * Sleep/wake: the GraphQL call 401s because the access JWT died in the lid, then
+   * `/auth/refresh` cannot be reached because the network is still coming back. That used
+   * to sign the user out and wipe the session hint, so a reload could not restore either.
+   * An unanswered refresh is a network failure — the mutation stays queued, the hint
+   * stays, Boot is not told the session is gone.
+   */
+  it('does not sign out when a 401 is followed by an unreachable refresh', async () => {
+    fetchMock.mockResolvedValueOnce(
+      answer(200, { accessToken: 'tok', expiresIn: 900, accountId: 'acct', workspaces: [] }),
+    );
+    await auth.login('ada@example.com', 'password');
+
+    const lost = vi.fn();
+    const unsubscribe = onAuthLost(lost);
+    fetchMock.mockImplementation((url: unknown) => {
+      if (String(url).includes('/auth/refresh')) {
+        return Promise.reject(new TypeError('Failed to fetch'));
+      }
+      return Promise.resolve(answer(401, { message: 'expired' }));
+    });
+
+    const err = await gql('query Q { me { id } }').catch((e: unknown) => e);
+    unsubscribe();
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).code).toBe('NETWORK');
+    expect((err as ApiError).isOffline).toBe(true);
+    expect(lost).not.toHaveBeenCalled();
   });
 
   it('lets the application refine the status, and never lets it erase one', async () => {

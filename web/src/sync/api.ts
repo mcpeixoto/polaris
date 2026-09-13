@@ -164,12 +164,15 @@ let refreshInFlight: Promise<RestoreResult> | null = null;
 /**
  * What asking `/auth/refresh` actually answered.
  *
- * `refresh()` collapses all three into `Session | null`, and that collapse is a bug at exactly
- * one call site: the boot sequence, which read `null` as "signed out" and put a password field
- * in front of somebody whose complete replica was sitting on disk, because their train went
- * into a tunnel. A refused credential and an unanswered question are different facts and the
- * product does different things about them — sign in, versus open the workspace offline — so
- * the one caller that cares is given all three.
+ * `refresh()` collapses all three into `Session | null`. That collapse is a bug at the
+ * call sites that have to tell a refusal from a silence: the boot sequence, which read
+ * `null` as "signed out" and put a password field in front of somebody whose complete
+ * replica was sitting on disk, because their train went into a tunnel; and `request()`,
+ * which read the same `null` as "sign out" after a 401, which is how a laptop waking
+ * from sleep dumped a still-valid cookie on the sign-in card. A refused credential and
+ * an unanswered question are different facts and the product does different things about
+ * them — sign in, versus stay in the workspace / keep the mutation queued — so those
+ * callers are given all three.
  */
 export type RestoreResult =
   /** The cookie was spent for a new access token. */
@@ -505,15 +508,20 @@ export const auth = {
         return { kind: 'session' } as const;
       } catch (error) {
         // Only an UNAUTHENTICATED answer proves the cookie is spent. A network error or a
-        // 5xx means the question never got an answer, and the hint has to survive it.
+        // 5xx means the question never got an answer, and neither the hint nor the in-memory
+        // session may be dropped for it.
+        //
+        // `clearSession` always fires `onAuthLost`, and Boot treats that as a real logout —
+        // which is what used to dump a laptop on the sign-in card after sleep. The access
+        // JWT is dead after fifteen minutes in the lid, the network is still coming back,
+        // and the refresh cookie (thirty days) was never judged. Signing the user out of
+        // that is the opposite of the documented promise.
         const credentialRefused = error instanceof ApiError && error.isAuthFailure;
-        clearSession({ forgetHint: credentialRefused });
-        // A 5xx is grouped with a dropped connection rather than with a refusal, and
-        // deliberately: in both cases the credential was never judged, which is the only
-        // question this discriminant is asked.
-        return credentialRefused
-          ? ({ kind: 'signed-out' } as const)
-          : ({ kind: 'unreachable' } as const);
+        if (credentialRefused) {
+          clearSession({ forgetHint: true });
+          return { kind: 'signed-out' } as const;
+        }
+        return { kind: 'unreachable' } as const;
       } finally {
         refreshInFlight = null;
       }
@@ -773,9 +781,16 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
 
   if (res.status === 401 && !opts.skipAuth && !opts.isRetry) {
     // The token expired sooner than expected — a clock skew, or it was revoked. One
-    // refresh and one retry; a second failure is a real sign-out.
-    const refreshed = await auth.refresh();
-    if (refreshed) return request<T>(path, { ...opts, isRetry: true });
+    // refresh and one retry; a second *refusal* is a real sign-out. An unanswered
+    // refresh is not: after sleep the access JWT is dead and the network is still
+    // coming back, and treating that 401 as logout is what dumped people on the
+    // sign-in card with a live cookie. `refresh()` collapses the two into `null`,
+    // so this has to read `restore()`'s discriminant.
+    const restored = await auth.restore();
+    if (restored.kind === 'session') return request<T>(path, { ...opts, isRetry: true });
+    if (restored.kind === 'unreachable') {
+      throw new ApiError('NETWORK', 'network unavailable');
+    }
   }
 
   if (!res.ok) {
