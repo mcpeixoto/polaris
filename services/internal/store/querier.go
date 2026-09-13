@@ -209,6 +209,10 @@ type Querier interface {
 	// at scan time, at runtime, on the one row nobody has in their test fixture.
 	//
 	ClaimNotificationsForEmail(ctx context.Context, arg ClaimNotificationsForEmailParams) ([]ClaimNotificationsForEmailRow, error)
+	// ClaimNotificationsForPush takes ownership of one person's pending notifications.
+	// Same shape as ClaimNotificationsForEmail: one statement, at-most-once.
+	//
+	ClaimNotificationsForPush(ctx context.Context, arg ClaimNotificationsForPushParams) ([]ClaimNotificationsForPushRow, error)
 	// The worker's claim. SKIP LOCKED so two ticks overlapping take different rows rather than
 	// one waiting on the other, and LIMIT 1 because a run holds its transaction open for as
 	// long as the model takes to answer.
@@ -501,6 +505,8 @@ type Querier interface {
 	DeleteProjectTemplateMilestone(ctx context.Context, id uuid.UUID) error
 	DeleteProjectTemplateMilestonesForTemplate(ctx context.Context, projectTemplateID uuid.UUID) error
 	DeletePulseFeed(ctx context.Context, id uuid.UUID) error
+	DeletePushDeviceByID(ctx context.Context, id uuid.UUID) (int64, error)
+	DeletePushDeviceByToken(ctx context.Context, arg DeletePushDeviceByTokenParams) (int64, error)
 	DeleteSentryConnection(ctx context.Context, workspaceID uuid.UUID) error
 	DeleteSlaRule(ctx context.Context, id uuid.UUID) error
 	DeleteSlackConnection(ctx context.Context, workspaceID uuid.UUID) error
@@ -1101,6 +1107,13 @@ type Querier interface {
 	// Pulse digest worker. The feed itself is replica-derived; this file is the
 	// scheduled inbox summary and the cursor that keeps a restart from sending twice.
 	ListPulseDigestWorkspaces(ctx context.Context) ([]ListPulseDigestWorkspacesRow, error)
+	ListPushDevicesForUser(ctx context.Context, userID uuid.UUID) ([]PushDevice, error)
+	// ListPushRecipients is one row per person who has both a registered device and at least
+	// one unread, unpushed notification. Grouped in SQL for the same reason the email digest
+	// list is: the alternative is walking every pending notification to discover who to talk
+	// to.
+	//
+	ListPushRecipients(ctx context.Context, pageSize int32) ([]ListPushRecipientsRow, error)
 	// ListReactionsForComments is the batched read, for the reason ListCommentsForIssues is:
 	// a thread is a page of comments and a per-comment query there is a query per row.
 	//
@@ -1321,6 +1334,9 @@ type Querier interface {
 	// somebody else's delivery, sitting in the error path where it is least likely to be tested.
 	//
 	ReleaseNotificationEmailClaim(ctx context.Context, arg ReleaseNotificationEmailClaimParams) (int64, error)
+	// ReleasePushClaim puts rows back when every device refused the send.
+	//
+	ReleasePushClaim(ctx context.Context, arg ReleasePushClaimParams) (int64, error)
 	RelocateAttachment(ctx context.Context, arg RelocateAttachmentParams) (Attachment, error)
 	// Returns the removed row because the caller knows the target, not the id the change
 	// stream needs.
@@ -1929,6 +1945,8 @@ type Querier interface {
 	//
 	UpsertNotification(ctx context.Context, arg UpsertNotificationParams) (Notification, error)
 	UpsertPulseDigestCursor(ctx context.Context, arg UpsertPulseDigestCursorParams) error
+	// Push device tokens. Not on the change stream — see migration 000089.
+	UpsertPushDevice(ctx context.Context, arg UpsertPushDeviceParams) (PushDevice, error)
 	// Billing. Every statement that writes a workspace's plan facts lives in this file, and
 	// that is not tidiness — `workspace.plan`, `seat_limit`, `plan_expires_at` and
 	// `plan_lapsed_at` are the four columns the entire entitlement matrix resolves against, and

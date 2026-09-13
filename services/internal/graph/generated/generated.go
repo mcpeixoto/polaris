@@ -1092,6 +1092,7 @@ type ComplexityRoot struct {
 		MoveFavorite                   func(childComplexity int, input MoveFavoriteInput) int
 		MoveTeam                       func(childComplexity int, teamID uuid.UUID, parentTeamID *uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		PurgeDeletedIssues             func(childComplexity int, before *time.Time) int
+		RegisterPushDevice             func(childComplexity int, input RegisterPushDeviceInput) int
 		RejectAgentProposal            func(childComplexity int, messageID uuid.UUID) int
 		RemoveFavorite                 func(childComplexity int, kind FavoriteKind, targetID uuid.UUID) int
 		RemoveInitiativeLabel          func(childComplexity int, initiativeID uuid.UUID, labelID uuid.UUID) int
@@ -1132,6 +1133,7 @@ type ComplexityRoot struct {
 		StartCycleToday                func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		SubmitIntegration              func(childComplexity int, input SubmitIntegrationInput) int
 		SuspendUser                    func(childComplexity int, userID uuid.UUID, suspended bool) int
+		UnregisterPushDevice           func(childComplexity int, token string) int
 		UnretireTeam                   func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		UnsnoozeIssue                  func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		UpdateAskForm                  func(childComplexity int, input UpdateAskFormInput, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -2096,6 +2098,8 @@ type MutationResolver interface {
 	RemoveUser(ctx context.Context, userID uuid.UUID) (*DeletePayload, error)
 	LeaveWorkspace(ctx context.Context) (*DeletePayload, error)
 	UpdateNotificationPrefs(ctx context.Context, prefs json.RawMessage) (*UserPayload, error)
+	RegisterPushDevice(ctx context.Context, input RegisterPushDeviceInput) (*DeletePayload, error)
+	UnregisterPushDevice(ctx context.Context, token string) (*DeletePayload, error)
 	UpdateWorkspace(ctx context.Context, input UpdateWorkspaceInput) (*WorkspacePayload, error)
 	BulkUpdateIssues(ctx context.Context, input BulkUpdateIssuesInput, clientID *uuid.UUID, opID *uuid.UUID) (*BulkIssuePayload, error)
 	RestoreIssue(ctx context.Context, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) (*IssuePayload, error)
@@ -7605,6 +7609,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.PurgeDeletedIssues(childComplexity, args["before"].(*time.Time)), true
+	case "Mutation.registerPushDevice":
+		if e.ComplexityRoot.Mutation.RegisterPushDevice == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_registerPushDevice_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RegisterPushDevice(childComplexity, args["input"].(RegisterPushDeviceInput)), true
 	case "Mutation.rejectAgentProposal":
 		if e.ComplexityRoot.Mutation.RejectAgentProposal == nil {
 			break
@@ -8040,6 +8055,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SuspendUser(childComplexity, args["userId"].(uuid.UUID), args["suspended"].(bool)), true
+	case "Mutation.unregisterPushDevice":
+		if e.ComplexityRoot.Mutation.UnregisterPushDevice == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_unregisterPushDevice_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UnregisterPushDevice(childComplexity, args["token"].(string)), true
 	case "Mutation.unretireTeam":
 		if e.ComplexityRoot.Mutation.UnretireTeam == nil {
 			break
@@ -12538,6 +12564,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputLinkGitLabMergeRequestInput,
 		ec.unmarshalInputLinkSentryIssueInput,
 		ec.unmarshalInputMoveFavoriteInput,
+		ec.unmarshalInputRegisterPushDeviceInput,
 		ec.unmarshalInputSearchInput,
 		ec.unmarshalInputSetCustomerSubscriptionInput,
 		ec.unmarshalInputSetInitiativeSubscriptionInput,
@@ -16080,6 +16107,20 @@ input UpdateProfileInput {
   timezone: String
 }
 
+"""
+An APNs device token for inbox push. ` + "`" + `environment` + "`" + ` is sandbox for Debug builds and
+production for TestFlight / App Store — mixing them fails permanently at APNs.
+"""
+input RegisterPushDeviceInput {
+  token: String!
+  """Currently only ` + "`" + `ios` + "`" + `."""
+  platform: String = "ios"
+  """Bundle id. Defaults to com.peixotolabs.polaris when absent."""
+  appBundle: String
+  """` + "`" + `production` + "`" + ` or ` + "`" + `sandbox` + "`" + `. Defaults to production."""
+  environment: String = "production"
+}
+
 input UpdateWorkspaceInput {
   name: String
   logoUrl: String
@@ -16439,6 +16480,15 @@ type Mutation {
   """
   leaveWorkspace: DeletePayload!
   updateNotificationPrefs(prefs: JSON!): UserPayload!
+
+  """
+  Register this install's APNs device token for inbox-class push. The token is unique
+  across the install: a reinstall or workspace switch moves the row. Not on the change
+  stream — a push credential belongs on this server only.
+  """
+  registerPushDevice(input: RegisterPushDeviceInput!): DeletePayload!
+  """Drop this install's APNs token. Idempotent when the token is already gone."""
+  unregisterPushDevice(token: String!): DeletePayload!
 
   updateWorkspace(input: UpdateWorkspaceInput!): WorkspacePayload!
 
@@ -23470,6 +23520,20 @@ func (ec *executionContext) field_Mutation_purgeDeletedIssues_args(ctx context.C
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_registerPushDevice_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (RegisterPushDeviceInput, error) {
+			return ec.unmarshalNRegisterPushDeviceInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRegisterPushDeviceInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_rejectAgentProposal_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -24413,6 +24477,20 @@ func (ec *executionContext) field_Mutation_suspendUser_args(ctx context.Context,
 		return nil, err
 	}
 	args["suspended"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_unregisterPushDevice_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "token",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["token"] = arg0
 	return args, nil
 }
 
@@ -46155,6 +46233,94 @@ func (ec *executionContext) fieldContext_Mutation_updateNotificationPrefs(ctx co
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateNotificationPrefs_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_registerPushDevice(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_registerPushDevice(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RegisterPushDevice(ctx, fc.Args["input"].(RegisterPushDeviceInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_registerPushDevice(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_registerPushDevice_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_unregisterPushDevice(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_unregisterPushDevice(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UnregisterPushDevice(ctx, fc.Args["token"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_unregisterPushDevice(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_unregisterPushDevice_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -72597,6 +72763,64 @@ func (ec *executionContext) unmarshalInputMoveFavoriteInput(ctx context.Context,
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputRegisterPushDeviceInput(ctx context.Context, obj any) (RegisterPushDeviceInput, error) {
+	var it RegisterPushDeviceInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["platform"]; !present {
+		asMap["platform"] = "ios"
+	}
+	if _, present := asMap["environment"]; !present {
+		asMap["environment"] = "production"
+	}
+
+	fieldsInOrder := [...]string{"token", "platform", "appBundle", "environment"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "token":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("token"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Token = data
+		case "platform":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("platform"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Platform = data
+		case "appBundle":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("appBundle"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AppBundle = data
+		case "environment":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("environment"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Environment = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputSearchInput(ctx context.Context, obj any) (SearchInput, error) {
 	var it SearchInput
 	if obj == nil {
@@ -83779,6 +84003,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "updateNotificationPrefs":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateNotificationPrefs(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "registerPushDevice":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_registerPushDevice(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unregisterPushDevice":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_unregisterPushDevice(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -95168,6 +95406,11 @@ func (ec *executionContext) marshalNRecurringIssuePayload2ᚖgithubᚗcomᚋpeix
 		return graphql.Null
 	}
 	return ec._RecurringIssuePayload(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNRegisterPushDeviceInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRegisterPushDeviceInput(ctx context.Context, v any) (RegisterPushDeviceInput, error) {
+	res, err := ec.unmarshalInputRegisterPushDeviceInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNRelationType2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRelationType(ctx context.Context, v any) (RelationType, error) {

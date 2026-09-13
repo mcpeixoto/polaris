@@ -147,6 +147,27 @@ final class ComposeInboxSettingsTests: XCTestCase {
         snap(app, "composer-with-label")
     }
 
+    /// The Create tab is the composer as a place you can return to — Linear's fifth tab.
+    func testCreateTabOpensComposer() {
+        let app = launch()
+        let createTab = app.tabBars.buttons["Create"]
+        tapWhenReady(createTab)
+        XCTAssertTrue(
+            app.staticTexts["New Issue"].waitForExistence(timeout: long),
+            "the Create tab should show the composer"
+        )
+        XCTAssertTrue(
+            control(app, "compose.status").waitForExistence(timeout: 10),
+            "property pills should be on the Create tab"
+        )
+        // Create more is sheet-only; the tab stays put after Create instead.
+        XCTAssertFalse(
+            app.switches["compose.createMore"].exists || app.switches["Create more"].exists,
+            "Create more belongs on the sheet, not the tab"
+        )
+        snap(app, "create-tab")
+    }
+
     // MARK: - Inbox
 
     /// "Unread only" hides the one read row of the fixture's three and leaves the two

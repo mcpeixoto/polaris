@@ -40,6 +40,9 @@ struct RootView: View {
         .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
             if let url = activity.webpageURL { router.open(url) }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .polarisOpenURL)) { note in
+            if let url = note.userInfo?["url"] as? URL { router.open(url) }
+        }
         .task {
             // A UI test cannot tap a link in another app, so it hands the URL over on the
             // command line instead and the app treats it exactly like one that arrived late.
@@ -48,21 +51,33 @@ struct RootView: View {
         .onChange(of: model.phase) { _, phase in
             // A signed-out icon still showing "3" is three notifications for an account this
             // phone no longer holds a session for.
-            guard case .signedOut = phase, !LaunchOptions.usesFixtures else { return }
-            Task { await AppBadge.set(0) }
+            guard !LaunchOptions.usesFixtures else { return }
+            switch phase {
+            case .signedOut:
+                Task {
+                    await PushRegistration.unregister()
+                    await AppBadge.set(0)
+                }
+            case .ready:
+                // Token may have arrived while signed out; register once a session exists.
+                Task { await PushRegistration.requestAndRegister() }
+            default:
+                break
+            }
         }
     }
 }
 
-/// The four places a signed-in reader can be.
+/// The places a signed-in reader can be.
 ///
 /// `docs/01-features/19-clients-sync-preferences.md` names five tabs — Home, Inbox, Create,
-/// Search, Settings. Create is the one deliberate divergence: it is a sheet from the list's
-/// toolbar rather than a tab, because a tab that opens a modal and never shows a screen of its
-/// own is a tab you cannot go back to.
+/// Search, Settings. Create is the middle tab and opens the composer as its content (not a
+/// sheet that replaces a tab you cannot return to). The list toolbar still offers the same
+/// composer as a sheet for the muscle memory of filing without leaving My Issues.
 enum AppSection: String, CaseIterable, Identifiable {
     case inbox
     case myIssues
+    case create
     case search
     case settings
 
@@ -72,6 +87,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         switch self {
         case .inbox: String(localized: "Inbox")
         case .myIssues: String(localized: "My Issues")
+        case .create: String(localized: "Create")
         case .search: String(localized: "Search")
         case .settings: String(localized: "Settings")
         }
@@ -81,6 +97,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         switch self {
         case .inbox: "tray"
         case .myIssues: "checklist"
+        case .create: "plus.square"
         case .search: "magnifyingglass"
         case .settings: "gearshape"
         }
@@ -118,7 +135,7 @@ struct SignedInShell: View {
             }
         }
         .tint(Theme.accentBright)
-        .sheet(isPresented: $isComposing) { ComposeIssueView() }
+        .sheet(isPresented: $isComposing) { ComposeIssueView(presentation: .sheet) }
         // The connectivity pill floats over whichever stack is up. It is about the connection,
         // not about a screen, so it is drawn once here rather than once per tab.
         .overlay(alignment: .top) { ConnectionBanner() }
@@ -307,6 +324,7 @@ struct SignedInShell: View {
         switch section {
         case .inbox: InboxView()
         case .myIssues: MyIssuesView(isComposing: $isComposing)
+        case .create: ComposeIssueView(presentation: .tab)
         case .search: SearchView()
         case .settings: SettingsView(viewer: viewer)
         }

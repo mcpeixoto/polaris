@@ -3409,6 +3409,20 @@ input UpdateProfileInput {
   timezone: String
 }
 
+"""
+An APNs device token for inbox push. `environment` is sandbox for Debug builds and
+production for TestFlight / App Store — mixing them fails permanently at APNs.
+"""
+input RegisterPushDeviceInput {
+  token: String!
+  """Currently only `ios`."""
+  platform: String = "ios"
+  """Bundle id. Defaults to com.peixotolabs.polaris when absent."""
+  appBundle: String
+  """`production` or `sandbox`. Defaults to production."""
+  environment: String = "production"
+}
+
 input UpdateWorkspaceInput {
   name: String
   logoUrl: String
@@ -3768,6 +3782,15 @@ type Mutation {
   """
   leaveWorkspace: DeletePayload!
   updateNotificationPrefs(prefs: JSON!): UserPayload!
+
+  """
+  Register this install's APNs device token for inbox-class push. The token is unique
+  across the install: a reinstall or workspace switch moves the row. Not on the change
+  stream — a push credential belongs on this server only.
+  """
+  registerPushDevice(input: RegisterPushDeviceInput!): DeletePayload!
+  """Drop this install's APNs token. Idempotent when the token is already gone."""
+  unregisterPushDevice(token: String!): DeletePayload!
 
   updateWorkspace(input: UpdateWorkspaceInput!): WorkspacePayload!
 

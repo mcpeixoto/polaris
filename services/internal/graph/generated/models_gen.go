@@ -2203,6 +2203,18 @@ type RecurringIssuePayload struct {
 
 func (RecurringIssuePayload) IsMutationResult() {}
 
+// An APNs device token for inbox push. `environment` is sandbox for Debug builds and
+// production for TestFlight / App Store — mixing them fails permanently at APNs.
+type RegisterPushDeviceInput struct {
+	Token string `json:"token"`
+	// Currently only `ios`.
+	Platform *string `json:"platform,omitempty"`
+	// Bundle id. Defaults to com.peixotolabs.polaris when absent.
+	AppBundle *string `json:"appBundle,omitempty"`
+	// `production` or `sandbox`. Defaults to production.
+	Environment *string `json:"environment,omitempty"`
+}
+
 // What to search, and where.
 //
 // `query` goes through the same tokeniser as the index. `filter` is the same AST the views

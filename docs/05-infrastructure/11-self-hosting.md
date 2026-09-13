@@ -170,6 +170,7 @@ which is not true of every system.
 | `POLARIS_SHUTDOWN_GRACE` | `20s` | How long in-flight requests get to finish on `SIGTERM`. Make your container runtime's stop timeout larger than this or the runtime will `SIGKILL` mid-drain |
 | `POLARIS_RATE_LIMIT_ENABLED` | `true` | See *Rate limits* |
 | `POLARIS_SMTP_*`, `POLARIS_MAIL_*` | see *Email* | Optional, and absence is supported |
+| `POLARIS_APNS_*` | see *Mobile push* | Optional. Without them iOS can register tokens but nothing is delivered |
 | `POLARIS_GITHUB_*` | empty | Optional GitHub App OAuth. The product runs without them |
 | `POLARIS_SLACK_SIGNING_SECRET` | empty | Slack request signature. Required for slash commands and Events API; outbound channel webhooks work without it |
 | `POLARIS_SLACK_BOT_TOKEN` | empty | Slack bot token (`xoxb-…`). Required for link unfurls (`chat.unfurl`) |
@@ -673,6 +674,24 @@ cadence: each recipient's own preference decides whether they are due. And deliv
 NULL ... RETURNING` before the message is handed to the relay, so a process killed in between
 loses that digest rather than sending it twice. The news is not lost; it is still unread in
 the inbox.
+
+
+## Mobile push (APNs)
+
+**Also optional.** With the three `POLARIS_APNS_*` credentials empty, the worker logs that
+push is disabled and never registers the delivery job. iOS clients can still call
+`registerPushDevice` — tokens sit until credentials appear.
+
+| Variable | Default | Notes |
+|---|---|---|
+| `POLARIS_APNS_KEY_ID` | empty | Key id of an APNs Auth Key (`.p8`) |
+| `POLARIS_APNS_TEAM_ID` | empty | Apple Team id (e.g. `H874DPF6H5`) |
+| `POLARIS_APNS_KEY` | empty | Full PEM contents of the `.p8` |
+| `POLARIS_APNS_BUNDLE_ID` | `com.peixotolabs.polaris` | APNs topic |
+
+That Auth Key is created under Certificates, Identifiers & Profiles → Keys → Apple Push
+Notifications service. It is **not** the App Store Connect API key used to upload builds.
+Enable the Push Notifications capability on the App id (`ios/scripts/asc-setup.py` does).
 
 ## Backup and restore
 

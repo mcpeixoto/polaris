@@ -1791,6 +1791,42 @@ func (r *mutationResolver) UpdateNotificationPrefs(ctx context.Context, prefs js
 	return &generated.UserPayload{Version: int(version), User: &out}, nil
 }
 
+// RegisterPushDevice is the resolver for the registerPushDevice field.
+func (r *mutationResolver) RegisterPushDevice(ctx context.Context, input generated.RegisterPushDeviceInput) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	in := domain.RegisterPushDeviceInput{Token: input.Token}
+	if input.Platform != nil {
+		in.Platform = *input.Platform
+	}
+	if input.AppBundle != nil {
+		in.AppBundle = *input.AppBundle
+	}
+	if input.Environment != nil {
+		in.Environment = *input.Environment
+	}
+	id, version, err := r.Svc.RegisterPushDevice(ctx, p, in)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// UnregisterPushDevice is the resolver for the unregisterPushDevice field.
+func (r *mutationResolver) UnregisterPushDevice(ctx context.Context, token string) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	id, version, err := r.Svc.UnregisterPushDevice(ctx, p, token)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
 // UpdateWorkspace is the resolver for the updateWorkspace field.
 func (r *mutationResolver) UpdateWorkspace(ctx context.Context, input generated.UpdateWorkspaceInput) (*generated.WorkspacePayload, error) {
 	p, err := principalFrom(ctx)

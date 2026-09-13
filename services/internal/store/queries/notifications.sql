@@ -38,12 +38,12 @@ SET count          = notification.count + 1,
 WHERE EXCLUDED.change_version > notification.change_version
 RETURNING id, workspace_id, user_id, type, issue_id, comment_id, actor_type, actor_id,
           change_version, group_key, count, payload, read_at, snoozed_until, deleted_at,
-          created_at, updated_at, emailed_at;
+          created_at, updated_at, emailed_at, pushed_at;
 
 -- name: GetNotification :one
 SELECT id, workspace_id, user_id, type, issue_id, comment_id, actor_type, actor_id,
        change_version, group_key, count, payload, read_at, snoozed_until, deleted_at,
-       created_at, updated_at, emailed_at
+       created_at, updated_at, emailed_at, pushed_at
 FROM notification
 WHERE id = sqlc.arg(id) AND user_id = sqlc.arg(user_id) AND deleted_at IS NULL;
 
@@ -57,7 +57,7 @@ WHERE id = sqlc.arg(id) AND user_id = sqlc.arg(user_id) AND deleted_at IS NULL;
 -- name: ListNotifications :many
 SELECT id, workspace_id, user_id, type, issue_id, comment_id, actor_type, actor_id,
        change_version, group_key, count, payload, read_at, snoozed_until, deleted_at,
-       created_at, updated_at, emailed_at
+       created_at, updated_at, emailed_at, pushed_at
 FROM notification
 WHERE user_id = sqlc.arg(user_id)
   AND deleted_at IS NULL
@@ -101,7 +101,7 @@ LIMIT sqlc.arg(page_size);
 -- name: StreamNotificationsForBootstrap :many
 SELECT n.id, n.workspace_id, n.user_id, n.type, n.issue_id, n.comment_id, n.actor_type,
        n.actor_id, n.change_version, n.group_key, n.count, n.payload, n.read_at,
-       n.snoozed_until, n.deleted_at, n.created_at, n.updated_at, n.emailed_at
+       n.snoozed_until, n.deleted_at, n.created_at, n.updated_at, n.emailed_at, n.pushed_at
 FROM notification n
 WHERE n.workspace_id = sqlc.arg(workspace_id)
   AND n.user_id = sqlc.arg(user_id)
@@ -131,7 +131,7 @@ LIMIT sqlc.arg(page_size);
 -- name: ListNotificationsForIssue :many
 SELECT id, workspace_id, user_id, type, issue_id, comment_id, actor_type, actor_id,
        change_version, group_key, count, payload, read_at, snoozed_until, deleted_at,
-       created_at, updated_at, emailed_at
+       created_at, updated_at, emailed_at, pushed_at
 FROM notification
 WHERE issue_id = sqlc.arg(issue_id)
   AND workspace_id = sqlc.arg(workspace_id)
@@ -151,7 +151,7 @@ SET read_at = CASE WHEN sqlc.arg(read)::boolean THEN now() ELSE NULL END
 WHERE id = sqlc.arg(id) AND user_id = sqlc.arg(user_id) AND deleted_at IS NULL
 RETURNING id, workspace_id, user_id, type, issue_id, comment_id, actor_type, actor_id,
           change_version, group_key, count, payload, read_at, snoozed_until, deleted_at,
-          created_at, updated_at, emailed_at;
+          created_at, updated_at, emailed_at, pushed_at;
 
 -- One statement for the whole inbox, and one version block for the sync stream. Marking a
 -- thousand rows read one at a time would mint a thousand versions and hold the workspace's
@@ -162,7 +162,7 @@ UPDATE notification SET read_at = now()
 WHERE user_id = $1 AND read_at IS NULL AND deleted_at IS NULL
 RETURNING id, workspace_id, user_id, type, issue_id, comment_id, actor_type, actor_id,
           change_version, group_key, count, payload, read_at, snoozed_until, deleted_at,
-          created_at, updated_at, emailed_at;
+          created_at, updated_at, emailed_at, pushed_at;
 
 -- Snoozing also marks the row read. A notification you have chosen to defer is one you
 -- have seen, and leaving it in the unread count would make the badge argue with the inbox.
@@ -174,7 +174,7 @@ SET snoozed_until = sqlc.narg(snoozed_until),
 WHERE id = sqlc.arg(id) AND user_id = sqlc.arg(user_id) AND deleted_at IS NULL
 RETURNING id, workspace_id, user_id, type, issue_id, comment_id, actor_type, actor_id,
           change_version, group_key, count, payload, read_at, snoozed_until, deleted_at,
-          created_at, updated_at, emailed_at;
+          created_at, updated_at, emailed_at, pushed_at;
 
 -- Soft, not a DELETE: the unique index on (user_id, group_key) is what makes the fan-out
 -- idempotent, and removing the row would let a replayed version deliver the notification a
@@ -185,7 +185,7 @@ UPDATE notification SET deleted_at = now()
 WHERE id = sqlc.arg(id) AND user_id = sqlc.arg(user_id) AND deleted_at IS NULL
 RETURNING id, workspace_id, user_id, type, issue_id, comment_id, actor_type, actor_id,
           change_version, group_key, count, payload, read_at, snoozed_until, deleted_at,
-          created_at, updated_at, emailed_at;
+          created_at, updated_at, emailed_at, pushed_at;
 
 -- ---------------------------------------------------------------------------------------
 -- The engine's watermark.

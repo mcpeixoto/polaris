@@ -955,6 +955,27 @@ public actor LivePolarisClient: PolarisAPI {
         return try decode(Payload.self, from: data).user.notificationPrefs ?? prefs
     }
 
+    public func registerPushDevice(token: String, platform: String, appBundle: String, environment: String) async throws {
+        _ = try await graphQL(
+            GraphQLDocuments.registerPushDevice,
+            variables: ["input": .object([
+                "token": .string(token),
+                "platform": .string(platform),
+                "appBundle": .string(appBundle),
+                "environment": .string(environment),
+            ])],
+            field: "registerPushDevice"
+        )
+    }
+
+    public func unregisterPushDevice(token: String) async throws {
+        _ = try await graphQL(
+            GraphQLDocuments.unregisterPushDevice,
+            variables: ["token": .string(token)],
+            field: "unregisterPushDevice"
+        )
+    }
+
     // MARK: - Sync socket
 
     public func accessToken() async throws -> String {

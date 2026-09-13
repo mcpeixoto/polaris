@@ -35,7 +35,7 @@ API = "https://api.appstoreconnect.apple.com/v1"
 BUNDLE_ID = "com.peixotolabs.polaris"
 APP_NAME = "Polaris"
 PROFILE_NAME = "Polaris App Store"
-CAPABILITIES = ["APPLE_ID_AUTH", "ASSOCIATED_DOMAINS"]
+CAPABILITIES = ["APPLE_ID_AUTH", "ASSOCIATED_DOMAINS", "PUSH_NOTIFICATIONS"]
 
 
 def token() -> str:

@@ -651,6 +651,16 @@ public actor FixturePolarisClient: PolarisAPI {
         return prefs
     }
 
+    public func registerPushDevice(token: String, platform: String, appBundle: String, environment: String) async throws {
+        try consumeFailure()
+        _ = (token, platform, appBundle, environment)
+    }
+
+    public func unregisterPushDevice(token: String) async throws {
+        try consumeFailure()
+        _ = token
+    }
+
     public func markNotificationRead(id: String, read: Bool) async throws -> PolarisNotification {
         try consumeFailure()
         guard let index = storedNotifications.firstIndex(where: { $0.id == id }) else {
