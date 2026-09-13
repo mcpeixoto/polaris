@@ -745,6 +745,7 @@ type Notification struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	EmailedAt     *time.Time
+	PushedAt      *time.Time
 }
 
 type NotificationCursor struct {
@@ -1013,6 +1014,18 @@ type PulseFeed struct {
 	ProjectIds  []uuid.UUID
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+type PushDevice struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	WorkspaceID uuid.UUID
+	Token       string
+	Platform    string
+	AppBundle   string
+	Environment string
+	CreatedAt   time.Time
+	LastSeenAt  time.Time
 }
 
 type Reaction struct {

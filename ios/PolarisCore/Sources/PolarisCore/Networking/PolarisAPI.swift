@@ -181,6 +181,10 @@ public protocol PolarisAPI: Sendable {
     func createAttachment(issueId: String, url: String, title: String?, opId: String) async throws -> Attachment
     func updateProfile(_ change: ProfileChange) async throws -> User
     func updateNotificationPrefs(_ prefs: NotificationPrefs) async throws -> NotificationPrefs
+    /// Registers this install for APNs inbox push. Idempotent on the token.
+    func registerPushDevice(token: String, platform: String, appBundle: String, environment: String) async throws
+    /// Drops this install's APNs token. Idempotent when already gone.
+    func unregisterPushDevice(token: String) async throws
 
     // Sync socket
     /// A bearer token valid right now, refreshed if the held one is about to expire, so a
@@ -327,6 +331,12 @@ public extension PolarisAPI {
     }
     func updateNotificationPrefs(_ prefs: NotificationPrefs) async throws -> NotificationPrefs {
         throw PolarisError.unsupported("notification preferences")
+    }
+    func registerPushDevice(token: String, platform: String, appBundle: String, environment: String) async throws {
+        throw PolarisError.unsupported("push registration")
+    }
+    func unregisterPushDevice(token: String) async throws {
+        throw PolarisError.unsupported("push registration")
     }
 
     func accessToken() async throws -> String { throw PolarisError.unauthorized(nil) }

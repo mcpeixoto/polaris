@@ -3,6 +3,7 @@ import PolarisCore
 
 @main
 struct PolarisApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var session = AppSession()
 
     init() {

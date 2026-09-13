@@ -167,11 +167,12 @@ a device (or with the `_simulateLaunchForTaskWithIdentifier` debugger call).
 
 ## Screens
 
-Four tabs on a phone — Inbox, My Issues, Search, Settings — and a `NavigationSplitView` with
-the same four in a sidebar on an iPad, chosen on `horizontalSizeClass`. Create is a sheet from
-the list's toolbar rather than the fifth tab
-`docs/01-features/19-clients-sync-preferences.md` names: a tab that opens a modal and never
-shows a screen of its own is a tab you cannot go back to.
+Four tabs on a phone — Inbox, My Issues, Create, Search, Settings — and a
+`NavigationSplitView` with the same five in a sidebar on an iPad, chosen on
+`horizontalSizeClass`. Create is a real tab whose content is the composer (the Linear
+shape): filing without leaving a list you were reading still works from the list toolbar
+sheet. A tab that only opened a modal and showed nothing of its own would be a tab you
+could not go back to; this one *is* the composer.
 
 Screens are content only. `PolarisNavigation` owns the `NavigationStack` and declares the
 issue and team destinations, so the same view renders as a tab on a phone and as the detail
@@ -188,13 +189,22 @@ first and closed work last; My Issues stays flat in priority order, which is als
 default for that view. The inbox is grouped by day, the detail screen lays its properties out
 as a wrapping row of pills, and Settings is a standard inset-grouped list.
 
-### There are no push notifications, and that is a backend gap
+### Push notifications
 
-The server has no push infrastructure at all — no device-token schema, no APNs sender — so
-there is nothing for this client to register with and nothing to receive. While the app is in
-front the inbox and its badge move on the sync signal; while it is not, the badge moves only
-when iOS grants a background refresh. Nothing arrives on a locked phone. Push notifications
-are a backend project, not an iOS one.
+The server stores APNs device tokens (`push_device`) and delivers inbox-class alerts after
+the same fan-out that fills the inbox. The iOS client registers on sign-in
+(`registerPushDevice` / `unregisterPushDevice`), asks for alert+badge+sound permission, and
+opens the issue or inbox when a banner is tapped.
+
+Delivery needs APNs credentials on the worker — `POLARIS_APNS_KEY_ID`,
+`POLARIS_APNS_TEAM_ID`, and `POLARIS_APNS_KEY` (the `.p8` Auth Key from Certificates,
+Identifiers & Profiles → Keys → Apple Push Notifications service). That key is **not** the
+App Store Connect API key used to upload builds. Without them the worker logs that push is
+disabled; clients can still register tokens for the day the keys appear. Debug builds
+register `sandbox` tokens; Release / TestFlight register `production`.
+
+While the app is in front the inbox and its badge also move on the sync signal; while it is
+not, push is the primary channel and background refresh remains the badge fallback.
 
 ## Theme
 

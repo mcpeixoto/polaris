@@ -171,7 +171,7 @@ UPDATE notification SET deleted_at = now()
 WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
 RETURNING id, workspace_id, user_id, type, issue_id, comment_id, actor_type, actor_id,
           change_version, group_key, count, payload, read_at, snoozed_until, deleted_at,
-          created_at, updated_at, emailed_at
+          created_at, updated_at, emailed_at, pushed_at
 `
 
 type DeleteNotificationParams struct {
@@ -204,6 +204,7 @@ func (q *Queries) DeleteNotification(ctx context.Context, arg DeleteNotification
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.EmailedAt,
+		&i.PushedAt,
 	)
 	return i, err
 }
@@ -287,7 +288,7 @@ func (q *Queries) GetIssueSubscription(ctx context.Context, arg GetIssueSubscrip
 const getNotification = `-- name: GetNotification :one
 SELECT id, workspace_id, user_id, type, issue_id, comment_id, actor_type, actor_id,
        change_version, group_key, count, payload, read_at, snoozed_until, deleted_at,
-       created_at, updated_at, emailed_at
+       created_at, updated_at, emailed_at, pushed_at
 FROM notification
 WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
 `
@@ -319,6 +320,7 @@ func (q *Queries) GetNotification(ctx context.Context, arg GetNotificationParams
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.EmailedAt,
+		&i.PushedAt,
 	)
 	return i, err
 }
@@ -595,7 +597,7 @@ func (q *Queries) ListIssueSubscriptionsForUser(ctx context.Context, arg ListIss
 const listNotifications = `-- name: ListNotifications :many
 SELECT id, workspace_id, user_id, type, issue_id, comment_id, actor_type, actor_id,
        change_version, group_key, count, payload, read_at, snoozed_until, deleted_at,
-       created_at, updated_at, emailed_at
+       created_at, updated_at, emailed_at, pushed_at
 FROM notification
 WHERE user_id = $1
   AND deleted_at IS NULL
@@ -651,6 +653,7 @@ func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsPa
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.EmailedAt,
+			&i.PushedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -665,7 +668,7 @@ func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsPa
 const listNotificationsForIssue = `-- name: ListNotificationsForIssue :many
 SELECT id, workspace_id, user_id, type, issue_id, comment_id, actor_type, actor_id,
        change_version, group_key, count, payload, read_at, snoozed_until, deleted_at,
-       created_at, updated_at, emailed_at
+       created_at, updated_at, emailed_at, pushed_at
 FROM notification
 WHERE issue_id = $1
   AND workspace_id = $2
@@ -718,6 +721,7 @@ func (q *Queries) ListNotificationsForIssue(ctx context.Context, arg ListNotific
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.EmailedAt,
+			&i.PushedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -772,7 +776,7 @@ UPDATE notification SET read_at = now()
 WHERE user_id = $1 AND read_at IS NULL AND deleted_at IS NULL
 RETURNING id, workspace_id, user_id, type, issue_id, comment_id, actor_type, actor_id,
           change_version, group_key, count, payload, read_at, snoozed_until, deleted_at,
-          created_at, updated_at, emailed_at
+          created_at, updated_at, emailed_at, pushed_at
 `
 
 // One statement for the whole inbox, and one version block for the sync stream. Marking a
@@ -806,6 +810,7 @@ func (q *Queries) MarkAllNotificationsRead(ctx context.Context, userID uuid.UUID
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.EmailedAt,
+			&i.PushedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -823,7 +828,7 @@ SET read_at = CASE WHEN $1::boolean THEN now() ELSE NULL END
 WHERE id = $2 AND user_id = $3 AND deleted_at IS NULL
 RETURNING id, workspace_id, user_id, type, issue_id, comment_id, actor_type, actor_id,
           change_version, group_key, count, payload, read_at, snoozed_until, deleted_at,
-          created_at, updated_at, emailed_at
+          created_at, updated_at, emailed_at, pushed_at
 `
 
 type MarkNotificationReadParams struct {
@@ -854,6 +859,7 @@ func (q *Queries) MarkNotificationRead(ctx context.Context, arg MarkNotification
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.EmailedAt,
+		&i.PushedAt,
 	)
 	return i, err
 }
@@ -933,7 +939,7 @@ SET snoozed_until = $1,
 WHERE id = $2 AND user_id = $3 AND deleted_at IS NULL
 RETURNING id, workspace_id, user_id, type, issue_id, comment_id, actor_type, actor_id,
           change_version, group_key, count, payload, read_at, snoozed_until, deleted_at,
-          created_at, updated_at, emailed_at
+          created_at, updated_at, emailed_at, pushed_at
 `
 
 type SnoozeNotificationParams struct {
@@ -966,6 +972,7 @@ func (q *Queries) SnoozeNotification(ctx context.Context, arg SnoozeNotification
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.EmailedAt,
+		&i.PushedAt,
 	)
 	return i, err
 }
@@ -1049,7 +1056,7 @@ func (q *Queries) StreamIssueSubscriptionsForBootstrap(ctx context.Context, arg 
 const streamNotificationsForBootstrap = `-- name: StreamNotificationsForBootstrap :many
 SELECT n.id, n.workspace_id, n.user_id, n.type, n.issue_id, n.comment_id, n.actor_type,
        n.actor_id, n.change_version, n.group_key, n.count, n.payload, n.read_at,
-       n.snoozed_until, n.deleted_at, n.created_at, n.updated_at, n.emailed_at
+       n.snoozed_until, n.deleted_at, n.created_at, n.updated_at, n.emailed_at, n.pushed_at
 FROM notification n
 WHERE n.workspace_id = $1
   AND n.user_id = $2
@@ -1135,6 +1142,7 @@ func (q *Queries) StreamNotificationsForBootstrap(ctx context.Context, arg Strea
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.EmailedAt,
+			&i.PushedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1208,7 +1216,7 @@ SET count          = notification.count + 1,
 WHERE EXCLUDED.change_version > notification.change_version
 RETURNING id, workspace_id, user_id, type, issue_id, comment_id, actor_type, actor_id,
           change_version, group_key, count, payload, read_at, snoozed_until, deleted_at,
-          created_at, updated_at, emailed_at
+          created_at, updated_at, emailed_at, pushed_at
 `
 
 type UpsertNotificationParams struct {
@@ -1282,6 +1290,7 @@ func (q *Queries) UpsertNotification(ctx context.Context, arg UpsertNotification
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.EmailedAt,
+		&i.PushedAt,
 	)
 	return i, err
 }

@@ -7,8 +7,18 @@ import PolarisCore
 /// Every property the create mutation accepts is here — status, priority, assignee, labels,
 /// due date, estimate, project, cycle — as a pill that opens the smallest control that can
 /// set it: a menu where the options fit in one, a sheet where they do not. "Create more"
-/// keeps the sheet open across several issues, and an unfinished draft outlives the sheet.
+/// keeps the form ready across several issues, and an unfinished draft outlives the sheet.
+///
+/// `presentation` is `.sheet` from a toolbar (Cancel dismisses) or `.tab` from the Create
+/// tab (Cancel clears the draft; after Create the form stays for the next one).
 struct ComposeIssueView: View {
+    enum Presentation {
+        case sheet
+        case tab
+    }
+
+    var presentation: Presentation = .sheet
+
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
 
@@ -168,12 +178,18 @@ struct ComposeIssueView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        // The draft is kept either way; the question is whether the reader
-                        // meant to throw it out. "Keep editing" leaves it for next time.
-                        if hasDraft { isConfirmingDiscard = true } else { dismiss() }
+                    Button(presentation == .tab ? "Clear" : "Cancel") {
+                        if presentation == .tab {
+                            clearForm(keepProperties: false)
+                            Self.drafts.clear()
+                        } else if hasDraft {
+                            isConfirmingDiscard = true
+                        } else {
+                            dismiss()
+                        }
                     }
                     .tint(Theme.textSecondary)
+                    .disabled(presentation == .tab && !hasDraft)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(action: save) {
@@ -439,25 +455,54 @@ struct ComposeIssueView: View {
     }
 
     /// Linear's "Create more", and the receipt for the last one it created.
+    /// Hidden on the Create tab — staying put after Create is the tab's whole point.
+    @ViewBuilder
     private var createMoreRow: some View {
-        HStack(spacing: Theme.Space.md) {
-            Toggle(isOn: $createMore) {
-                Text("Create more")
-                    .font(PolarisText.caption)
-                    .foregroundStyle(Theme.textSecondary)
-            }
-            .toggleStyle(.switch)
-            .controlSize(.mini)
-            .tint(Theme.accent)
-            .fixedSize()
-            .accessibilityIdentifier("compose.createMore")
-            Spacer(minLength: 0)
+        if presentation == .tab {
             if let lastCreated {
-                Text("Created \(lastCreated)")
-                    .font(PolarisText.caption.monospacedDigit())
-                    .foregroundStyle(Theme.textTertiary)
-                    .transition(.opacity)
+                HStack {
+                    Spacer(minLength: 0)
+                    Text("Created \(lastCreated)")
+                        .font(PolarisText.caption.monospacedDigit())
+                        .foregroundStyle(Theme.textTertiary)
+                }
             }
+        } else {
+            HStack(spacing: Theme.Space.md) {
+                Toggle(isOn: $createMore) {
+                    Text("Create more")
+                        .font(PolarisText.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                }
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .tint(Theme.accent)
+                .fixedSize()
+                .accessibilityIdentifier("compose.createMore")
+                Spacer(minLength: 0)
+                if let lastCreated {
+                    Text("Created \(lastCreated)")
+                        .font(PolarisText.caption.monospacedDigit())
+                        .foregroundStyle(Theme.textTertiary)
+                        .transition(.opacity)
+                }
+            }
+        }
+    }
+
+    private func clearForm(keepProperties: Bool) {
+        title = ""
+        details = ""
+        if !keepProperties {
+            priority = .none
+            stateId = nil
+            labelIds = []
+            dueDate = nil
+            estimate = nil
+            projectId = nil
+            cycleId = nil
+            assigneeId = me?.id
+            lastCreated = nil
         }
     }
 
@@ -579,12 +624,12 @@ struct ComposeIssueView: View {
                 )
                 let created = try await model.issues.create(issue)
                 Self.drafts.clear()
-                if createMore {
-                    // The words go, the properties stay: the next issue is usually the next
-                    // one in the same team, with the same labels, in the same cycle.
+                // The Create tab always stays put after a successful create — that is what
+                // makes it a place you can return to. "Create more" on the sheet does the
+                // same; without it the sheet closes.
+                if createMore || presentation == .tab {
                     withAnimation(Theme.easing(0.3)) {
-                        title = ""
-                        details = ""
+                        clearForm(keepProperties: true)
                         lastCreated = created.identifier
                     }
                     focused = .title

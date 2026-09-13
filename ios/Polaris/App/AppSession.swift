@@ -37,17 +37,20 @@ final class AppSession {
     /// previous host's cookies and cache do not bleed into the next pick.
     func changeServer() async {
         if let model {
+            await PushRegistration.unregister()
             await model.signOut()
         }
         ServerPreference.clear()
         self.model = nil
         BackgroundRefresh.detach()
+        PushRegistration.detach()
     }
 
     private func adopt(_ model: AppModel) {
         self.model = model
         if !LaunchOptions.usesFixtures {
             BackgroundRefresh.attach(model: model)
+            PushRegistration.attach(model: model)
         }
     }
 

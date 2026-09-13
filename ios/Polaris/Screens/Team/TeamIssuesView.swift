@@ -53,7 +53,7 @@ struct TeamIssuesView: View {
                 .accessibilityIdentifier("team.compose")
             }
         }
-        .sheet(isPresented: $isComposing) { ComposeIssueView() }
+        .sheet(isPresented: $isComposing) { ComposeIssueView(presentation: .sheet) }
         .task {
             if store == nil { store = TeamWorkStores.shared.store(for: team, model: model) }
             await store?.load()

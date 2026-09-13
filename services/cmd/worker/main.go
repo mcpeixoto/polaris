@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -17,6 +18,7 @@ import (
 	"github.com/peixotolabs/polaris/services/internal/llm"
 	"github.com/peixotolabs/polaris/services/internal/mailer"
 	"github.com/peixotolabs/polaris/services/internal/platform"
+	"github.com/peixotolabs/polaris/services/internal/push"
 	"github.com/peixotolabs/polaris/services/internal/store"
 	"github.com/peixotolabs/polaris/services/internal/webhookout"
 )
@@ -462,6 +464,38 @@ func run() error {
 	} else {
 		log.Info("email delivery is not configured; notification digests will not be sent",
 			"hint", "set POLARIS_SMTP_HOST to enable them")
+	}
+
+	if cfg.APNsEnabled() {
+		apns, err := push.New(push.Config{
+			KeyID:  cfg.APNsKeyID,
+			TeamID: cfg.APNsTeamID,
+			KeyPEM: cfg.APNsKeyPEM,
+			Bundle: cfg.APNsBundle,
+		})
+		if err != nil {
+			return fmt.Errorf("apns: %w", err)
+		}
+		jobs = append(jobs, job{
+			// Same latency class as the inbox fan-out: push is how a locked phone hears
+			// about an assignment, and waiting a minute would make "push" a lie. Five
+			// seconds matches the fan-out so a row that just landed is claimed on the next
+			// tick rather than sitting until a slower cadence.
+			name:   "deliver push notifications",
+			every:  5 * time.Second,
+			atBoot: true,
+			run: func(ctx context.Context) error {
+				n, err := svc.DeliverPushNotifications(ctx, apns)
+				if err == nil && n > 0 {
+					log.Debug("sent push notifications", "alerts", n)
+				}
+				return err
+			},
+			critical: false,
+		})
+	} else {
+		log.Info("APNs is not configured; mobile push will not be sent",
+			"hint", "set POLARIS_APNS_KEY_ID, POLARIS_APNS_TEAM_ID and POLARIS_APNS_KEY to enable them")
 	}
 
 	for _, j := range jobs {

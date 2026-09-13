@@ -5,11 +5,10 @@ import os
 
 /// The app icon's badge, and the background task that keeps it honest between launches.
 ///
-/// There is no push infrastructure server-side — no device-token schema, no APNs sender — so
-/// the only way the badge can move while the app is not in front is for iOS to wake it. That
-/// is what `BGAppRefreshTask` is: a wake-up the system grants a few times a day, on its own
-/// schedule, for a few seconds of network. It is not push and is not described as such
-/// anywhere the reader can see; see ios/README.md.
+/// Push notifications are the primary way a locked phone hears about inbox activity (see
+/// `PushRegistration` and the server's `DeliverPushNotifications`). Background refresh is
+/// the fallback for the badge when APNs is not configured on the server, or when the
+/// system has not delivered a push recently.
 ///
 /// Everything here is skipped under `-polaris-fixtures`. The permission prompt would sit over
 /// the UI tests as a springboard alert, and a background task registered against a fixture
@@ -107,18 +106,17 @@ private final class TaskHandle: @unchecked Sendable {
 enum AppBadge {
     private static let log = Logger(subsystem: "com.peixotolabs.polaris", category: "background")
 
-    /// Asks for badge permission, once, and only for the badge. No alert, no sound: this app
-    /// has nothing to alert about, because nothing on the server can send it anything.
-    /// `.notDetermined` is the only state worth asking in — asking again after a refusal is
-    /// a no-op the system does not even show.
+    /// Asks for notification permission once. Alert + sound + badge: push needs the first
+    /// two, and the icon badge needs the third. `.notDetermined` is the only state worth
+    /// asking in — asking again after a refusal is a no-op the system does not even show.
     static func requestPermissionIfNeeded() async {
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .notDetermined else { return }
         do {
-            _ = try await center.requestAuthorization(options: [.badge])
+            _ = try await center.requestAuthorization(options: [.alert, .badge, .sound])
         } catch {
-            log.notice("badge permission not granted: \(String(describing: error), privacy: .public)")
+            log.notice("notification permission not granted: \(String(describing: error), privacy: .public)")
         }
     }
 

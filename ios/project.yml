@@ -59,6 +59,7 @@ targets:
         com.apple.developer.associated-domains:
           - applinks:polaris.peixotolabs.com
           - webcredentials:polaris.peixotolabs.com
+        aps-environment: development
 
     info:
       path: Polaris/Info.plist
@@ -93,11 +94,11 @@ targets:
           - CFBundleURLName: com.googleusercontent.apps.polaris
             CFBundleURLSchemes:
               - com.googleusercontent.apps.415057540542-s7an2kfcima1eqccpre0qq5o79et8s4f
-        # Background fetch keeps the inbox badge honest between launches; there is no push
-        # infrastructure server-side (see ios/README.md), so this is the only way the badge
-        # can move while the app is not in front.
+        # Background fetch keeps the inbox badge honest when APNs is not configured on the
+        # server; remote-notification lets a silent/alert push wake the app to refresh.
         UIBackgroundModes:
           - fetch
+          - remote-notification
         BGTaskSchedulerPermittedIdentifiers:
           - com.peixotolabs.polaris.refresh
         # All four, because TARGETED_DEVICE_FAMILY includes iPad and an iPad app that does

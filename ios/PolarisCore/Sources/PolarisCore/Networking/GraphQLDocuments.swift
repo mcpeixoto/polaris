@@ -468,4 +468,16 @@ enum GraphQLDocuments {
       }
     }
     """
+
+    static let registerPushDevice = """
+    mutation RegisterPushDevice($input: RegisterPushDeviceInput!) {
+      registerPushDevice(input: $input) { version id }
+    }
+    """
+
+    static let unregisterPushDevice = """
+    mutation UnregisterPushDevice($token: String!) {
+      unregisterPushDevice(token: $token) { version id }
+    }
+    """
 }

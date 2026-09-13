@@ -15,6 +15,9 @@ Desktop/browser notifications as a channel next to email. The preference lives i
 ## Deferred
 
 - Slack DMs (blocked on Slack v1)
-- Mobile push
 - Per-type channel matrix (desktop vs email vs Slack independently)
 - Product communications (changelog, DPA)
+
+Mobile push shipped separately: device-token schema, `registerPushDevice` /
+`unregisterPushDevice`, APNs worker job, iOS registration. See `ios/README.md` and
+`POLARIS_APNS_*` in the self-hosting doc.

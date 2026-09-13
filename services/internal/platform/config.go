@@ -131,6 +131,17 @@ type Config struct {
 	// SMTPTimeout bounds one delivery, dialling to QUIT.
 	SMTPTimeout time.Duration `envconfig:"POLARIS_SMTP_TIMEOUT" default:"30s"`
 
+	// Apple Push Notification service. Optional — absent credentials mean the worker skips
+	// the push job and mobile clients still register tokens for the day keys are added.
+	//
+	// KeyPEM is the contents of an AuthKey_XXXXX.p8 from Certificates, Identifiers &
+	// Profiles → Keys → Apple Push Notifications service (APNs). That is a different key
+	// from the App Store Connect API key used to upload builds.
+	APNsKeyID  string `envconfig:"POLARIS_APNS_KEY_ID"`
+	APNsTeamID string `envconfig:"POLARIS_APNS_TEAM_ID"`
+	APNsKeyPEM string `envconfig:"POLARIS_APNS_KEY"`
+	APNsBundle string `envconfig:"POLARIS_APNS_BUNDLE_ID" default:"com.peixotolabs.polaris"`
+
 	// MailFrom is the envelope sender and the From header. Its domain is also the EHLO name
 	// and the Message-ID's domain, and it is what SPF and DKIM are checked against, so it has
 	// to be a domain this install is allowed to send as — a mismatch here is the difference
@@ -323,6 +334,14 @@ const (
 // MailEnabled reports whether a relay is configured. A process with no mail must start
 // normally and say so once, rather than failing a job every hour.
 func (c Config) MailEnabled() bool { return strings.TrimSpace(c.SMTPHost) != "" }
+
+// APNsEnabled reports whether mobile push can be delivered. Registration still works
+// without it — tokens sit until credentials appear.
+func (c Config) APNsEnabled() bool {
+	return strings.TrimSpace(c.APNsKeyID) != "" &&
+		strings.TrimSpace(c.APNsTeamID) != "" &&
+		strings.TrimSpace(c.APNsKeyPEM) != ""
+}
 
 // GitHubOAuthConfigured reports whether a GitHub App can complete an OAuth handshake.
 func (c Config) GitHubOAuthConfigured() bool {

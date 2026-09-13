@@ -1987,6 +1987,12 @@ export type Mutation = {
    * unattended retention sweep expressible; omit it to empty the trash completely.
    */
   purgeDeletedIssues: PurgePayload;
+  /**
+   * Register this install's APNs device token for inbox-class push. The token is unique
+   * across the install: a reinstall or workspace switch moves the row. Not on the change
+   * stream — a push credential belongs on this server only.
+   */
+  registerPushDevice: DeletePayload;
   /** Decline them. The turn stays in the transcript, marked rejected. */
   rejectAgentProposal: AgentMessagePayload;
   removeFavorite: DeletePayload;
@@ -2056,6 +2062,8 @@ export type Mutation = {
   /** Propose a third-party integration for this workspace's directory. */
   submitIntegration: IntegrationSubmissionPayload;
   suspendUser: UserPayload;
+  /** Drop this install's APNs token. Idempotent when the token is already gone. */
+  unregisterPushDevice: DeletePayload;
   /** Brings a retired team back to active use. */
   unretireTeam: TeamPayload;
   /**
@@ -2939,6 +2947,11 @@ export type MutationPurgeDeletedIssuesArgs = {
 };
 
 
+export type MutationRegisterPushDeviceArgs = {
+  input: RegisterPushDeviceInput;
+};
+
+
 export type MutationRejectAgentProposalArgs = {
   messageId: Scalars['UUID']['input'];
 };
@@ -3181,6 +3194,11 @@ export type MutationSubmitIntegrationArgs = {
 export type MutationSuspendUserArgs = {
   suspended: Scalars['Boolean']['input'];
   userId: Scalars['UUID']['input'];
+};
+
+
+export type MutationUnregisterPushDeviceArgs = {
+  token: Scalars['String']['input'];
 };
 
 
@@ -4488,6 +4506,20 @@ export type RecurringIssue = {
 export type RecurringIssuePayload = MutationResult & {
   recurringIssue: RecurringIssue;
   version: Scalars['Int']['output'];
+};
+
+/**
+ * An APNs device token for inbox push. `environment` is sandbox for Debug builds and
+ * production for TestFlight / App Store — mixing them fails permanently at APNs.
+ */
+export type RegisterPushDeviceInput = {
+  /** Bundle id. Defaults to com.peixotolabs.polaris when absent. */
+  appBundle?: InputMaybe<Scalars['String']['input']>;
+  /** `production` or `sandbox`. Defaults to production. */
+  environment?: InputMaybe<Scalars['String']['input']>;
+  /** Currently only `ios`. */
+  platform?: InputMaybe<Scalars['String']['input']>;
+  token: Scalars['String']['input'];
 };
 
 /**
