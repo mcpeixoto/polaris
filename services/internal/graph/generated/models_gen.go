@@ -1705,6 +1705,23 @@ type MoveFavoriteInput struct {
 type Mutation struct {
 }
 
+// One row of My Issues → Activity: a history entry plus enough issue identity to link to it.
+//
+// Same curated store as IssueHistoryEntry (network-fetched, not replicated). Reactions are
+// not in issue_history yet, so they do not appear here.
+type MyIssueActivityEntry struct {
+	ID      uuid.UUID `json:"id"`
+	IssueID uuid.UUID `json:"issueId"`
+	// Team key + number, e.g. ENG-12.
+	Identifier string          `json:"identifier"`
+	Title      string          `json:"title"`
+	Actor      *Actor          `json:"actor"`
+	Kind       string          `json:"kind"`
+	FromValue  json.RawMessage `json:"fromValue,omitempty"`
+	ToValue    json.RawMessage `json:"toValue,omitempty"`
+	CreatedAt  time.Time       `json:"createdAt"`
+}
+
 // One inbox row, derived from a change_log row.
 //
 // That derivation is the commitment: "what happened" already has a definition, and

@@ -1,9 +1,9 @@
 /**
- * My Issues tabs: Assigned / Created / Subscribed pick the right IssueList source.
+ * My Issues tabs: Assigned / Created / Subscribed / Activity.
  *
- * Activity is intentionally absent — see the screen module. The loading / identity
- * cases stay in MyIssues.test.tsx; this file is only the tab → source mapping and that
- * the tab row is handed to the list.
+ * Assigned / Created / Subscribed pick the right IssueList source; Activity renders its
+ * own feed. The loading / identity cases stay in MyIssues.test.tsx; this file is the
+ * tab → source mapping and that the tab row is handed down.
  */
 
 import { cleanup, render, screen } from '@testing-library/react';
@@ -20,6 +20,7 @@ import { MyIssues, myIssuesSource, myIssuesTabFromPath } from './MyIssues';
 const captured = vi.hoisted(() => ({
   source: null as { kind: string; userId?: string } | null,
   tabs: null as readonly { id: string; to?: string }[] | null,
+  activityTabs: null as readonly { id: string; to?: string }[] | null,
 }));
 
 vi.mock('./IssueList', () => ({
@@ -35,6 +36,13 @@ vi.mock('./IssueList', () => ({
     captured.source = source;
     captured.tabs = tabs ?? null;
     return <p>list for {heading}</p>;
+  },
+}));
+
+vi.mock('./MyIssuesActivity', () => ({
+  MyIssuesActivity: ({ tabs }: { tabs: readonly { id: string; to?: string }[] }) => {
+    captured.activityTabs = tabs;
+    return <p>activity feed</p>;
   },
 }));
 
@@ -56,6 +64,7 @@ function mount(path: string) {
             <Route path="/my-issues" element={<MyIssues />} />
             <Route path="/my-issues/created" element={<MyIssues />} />
             <Route path="/my-issues/subscribed" element={<MyIssues />} />
+            <Route path="/my-issues/activity" element={<MyIssues />} />
           </Routes>
         </EngineProvider>
       </KeymapProvider>
@@ -67,18 +76,20 @@ afterEach(() => {
   cleanup();
   captured.source = null;
   captured.tabs = null;
+  captured.activityTabs = null;
 });
 
 describe('myIssuesTabFromPath', () => {
-  it('reads Assigned, Created and Subscribed from the path', () => {
+  it('reads Assigned, Created, Subscribed and Activity from the path', () => {
     expect(myIssuesTabFromPath('/my-issues')).toBe('assigned');
     expect(myIssuesTabFromPath('/my-issues/created')).toBe('created');
     expect(myIssuesTabFromPath('/my-issues/subscribed')).toBe('subscribed');
+    expect(myIssuesTabFromPath('/my-issues/activity')).toBe('activity');
   });
 });
 
 describe('myIssuesSource', () => {
-  it('maps each tab to the matching list source', () => {
+  it('maps each list tab to the matching list source', () => {
     expect(myIssuesSource('assigned', 'u1')).toEqual({ kind: 'assignee', userId: 'u1' });
     expect(myIssuesSource('created', 'u1')).toEqual({ kind: 'creator', userId: 'u1' });
     expect(myIssuesSource('subscribed', 'u1')).toEqual({ kind: 'subscriber', userId: 'u1' });
@@ -102,13 +113,31 @@ describe('MyIssues tabs', () => {
     expect(captured.source).toEqual({ kind: 'subscriber', userId: 'user-ada' });
   });
 
-  it('offers link tabs for Assigned, Created and Subscribed', () => {
+  it('renders the Activity feed on /my-issues/activity', () => {
+    mount('/my-issues/activity');
+    expect(screen.getByText('activity feed')).toBeTruthy();
+    expect(captured.source).toBeNull();
+    expect(captured.activityTabs?.map((tab) => tab.id)).toEqual([
+      'assigned',
+      'created',
+      'subscribed',
+      'activity',
+    ]);
+  });
+
+  it('offers link tabs for Assigned, Created, Subscribed and Activity', () => {
     mount('/my-issues');
-    expect(captured.tabs?.map((tab) => tab.id)).toEqual(['assigned', 'created', 'subscribed']);
+    expect(captured.tabs?.map((tab) => tab.id)).toEqual([
+      'assigned',
+      'created',
+      'subscribed',
+      'activity',
+    ]);
     expect(captured.tabs?.map((tab) => tab.to)).toEqual([
       '/my-issues',
       '/my-issues/created',
       '/my-issues/subscribed',
+      '/my-issues/activity',
     ]);
   });
 });

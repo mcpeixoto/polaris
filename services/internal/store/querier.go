@@ -1043,6 +1043,18 @@ type Querier interface {
 	//
 	ListLiveOauthTokensForUser(ctx context.Context, arg ListLiveOauthTokensForUserParams) ([]ListLiveOauthTokensForUserRow, error)
 	ListMembershipsInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]TeamMembership, error)
+	// ListMyIssueActivity is My Issues → Activity: recent curated history on issues the caller
+	// is assigned, created, or subscribed to. Newest first.
+	//
+	// Network-fetched on purpose. issue_history is the permanent, curated feed — not the change
+	// log that drives sync — so it is not in the replica. A personal cross-issue cut of the
+	// same table is the same kind of read as issueHistory(issueId), with the relevance filter
+	// the Assigned / Created / Subscribed tabs already imply.
+	//
+	// Team membership comes from the principal's team_ids (same bargain as ListMyIssues). The
+	// plan's history window is applied in Go after this returns, matching ListIssueHistory.
+	//
+	ListMyIssueActivity(ctx context.Context, arg ListMyIssueActivityParams) ([]ListMyIssueActivityRow, error)
 	// ListMyIssues is everything assigned to the caller across every team they can see.
 	//
 	// Ordered most-recently-touched first rather than by priority: 0 means "no priority", so

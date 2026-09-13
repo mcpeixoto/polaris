@@ -1386,6 +1386,20 @@ type IssueHistoryEntry struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+// MyIssueActivityEntry is one row of the personal Activity feed: history plus the issue
+// identity a client needs to link without another round trip.
+type MyIssueActivityEntry struct {
+	ID         uuid.UUID `json:"id"`
+	IssueID    uuid.UUID `json:"issueId"`
+	Identifier string    `json:"identifier"`
+	Title      string    `json:"title"`
+	Actor      Actor     `json:"actor"`
+	Kind       string    `json:"kind"`
+	FromValue  any       `json:"fromValue,omitempty"`
+	ToValue    any       `json:"toValue,omitempty"`
+	CreatedAt  time.Time `json:"createdAt"`
+}
+
 // Identifier builds the human-readable issue id from a team key and issue number.
 // Exported because the bootstrap serialiser, the API and the seeder all need it and
 // none of them should reimplement the format.

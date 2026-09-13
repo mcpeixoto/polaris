@@ -184,6 +184,103 @@ func (q *Queries) ListIssueHistoryForIssues(ctx context.Context, arg ListIssueHi
 	return items, nil
 }
 
+const listMyIssueActivity = `-- name: ListMyIssueActivity :many
+SELECT h.id, h.workspace_id, h.issue_id, h.actor_type, h.actor_id, h.kind,
+       h.from_value, h.to_value, h.grouped_at, h.created_at,
+       i.title AS issue_title, i.number AS issue_number, t.key AS team_key
+FROM issue_history h
+JOIN issue i ON i.id = h.issue_id
+JOIN team  t ON t.id = i.team_id
+WHERE h.workspace_id = $1
+  AND i.team_id = ANY($2::uuid[])
+  AND i.archived_at IS NULL
+  AND i.deleted_at IS NULL
+  AND (
+    i.assignee_id = $3
+    OR i.creator_id = $3
+    OR EXISTS (
+      SELECT 1 FROM issue_subscription s
+      WHERE s.issue_id = i.id
+        AND s.user_id = $3
+        AND s.unsubscribed = false
+    )
+  )
+ORDER BY h.created_at DESC, h.id DESC
+LIMIT $4
+`
+
+type ListMyIssueActivityParams struct {
+	WorkspaceID uuid.UUID
+	TeamIds     []uuid.UUID
+	UserID      *uuid.UUID
+	PageSize    int32
+}
+
+type ListMyIssueActivityRow struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	IssueID     uuid.UUID
+	ActorType   string
+	ActorID     *uuid.UUID
+	Kind        string
+	FromValue   []byte
+	ToValue     []byte
+	GroupedAt   *time.Time
+	CreatedAt   time.Time
+	IssueTitle  string
+	IssueNumber int64
+	TeamKey     string
+}
+
+// ListMyIssueActivity is My Issues → Activity: recent curated history on issues the caller
+// is assigned, created, or subscribed to. Newest first.
+//
+// Network-fetched on purpose. issue_history is the permanent, curated feed — not the change
+// log that drives sync — so it is not in the replica. A personal cross-issue cut of the
+// same table is the same kind of read as issueHistory(issueId), with the relevance filter
+// the Assigned / Created / Subscribed tabs already imply.
+//
+// Team membership comes from the principal's team_ids (same bargain as ListMyIssues). The
+// plan's history window is applied in Go after this returns, matching ListIssueHistory.
+func (q *Queries) ListMyIssueActivity(ctx context.Context, arg ListMyIssueActivityParams) ([]ListMyIssueActivityRow, error) {
+	rows, err := q.db.Query(ctx, listMyIssueActivity,
+		arg.WorkspaceID,
+		arg.TeamIds,
+		arg.UserID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMyIssueActivityRow{}
+	for rows.Next() {
+		var i ListMyIssueActivityRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.IssueID,
+			&i.ActorType,
+			&i.ActorID,
+			&i.Kind,
+			&i.FromValue,
+			&i.ToValue,
+			&i.GroupedAt,
+			&i.CreatedAt,
+			&i.IssueTitle,
+			&i.IssueNumber,
+			&i.TeamKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateIssueHistoryTarget = `-- name: UpdateIssueHistoryTarget :exec
 UPDATE issue_history SET to_value = $1, grouped_at = now()
 WHERE id = $2

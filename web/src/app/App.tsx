@@ -443,6 +443,7 @@ export function SignedInShell() {
             <Route path="/my-issues" element={<MyIssues />} />
             <Route path="/my-issues/created" element={<MyIssues />} />
             <Route path="/my-issues/subscribed" element={<MyIssues />} />
+            <Route path="/my-issues/activity" element={<MyIssues />} />
             <Route path="/inbox" element={<Inbox />} />
             <Route path="/pulse" element={<Pulse />} />
             <Route path="/search" element={<Search />} />
