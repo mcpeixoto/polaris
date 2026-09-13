@@ -84,6 +84,7 @@ import {
 } from './nav';
 import { SettingsNav } from './SettingsNav';
 import { useScrollRestoration } from './useScrollRestoration';
+import { PlanPill } from './PlanPill';
 import styles from './AppShell.module.css';
 
 export interface AppShellProps {
@@ -1611,8 +1612,8 @@ export function AppShell({
             {/*
               The foot of the column: help, which plan this is, and the way to put the
               sidebar away. The plan is drawn only when the replica can name it — a pill
-              reading "unknown plan" would be a question, not an answer — and it is a label
-              rather than a link to billing, for the reason the Try section gives.
+              reading "unknown plan" would be a question, not an answer. For admins it opens
+              Billing; see PlanPill for why that is a button and not a link.
             */}
             <div className={styles.footer}>
               <IconButton
@@ -1623,7 +1624,13 @@ export function AppShell({
                 icon={<HelpGlyph />}
                 onClick={() => setHelpOpen(true)}
               />
-              {planName === null ? null : <span className={styles.plan}>{planName}</span>}
+              {planName === null ? null : (
+                <PlanPill
+                  name={planName}
+                  canManage={showAdminSettings}
+                  onManage={() => navigate('/settings/billing')}
+                />
+              )}
               {/*
                 The sync badge lives down here rather than beside the workspace name, where
                 "Reconnecting" left a 232px column with room for one letter of the name. The

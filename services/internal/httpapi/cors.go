@@ -39,6 +39,11 @@ import (
 //     See desktop/src/main/main.ts.
 const desktopOrigin = "polaris-app://app"
 
+// DesktopOrigin is the same origin, for the sync hub's WebSocket handshake. It has to allow
+// exactly what CORS allows here: a desktop app that can sign in but not open its socket sits on
+// "Reconnecting" forever.
+const DesktopOrigin = desktopOrigin
+
 // corsMaxAge is how long a browser may cache a preflight. Ten minutes rather than the
 // twenty-four hours some guides suggest: a shorter window means a change to this policy
 // takes effect while somebody is still on the phone about it.

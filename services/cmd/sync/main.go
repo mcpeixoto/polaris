@@ -114,8 +114,19 @@ func run() error {
 // allowedOrigins is checked on the WebSocket handshake. Browsers do not apply CORS to
 // upgrades, so without this any page on the internet could open a socket carrying the
 // visitor's credentials.
+//
+// The desktop app and any operator-listed origins are allowed for the same reason the API's
+// CORS allows them. Until they were, the desktop app signed in through the API and then had
+// every socket refused with 403, which the client can only show as reconnecting. Patterns with
+// a scheme are matched on scheme and host, so the desktop entry admits polaris-app://app and
+// not some other scheme's "app" host.
 func allowedOrigins(cfg platform.Config) []string {
-	origins := []string{stripScheme(cfg.PublicURL)}
+	origins := []string{stripScheme(cfg.PublicURL), httpapi.DesktopOrigin}
+	for _, o := range cfg.AllowedOrigins {
+		if o = strings.TrimSuffix(strings.TrimSpace(o), "/"); o != "" {
+			origins = append(origins, strings.ToLower(o))
+		}
+	}
 	if cfg.IsDevelopment() {
 		origins = append(origins, "localhost:*", "127.0.0.1:*")
 	}
