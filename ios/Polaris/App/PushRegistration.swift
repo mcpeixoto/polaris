@@ -101,6 +101,7 @@ enum PushRegistration {
 }
 
 /// Bridges UIKit's APNs callbacks into `PushRegistration`.
+@MainActor
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(
         _ application: UIApplication,
