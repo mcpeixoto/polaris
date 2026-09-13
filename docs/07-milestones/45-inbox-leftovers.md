@@ -16,9 +16,10 @@ to dismiss every read row, `Cmd/Ctrl+F` find, and the Show read / Show snoozed t
 - `Cmd/Ctrl+F` focuses find; substring match on actor, event, issue title/ID, type, team,
   project, assignee, priority; Escape clears
 - Show read (on by default) and Show snoozed (off by default)
+- Typed reminder phrases on snooze → **Custom…**: `til Friday`, `next quarter`,
+  `for N days/weeks/months`, `Jan 3 10am`, `til/until <month|weekday>`
 
 ## Deferred
 
 - Right-click property updates from an inbox row
 - Inbox-side issue peek that can both act on the notification and edit the issue
-- Typed reminder phrases (`next quarter`, `til Friday`)

@@ -14,7 +14,7 @@
  * themselves are the list's, and its own tests own them.
  */
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
@@ -172,6 +172,9 @@ describe('the two priority pickers', () => {
 
     await user.click(screen.getByRole('button', { name: 'Accept' }));
     await user.click(screen.getByRole('menuitem', { name: 'Urgent' }));
+    // Priority unlocks the leave; the optional comment is still owed.
+    const prompt = await screen.findByRole('dialog', { name: 'Accept ENG-1' });
+    await user.click(within(prompt).getByRole('button', { name: 'Accept' }));
 
     expect(store.get('issue', FIRST)?.priority).toBe(1);
     expect(store.get('issue', FIRST)?.stateId).toBe(TODO);

@@ -11,9 +11,10 @@ ergonomics Linear documents next to those keys.
 
 - `MM` is the same action as `2` (mark duplicate)
 - Display options on the triage inbox: **Show snoozed**. Off by default; `?snoozed=true` in the URL
+- Optional comment on accept/decline: `1` / `3` (and the pane buttons) open a one-line prompt;
+  Enter with an empty box decides without a note; a filled box posts the comment then leaves
 
 ## Deferred
 
-- Optional comment on accept/decline
 - Triage responsibility rotations and on-call providers (8.3)
 - Triage rules and Triage Intelligence (8.4, 8.5)
