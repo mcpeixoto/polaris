@@ -101,8 +101,7 @@ enum PushRegistration {
 }
 
 /// Bridges UIKit's APNs callbacks into `PushRegistration`.
-@MainActor
-final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -118,7 +117,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
         PushRegistration.didFail(error: error)
     }
+}
 
+extension AppDelegate: @preconcurrency UNUserNotificationCenterDelegate {
     /// A tap on a banner opens the issue or the inbox through the same deep-link router
     /// a polaris:// link uses.
     func userNotificationCenter(
@@ -127,17 +128,17 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         let data = response.notification.request.content.userInfo["polaris"] as? [String: Any]
+        let url: URL?
         if let identifier = data?["issueIdentifier"] as? String, !identifier.isEmpty {
-            NotificationCenter.default.post(
-                name: .polarisOpenURL,
-                object: nil,
-                userInfo: ["url": URL(string: "polaris://issue/\(identifier)") as Any]
-            )
+            url = URL(string: "polaris://issue/\(identifier)")
         } else {
+            url = URL(string: "polaris://inbox")
+        }
+        if let url {
             NotificationCenter.default.post(
                 name: .polarisOpenURL,
                 object: nil,
-                userInfo: ["url": URL(string: "polaris://inbox") as Any]
+                userInfo: ["url": url]
             )
         }
         completionHandler()
