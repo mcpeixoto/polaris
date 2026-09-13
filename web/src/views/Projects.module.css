@@ -156,7 +156,7 @@
   grid-template-columns: var(--project-grid);
   align-items: center;
   gap: var(--space-3);
-  /* 39px: the density Linear's project row is drawn at, and the height at which a name, a
+  /* 39px: the height at which a name, a
      health claim, a face and a ring all fit on one line without stacking. */
   height: 39px;
   padding-inline: var(--space-4);

@@ -4,7 +4,7 @@
  * sidebar every time you scroll a list is the thing that makes a tracker feel unsteady.
  *
  * The ground is the sidebar's colour, not the page's. The main pane is a bordered panel
- * sitting on that ground (see `.main`), which is how Linear draws it and why the sidebar has
+ * sitting on that ground (see `.main`), which is why the sidebar has
  * no border of its own any more: the panel's edge is the edge.
  */
 .shell {
@@ -235,7 +235,7 @@
 }
 
 /*
- * The new-issue button, which Linear draws with a hairline the search button beside it does
+ * The new-issue button, which is drawn with a hairline the search button beside it does
  * not have — it is the one control on the row that makes something. Two classes so this
  * outranks IconButton's own transparent border on specificity rather than on bundle order.
  */
@@ -620,7 +620,7 @@
  * The main pane, drawn as a panel.
  *
  * A white card on the sidebar's ground, inset a gutter from the top, right and bottom of the
- * window with a hairline round it and rounded corners — Linear's framing, and the thing that
+ * window with a hairline round it and rounded corners — the framing that
  * makes the sidebar read as furniture and the pane as the page. The left edge sits flush
  * against the sidebar column; the gutter there is the sidebar's own padding.
  *

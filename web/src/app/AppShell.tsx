@@ -529,7 +529,7 @@ export function AppShell({
       },
       {
         /**
-         * Two chords, on purpose, and both of them Linear's.
+         * Two chords, on purpose, because the two hands want different ones.
          *
          * `⌘.` is the one people arrive with and the one that works with a text field
          * focused; `[` is the one that ends up under the left hand of somebody navigating
@@ -1221,7 +1221,7 @@ export function AppShell({
                 </span>
               </button>
               {/*
-                The two things a person reaches for most, drawn where Linear draws them. Both
+                The two things a person reaches for most, at the top of the sidebar. Both
                 run the action the key already runs — `/` and `C` — rather than a second copy
                 of it, so the tooltip's hint and the button's behaviour cannot drift apart.
               */}
@@ -1786,7 +1786,7 @@ function buildTeamTree(teams: readonly Team[]): {
 /**
  * A team, and the screens inside it.
  *
- * A team was one link. Linear's is a disclosure, and the difference is not decoration: the
+ * A team was one link. Now it is a disclosure, and the difference is not decoration: the
  * screens under a team are the ones somebody works in all day — the issue list, what is
  * active, the backlog, the cycle — and reaching any of them meant landing on the team's home
  * page first and finding the tab. So the row grew a chevron.
@@ -1904,7 +1904,7 @@ function TeamNavItems({
 /**
  * Cycles, and the two of them worth a row of their own.
  *
- * Linear nests "Current" and "Upcoming" under the team's Cycles row, and they are the two
+ * "Current" and "Upcoming" nest under the team's Cycles row, because they are the two
  * cycles anybody opens without looking for a number: the one being worked and the one being
  * planned. Each is drawn only while there is such a cycle — a "Current" row with nowhere to
  * go is a broken link wearing a name — and the pair sits behind a hairline that says they

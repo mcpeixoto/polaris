@@ -54,7 +54,7 @@
 .content {
   flex: 1 1 24rem;
   min-width: 0;
-  max-width: 720px;
+  max-width: var(--content-measure);
 }
 
 .title {

@@ -26,7 +26,7 @@
       wallpaper.
 
   The colours are the product's own accent ramp from web/src/styles/tokens.css, so the icon
-  and the interface are the same blue rather than two blues nobody quite matched. An icon file
+  and the interface are the same cyan rather than two hues nobody quite matched. An icon file
   is painted by an OS that cannot read tokens.css, which is why the literals are here and why
   each one is named.
 -->
@@ -40,13 +40,13 @@
     </linearGradient>
     <linearGradient id="star" x1="0.15" y1="0" x2="0.85" y2="1">
       <!-- --color-accent-400 to --color-accent-600 -->
-      <stop offset="0" stop-color="#7a83e6"/>
-      <stop offset="1" stop-color="#4b56ba"/>
+      <stop offset="0" stop-color="#059aaf"/>
+      <stop offset="1" stop-color="#006a7a"/>
     </linearGradient>
     <radialGradient id="glow" cx="0.5" cy="0.46" r="0.42">
       <!-- --color-accent-500 -->
-      <stop offset="0" stop-color="#5e6ad2" stop-opacity="0.35"/>
-      <stop offset="1" stop-color="#5e6ad2" stop-opacity="0"/>
+      <stop offset="0" stop-color="#087f91" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#087f91" stop-opacity="0"/>
     </radialGradient>
   </defs>
 
@@ -61,10 +61,10 @@
       <!-- The orbit: a hairline that describes the star rather than a second shape
            competing with it. Opacity 0.42, as .ring in Logo.module.css. -->
       <ellipse cx="20" cy="20" rx="17.5" ry="6.8" transform="rotate(-24 20 20)"
-               fill="none" stroke="#5e6ad2" stroke-width="1" opacity="0.42"/>
+               fill="none" stroke="#087f91" stroke-width="1" opacity="0.42"/>
 
       <!-- The four rays, r=8.5 out to r=13.5, in the empty quarter between two points. -->
-      <g stroke="#5e6ad2" stroke-width="1.4" stroke-linecap="round" opacity="0.55">
+      <g stroke="#087f91" stroke-width="1.4" stroke-linecap="round" opacity="0.55">
         <line x1="26.01" y1="13.99" x2="29.55" y2="10.45"/>
         <line x1="13.99" y1="13.99" x2="10.45" y2="10.45"/>
         <line x1="13.99" y1="26.01" x2="10.45" y2="29.55"/>
@@ -79,7 +79,7 @@
 
       <!-- The two vertical points again over the star. One path, and the star stops being a
            silhouette and starts being faceted like a compass rose. -->
-      <path fill="#7a83e6" opacity="0.9"
+      <path fill="#059aaf" opacity="0.9"
             d="M20 4.5Q23.2 16.8 20 20 16.8 16.8 20 4.5ZM20 35.5Q23.2 23.2 20 20 16.8 23.2 20 35.5Z"/>
 
       <!-- The pierced centre, in the ground colour. -->

@@ -175,7 +175,7 @@ export interface MenuProps {
    */
   keysPresentation?: 'text' | 'kbd' | undefined;
   /**
-   * Row height. `compact` is `--control-height-md` (28px) — Linear-dense command menus —
+   * Row height. `compact` is `--control-height-md` (28px) — dense command menus —
    * while pickers stay on the default 32px ladder step.
    */
   density?: 'default' | 'compact' | undefined;

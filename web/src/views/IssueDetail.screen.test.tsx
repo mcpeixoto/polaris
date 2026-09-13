@@ -1,5 +1,5 @@
 /**
- * The issue screen's chrome, as Linear draws it: a breadcrumb header carrying the issue's
+ * The issue screen's chrome: a breadcrumb header carrying the issue's
  * actions, a properties rail that reads glyph-and-value with an invitation where nothing is
  * set, and an activity heading that owns the subscribe control.
  *

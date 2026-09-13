@@ -411,7 +411,7 @@ function ProjectTemplateEditor({
         <Input
           label="Color"
           value={color}
-          placeholder="#5e6ad2"
+          placeholder="#087f91"
           onChange={(e) => setColor(e.target.value)}
         />
       </div>

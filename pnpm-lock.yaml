@@ -61,9 +61,6 @@ importers:
 
   web:
     dependencies:
-      '@fontsource-variable/inter':
-        specifier: ^5.3.0
-        version: 5.3.0
       '@tanstack/react-virtual':
         specifier: ^3.11.2
         version: 3.14.9(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -668,9 +665,6 @@ packages:
 
   '@fastify/busboy@3.2.1':
     resolution: {integrity: sha512-tgK4O+57iz5ycYNGXE5ZWj1ES03lD2XnnBYWSbU/3wYZRMQzCUq7Ycds/RdyBZQeL5MU4fxBt6lzbIWf/Bickw==}
-
-  '@fontsource-variable/inter@5.3.0':
-    resolution: {integrity: sha512-OupL48va4JNofb97w6NYeF9S7W/kHNKM0Er8Dem5nqi4jeOLrVJDoE8tZEpnMJmtkvNbB1EIPPwHcdkF6b1oUA==}
 
   '@graphql-codegen/add@5.0.3':
     resolution: {integrity: sha512-SxXPmramkth8XtBlAHu4H4jYcYXM/o3p01+psU+0NADQowA8jtYkK6MW5rV6T+CxkEaNZItfSmZRPgIuypcqnA==}
@@ -4104,8 +4098,6 @@ snapshots:
       levn: 0.4.1
 
   '@fastify/busboy@3.2.1': {}
-
-  '@fontsource-variable/inter@5.3.0': {}
 
   '@graphql-codegen/add@5.0.3(graphql@16.14.2)':
     dependencies:

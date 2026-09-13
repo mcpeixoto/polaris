@@ -158,7 +158,7 @@ export function badgeIcon(count: number): string | null {
   // The colours are read from the live document rather than written here, so the badge
   // follows the theme and the token file stays the only place a colour is chosen.
   const style = getComputedStyle(document.documentElement);
-  const background = style.getPropertyValue('--accent').trim() || '#5e6ad2';
+  const background = style.getPropertyValue('--accent').trim() || '#087f91';
   const text = style.getPropertyValue('--accent-contrast').trim() || '#ffffff';
 
   ctx.beginPath();

@@ -16,7 +16,7 @@ Your whole workspace lives on your machine, so filtering, sorting and grouping<b
 
 <sub>The mac and Windows builds are not signed yet, so the first launch needs right-click → Open on macOS, or More info → Run anyway on Windows.</sub>
 
-[![CI](https://github.com/mcpeixoto/polaris/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/mcpeixoto/polaris/actions/workflows/ci.yml) [![Licence: AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-5e6ad2)](LICENSE) [![Go 1.26](https://img.shields.io/badge/go-1.26-00ADD8)](services/go.mod) [![Self-host: free, unlimited seats](https://img.shields.io/badge/self--host-free%20%C2%B7%20unlimited%20seats-5e6ad2)](docs/05-infrastructure/11-self-hosting.md)
+[![CI](https://github.com/mcpeixoto/polaris/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/mcpeixoto/polaris/actions/workflows/ci.yml) [![Licence: AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-087f91)](LICENSE) [![Go 1.26](https://img.shields.io/badge/go-1.26-00ADD8)](services/go.mod) [![Self-host: free, unlimited seats](https://img.shields.io/badge/self--host-free%20%C2%B7%20unlimited%20seats-087f91)](docs/05-infrastructure/11-self-hosting.md)
 
 </div>
 
@@ -135,19 +135,20 @@ built binary, not from a build tag — to contain nothing from `ee/`.
 
 ## Where the requirements came from
 
-The functional scope in `docs/01-features/` was written by reading the **public product
-documentation of [Linear](https://linear.app)** in full on **2026-08-14** — 138 pages of
-product and platform docs — and writing down what an issue tracker of that class has to do.
+The functional scope in `docs/01-features/` came from research into what an issue tracker
+for software teams has to do. That research drew on public product documentation — among it
+[Linear](https://linear.app)'s product and platform docs, read in full on **2026-08-14**.
 
 That provenance is stated rather than hidden, because it is what makes those documents
 trustworthy: where a behaviour is recorded there, it is a behaviour somebody documented, and
 where the docs were silent and a decision was needed it is marked **[INFERRED]** or
 **[OPEN]**. Knowing which is which is the whole value of the exercise.
 
-Polaris is its own product and makes its own decisions — see `docs/05-infrastructure/`,
-starting with a sync engine and a permission model that are nobody's but ours. Nothing was
-reverse-engineered from a running product, and no Linear source code, assets, icons, copy or
-documentation text is included. See [`NOTICE`](NOTICE) and [`TRADEMARK.md`](TRADEMARK.md).
+The prose, code and assets in this repository are original. No Linear source code, assets,
+icons, copy or documentation text were used, and nothing was reverse-engineered from a
+running product. Polaris makes its own decisions — see `docs/05-infrastructure/`, starting
+with the sync engine and the permission model. See [`NOTICE`](NOTICE) and
+[`TRADEMARK.md`](TRADEMARK.md).
 
 ## Licence
 

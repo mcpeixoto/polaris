@@ -406,7 +406,7 @@ func (s *Service) SlackUnfurls(
 		}
 		link := issueURL(publicURL, issue.Identifier)
 		cards[raw] = slackin.UnfurlCard{
-			Color:     "#5e6ad2",
+			Color:     "#087f91",
 			Title:     issue.Identifier + " " + issue.Title,
 			TitleLink: link,
 			Text:      clipSlackText(issue.Description, 280),

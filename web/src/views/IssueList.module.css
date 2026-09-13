@@ -175,8 +175,8 @@
   flex-wrap: wrap;
   gap: var(--space-2);
   flex: none;
-  /* One 28px control plus the row's own breathing room, which is what Linear's toolbar
-     measures. Not --header-height: the header above is the taller of the two on purpose. */
+  /* One 28px control plus the row's own breathing room. Not --header-height: the header
+     above is the taller of the two on purpose. */
   min-height: calc(var(--control-height-md) + var(--space-3));
   padding-block: var(--space-1);
   padding-inline: var(--space-3) var(--space-3);
@@ -192,8 +192,8 @@
 
 /*
  * In-view find. Grows into the gap between the scope pills and the filter bar so a typed
- * query is always in the same place as Linear's, without stealing the filter bar's own
- * chips for a temporary skim.
+ * query stays on the toolbar, without stealing the filter bar's own chips for a temporary
+ * skim.
  */
 .find {
   flex: 1 1 8rem;

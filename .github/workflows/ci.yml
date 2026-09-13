@@ -400,6 +400,8 @@ jobs:
       # teaching a key nothing listens for — confident, wrong, and shipped in the interface.
       - run: node scripts/lint-menu-chords.mjs
       - run: bash scripts/lint-tokens.sh
+      # The retired indigo accent, kept out of the files that define the brand. See the script.
+      - run: bash scripts/lint-brand-colour.sh
       # Ten ad hoc breakpoints is not a responsive design, it is ten surfaces each reflowing
       # at a window size none of the others agree with. A media condition cannot reference a
       # token, so this is the only place the three widths can be held together.

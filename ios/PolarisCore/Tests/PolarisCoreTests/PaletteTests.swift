@@ -4,8 +4,8 @@ import Testing
 
 /// Parity with the web client, and contrast, computed rather than eyeballed.
 ///
-/// The two clients had drifted a long way: the accent was `#5A5DE8` against the web's
-/// `#5e6ad2`, priority high and medium were a whole hue-step apart, `low` was the accent on
+/// The two clients had drifted a long way: the accent was a different cyan on each side,
+/// priority high and medium were a whole hue-step apart, `low` was the accent on
 /// iOS and blue on the web, and the two clients did not even agree on the hue of `completed`.
 /// Two people looking at the same issue on a phone and a laptop saw different colours for the
 /// same fact.
@@ -21,9 +21,9 @@ struct PaletteParityTests {
         static let neutral400: UInt32 = 0x9AA1AD
         static let neutral500: UInt32 = 0x767D89
         static let neutral950: UInt32 = 0x0E1013
-        static let accent400: UInt32 = 0x7A83E6
-        static let accent500: UInt32 = 0x5E6AD2
-        static let accent600: UInt32 = 0x4B56BA
+        static let accent400: UInt32 = 0x059AAF
+        static let accent500: UInt32 = 0x087F91
+        static let accent600: UInt32 = 0x006A7A
         static let blue400: UInt32 = 0x56B6D8
         static let amber400: UInt32 = 0xF2C94C
         static let orange400: UInt32 = 0xFF9057
@@ -84,8 +84,8 @@ struct PaletteContrastTests {
     /// The accent's whole job is to carry white label text on the primary CTA.
     ///
     /// `#6366F1` measured 4.47:1 — under the floor by three hundredths, the band Apple's audit
-    /// calls "Contrast nearly passed" — and the fix at the time was to invent a darker indigo
-    /// the web app does not use. The web's own `#5e6ad2` clears it at 4.70:1, which is why the
+    /// calls "Contrast nearly passed" — and the fix at the time was to invent a darker stop
+    /// the web app did not use. The web's `#087f91` clears it at 4.71:1, which is why the
     /// parity above costs nothing here.
     @Test("white on the accent clears 4.5:1 in both schemes")
     func accentCarriesWhite() {

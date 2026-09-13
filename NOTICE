@@ -13,11 +13,11 @@ The contents of `ee/` are commercially licensed and are NOT open source. See ee/
 Polaris is an independent project. It is not affiliated with, endorsed by, or sponsored by
 Linear Orbit, Inc.
 
-Polaris was built by reading Linear's public product documentation and reimplementing the
-behaviour it describes. No Linear source code, assets, icons, copy or documentation text
-was copied. Where this project uses the same names for the same concepts — issue, cycle,
-project, triage — it is because those are the words the domain uses, and interoperability
-with people's existing vocabulary is the point.
+Polaris's requirements came from research into issue tracking that drew on public product
+documentation, Linear's among it. No Linear source code, assets, icons, copy or
+documentation text was copied. Where this project uses the same names for the same
+concepts — issue, cycle, project, triage — it is because those are the words the domain
+uses, and interoperability with people's existing vocabulary is the point.
 
 "Linear" is a trademark of its respective owner and is used here only to describe what
 this project is compatible with and inspired by, which is nominative fair use.
