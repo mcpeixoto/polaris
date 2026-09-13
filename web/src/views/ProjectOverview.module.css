@@ -21,15 +21,15 @@
   }
 }
 
-/* The document column: 720px of measure, centred in whatever the pane has left, so folding
-   the rail away widens the page rather than sliding the words across it. Room beneath for
-   the last section to scroll clear of the edge. */
+/* The document column: --content-measure of prose, centred in whatever the pane has left,
+   so folding the rail away widens the page rather than sliding the words across it. Room
+   beneath for the last section to scroll clear of the edge. */
 .column {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   width: 100%;
-  max-width: 720px;
+  max-width: var(--content-measure);
   margin-inline: auto;
   padding: var(--space-10) var(--space-6) var(--space-16);
 }

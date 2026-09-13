@@ -1,15 +1,14 @@
 # Product summary
 
-## What Linear is
+## What Polaris is
 
-An opinionated issue tracker that has grown into a full product-development platform: planning (initiatives → projects → milestones), execution (issues → cycles), intake (triage, asks, support integrations), delivery (git integrations, code review, releases), reporting (insights, dashboards, updates), and an AI/agent layer that acts inside all of the above.
+A keyboard-first, local-first issue tracker for software teams. Each client holds a replica of the workspace and answers filters, sorts and groupings from it; the server's job is to keep that replica true. Changes apply locally first and sync to the rest of the team in real time.
 
-The product's differentiators — the things a clone must copy or it isn't a clone:
+It covers planning (initiatives → projects → milestones), execution (issues → cycles), intake (triage and inbound requests), delivery (git integrations, releases) and reporting (insights, dashboards, updates). One GraphQL API serves the clients and every integration, with no private API behind it. The core is AGPL and self-hostable; see `06-product-model/01-licensing-and-distribution.md`.
 
-1. **Speed.** Local-first client with a real-time sync engine. Every change is applied optimistically and synced; offline changes queue and retry. The app shows a "Syncing N" indicator when the queue backs up. Linear treats degraded performance as a bug class with its own support flow.
-2. **Keyboard-first.** Almost every action has a shortcut. `Cmd/Ctrl+K` command menu is the universal entry point. `/` search, `C` create issue, `X` select, `Space` peek preview, `G`+letter navigation, `O`+letter open-picker.
-3. **Opinionated defaults.** Fixed priority scale (No priority / Low / Medium / High / Urgent — explicitly no custom priorities). Fixed status *categories* (Backlog, Unstarted, Started, Completed, Canceled, plus system Triage and Duplicate) with customizable statuses inside them. Shallow hierarchy versus Jira (Workspace → Initiative → Project → Milestone → Issue → Sub-issue).
-4. **Cross-surface consistency.** The same filter grammar, display options, and insights panel appear on nearly every view.
+## Category context
+
+Polaris works in an established category of software-team issue trackers, of which Linear is a well-known example. Part of the scope in `01-features/` was researched from public product documentation, Linear's included, and some sections below still describe that documented behaviour as the reference point; `05-source-index.md` records the sources.
 
 ## The four loops of the product
 

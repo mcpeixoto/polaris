@@ -160,11 +160,12 @@ This is the standard arrangement (Firefox/Iceweasel, Grafana, Mattermost). It is
 
 The fleet deployment lives in a **separate private repo** or a private `deploy/` submodule. The public repo ships a generic `docker-compose.yml` that any stranger can run — see `05-infrastructure/10-self-host-and-cloud.md`.
 
-## Legal posture on being a Linear clone
+## Relationship to Linear
 
-Worth writing down once, publicly and calmly:
+Polaris is an issue tracker in a category where Linear is a well-known product, and part of its scope was researched from Linear's public docs. Worth writing down once, publicly and calmly:
 
 - **Functionality is not copyrightable.** Building an issue tracker with cycles, triage, and initiatives is lawful.
-- **Expression is.** No Linear code, assets, icons, copy, or documentation text. The scope docs in this repo are original prose describing observed behaviour.
+- **Expression is.** No Linear code, assets, icons, copy, or documentation text. The scope docs in this repo are original prose describing documented behaviour.
 - **Do not market as "Linear, but free."** Comparison is fine; trading on their trademark is not. Describe what Polaris does, not whose product it resembles.
+- **Keep "Linear" out of store and ad metadata.** Not in the App Store name, subtitle, keywords or promotional text, and not in ad copy or bought search keywords. A factual comparison is fine; using the mark to be found is not.
 - Keep the provenance note in `docs/00-overview/05-source-index.md` — it documents that the scope came from public documentation, which is exactly the record you want if anyone ever asks.

@@ -106,8 +106,8 @@
   flex-direction: column;
   gap: var(--space-4);
   min-width: 0;
-  max-width: calc(720px + 68px + var(--space-6));
-  padding: var(--space-10) var(--space-6) var(--space-10) 68px;
+  max-width: calc(var(--content-measure) + var(--content-gutter) + var(--space-6));
+  padding: var(--space-10) var(--space-6) var(--space-10) var(--content-gutter);
 }
 
 @media (max-width: 960px) {

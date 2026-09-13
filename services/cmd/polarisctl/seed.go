@@ -395,7 +395,7 @@ func seedLabels(ctx context.Context, svc *domain.Service, p *authz.Principal) ([
 
 	want := []struct{ name, color string }{
 		{"Bug", "#eb5757"},
-		{"Feature", "#5e6ad2"},
+		{"Feature", "#087f91"},
 		{"Performance", "#f2c94c"},
 		{"Security", "#27ae60"},
 	}

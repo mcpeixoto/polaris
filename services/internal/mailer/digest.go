@@ -305,7 +305,7 @@ Hi {{.Recipient}}, here is what happened in <strong>{{.Workspace}}</strong> sinc
 <tr><td style="padding:4px 24px 0 24px;">
 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
 {{range .Items}}<tr><td style="padding:6px 0;border-bottom:1px solid #eceef0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;line-height:20px;color:#1c1d21;">
-<a href="{{.URL}}" style="color:#5e6ad2;text-decoration:none;">{{with .Identifier}}<span style="color:#6b6f76;">{{.}}</span> {{end}}{{.Title}}</a>{{if .Others}} <span style="color:#6b6f76;">and {{.Others}} more like it</span>{{end}}
+<a href="{{.URL}}" style="color:#087f91;text-decoration:none;">{{with .Identifier}}<span style="color:#6b6f76;">{{.}}</span> {{end}}{{.Title}}</a>{{if .Others}} <span style="color:#6b6f76;">and {{.Others}} more like it</span>{{end}}
 </td></tr>
 {{end}}</table>
 </td></tr>
@@ -313,7 +313,7 @@ Hi {{.Recipient}}, here is what happened in <strong>{{.Workspace}}</strong> sinc
 {{.Remaining}} more are waiting in your inbox and will be in your next digest.
 </td></tr>
 {{end}}<tr><td style="padding:24px;">
-<a href="{{.InboxURL}}" style="display:inline-block;padding:10px 16px;background-color:#5e6ad2;color:#ffffff;font-size:14px;line-height:20px;text-decoration:none;border-radius:4px;">Open your inbox</a>
+<a href="{{.InboxURL}}" style="display:inline-block;padding:10px 16px;background-color:#087f91;color:#ffffff;font-size:14px;line-height:20px;text-decoration:none;border-radius:4px;">Open your inbox</a>
 </td></tr>
 <tr><td style="padding:0 24px 24px 24px;color:#6b6f76;font-size:12px;line-height:18px;">
 You are receiving this because you follow these issues in {{.Workspace}}.

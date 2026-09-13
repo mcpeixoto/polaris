@@ -18,9 +18,9 @@
  *            of the three above. Nothing here may remove it.
  *
  * The label is primary at medium weight in every state and only the icon changes ink —
- * secondary at rest, primary on the current row. That is Linear's treatment, and it is the
- * reason there is no longer an accent rail: the rail existed to cover the frame a label spent
- * changing weight, and a label that never changes weight has nothing to cover.
+ * secondary at rest, primary on the current row. That is also why there is no longer an
+ * accent rail: the rail existed to cover the frame a label spent changing weight, and a
+ * label that never changes weight has nothing to cover.
  */
 
 /*

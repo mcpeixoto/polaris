@@ -1,6 +1,6 @@
 import XCTest
 
-/// The detail screen after the Linear parity pass: every property is a pill that opens a
+/// The detail screen: every property is a pill that opens a
 /// picker, the children and the activity feed are on the page, and the overflow menu carries
 /// the subscription.
 ///

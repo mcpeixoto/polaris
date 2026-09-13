@@ -1,5 +1,5 @@
 /**
- * The shell's chrome as Linear draws it: the top row with its two buttons, the sections a
+ * The shell's chrome: the top row with its two buttons, the sections a
  * person can close, the team rows with their emoji and their cycles, and the foot of the
  * column with help and the plan.
  *

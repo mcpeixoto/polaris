@@ -35,7 +35,8 @@
  *   web/public/make-icons.py               favicon.ico and the installed-app PNGs
  *   desktop/assets/icon.svg + make-icon.py the dock and taskbar icon
  *   ios/PolarisCore/.../Design/Mark.swift  the iOS app, asserted in MarkGeometryTests
- *   scripts/polaris_mark.py                the numbers the two Pillow generators read
+ *   ios/scripts/make-app-icon.py           the iOS home-screen icon
+ *   scripts/polaris_mark.py                the numbers the three Pillow generators read
  *
  * The product carried four different marks at once before this: this star, a matching tab
  * icon, a desktop icon drawn from an older star with a different waist and no orbit, and an

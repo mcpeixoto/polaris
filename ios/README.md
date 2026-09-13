@@ -169,8 +169,7 @@ a device (or with the `_simulateLaunchForTaskWithIdentifier` debugger call).
 
 Four tabs on a phone — Inbox, My Issues, Create, Search, Settings — and a
 `NavigationSplitView` with the same five in a sidebar on an iPad, chosen on
-`horizontalSizeClass`. Create is a real tab whose content is the composer (the Linear
-shape): filing without leaving a list you were reading still works from the list toolbar
+`horizontalSizeClass`. Create is a real tab whose content is the composer: filing without leaving a list you were reading still works from the list toolbar
 sheet. A tab that only opened a modal and showed nothing of its own would be a tab you
 could not go back to; this one *is* the composer.
 
@@ -185,8 +184,8 @@ button: tapping it opens that team's statuses, which is how a status is changed 
 this one follows, and it sits alongside the leading swipe (complete), the trailing swipe (next
 open state) and the row's long-press menu. A team's list and a
 search result are grouped by workflow state (`IssueListView(grouping: .status)`), started work
-first and closed work last; My Issues stays flat in priority order, which is also Linear's
-default for that view. The inbox is grouped by day, the detail screen lays its properties out
+first and closed work last; My Issues stays flat in priority order, because the question
+that view answers is what to pick up next. The inbox is grouped by day, the detail screen lays its properties out
 as a wrapping row of pills, and Settings is a standard inset-grouped list.
 
 ### Push notifications
@@ -220,7 +219,7 @@ disagreed about what Polaris looks like; and `LaunchBackground`'s light appearan
 white, so every cold start on a phone in Light mode flashed white before snapping to a
 near-black app.
 
-The look follows the web client's Linear parity pass: the system face at 13–15pt, a flat
+The look follows the web client: the system face at 13–15pt, a flat
 `bgPrimary` page, hairline separators, radii of 4–8pt, and no gradients, glows or serif
 display type. `StateIcon` and `PriorityIcon` draw the same glyphs as `web/src/components` —
 a ring whose fill encodes the state category, and a three-bar scale with a filled square for

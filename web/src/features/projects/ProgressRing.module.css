@@ -1,4 +1,4 @@
-/* 14px: the size Linear draws a ring in a project row. There is no token for it, so it is
+/* 14px: the icon size a project row's other glyphs use. There is no token for it, so it is
    spelled from two that exist rather than as a bare number. */
 .ring {
   display: inline-flex;

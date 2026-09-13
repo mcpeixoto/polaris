@@ -2,11 +2,11 @@
  * Project overview — the project as a document: what it is for, how it is going, and the
  * checkpoints on the way.
  *
- * One centred column of about 720px, which is a measure rather than a layout decision: the
+ * One centred column of --content-measure, which is a measure rather than a layout decision: the
  * summary, the description and an update are prose, and prose set across a 1600px window is
  * not read, it is skimmed twice.
  *
- * It reads top to bottom the way Linear's does. The mark and the name first, both of them
+ * It reads top to bottom. The mark and the name first, both of them
  * the controls that change them. Then the summary, the sentence somebody arriving from the
  * list is looking for. Then the properties as a row of pills — the same facts the rail
  * carries, stated where the reader already is, so checking the lead does not mean crossing

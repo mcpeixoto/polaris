@@ -3,8 +3,9 @@
 `web/src/components/Logo.tsx` is the source of truth for the geometry: the star, the facet,
 the rays and the orbit are drawn there on a 40x40 grid, and every other surface — the tab
 icon, the installed web app, the desktop dock icon, the iOS welcome screen — is that same
-drawing at another size. This file is the machine-readable copy of it for the two Pillow
-generators, `desktop/assets/make-icon.py` and `web/public/make-icons.py`.
+drawing at another size. This file is the machine-readable copy of it for the three Pillow
+generators, `desktop/assets/make-icon.py`, `web/public/make-icons.py` and
+`ios/scripts/make-app-icon.py`.
 
 It exists because the product spent a while with four different logos. The web component had
 the current mark; the desktop icon had an older star with a different waist, no orbit and no
@@ -77,9 +78,9 @@ MARK_SCALE = 0.82
 
 GROUND_TOP = (0x1A, 0x1D, 0x22)  # --color-neutral-900
 GROUND_BOTTOM = (0x0E, 0x10, 0x13)  # --color-neutral-950, and <meta name="theme-color">
-STAR_LIGHT = (0x7A, 0x83, 0xE6)  # --color-accent-400
-STAR_DARK = (0x4B, 0x56, 0xBA)  # --color-accent-600
-ACCENT = (0x5E, 0x6A, 0xD2)  # --color-accent-500
+STAR_LIGHT = (0x05, 0x9A, 0xAF)  # --color-accent-400
+STAR_DARK = (0x00, 0x6A, 0x7A)  # --color-accent-600
+ACCENT = (0x08, 0x7F, 0x91)  # --color-accent-500
 
 #: 22.4% of the width: the macOS squircle proportion, close enough that the icon does not
 #: look like a different shape sitting next to system apps.

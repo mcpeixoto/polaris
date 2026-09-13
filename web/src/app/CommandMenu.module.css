@@ -30,7 +30,7 @@
 /*
  * Menu and issue glance as one composition, centred together. Without this the palette
  * stays centred and the peek pushes past the right edge; with it, arrowing onto an issue
- * shifts the pair as a unit the way Linear's palette does.
+ * shifts the pair as a unit, so the menu never jumps sideways under the pointer.
  */
 .stage {
   display: flex;

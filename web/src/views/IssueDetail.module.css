@@ -1,14 +1,14 @@
 /*
- * The issue, laid out as Linear lays one out: a 44px header carrying the breadcrumb and the
- * issue's actions, then two columns — a reading column capped at 720px with the title, the
- * description, what the issue is attached to and what has happened to it, and a 300px rail
- * of properties on the right. On a narrow window the rail folds under the document.
+ * The issue, laid out as a document with a properties rail: a 44px header carrying the
+ * breadcrumb and the issue's actions, then two columns — a reading column capped at
+ * --content-measure with the title, the description, what the issue is attached to and
+ * what has happened to it, and a 300px rail of properties on the right. On a narrow
+ * window the rail folds under the document.
  *
- * Sizes below that are not tokens are Linear's measured ones — the 68px gutter, the 720px
- * column — and are the reason this file exists. The title is no longer among them: it is
- * TitleField's now, and TitleField asks for --font-size-2xl, which the scale grew a stop
- * for precisely so that a document title would not have to be a literal on every screen
- * that draws one.
+ * The gutter and the measure are tokens so the fallback skeleton, the inbox preview and
+ * this screen cannot drift. The title is TitleField's, and TitleField asks for
+ * --font-size-2xl, which the scale grew a stop for precisely so that a document title
+ * would not have to be a literal on every screen that draws one.
  */
 
 .screen {
@@ -163,15 +163,15 @@
   }
 }
 
-/* Linear's 720px column behind a 68px gutter. The bottom padding is what stops the comment
-   box sitting on the window's edge when the page is short. */
+/* The reading column behind its leading gutter. The bottom padding is what stops the
+   comment box sitting on the window's edge when the page is short. */
 .main {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   min-width: 0;
-  max-width: calc(720px + 68px + var(--space-6));
-  padding: var(--space-10) var(--space-6) var(--space-10) 68px;
+  max-width: calc(var(--content-measure) + var(--content-gutter) + var(--space-6));
+  padding: var(--space-10) var(--space-6) var(--space-10) var(--content-gutter);
 }
 
 @media (max-width: 960px) {
@@ -537,8 +537,8 @@
 }
 
 /*
- * The comment box: one bordered surface holding the field and its submit, the way Linear
- * draws it, rather than a field with a button floating under it. The border is the focus
+ * The comment box: one bordered surface holding the field and its submit, rather than a
+ * field with a button floating under it. The border is the focus
  * affordance for the whole box, so the plain field's own bottom edge is put out — it would
  * be a second line inside the first.
  */

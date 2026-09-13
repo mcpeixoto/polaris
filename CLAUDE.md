@@ -244,7 +244,8 @@ pnpm -C web test --run
 pnpm -C web e2e
 go vet ./... && go test ./...
 ./scripts/lint-imports.sh && ./scripts/lint-keymap.sh && ./scripts/lint-tokens.sh \
-  && ./scripts/lint-routes.sh && ./scripts/lint-compose.sh && node scripts/lint-menu-chords.mjs
+  && ./scripts/lint-routes.sh && ./scripts/lint-compose.sh && node scripts/lint-menu-chords.mjs \
+  && ./scripts/lint-brand-colour.sh
 ```
 
 Local Go matches `make test-go` (cache allowed, no race detector). CI `go` / `go-ee`

@@ -292,7 +292,7 @@ function glyphPath(name: NavGlyphName) {
 /**
  * A section that opens and closes, with its open state remembered.
  *
- * Linear's sidebar is four or five blocks and every one of them collapses, which is what
+ * The sidebar is four or five blocks and every one of them collapses, which is what
  * keeps a workspace with nine teams and thirty favourites from being a column nobody can
  * see the bottom of. Ours drew all of them permanently expanded.
  *
@@ -335,7 +335,7 @@ export function NavSection({
           aria-expanded={open}
           onClick={onToggle}
         >
-          {/* The word first and the arrow after it, as Linear draws it: the label is what the
+          {/* The word first and the arrow after it: the label is what the
               eye is scanning for, and a chevron leading every heading is a column of chevrons
               before it is a list of names. */}
           <span className={styles.sectionLabel}>{title}</span>

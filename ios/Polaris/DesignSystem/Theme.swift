@@ -3,7 +3,7 @@ import UIKit
 import PolarisCore
 
 extension Color {
-    /// Tokens are written as `0x5E6AD2`, not `"#5E6AD2"` — a hex literal is checked by the
+    /// Tokens are written as `0x087F91`, not `"#087F91"` — a hex literal is checked by the
     /// compiler, a string is checked by nobody.
     init(hex: UInt32, opacity: Double = 1) {
         self.init(
@@ -49,7 +49,7 @@ extension Color {
 /// names one: a view that writes `Color.white.opacity(0.08)` has baked in a dark-theme
 /// assumption and will be wrong the moment the appearance changes.
 ///
-/// The look is the web client's after its Linear parity pass: a flat page, hairline
+/// The look is the web client's: a flat page, hairline
 /// separators, small radii, the system face at 13–15pt, and no decoration that is not a
 /// fact about the data. The serif display face, the radial page gradient and the glow under
 /// the primary button all went at the same time, for the same reason — none of them
@@ -160,7 +160,7 @@ enum Theme {
     /// same cap, named, for everything else that is a single column.
     static let readableWidth: CGFloat = 620
 
-    /// A list row. The web's `--row-height`; taller than Linear's desktop 32pt because a
+    /// A list row. The web's `--row-height`; taller than a desktop 32pt row because a
     /// finger is not a pointer.
     static let rowHeight: CGFloat = 44
 
@@ -194,7 +194,7 @@ enum Theme {
 
 /// The type scale.
 ///
-/// The system face only — SF Pro, which is what Linear's own app is set in. Anchored to text
+/// The system face only — SF Pro, so text reads like the rest of the phone. Anchored to text
 /// styles rather than to point sizes, and this cost something worth naming: the scale these
 /// screens were designed against uses exact half-point sizes (12.5, 13.5, 14.5), and two
 /// earlier attempts to keep them both failed the accessibility audit — multiplying a fixed

@@ -51,16 +51,16 @@ public enum Palette {
     public static let neutral900: UInt32 = 0x1A1D22
     public static let neutral950: UInt32 = 0x0E1013
 
-    public static let accent50: UInt32 = 0xEEF0FD
-    public static let accent100: UInt32 = 0xDCE0FB
-    public static let accent200: UInt32 = 0xBCC3F6
-    public static let accent300: UInt32 = 0x97A1EF
-    public static let accent400: UInt32 = 0x7A83E6
-    public static let accent500: UInt32 = 0x5E6AD2
-    public static let accent600: UInt32 = 0x4B56BA
-    public static let accent700: UInt32 = 0x3C4599
-    public static let accent800: UInt32 = 0x2E3577
-    public static let accent900: UInt32 = 0x212650
+    public static let accent50: UInt32 = 0xE2F4F8
+    public static let accent100: UInt32 = 0xC3E8F0
+    public static let accent200: UInt32 = 0x8ED1DF
+    public static let accent300: UInt32 = 0x4BB4C8
+    public static let accent400: UInt32 = 0x059AAF
+    public static let accent500: UInt32 = 0x087F91
+    public static let accent600: UInt32 = 0x006A7A
+    public static let accent700: UInt32 = 0x045662
+    public static let accent800: UInt32 = 0x02424D
+    public static let accent900: UInt32 = 0x002F37
 
     public static let blue400: UInt32 = 0x56B6D8
     public static let blue600: UInt32 = 0x21789B
