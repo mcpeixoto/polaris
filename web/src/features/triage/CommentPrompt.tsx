@@ -63,7 +63,7 @@ export function CommentPrompt({
       label={label}
       actionId={actionId}
       actionTitle={`Close the ${kind} comment`}
-      actionGroup="Triage"
+      actionGroup="Issues"
       className={styles.panel}
     >
       <form
