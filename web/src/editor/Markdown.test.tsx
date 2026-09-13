@@ -114,6 +114,4 @@ describe('Markdown', () => {
     const root = draw('![x](javascript:alert(1))');
     expect(root.querySelector('img')).toBeNull();
   });
-
-
 });
