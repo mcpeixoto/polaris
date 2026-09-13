@@ -163,6 +163,17 @@
   height: var(--timeline-bar);
   border-radius: var(--radius-sm);
   opacity: 0.85;
+  cursor: grab;
+  touch-action: none;
+  will-change: transform;
+}
+
+.dragging .bar {
+  cursor: grabbing;
+}
+
+.dragging {
+  user-select: none;
 }
 
 .barLink {

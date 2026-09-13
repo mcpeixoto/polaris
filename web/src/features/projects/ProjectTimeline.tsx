@@ -6,21 +6,39 @@
  * drawn dashed and heavier when violated, and each arc carries a `<title>` naming both
  * projects and saying "violated" or "satisfied" in words, so the drawing does not depend on
  * the reader being able to tell accent from red.
+ *
+ * Bars are also draggable: a horizontal drag shifts start and target by whole days and
+ * writes through `updateProject`, so the canvas is a planning surface rather than a
+ * picture of dates set elsewhere.
  */
 
-import { useCallback, useMemo, useRef } from 'react';
+import {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import { Link } from 'react-router';
 
+import { useEngine } from '~/app/context';
 import { Button, EmptyState } from '~/components';
+import { report } from '~/features/issue/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { UUID } from '~/store';
 
 import { buildProjectTimeline } from './computeProjectTimeline';
-import type { ProjectDependencyFilter } from './dependencyHelpers';
 import type { ProjectCustomerFilter } from './customerFilter';
+import type { ProjectDependencyFilter } from './dependencyHelpers';
 import type { ProjectStatusFilter } from './display';
+import { updateProject } from './mutations';
 import type { RequiredProjectDisplay } from './ProjectDisplayMenu';
 import styles from './ProjectTimeline.module.css';
+import { daysFromPx, shiftedProjectDates } from './timelineDrag';
+
+/** Pixels of travel before a press becomes a drag — under that, the bar is still a link. */
+const DRAG_THRESHOLD_PX = 4;
 
 export interface ProjectTimelineProps {
   readonly teamId: UUID | undefined;
@@ -44,6 +62,7 @@ export function ProjectTimeline({
   display,
   onClearFilters,
 }: ProjectTimelineProps) {
+  const engine = useEngine();
   const data = useLiveQuery(
     (store) =>
       buildProjectTimeline(
@@ -85,6 +104,13 @@ export function ProjectTimeline({
   // glitch. So the two panes share one vertical offset, whichever of them was scrolled.
   const sidebarRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const [dragPreview, setDragPreview] = useState<{
+    projectId: UUID;
+    deltaDays: number;
+    pxPerDay: number;
+  } | null>(null);
+  /** Project ids whose bar link must swallow the click that ends a drag. */
+  const suppressClickRef = useRef<UUID | null>(null);
 
   // Assigning `scrollTop` fires the other pane's scroll event, so the guard is what stops
   // the two handlers bouncing a value between them forever.
@@ -111,6 +137,64 @@ export function ProjectTimeline({
     return (id: UUID) => names.get(id) ?? 'a project';
   }, [data.bars, data.unscheduled]);
 
+  /**
+   * Listeners go on the window rather than on the bar, for the same reason the sidebar
+   * resize does: a pointer that outruns the bar would otherwise stall the drag. Nothing is
+   * written until pointer-up, so a cancelled press never touches the replica.
+   */
+  const startBarDrag = useCallback(
+    (projectId: UUID, event: ReactPointerEvent<HTMLElement>) => {
+      // Primary button only. Secondary is the context menu. Treat a missing `button` as
+      // primary — jsdom's synthetic pointer events sometimes omit it.
+      if (event.button > 0) return;
+      // The milestone tick is a label, not a handle — ignore presses that land on it.
+      if ((event.target as HTMLElement | null)?.closest?.('[role="img"]')) return;
+
+      const originX = event.clientX;
+      const pxPerDay = data.pxPerDay;
+      let moved = false;
+      let deltaDays = 0;
+
+      const onMove = (move: PointerEvent) => {
+        const deltaX = move.clientX - originX;
+        if (!moved && Math.abs(deltaX) < DRAG_THRESHOLD_PX) return;
+        // Only once it is a drag: a preventDefault on the press would swallow the link click.
+        if (!moved) move.preventDefault();
+        moved = true;
+        const nextDays = daysFromPx(deltaX, pxPerDay);
+        if (nextDays === deltaDays) return;
+        deltaDays = nextDays;
+        setDragPreview({ projectId, deltaDays: nextDays, pxPerDay });
+      };
+
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onUp);
+        setDragPreview(null);
+        if (!moved || deltaDays === 0) return;
+        suppressClickRef.current = projectId;
+        const project = engine.store.get('project', projectId);
+        if (project === undefined) return;
+        const patch = shiftedProjectDates(project, deltaDays);
+        if (patch === null) return;
+        updateProject(engine, projectId, patch).catch(report);
+      };
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
+    },
+    [data.pxPerDay, engine],
+  );
+
+  const onBarClick = useCallback((projectId: UUID, event: ReactMouseEvent) => {
+    if (suppressClickRef.current !== projectId) return;
+    suppressClickRef.current = null;
+    event.preventDefault();
+    event.stopPropagation();
+  }, []);
+
   const filtered = depFilter !== 'all' || customerFilter !== 'all' || statusFilter !== 'all';
 
   if (data.bars.length === 0 && data.unscheduled.length === 0) {
@@ -135,7 +219,7 @@ export function ProjectTimeline({
 
   return (
     <div
-      className={`${styles.timeline ?? ''} ${styles.enter ?? ''}`}
+      className={`${styles.timeline ?? ''} ${styles.enter ?? ''} ${dragPreview ? (styles.dragging ?? '') : ''}`}
       aria-label="Projects timeline"
     >
       <div className={styles.body}>
@@ -187,34 +271,55 @@ export function ProjectTimeline({
               ))}
             </div>
 
-            {data.bars.map((bar) => (
-              <div key={bar.projectId} className={styles.row}>
-                <div
-                  className={styles.bar}
-                  style={{ left: bar.x, width: bar.width, background: bar.color }}
-                  title={`${bar.name}: ${bar.startDay} → ${bar.endDay}`}
-                >
-                  <Link
-                    to={`/project/${bar.projectId}`}
-                    className={styles.barLink}
-                    aria-label={`${bar.name}, ${bar.startDay} to ${bar.endDay}`}
-                  />
-                  {bar.milestones.map((milestone) => (
-                    <span
-                      key={milestone.id}
-                      className={styles.milestone}
-                      style={{ left: milestone.x }}
-                      // A tick is a hairline with a tooltip, which is a name only a pointer
-                      // can read. `role="img"` plus the label gives the same fact to a
-                      // screen reader walking the bar.
-                      role="img"
-                      title={`${milestone.name} — ${milestone.day}`}
-                      aria-label={`Milestone ${milestone.name}, ${milestone.day}`}
+            {data.bars.map((bar) => {
+              const preview =
+                dragPreview?.projectId === bar.projectId
+                  ? dragPreview.deltaDays * dragPreview.pxPerDay
+                  : 0;
+              const previewDays =
+                dragPreview?.projectId === bar.projectId ? dragPreview.deltaDays : 0;
+              const title =
+                previewDays === 0
+                  ? `${bar.name}: ${bar.startDay} → ${bar.endDay}`
+                  : `${bar.name}: drag ${previewDays > 0 ? '+' : ''}${previewDays} day${Math.abs(previewDays) === 1 ? '' : 's'}`;
+
+              return (
+                <div key={bar.projectId} className={styles.row}>
+                  <div
+                    className={styles.bar}
+                    style={{
+                      left: bar.x,
+                      width: bar.width,
+                      background: bar.color,
+                      transform: preview === 0 ? undefined : `translateX(${preview}px)`,
+                    }}
+                    title={title}
+                    data-project-id={bar.projectId}
+                    onPointerDown={(event) => startBarDrag(bar.projectId, event)}
+                  >
+                    <Link
+                      to={`/project/${bar.projectId}`}
+                      className={styles.barLink}
+                      aria-label={`${bar.name}, ${bar.startDay} to ${bar.endDay}. Drag to reschedule.`}
+                      onClick={(event) => onBarClick(bar.projectId, event)}
                     />
-                  ))}
+                    {bar.milestones.map((milestone) => (
+                      <span
+                        key={milestone.id}
+                        className={styles.milestone}
+                        style={{ left: milestone.x }}
+                        // A tick is a hairline with a tooltip, which is a name only a pointer
+                        // can read. `role="img"` plus the label gives the same fact to a
+                        // screen reader walking the bar.
+                        role="img"
+                        title={`${milestone.name} — ${milestone.day}`}
+                        aria-label={`Milestone ${milestone.name}, ${milestone.day}`}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {data.dependencies.length > 0 && (
               <svg className={styles.deps} width={data.totalWidth} height={data.totalHeight}>
