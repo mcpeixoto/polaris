@@ -10,6 +10,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/kelseyhightower/envconfig v1.4.0
+	github.com/minio/minio-go/v7 v7.0.95
 	github.com/peixotolabs/polaris/ee v0.0.0
 	github.com/vektah/gqlparser/v2 v2.5.36
 	golang.org/x/crypto v0.55.0
@@ -43,7 +44,6 @@ require (
 	github.com/lib/pq v1.12.3 // indirect
 	github.com/minio/crc64nvme v1.0.2 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
-	github.com/minio/minio-go/v7 v7.0.95 // indirect
 	github.com/ncruces/go-sqlite3 v0.32.0 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/pganalyze/pg_query_go/v6 v6.2.2 // indirect
