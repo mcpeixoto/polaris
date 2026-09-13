@@ -5412,6 +5412,20 @@ func (r *queryResolver) MyIssues(ctx context.Context, includeCompleted *bool) ([
 	return r.hydrateIssues(ctx, p, selectionFor(ctx, "Issue"), issues)
 }
 
+// MyIssueActivity is the resolver for the myIssueActivity field.
+func (r *queryResolver) MyIssueActivity(ctx context.Context, first *int) ([]generated.MyIssueActivityEntry, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+
+	entries, err := r.Svc.MyIssueActivity(ctx, p, deref(first))
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return toMyIssueActivity(entries)
+}
+
 // Search is the resolver for the search field.
 func (r *queryResolver) Search(ctx context.Context, input generated.SearchInput) (*generated.SearchResults, error) {
 	p, err := principalFrom(ctx)

@@ -358,6 +358,44 @@ func toHistoryEntry(e model.IssueHistoryEntry) (generated.IssueHistoryEntry, err
 	}, nil
 }
 
+func toMyIssueActivityEntry(e model.MyIssueActivityEntry) (generated.MyIssueActivityEntry, error) {
+	actor, err := toActor(e.Actor)
+	if err != nil {
+		return generated.MyIssueActivityEntry{}, err
+	}
+	from, err := toRawJSON(e.FromValue)
+	if err != nil {
+		return generated.MyIssueActivityEntry{}, err
+	}
+	to, err := toRawJSON(e.ToValue)
+	if err != nil {
+		return generated.MyIssueActivityEntry{}, err
+	}
+	return generated.MyIssueActivityEntry{
+		ID:         e.ID,
+		IssueID:    e.IssueID,
+		Identifier: e.Identifier,
+		Title:      e.Title,
+		Actor:      actor,
+		Kind:       e.Kind,
+		FromValue:  from,
+		ToValue:    to,
+		CreatedAt:  e.CreatedAt,
+	}, nil
+}
+
+func toMyIssueActivity(entries []model.MyIssueActivityEntry) ([]generated.MyIssueActivityEntry, error) {
+	out := make([]generated.MyIssueActivityEntry, 0, len(entries))
+	for _, e := range entries {
+		g, err := toMyIssueActivityEntry(e)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, nil
+}
+
 func toHistory(entries []model.IssueHistoryEntry) ([]generated.IssueHistoryEntry, error) {
 	out := make([]generated.IssueHistoryEntry, 0, len(entries))
 	for _, e := range entries {

@@ -1019,6 +1019,75 @@ func (s *Service) MyIssues(ctx context.Context, p *authz.Principal, includeCompl
 	return out, nil
 }
 
+const (
+	defaultMyIssueActivityPage = 50
+	maxMyIssueActivityPage     = 200
+)
+
+// MyIssueActivity is the personal Activity tab: recent curated history on issues the
+// caller is assigned, created, or subscribed to.
+//
+// It reads issue_history over the network rather than the replica. That table is the
+// permanent, curated feed (same store as ListIssueHistory) — not the change_log that
+// drives sync — so a personal cut of it cannot be a thin IssueListSource swap. Reactions
+// are not written to issue_history yet and therefore do not appear here.
+func (s *Service) MyIssueActivity(ctx context.Context, p *authz.Principal, first int) ([]model.MyIssueActivityEntry, error) {
+	teamIDs := p.Teams.IDs()
+	if len(teamIDs) == 0 {
+		return []model.MyIssueActivityEntry{}, nil
+	}
+	if first <= 0 {
+		first = defaultMyIssueActivityPage
+	}
+	if first > maxMyIssueActivityPage {
+		first = maxMyIssueActivityPage
+	}
+
+	q := s.db.Queries()
+	cutoff, err := s.historyCutoff(ctx, q, p.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := q.ListMyIssueActivity(ctx, store.ListMyIssueActivityParams{
+		WorkspaceID: p.WorkspaceID,
+		TeamIds:     teamIDs,
+		// Pointer because assignee_id / creator_id are nullable columns; sqlc types the
+		// comparison argument the same way ListMyIssues does.
+		UserID:   &p.UserID,
+		PageSize: int32(first),
+	})
+	if err != nil {
+		return nil, platform.Internal(err)
+	}
+
+	out := make([]model.MyIssueActivityEntry, 0, len(rows))
+	for _, r := range rows {
+		if !cutoff.IsZero() && r.CreatedAt.Before(cutoff) {
+			// Newest-first: once we hit the window we can stop. Older rows would only be
+			// further past the cutoff.
+			break
+		}
+		e := model.MyIssueActivityEntry{
+			ID:         r.ID,
+			IssueID:    r.IssueID,
+			Identifier: model.Identifier(r.TeamKey, r.IssueNumber),
+			Title:      r.IssueTitle,
+			Actor:      model.Actor{Type: r.ActorType, ID: r.ActorID},
+			Kind:       r.Kind,
+			CreatedAt:  r.CreatedAt,
+		}
+		if len(r.FromValue) > 0 {
+			e.FromValue = r.FromValue
+		}
+		if len(r.ToValue) > 0 {
+			e.ToValue = r.ToValue
+		}
+		out = append(out, e)
+	}
+	return out, nil
+}
+
 // ---------------------------------------------------------------------------------------
 
 func toNotification(n store.Notification) model.Notification {

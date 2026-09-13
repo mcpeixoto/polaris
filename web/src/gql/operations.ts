@@ -256,6 +256,30 @@ export const ISSUE_DETAIL_QUERY = /* GraphQL */ `
   }
 `;
 
+/**
+ * My Issues → Activity. Network-fetched on purpose: issue_history is the curated permanent
+ * feed, not the change log that drives sync, so a personal cut of it cannot come from the
+ * replica the way Assigned / Created / Subscribed do.
+ */
+export const MY_ISSUE_ACTIVITY_QUERY = /* GraphQL */ `
+  query MyIssueActivity($first: Int) {
+    myIssueActivity(first: $first) {
+      id
+      issueId
+      identifier
+      title
+      kind
+      fromValue
+      toValue
+      createdAt
+      actor {
+        type
+        id
+      }
+    }
+  }
+`;
+
 export const CREATE_ISSUE = /* GraphQL */ `
   ${ISSUE_FIELDS}
   mutation CreateIssue($input: CreateIssueInput!, $clientId: UUID!, $opId: UUID!) {

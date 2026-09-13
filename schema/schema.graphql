@@ -1215,6 +1215,25 @@ type IssueHistoryEntry {
   createdAt: Time!
 }
 
+"""
+One row of My Issues → Activity: a history entry plus enough issue identity to link to it.
+
+Same curated store as IssueHistoryEntry (network-fetched, not replicated). Reactions are
+not in issue_history yet, so they do not appear here.
+"""
+type MyIssueActivityEntry {
+  id: UUID!
+  issueId: UUID!
+  """Team key + number, e.g. ENG-12."""
+  identifier: String!
+  title: String!
+  actor: Actor!
+  kind: String!
+  fromValue: JSON
+  toValue: JSON
+  createdAt: Time!
+}
+
 """What the client needs on boot, before it opens the sync socket."""
 type Viewer {
   user: User!
@@ -3498,6 +3517,12 @@ type Query {
 
   """Issues assigned to the caller, across every team they can see."""
   myIssues(includeCompleted: Boolean): [Issue!]!
+
+  """
+  Recent curated activity on issues the caller is assigned, created, or subscribed to.
+  Newest first. Same issue_history store as issueHistory — not in the replica.
+  """
+  myIssueActivity(first: Int): [MyIssueActivityEntry!]!
 
   search(input: SearchInput!): SearchResults!
 

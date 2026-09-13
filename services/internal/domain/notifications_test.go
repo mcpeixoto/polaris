@@ -497,6 +497,113 @@ func TestMyIssues_IsScopedToTheCallerAndTheirTeams(t *testing.T) {
 	}
 }
 
+// My Issues → Activity is a personal cut of issue_history: assigned, created, or
+// subscribed issues the caller can see. Unrelated issues stay out; identifiers come from
+// the team key the same way MyIssues does.
+func TestMyIssueActivity_IsScopedToAssignedCreatedOrSubscribed(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+
+	alice := f.Principal()
+	bobID := f.NewUser(t, "bob", "member", true)
+	bob := f.PrincipalFor(bobID, authz.RoleMember, f.TeamID)
+	carolID := f.NewUser(t, "carol", "member", true)
+
+	assigned, _, err := svc.CreateIssue(ctx, alice, domain.CreateIssueInput{
+		TeamID: f.TeamID, Title: "Bob owns this", AssigneeID: &bobID,
+	})
+	if err != nil {
+		t.Fatalf("create assigned: %v", err)
+	}
+	created, _, err := svc.CreateIssue(ctx, bob, domain.CreateIssueInput{
+		TeamID: f.TeamID, Title: "Bob filed this",
+	})
+	if err != nil {
+		t.Fatalf("create as bob: %v", err)
+	}
+	watched, _, err := svc.CreateIssue(ctx, alice, domain.CreateIssueInput{
+		TeamID: f.TeamID, Title: "Bob watches this", AssigneeID: &carolID,
+	})
+	if err != nil {
+		t.Fatalf("create watched: %v", err)
+	}
+	if _, _, err := svc.SetIssueSubscription(ctx, bob, watched.ID, true); err != nil {
+		t.Fatalf("subscribe bob: %v", err)
+	}
+	unrelated, _, err := svc.CreateIssue(ctx, alice, domain.CreateIssueInput{
+		TeamID: f.TeamID, Title: "Nobody cares", AssigneeID: &carolID,
+	})
+	if err != nil {
+		t.Fatalf("create unrelated: %v", err)
+	}
+
+	// A later edit on the assigned issue so the feed has more than create events. Age the
+	// issue past the creation-fold window first: property changes in the first three minutes
+	// vanish into the create row (events.go), which would leave nothing new to assert on.
+	if _, err := db.Pool().Exec(ctx,
+		`UPDATE issue SET created_at = $1 WHERE id = $2`,
+		time.Now().Add(-10*time.Minute), assigned.ID); err != nil {
+		t.Fatalf("age issue: %v", err)
+	}
+	if _, err := db.Pool().Exec(ctx,
+		`UPDATE issue_history SET created_at = $1 WHERE issue_id = $2 AND kind = 'created'`,
+		time.Now().Add(-10*time.Minute), assigned.ID); err != nil {
+		t.Fatalf("age create history: %v", err)
+	}
+	title := "Renamed for bob"
+	if _, _, err := svc.UpdateIssue(ctx, alice, domain.UpdateIssueInput{
+		ID: assigned.ID, Title: &title,
+	}); err != nil {
+		t.Fatalf("rename: %v", err)
+	}
+
+	got, err := svc.MyIssueActivity(ctx, bob, 50)
+	if err != nil {
+		t.Fatalf("my issue activity: %v", err)
+	}
+	if len(got) == 0 {
+		t.Fatal("expected activity on bob's issues")
+	}
+
+	seen := map[uuid.UUID]bool{}
+	for _, entry := range got {
+		seen[entry.IssueID] = true
+		if entry.Identifier == "" || entry.Title == "" {
+			t.Errorf("entry %#v missing identifier or title", entry)
+		}
+		if entry.IssueID == assigned.ID && entry.Identifier != model.Identifier(f.TeamKey, assigned.Number) {
+			t.Errorf("identifier %q, want %q", entry.Identifier, model.Identifier(f.TeamKey, assigned.Number))
+		}
+	}
+	if !seen[assigned.ID] || !seen[created.ID] || !seen[watched.ID] {
+		t.Errorf("missing expected issues in feed: assigned=%v created=%v watched=%v (seen=%v)",
+			seen[assigned.ID], seen[created.ID], seen[watched.ID], seen)
+	}
+	if seen[unrelated.ID] {
+		t.Error("unrelated issue leaked into bob's activity feed")
+	}
+	for i := 1; i < len(got); i++ {
+		if got[i].CreatedAt.After(got[i-1].CreatedAt) {
+			t.Errorf("feed is not newest-first: row %d is after row %d", i, i-1)
+		}
+	}
+	var foundTitle bool
+	for _, entry := range got {
+		if entry.IssueID == assigned.ID && entry.Kind == "title" {
+			foundTitle = true
+			if entry.Title != title {
+				t.Errorf("title on wire is %q, want the renamed value %q", entry.Title, title)
+			}
+			break
+		}
+	}
+	if !foundTitle {
+		t.Error("title change on the assigned issue is missing from the feed")
+	}
+}
+
 // seedSubscribedIssues creates n issues in the fixture's team with one subscriber, in a
 // single transaction.
 //

@@ -308,9 +308,10 @@ export interface IssueListProps {
   /** The heading, for a source that is not a team and so has no name of its own. */
   readonly heading?: string | undefined;
   /**
-   * Tab row drawn under the heading — My Issues Assigned / Created / Subscribed.
+   * Tab row drawn under the heading — My Issues Assigned / Created / Subscribed / Activity.
    *
-   * Link tabs; the parent owns the routes. Absent on every other source.
+   * Link tabs; the parent owns the routes. Absent on every other source. Activity is not
+   * an IssueList source — that tab renders MyIssuesActivity instead.
    */
   readonly tabs?: readonly TabItem[] | undefined;
   /**
