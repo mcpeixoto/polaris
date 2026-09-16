@@ -22,7 +22,7 @@
     "test": "npm run build:electron && node --test dist/main/googleOAuthCore.test.js"
   },
   "devDependencies": {
-    "electron": "^44.2.0",
+    "electron": "^44.3.0",
     "electron-builder": "^26.15.3",
     "typescript": "^5.7.2",
     "@types/node": "^24.11.0"
