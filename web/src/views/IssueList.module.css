@@ -461,11 +461,9 @@
 }
 
 /*
- * The leading slot: the priority glyph, with the selection checkbox stacked over it.
- *
- * Stacked rather than laid side by side so the row's leading edge does not shift as the
- * pointer crosses it — in a list this dense a sixteen-pixel jump reads as the whole column
- * moving. The box is the glyph's own footprint.
+ * The leading slot is the hover checkbox. It keeps a sixteen-pixel footprint whether the
+ * box is showing or not, so the row's leading edge does not shift as the pointer crosses
+ * it — in a list this dense that jump reads as the whole column moving.
  */
 .lead {
   position: relative;
@@ -495,12 +493,6 @@
 .row:focus-within .check,
 .selected .check {
   opacity: 1;
-}
-
-.row:hover .lead > svg,
-.row:focus-within .lead > svg,
-.selected .lead > svg {
-  opacity: 0;
 }
 
 /* A sub-issue is indented and says whose it is. The indent alone would say "this is under

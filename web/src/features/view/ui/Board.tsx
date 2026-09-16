@@ -1224,11 +1224,9 @@ const BoardCard = memo(function BoardCard({
           who has learned one should not have to learn the other. */}
       <div className={styles.meta}>
         {/*
-         * Priority is a trigger here and stays inert on a list row, and the asymmetry is the
-         * card having room rather than the row being unfinished: the row shares its 16px
-         * leading box with the hover checkbox that fades in over the glyph, so a control
-         * there is one no pointer can reach. A card has a meta row and nothing competing for
-         * the slot.
+         * Same PropertyTrigger as the list row, which now sits next to the status circle
+         * rather than under the hover checkbox. A card has a meta row and nothing competing
+         * for the slot; the list had to move the glyph so a pointer could reach it.
          */}
         {!properties.has('priority') ? null : onProperty === undefined ? (
           <span className={styles.glyphPill}>

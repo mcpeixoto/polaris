@@ -54,6 +54,7 @@ import {
   Input,
   Menu,
   PriorityIcon,
+  priorityLabel,
   PropertyTrigger,
   StateIcon,
   Tabs,
@@ -3826,25 +3827,20 @@ const IssueRow = memo(function IssueRow({
       }}
     >
       {/*
-       * The leading slot holds two things in one place: the priority glyph, and the checkbox
-       * that takes its place on hover.
+       * The leading slot is the hover checkbox, and only that. Priority used to share this
+       * 16px with it and could not be a control: the box fades in over the glyph, so a
+       * pointer never reached a trigger here. It now sits next to the status circle, the
+       * same PropertyTrigger path status already uses.
        *
        * `02-issues.md` calls for "the checkbox that appears on hover near the left edge",
        * and without it the only pointer route into a selection was cmd-click — a gesture
-       * nothing on screen mentions. The two are stacked rather than laid side by side so
-       * the row's leading edge does not shift as the pointer crosses it, which in a dense
-       * list reads as the whole column jumping. The slot keeps its width with the priority
-       * property turned off, for the same reason.
+       * nothing on screen mentions. The slot keeps its width empty-or-not so the row's
+       * leading edge does not shift as the pointer crosses it.
        *
        * The checkbox stops the click reaching the row: without that, ticking it would also
        * open the issue, which is the row's default gesture.
        */}
       <span className={styles.lead}>
-        {/* Alone among the row's properties, priority is not a trigger — it shares this 16px
-            box with the hover checkbox, which fades in over it, so a control here is one no
-            pointer path can reach. `P`, the context menu and the board card are its routes.
-            Linear draws it the same way, for the same reason. */}
-        {properties.has('priority') ? <PriorityIcon priority={issue.priority} decorative /> : null}
         <span
           className={styles.check}
           onClick={(event) => event.stopPropagation()}
@@ -3877,6 +3873,18 @@ const IssueRow = memo(function IssueRow({
         // fact worth having.
         <span className={styles.parentCrumb}>{issue.parentIdentifier}</span>
       )}
+      {properties.has('priority') ? (
+        <PropertyTrigger
+          roving
+          name={priorityLabel(issue.priority)}
+          action="Set priority"
+          keys="p"
+          open={openProperty === 'priority'}
+          onOpen={(element) => onProperty('priority', id, rowIndex, element)}
+        >
+          <PriorityIcon priority={issue.priority} decorative />
+        </PropertyTrigger>
+      ) : null}
       {/* The status is not one of the optional properties, and neither is the identifier. A
           row that dropped either would stop being readable the moment somebody grouped by
           assignee, and a row whose contents depend on the grouping is one people cannot
