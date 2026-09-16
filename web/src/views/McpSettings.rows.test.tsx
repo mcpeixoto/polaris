@@ -23,6 +23,9 @@ describe('McpSettings rows', () => {
     const origin = window.location.origin;
     expect(screen.getByText(`${origin}/mcp`)).toBeTruthy();
     expect(screen.getByText(`${origin}/mcp/readonly`)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Add to Cursor' }).getAttribute('href')).toMatch(
+      /^cursor:\/\/anysphere\.cursor-deeplink\/mcp\/install\?name=polaris&config=/,
+    );
     expect(screen.getByText(`claude mcp add --transport http polaris ${origin}/mcp`)).toBeTruthy();
   });
 
@@ -30,6 +33,8 @@ describe('McpSettings rows', () => {
     renderPage();
     expect(screen.getByText('Read and write')).toBeTruthy();
     expect(screen.getByText('Read only')).toBeTruthy();
+    expect(screen.getByText('Install')).toBeTruthy();
+    expect(screen.getByText('mcp.json')).toBeTruthy();
     expect(screen.getByText('Add the server')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Create an API key' }).getAttribute('href')).toBe(
       '/settings/api-keys',

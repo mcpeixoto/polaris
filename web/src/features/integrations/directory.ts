@@ -72,6 +72,13 @@ export const DIRECTORY: readonly DirectoryEntry[] = [
     href: '/settings/mcp',
   },
   {
+    id: 'cursor',
+    name: 'Cursor',
+    category: 'AI',
+    summary: 'Official Cursor plugin. One click installs MCP for this origin; OAuth acts as you.',
+    href: '/settings/mcp',
+  },
+  {
     id: 'api-keys',
     name: 'API keys',
     category: 'Platform',

@@ -54,4 +54,15 @@ describe('directoryStatus', () => {
       true,
     );
   });
+
+  it('lists Cursor with MCP under AI so the official plugin is findable', () => {
+    const cursor = DIRECTORY.find((entry) => entry.id === 'cursor');
+    expect(cursor).toEqual(
+      expect.objectContaining({
+        name: 'Cursor',
+        category: 'AI',
+        href: '/settings/mcp',
+      }),
+    );
+  });
 });

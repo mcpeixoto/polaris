@@ -22,7 +22,7 @@ Tools for finding, creating, and updating Linear objects — issues, projects, c
 | **Claude (Free/Pro)** | Claude desktop → Settings → Connectors → add Linear |
 | **Claude Code** | `claude mcp add --transport http linear-server https://mcp.linear.app/mcp`, then `/mcp` to authenticate |
 | **Codex** | `codex mcp add linear --url https://mcp.linear.app/mcp`, or config in `~/.codex/config.toml` under `[mcp_servers.linear]` plus `codex mcp login linear`. Requires `[features] experimental_use_rmcp_client = true` on first use |
-| **Cursor** | One-click install or search Linear in Cursor's MCP tools page |
+| **Cursor** | Official plugin: Settings → MCP → Add to Cursor, or search Polaris in Cursor's marketplace once listed |
 | **VS Code** | `Cmd/Ctrl+P` → *MCP: Add Server* → Command (stdio) → `npx mcp-remote https://mcp.linear.app/mcp` → name it Linear → start it via *MCP: List Servers* |
 | **Windsurf** | Settings → Cascade → MCP servers → Add custom server with the `npx mcp-remote` command |
 | **Zed** | `context_servers.linear` entry with the same command |

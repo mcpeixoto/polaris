@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "polaris": {
+      "type": "streamable-http",
+      "url": "https://polaris.peixotolabs.com/mcp"
+    }
+  }
+}
