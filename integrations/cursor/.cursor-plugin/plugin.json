@@ -4,12 +4,12 @@
   "description": "Keyboard-first, local-first issue tracking. Manage issues, projects, and comments in your Polaris workspace from Cursor.",
   "author": {
     "name": "Peixoto Labs",
-    "email": "hello@peixotolabs.com",
+    "email": "general@peixotolabs.com",
     "url": "https://polaris.peixotolabs.com"
   },
   "homepage": "https://polaris.peixotolabs.com",
-  "repository": "https://github.com/mcpeixoto/polaris",
-  "license": "AGPL-3.0-only",
+  "repository": "https://github.com/mcpeixoto/polaris-cursor-plugin",
+  "license": "MIT",
   "keywords": ["polaris", "mcp", "issues", "project-management", "productivity"],
   "logo": "logo.svg",
   "primaryColor": "#087f91",
