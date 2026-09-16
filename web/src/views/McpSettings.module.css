@@ -1,6 +1,7 @@
 /*
  * Only what `SettingsPage`, `SettingsSection` and `SettingsRow` do not already draw: the
- * value-and-button pair that fills a row's control slot, and the one link on the page.
+ * value-and-button pair that fills a row's control slot, the API-key link, and the Cursor
+ * install deeplink.
  */
 
 /* Value above, button under it on the right — a URL and its button side by side would
@@ -45,6 +46,34 @@
 .link {
   color: var(--text-primary);
   text-decoration: underline;
+}
+
+/* Deeplink, not a copyable string: it has to be followed, and a <button> cannot carry
+   cursor://. Tokens match the primary button so it is the one action on this row. */
+.install {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+  text-decoration: none;
+}
+
+.install:hover {
+  background: var(--accent-hover);
+}
+
+.install:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .link:focus-visible {

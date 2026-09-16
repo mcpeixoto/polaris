@@ -29,6 +29,7 @@ Linear ships ~20 first-party integrations plus a public directory of **250+** th
 | **Jira** | Sync | All | Space ↔ team two-way sync + import | `05-jira-sync.md` |
 | **Google Calendar** | Personal | All | Out-of-office status in Linear | `01-features/19-clients-sync-preferences.md` |
 | **MCP server** | AI | All | Linear as a tool for external AI clients | `03-platform/05-mcp-server.md` |
+| **Cursor** | AI | All | Official Cursor plugin over the same `/mcp` surface (OAuth, Streamable HTTP) | `03-platform/05-mcp-server.md`, `integrations/cursor/` |
 | **MCP connectors** | AI | All (admin-gated) | 16 named servers + custom URLs, consumed by Linear Agent and loops | `01-features/15-ai-agents-loops-coding-sessions.md` |
 
 ## Cross-cutting integration mechanics

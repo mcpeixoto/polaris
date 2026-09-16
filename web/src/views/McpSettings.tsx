@@ -17,6 +17,7 @@ import { Link } from 'react-router';
 
 import { CopyButton, SettingsPage, SettingsSection } from '~/components';
 import { SettingsRow } from '~/components/SettingsSection';
+import { cursorMcpInstallHref, cursorMcpSnippet } from '~/features/integrations/cursor';
 
 import styles from './McpSettings.module.css';
 
@@ -25,6 +26,8 @@ export function McpSettings() {
   const mcpUrl = `${origin}/mcp`;
   const readonlyUrl = `${origin}/mcp/readonly`;
   const claude = `claude mcp add --transport http polaris ${mcpUrl}`;
+  const cursorHref = cursorMcpInstallHref(origin);
+  const cursorSnippet = cursorMcpSnippet(origin);
 
   return (
     <SettingsPage title="MCP">
@@ -43,6 +46,18 @@ export function McpSettings() {
       <SettingsSection title="Endpoints">
         <Endpoint label="Read and write" value={mcpUrl} copyLabel="Copy URL" />
         <Endpoint label="Read only" value={readonlyUrl} copyLabel="Copy URL" />
+      </SettingsSection>
+
+      <SettingsSection
+        title="Cursor"
+        description="The official plugin installs Streamable HTTP MCP for this origin. Cursor then opens a browser so you can approve it."
+      >
+        <SettingsRow label="Install">
+          <a className={styles.install} href={cursorHref}>
+            Add to Cursor
+          </a>
+        </SettingsRow>
+        <Endpoint label="mcp.json" value={cursorSnippet} copyLabel="Copy snippet" />
       </SettingsSection>
 
       <SettingsSection
@@ -77,8 +92,8 @@ interface EndpointProps {
 /**
  * One copyable row: what it is on the left, the literal value and the button on the right.
  *
- * The button's accessible name names the row rather than repeating "Copy URL" three times —
- * a list of identically-named controls names nothing, and this page has three of them.
+ * The button's accessible name names the row rather than repeating "Copy URL" on every
+ * copy control — a list of identically-named controls names nothing.
  */
 function Endpoint({ label, value, copyLabel }: EndpointProps) {
   return (

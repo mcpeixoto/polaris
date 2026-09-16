@@ -26,6 +26,7 @@ describe('McpSettings', () => {
     renderPage();
     expect(screen.getByRole('button', { name: 'Copy URL — Read and write' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Copy URL — Read only' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Copy snippet — mcp.json' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Copy command — Add the server' })).toBeTruthy();
   });
 
