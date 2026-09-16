@@ -249,6 +249,24 @@ describe('a property glyph in a row', () => {
 
     expect(screen.queryByRole('group', { name: 'Issue actions' })).toBeNull();
   });
+
+  it('opens the priority picker from the glyph next to status instead of opening the issue', async () => {
+    const { user } = renderList();
+
+    await user.click(within(row('Ship the importer')).getByRole('button', { name: 'No priority' }));
+
+    expect(screen.getByRole('menu', { name: 'Priority' })).toBeTruthy();
+    expect(where(), 'the row click that opens an issue must not have fired').toBe('/team/ENG');
+  });
+
+  it('writes priority to the row it was pressed on and to nothing else', async () => {
+    const { user, mutate } = renderList();
+
+    await user.click(within(row('Ship the importer')).getByRole('button', { name: 'No priority' }));
+    await user.click(screen.getByRole('menuitem', { name: 'High' }));
+
+    expect(writtenIds(mutate)).toEqual(['issue-2']);
+  });
 });
 
 describe('a property glyph with a selection standing', () => {
