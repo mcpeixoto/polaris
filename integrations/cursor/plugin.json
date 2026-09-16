@@ -9,7 +9,7 @@
     "url": "https://polaris.peixotolabs.com"
   },
   "homepage": "https://polaris.peixotolabs.com",
-  "repository": "https://github.com/mcpeixoto/polaris",
-  "license": "AGPL-3.0-only",
+  "repository": "https://github.com/mcpeixoto/polaris-cursor-plugin",
+  "license": "MIT",
   "keywords": ["polaris", "mcp", "issues", "project-management", "productivity"]
 }

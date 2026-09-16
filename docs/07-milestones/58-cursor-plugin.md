@@ -17,5 +17,5 @@ manifests, `mcp.json`, mark as `logo.svg`).
 
 ## Deferred
 
-- Cursor Marketplace listing itself (submit at https://cursor.com/marketplace/publish after merge)
+- Cursor Marketplace listing: submit **https://github.com/mcpeixoto/polaris-cursor-plugin** (MIT) at https://cursor.com/marketplace/publish. Do not submit this AGPL repository.
 - A dedicated `mcp.polaris…` host; `/mcp` on the public origin is the contract

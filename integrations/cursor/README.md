@@ -10,6 +10,8 @@ The server is the same `/mcp` surface the product already ships. Auth is OAuth 2
 2. Search for **Polaris**.
 3. Install, then approve the workspace in the browser.
 
+The marketplace listing is the MIT repo [mcpeixoto/polaris-cursor-plugin](https://github.com/mcpeixoto/polaris-cursor-plugin) — Cursor's publisher terms do not allow AGPL inside a listed plugin, so this folder is a copy of that packaging, not the submission tree.
+
 Until the listing is live, Settings → MCP in Polaris has **Add to Cursor**, which installs the server for *this* origin (cloud or self-hosted).
 
 Manual `~/.cursor/mcp.json`:
