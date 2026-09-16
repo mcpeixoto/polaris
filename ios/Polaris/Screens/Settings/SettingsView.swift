@@ -17,7 +17,7 @@ struct SettingsView: View {
 
     /// Where feedback goes. The address the web client's pricing page uses, with a subject
     /// that says which client it came from.
-    private static let feedbackURL = URL(string: "mailto:hello@peixotolabs.com?subject=Polaris%20for%20iOS")!
+    private static let feedbackURL = URL(string: "mailto:general@peixotolabs.com?subject=Polaris%20for%20iOS")!
 
     init(viewer: Viewer) {
         self.viewer = viewer

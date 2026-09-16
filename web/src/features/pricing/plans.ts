@@ -171,7 +171,7 @@ export const PLANS: readonly PlanSummary[] = [
     blurb: 'Our hardware, and no ceiling on people, teams or history.',
     action: {
       label: 'Talk to us',
-      to: 'mailto:hello@peixotolabs.com?subject=Polaris%20Cloud%20Pro',
+      to: 'mailto:general@peixotolabs.com?subject=Polaris%20Cloud%20Pro',
     },
     availability: 'waitlist',
     note: 'Checkout is not open yet. Write to us and we will arrange it directly.',
@@ -184,7 +184,7 @@ export const PLANS: readonly PlanSummary[] = [
     blurb: 'For teams with a procurement and security review. Tell us what it asks for.',
     action: {
       label: 'Contact us',
-      to: 'mailto:hello@peixotolabs.com?subject=Polaris%20Enterprise',
+      to: 'mailto:general@peixotolabs.com?subject=Polaris%20Enterprise',
     },
     availability: 'now',
   },
