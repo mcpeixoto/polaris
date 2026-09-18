@@ -75,7 +75,13 @@ services:
     command: ["/usr/local/bin/api"]
     env_file: [.env]
     environment:
-      DATABASE_URL: postgres://polaris:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/polaris?sslmode=disable
+      # polaris-postgres, not `postgres`. The API also sits on whatever extra
+      # networks an operator attaches (a shared proxy network is the usual
+      # case). Docker DNS then returns every container on those networks
+      # aliased `postgres`, and we authenticated against somebody else's
+      # database. Sign-in came back "internal error". The alias below exists
+      # only on `backend`.
+      DATABASE_URL: postgres://polaris:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@polaris-postgres:5432/polaris?sslmode=disable
       # Never auto-login, even if .env was copied from .env.example with the flag
       # on. A self-host on a public host must keep the password form. Local
       # `make api` is the only process that mints a loopback session.
@@ -114,7 +120,7 @@ services:
     command: ["/usr/local/bin/sync"]
     env_file: [.env]
     environment:
-      DATABASE_URL: postgres://polaris:${POSTGRES_PASSWORD:?}@postgres:5432/polaris?sslmode=disable
+      DATABASE_URL: postgres://polaris:${POSTGRES_PASSWORD:?}@polaris-postgres:5432/polaris?sslmode=disable
     depends_on:
       postgres: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
@@ -143,7 +149,7 @@ services:
     command: ["/usr/local/bin/worker"]
     env_file: [.env]
     environment:
-      DATABASE_URL: postgres://polaris:${POSTGRES_PASSWORD:?}@postgres:5432/polaris?sslmode=disable
+      DATABASE_URL: postgres://polaris:${POSTGRES_PASSWORD:?}@polaris-postgres:5432/polaris?sslmode=disable
     depends_on:
       postgres: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
@@ -170,7 +176,7 @@ services:
     # README, failed here — the documented path to running this product did not run it.
     env_file: [.env]
     environment:
-      DATABASE_URL: postgres://polaris:${POSTGRES_PASSWORD:?}@postgres:5432/polaris?sslmode=disable
+      DATABASE_URL: postgres://polaris:${POSTGRES_PASSWORD:?}@polaris-postgres:5432/polaris?sslmode=disable
     depends_on:
       postgres: { condition: service_healthy }
     networks: [backend]
@@ -188,7 +194,9 @@ services:
     volumes:
       - polaris_pgdata:/var/lib/postgresql/data
       - ./backups:/backups
-    networks: [backend]
+    networks:
+      backend:
+        aliases: [polaris-postgres]
     mem_limit: 2g
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U polaris -d polaris"]
