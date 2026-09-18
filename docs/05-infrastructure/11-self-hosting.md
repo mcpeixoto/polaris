@@ -924,12 +924,13 @@ There is no metrics endpoint to scrape and no built-in alerting. Until there is,
 uptime check on `/readyz`, a disk alert, and the `change_log_default` query above are most of
 the value.
 
-### The four failures worth recognising by their symptom
+### The five failures worth recognising by their symptom
 
 | Symptom | Likely cause |
 |---|---|
 | App loads, socket connects, no data ever appears | `/sync/bootstrap` is being routed to the sync service instead of the api |
 | Sign-in appears to do nothing, no error | `Secure` cookie over plain HTTP, or `POLARIS_ENV` unset behind TLS |
+| Sign-in returns "internal error" | `DATABASE_URL` resolved `postgres` to another stack's database on a shared Docker network. Use the `polaris-postgres` alias (only on `backend`) and keep Postgres off the proxy network |
 | Everything works but nobody sees each other's changes | The hub's `LISTEN` connection went through a transaction-mode pooler — set `POLARIS_LISTEN_DATABASE_URL` |
 | Sockets drop and reconnect on a fixed interval | Proxy idle read timeout below the 30-second heartbeat's tolerance |
 

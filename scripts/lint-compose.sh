@@ -50,7 +50,25 @@ for file in docker-compose*.yml; do
   ' "$file" || fail=1
 done
 
+# DATABASE_URL must not use the generic hostname `postgres`.
+#
+# When the API is attached to a second network (a shared proxy network is the
+# usual fleet case), Docker DNS returns every container on those networks
+# aliased `postgres`. We authenticated against Fabricador's database and every
+# sign-in returned "internal error". The compose file gives the database a
+# unique alias on `backend` (`polaris-postgres`) and the URL must use it.
+for file in docker-compose*.yml; do
+  [ -e "$file" ] || continue
+  if grep -E '@postgres[:/]' "$file" >/dev/null; then
+    echo "FAIL: $file: DATABASE_URL uses the generic hostname postgres"
+    echo "      Use polaris-postgres (the alias on the backend network) instead."
+    grep -nE '@postgres[:/]' "$file" || true
+    fail=1
+  fi
+done
+
 if [ $fail -eq 0 ]; then
   echo "compose profiles: ok"
+  echo "compose postgres hostname: ok"
 fi
 exit $fail
