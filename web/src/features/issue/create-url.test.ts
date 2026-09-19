@@ -272,4 +272,10 @@ describe('createUrlForGroup', () => {
     expect(createUrlForGroup({ label: 'Unassigned' }, 'assignee')).toBe('/new');
     expect(createUrlForGroup(doing, 'dueDate')).toBe('/new');
   });
+
+  it('carries the project a scoped list is already in', () => {
+    expect(createUrlForGroup(doing, 'state', 'ENG', 'project-1')).toBe(
+      '/team/ENG/new?status=In+Progress&project=project-1',
+    );
+  });
 });

@@ -261,17 +261,24 @@ export function createUrlForGroup(
   group: GroupSeed,
   groupBy: DisplayGroupBy,
   teamKey?: string | undefined,
+  /**
+   * The project this view is scoped to. A project's issue list that omitted it filed into
+   * the team with no project, then `/new` closed onto `/` — All issues — which is two
+   * wrong rooms away from the page the filer was on.
+   */
+  project?: string | undefined,
 ): string {
+  const scope = { teamKey, project };
   if (groupBy === 'state' && group.stateId !== undefined) {
-    return buildCreateURL({ teamKey, statusName: group.label });
+    return buildCreateURL({ ...scope, statusName: group.label });
   }
   if (groupBy === 'priority' && group.priority !== undefined) {
-    return buildCreateURL({ teamKey, priority: group.priority });
+    return buildCreateURL({ ...scope, priority: group.priority });
   }
   if (groupBy === 'assignee' && group.userId !== undefined) {
-    return buildCreateURL({ teamKey, assignee: group.userId });
+    return buildCreateURL({ ...scope, assignee: group.userId });
   }
-  return buildCreateURL({ teamKey });
+  return buildCreateURL(scope);
 }
 
 function resolveTeam(store: Store, raw: string | undefined): { id: UUID; key: string } | undefined {

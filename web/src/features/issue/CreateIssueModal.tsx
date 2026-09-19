@@ -878,7 +878,9 @@ export function CreateIssueModal({
         // Carried on the create rather than written afterwards: a child that exists for a
         // moment without its parent is one the sub-issue panel would draw at top level.
         ...(seed?.parentId === undefined ? null : { parentId: seed.parentId }),
-        ...(resolvedProjectId === null ? null : { projectId: resolvedProjectId }),
+        ...(resolvedProjectId === null || resolvedProjectId === undefined
+          ? null
+          : { projectId: resolvedProjectId }),
         ...(resolvedCycleId === null || !teamRunsCycles ? null : { cycleId: resolvedCycleId }),
         ...(fromTriage ? { fromTriage: true } : null),
         // The template's own contribution, carried on the create rather than applied
