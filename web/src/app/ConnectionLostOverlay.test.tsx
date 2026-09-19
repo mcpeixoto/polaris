@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Store } from '~/store';
 import type { EngineStatus, SyncEngine } from '~/sync/engine';
 
-import { CONNECTION_LOST_GRACE_MS, ConnectionLostOverlay } from './ConnectionLostOverlay';
+import { ConnectionLostOverlay } from './ConnectionLostOverlay';
 import { EngineProvider } from './context';
 import { KeymapProvider } from './keymap';
 
@@ -24,12 +24,11 @@ let originalOnline: boolean;
 
 beforeEach(() => {
   originalOnline = navigator.onLine;
-  setOnline(true);
+  Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
 });
 
 afterEach(() => {
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: originalOnline });
-  vi.useRealTimers();
 });
 
 function setOnline(value: boolean): void {
@@ -45,63 +44,33 @@ function pageChildren(): HTMLElement[] {
   );
 }
 
-function tree(status: EngineStatus, engine: SyncEngine, onEdit?: () => void) {
-  return (
-    <KeymapProvider>
-      <EngineProvider engine={engine} status={status}>
-        <button type="button" onClick={onEdit}>
-          Edit issue
-        </button>
-        <ConnectionLostOverlay />
-      </EngineProvider>
-    </KeymapProvider>
-  );
-}
-
 function renderOverlay(status: EngineStatus) {
   const engine = {
     store: new Store(WORKSPACE),
     mutate: vi.fn(),
     start: vi.fn().mockResolvedValue(undefined),
   } as unknown as SyncEngine;
-  return render(tree(status, engine));
+  return render(
+    <KeymapProvider>
+      <EngineProvider engine={engine} status={status}>
+        <button type="button">Edit issue</button>
+        <ConnectionLostOverlay />
+      </EngineProvider>
+    </KeymapProvider>,
+  );
 }
 
 describe('ConnectionLostOverlay', () => {
-  it('stays quiet while the replica is reachable', () => {
+  it('stays quiet while the browser is online', () => {
     renderOverlay(READY);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.getByRole('button', { name: 'Edit issue' })).toBeTruthy();
   });
 
-  it('does not flash on a reconnect that comes back inside the grace', () => {
-    vi.useFakeTimers();
-    const engine = {
-      store: new Store(WORKSPACE),
-      mutate: vi.fn(),
-      start: vi.fn().mockResolvedValue(undefined),
-    } as unknown as SyncEngine;
-    const { rerender } = render(tree(RECONNECTING, engine));
-    act(() => {
-      vi.advanceTimersByTime(CONNECTION_LOST_GRACE_MS - 1);
-    });
-    expect(screen.queryByRole('dialog')).toBeNull();
-
-    rerender(tree(READY, engine));
-    act(() => {
-      vi.advanceTimersByTime(CONNECTION_LOST_GRACE_MS);
-    });
-    expect(screen.queryByRole('dialog')).toBeNull();
-  });
-
-  it('takes the screen once a reconnect has lasted past the grace', () => {
-    vi.useFakeTimers();
+  it('does not take the screen for a socket reconnect: the badge already says so', () => {
     renderOverlay(RECONNECTING);
-    act(() => {
-      vi.advanceTimersByTime(CONNECTION_LOST_GRACE_MS);
-    });
-    expect(screen.getByRole('dialog', { name: 'Connection lost.' })).toBeTruthy();
-    expect(screen.getByText('Please wait.')).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Edit issue' })).toBeTruthy();
   });
 
   it('takes the screen immediately when the browser itself goes offline', () => {
@@ -110,6 +79,7 @@ describe('ConnectionLostOverlay', () => {
       setOnline(false);
     });
     expect(screen.getByRole('dialog', { name: 'Connection lost.' })).toBeTruthy();
+    expect(screen.getByText('Please wait.')).toBeTruthy();
   });
 
   it('makes the page behind it inert, so nothing there can be reached', () => {
@@ -124,6 +94,20 @@ describe('ConnectionLostOverlay', () => {
     const behind = pageChildren();
     expect(behind.length).toBeGreaterThan(0);
     expect(behind.every((child) => child.inert === true)).toBe(true);
+  });
+
+  it('gives the page back when the browser is online again', () => {
+    renderOverlay(READY);
+    act(() => {
+      setOnline(false);
+    });
+    expect(screen.getByRole('dialog', { name: 'Connection lost.' })).toBeTruthy();
+
+    act(() => {
+      setOnline(true);
+    });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Edit issue' })).toBeTruthy();
   });
 
   it('leaves the failed badge alone: a failed boot is a retry, not a lost connection', () => {

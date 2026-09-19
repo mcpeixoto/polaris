@@ -2,15 +2,13 @@
  * A blocking overlay for a lost connection.
  *
  * The sidebar badge already says "Reconnecting". That is the right answer for a socket
- * that comes back in a few hundred milliseconds, which is most of them. It is the wrong
- * answer for the laptop that went to sleep, the Wi-Fi that dropped, the cable that came
- * out: the replica is no longer being written, and a click that looks like it landed is
- * a change sitting in an outbox the user cannot see. So this takes the screen until the
- * connection is back, and it does not offer a way to dismiss it — waiting is the only
- * thing to do.
- *
- * The delay is load-bearing. Without it, every reconnect blip is a modal, and a modal
- * that flashes for 200 ms is worse than the badge it replaced.
+ * that comes back in a few hundred milliseconds, which is most of them — and it is the
+ * right answer while a person is still typing through a sync blip. It is the wrong
+ * answer for the laptop that went to sleep or the cable that came out: `navigator.onLine`
+ * is false, the replica is no longer being written, and a click that looks like it landed
+ * is a change sitting in an outbox the user cannot see. So this takes the screen until
+ * the browser is online again, and it does not offer a way to dismiss it — waiting is
+ * the only thing to do.
  */
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
@@ -18,29 +16,15 @@ import { createPortal } from 'react-dom';
 
 import { useOptionalKeyContext } from '~/components/keyContext';
 import { useFocusTrap } from '~/hooks/useFocusTrap';
-import type { EngineStatus } from '~/sync/engine';
 
-import { useSyncStatus } from './context';
 import styles from './ConnectionLostOverlay.module.css';
-
-/** How long a reconnect may last before the overlay claims the screen. */
-export const CONNECTION_LOST_GRACE_MS = 800;
 
 function readOnline(): boolean {
   return typeof navigator === 'undefined' || navigator.onLine !== false;
 }
 
-function isDisconnected(status: EngineStatus, online: boolean): boolean {
-  if (!online) return true;
-  return status.phase === 'ready' && status.connection !== 'ready';
-}
-
 export function ConnectionLostOverlay() {
-  const status = useSyncStatus();
   const [online, setOnline] = useState(readOnline);
-  const disconnected = isDisconnected(status, online);
-  const immediate = !online;
-  const [graceElapsed, setGraceElapsed] = useState(false);
 
   useEffect(() => {
     const on = () => setOnline(true);
@@ -53,18 +37,7 @@ export function ConnectionLostOverlay() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!disconnected) {
-      setGraceElapsed(false);
-      return;
-    }
-    if (immediate) return;
-    const timer = window.setTimeout(() => setGraceElapsed(true), CONNECTION_LOST_GRACE_MS);
-    return () => window.clearTimeout(timer);
-  }, [disconnected, immediate]);
-
-  const open = disconnected && (immediate || graceElapsed);
-  return <Overlay open={open} />;
+  return <Overlay open={!online} />;
 }
 
 function Overlay({ open }: { open: boolean }) {
@@ -95,7 +68,7 @@ function Overlay({ open }: { open: boolean }) {
    * and the virtual cursor free unless the nodes themselves refuse them. Direct children
    * of `<body>`, because that is where every portal in this product lands. Previous values
    * are restored rather than cleared so a dialog that was already open can take the page
-   * back when the socket returns.
+   * back when the network returns.
    */
   useLayoutEffect(() => {
     if (!open) return;

@@ -142,7 +142,7 @@ test.describe('sync engine', () => {
     await context.close();
   });
 
-  test('an edit made offline is sent when the connection returns', async ({
+  test('the screen is taken while the computer is offline, and an edit goes out when it returns', async ({
     browser,
     workspace,
   }) => {
@@ -160,33 +160,21 @@ test.describe('sync engine', () => {
 
     await context.setOffline(true);
 
+    const overlay = page.getByRole('dialog', { name: 'Connection lost.' });
+    await expect(overlay).toBeVisible();
+    await expect(page.getByText('Please wait.')).toBeVisible();
+
+    await context.setOffline(false);
+    await expect(overlay).toBeHidden();
+
     // Located by the aria-describedby relationship rather than by the button's name,
     // because the name IS the current value — it reads "No priority" before the change and
     // "Urgent" after, so a name-based locator stops matching exactly when the assertion
     // needs it.
     const priorityControl = page.locator('[aria-describedby$="-priority-label"]');
-
-    // The edit must land on screen immediately. Waiting for a server that is not there is
-    // the behaviour the whole local-first architecture exists to avoid.
     await priorityControl.click();
     await page.getByRole('menuitem', { name: /urgent/i }).click();
     await expect(priorityControl).toContainText(/urgent/i);
-
-    // Targeted by role AND name, not by text: the workspace name in this very test contains
-    // the word "offline", so a text match would find both — and `role=status` alone matches
-    // two regions, because the undo toast is mounted empty and permanently so that an
-    // announcement put into it is actually announced. The indicator carries a fixed
-    // `aria-label` for exactly this reason: its own text is the value, and reads
-    // "Syncing 1" or "Reconnecting" depending on which of the two the network took away
-    // first. Being a live region at all is what puts "did my work save?" within reach of a
-    // screen-reader user.
-    const syncStatus = page.getByRole('status', { name: 'Sync status' });
-    await expect(syncStatus).toBeVisible();
-
-    await context.setOffline(false);
-
-    // Drained from the outbox, with the original opId, so the server applies it once.
-    await expect(syncStatus).toBeHidden({ timeout: 20_000 });
 
     const verifier = await browser.newContext();
     const verifierPage = await verifier.newPage();
