@@ -275,8 +275,8 @@ describe('display options in a URL', () => {
   });
 
   // Turning every property off is a choice, and `show=` is what it encodes to. Reading that
-  // back as "nothing was said" put all five properties back, so the fifth tick in the menu
-  // silently undid the other four.
+  // back as "nothing was said" put the default properties back, so the last tick in the menu
+  // silently undid the others.
   it('round-trips a row with no properties at all', () => {
     const params = new URLSearchParams(toDisplayParams({ properties: [] }));
     expect(params.get('show')).toBe('');

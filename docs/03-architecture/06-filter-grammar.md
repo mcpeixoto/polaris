@@ -175,7 +175,7 @@ priority" survives being saved, shared and reopened.
   "direction": "asc",
   "showSubIssues": true,         // false hides children whose parent is in the same view
   "showCompleted": true,
-  "properties": ["priority", "assignee", "labels", "estimate", "dueDate"]
+  "properties": ["priority", "assignee", "labels", "estimate", "dueDate", "project"]
 }
 ```
 
