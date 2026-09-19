@@ -145,7 +145,7 @@ test('every display property can be turned off, and stays off', async ({ page, w
   await openTeamList(page, workspace.teamKey);
 
   const panel = page.getByRole('dialog', { name: 'Display options' });
-  const properties = ['Priority', 'Assignee', 'Labels', 'Estimate', 'Due date'];
+  const properties = ['Priority', 'Assignee', 'Labels', 'Estimate', 'Due date', 'Project'];
 
   await page.keyboard.press('Shift+V');
   for (const name of properties) {
@@ -155,7 +155,7 @@ test('every display property can be turned off, and stays off', async ({ page, w
   }
 
   // The last one is the interesting one: an empty set encodes to `show=`, and reading that
-  // back as "nothing was said" put all five properties on again.
+  // back as "nothing was said" put the default properties on again.
   await page.reload();
   await page.getByRole('listbox', { name: /issues/i }).waitFor();
   await page.keyboard.press('Shift+V');

@@ -418,5 +418,11 @@ export const DEFAULT_DISPLAY: Required<DisplayOptions> = {
   showCompleted: true,
   showSnoozed: false,
   showEmptyGroups: false,
-  properties: ['priority', 'assignee', 'labels', 'estimate', 'dueDate'],
+  /**
+   * Project sits with the rest of the row's scope rather than behind a tick: a team list
+   * that does not name the project is one you cannot scan to organise, which is why the
+   * row already draws it and why Linear shows it without asking. Untick it in Display
+   * when the view is already a project's.
+   */
+  properties: ['priority', 'assignee', 'labels', 'estimate', 'dueDate', 'project'],
 };

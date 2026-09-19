@@ -117,8 +117,8 @@ describe('DisplayMenu', () => {
 
   /**
    * The order is not cosmetic: `toDisplayParams` compares the joined list against the
-   * default's, so the same five properties in a different order become a `show=` parameter
-   * pinned into every link somebody shares.
+   * default's, so the same default properties in a different order become a `show=`
+   * parameter pinned into every link somebody shares.
    */
   it('emits the whole property set in canonical order when one is unticked', async () => {
     const { user, onChange } = renderMenu();
@@ -126,7 +126,7 @@ describe('DisplayMenu', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Estimate' }));
 
     expect(onChange).toHaveBeenCalledWith({
-      properties: ['priority', 'assignee', 'labels', 'dueDate'],
+      properties: ['priority', 'assignee', 'labels', 'dueDate', 'project'],
     });
   });
 

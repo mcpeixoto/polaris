@@ -180,6 +180,13 @@ afterAll(() => {
 });
 
 describe('a card', () => {
+  it('draws the project as a pill under the default display', () => {
+    renderBoard([...DEFAULT_DISPLAY.properties]);
+
+    expect(screen.getByText('Onboarding')).toBeTruthy();
+    expect(screen.getByText('🚀')).toBeTruthy();
+  });
+
   it('draws the project as a pill when the display asks for it', () => {
     renderBoard(['project']);
 

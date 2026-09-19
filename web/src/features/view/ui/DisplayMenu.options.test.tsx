@@ -125,15 +125,21 @@ describe('display properties', () => {
     }
   });
 
+  it('ticks Project with the rest of the default row', () => {
+    renderMenu();
+
+    expect(screen.getByRole('checkbox', { name: 'Project' })).toHaveProperty('checked', true);
+  });
+
   it('offers the properties that were only reachable by URL', async () => {
     const { user, onChange } = renderMenu();
 
-    await user.click(screen.getByRole('checkbox', { name: 'Project' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Cycle' }));
 
     // Canonical order, not click order: `toDisplayParams` compares the joined list against
     // the default's, so the same set in another order pins a `show=` into every shared link.
     expect(onChange).toHaveBeenCalledWith({
-      properties: ['priority', 'assignee', 'labels', 'estimate', 'dueDate', 'project'],
+      properties: ['priority', 'assignee', 'labels', 'estimate', 'dueDate', 'project', 'cycle'],
     });
   });
 });

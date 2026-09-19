@@ -480,7 +480,7 @@ export function DisplayMenu({
    * Ticks or unticks one property, always emitting the canonical order.
    *
    * The order is not cosmetic. `toDisplayParams` compares the joined list against the
-   * default's, so the same five properties in a different order are a `show=` parameter
+   * default's, so the same default properties in a different order are a `show=` parameter
    * pinned into every link somebody shares — a view that claims a choice nobody made.
    */
   const onProperty = useCallback(
