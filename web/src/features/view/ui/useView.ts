@@ -576,6 +576,7 @@ function computeView(
     // where a row could actually arrive in it.
     admitsStatus(combined),
     display.showEmptyGroups,
+    display.layout,
   );
 
   return {
@@ -589,6 +590,7 @@ function computeView(
       display.subGroupBy,
       display.orderBy,
       display.direction,
+      display.layout,
     ).map(toViewGroup),
   };
 }

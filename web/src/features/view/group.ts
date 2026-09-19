@@ -12,11 +12,12 @@
  * build a habit around.
  */
 
-import type { DisplayDirection, DisplayGroupBy, DisplayOrderBy } from '~/filter';
+import type { DisplayDirection, DisplayGroupBy, DisplayOrderBy, ViewLayout } from '~/filter';
 import {
   CATEGORY_ORDER,
   priorityRank,
   type Issue,
+  type StateCategory,
   type Store,
   type UUID,
   type WorkflowState,
@@ -41,6 +42,25 @@ export interface IssueGroup {
 
 /** The key used for "no value": unassigned, unlabelled, no due date. */
 const NONE = ' none';
+
+/**
+ * How a list scans statuses, which is not the pipeline.
+ *
+ * A board is a workflow left to right: triage, then the queue, then started, then done.
+ * A list is a scan of what to look at: what is done, what is moving, what is waiting,
+ * what is parked, then what is dead. `CATEGORY_ORDER` stays the product's pipeline —
+ * pickers, settings and the board all keep it — so this map is only consulted when
+ * grouping a list.
+ */
+const LIST_STATE_CATEGORY_ORDER: Readonly<Record<StateCategory, number>> = {
+  completed: 0,
+  started: 1,
+  unstarted: 2,
+  backlog: 3,
+  triage: 4,
+  canceled: 5,
+  duplicate: 6,
+};
 
 /**
  * Groups issues, then orders within each group.
@@ -68,6 +88,13 @@ export function groupIssues(
    * padding displacing the answer.
    */
   showEmptyGroups = true,
+  /**
+   * A list reads finished work first; a board is a pipeline left-to-right.
+   *
+   * Defaulting to the pipeline is what keeps every existing caller — and the board —
+   * looking the same until `useView` passes the layout it already knows.
+   */
+  layout: ViewLayout = 'board',
 ): IssueGroup[] {
   if (groupBy === 'none') {
     return [{ key: 'all', label: '', issues: sortIssues([...issues], store, orderBy, direction) }];
@@ -163,7 +190,7 @@ export function groupIssues(
           : sortIssues(bucket, store, orderBy, direction),
     });
   }
-  groups.sort((a, b) => compareGroups(a, b, groupBy, store));
+  groups.sort((a, b) => compareGroups(a, b, groupBy, store, layout));
   return groups;
 }
 
@@ -235,6 +262,7 @@ function compareGroups(
   b: IssueGroup,
   groupBy: DisplayGroupBy,
   store: Store,
+  layout: ViewLayout,
 ): number {
   // The unset group always sorts last, whatever the dimension. It is the residue, not a
   // value, and putting "Unassigned" first pushes the actual work below the fold.
@@ -248,13 +276,10 @@ function compareGroups(
     case 'state': {
       const left = store.workflowStates.get(a.key);
       const right = store.workflowStates.get(b.key);
-      return compareStates(left, right);
+      return compareStates(left, right, layout);
     }
     case 'stateCategory':
-      return (
-        (CATEGORY_ORDER[a.key as keyof typeof CATEGORY_ORDER] ?? 99) -
-        (CATEGORY_ORDER[b.key as keyof typeof CATEGORY_ORDER] ?? 99)
-      );
+      return categoryRank(a.key, layout) - categoryRank(b.key, layout);
     case 'priority':
       // By display rank, not by the stored number: 0 means "no priority" and sorting on
       // the raw value puts unprioritised work above everything urgent.
@@ -275,12 +300,21 @@ function compareGroups(
  * numbers and produces an order that looks almost right, which is worse than one that
  * looks wrong.
  */
-function compareStates(a: WorkflowState | undefined, b: WorkflowState | undefined): number {
+function compareStates(
+  a: WorkflowState | undefined,
+  b: WorkflowState | undefined,
+  layout: ViewLayout,
+): number {
   if (a === undefined) return 1;
   if (b === undefined) return -1;
-  const byCategory = (CATEGORY_ORDER[a.category] ?? 99) - (CATEGORY_ORDER[b.category] ?? 99);
+  const byCategory = categoryRank(a.category, layout) - categoryRank(b.category, layout);
   if (byCategory !== 0) return byCategory;
   return a.position < b.position ? -1 : a.position > b.position ? 1 : 0;
+}
+
+function categoryRank(category: string, layout: ViewLayout): number {
+  const order = layout === 'list' ? LIST_STATE_CATEGORY_ORDER : CATEGORY_ORDER;
+  return order[category as StateCategory] ?? 99;
 }
 
 /**
@@ -303,6 +337,7 @@ export function subGroupIssues(
   subGroupBy: DisplayGroupBy,
   orderBy: DisplayOrderBy,
   direction: DisplayDirection,
+  layout: ViewLayout = 'board',
 ): IssueGroup[] {
   if (subGroupBy === 'none') return [...groups];
   const out: IssueGroup[] = [];
@@ -320,6 +355,7 @@ export function subGroupIssues(
       undefined,
       undefined,
       false,
+      layout,
     )) {
       out.push({
         ...sub,
