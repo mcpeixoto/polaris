@@ -51,6 +51,7 @@ import {
   Menu,
   PriorityIcon,
   priorityLabel,
+  PropertyTrigger,
   SegmentedControl,
   type MenuNode,
 } from '~/components';
@@ -63,6 +64,7 @@ import {
 } from '~/features/export/csv';
 import { copyText } from '~/features/github/copy';
 import { report } from '~/features/issue/mutations';
+import { PriorityPicker } from '~/features/issue/pickers';
 import {
   matchesProjectCustomerFilter,
   projectCustomerFilterOptions,
@@ -422,7 +424,7 @@ export function Projects() {
    * closes, and a picker positioned against a element that has gone lands in the corner.
    */
   const [picker, setPicker] = useState<{
-    kind: 'status' | 'lead';
+    kind: 'status' | 'lead' | 'priority';
     row: ProjectRow;
     x: number;
     y: number;
@@ -444,6 +446,23 @@ export function Projects() {
       iconPicker.showFrom(element);
     },
     [iconPicker],
+  );
+
+  /**
+   * Priority is the same trade the icon already makes: a button inside the row's link, one
+   * picker the list holds, `showFrom` so a row that unmounts does not take the menu with it.
+   *
+   * The context-menu item still goes through `picker` — that path has only a pointer, not
+   * an element that survives the menu closing — and this trigger is the click on the glyph.
+   */
+  const priorityPicker = useMenuTrigger<HTMLElement>();
+  const [priorityId, setPriorityId] = useState<UUID | null>(null);
+  const openPriorityPicker = useCallback(
+    (id: UUID, element: HTMLElement) => {
+      setPriorityId(id);
+      priorityPicker.showFrom(element);
+    },
+    [priorityPicker],
   );
 
   // An empty replica is not an empty workspace. Until the first sync settles, "No projects
@@ -639,6 +658,16 @@ export function Projects() {
             },
           },
           {
+            id: 'priority',
+            label: 'Priority…',
+            keys: 'p',
+            onSelect: () => {
+              const at = contextMenu.at;
+              contextMenu.close();
+              if (at !== null) setPicker({ kind: 'priority', row, x: at.x, y: at.y });
+            },
+          },
+          {
             id: 'lead',
             label: 'Lead…',
             keys: 'a',
@@ -659,6 +688,7 @@ export function Projects() {
 
   const contextRow = rowById(contextMenu.id);
   const iconRow = rowById(iconId);
+  const priorityRow = rowById(priorityId);
 
   // A drop writes manual order, so it is offered only where manual order is what the list
   // is in. See the note the display menu puts under the ordering control.
@@ -675,6 +705,8 @@ export function Projects() {
       draggable={draggable}
       onSelect={() => cursor.setCursor(row.id)}
       onOpenIcon={(element) => openIconPicker(row.id, element)}
+      onOpenPriority={(element) => openPriorityPicker(row.id, element)}
+      priorityOpen={priorityPicker.open && priorityId === row.id}
       onDragStart={() => setDraggingId(row.id)}
       onDragEnd={() => {
         setDraggingId(null);
@@ -872,6 +904,8 @@ export function Projects() {
                             dragging={draggingId === row.id}
                             onSelect={() => cursor.setCursor(row.id)}
                             onOpenIcon={(element) => openIconPicker(row.id, element)}
+                            onOpenPriority={(element) => openPriorityPicker(row.id, element)}
+                            priorityOpen={priorityPicker.open && priorityId === row.id}
                             onDragStart={() => setDraggingId(row.id)}
                             onDragEnd={() => {
                               setDraggingId(null);
@@ -1060,6 +1094,21 @@ export function Projects() {
           if (row !== undefined) updateProject(engine, row.id, { leadId }).catch(report);
         }}
       />
+      <PriorityPicker
+        open={priorityPicker.open || picker?.kind === 'priority'}
+        onClose={() => {
+          priorityPicker.hide();
+          if (picker?.kind === 'priority') setPicker(null);
+        }}
+        trigger={priorityPicker.open ? priorityPicker.ref : pickerAnchorRef}
+        value={(priorityPicker.open ? priorityRow?.priority : picker?.row.priority) ?? 0}
+        onSelect={(priority) => {
+          const id = priorityPicker.open ? priorityRow?.id : picker?.row.id;
+          priorityPicker.hide();
+          setPicker(null);
+          if (id !== undefined) updateProject(engine, id, { priority }).catch(report);
+        }}
+      />
 
       <ConfirmDialog
         open={archiving !== null}
@@ -1142,6 +1191,9 @@ interface RowLinkProps {
   readonly onSelect: () => void;
   /** Opens the shared icon picker against the row's own glyph. */
   readonly onOpenIcon: (element: HTMLElement) => void;
+  /** Opens the shared priority picker against the row's own glyph. */
+  readonly onOpenPriority: (element: HTMLElement) => void;
+  readonly priorityOpen: boolean;
   readonly onDragStart: () => void;
   readonly onDragEnd: () => void;
   readonly onDragOver: (event: DragEvent<HTMLAnchorElement>) => void;
@@ -1159,6 +1211,8 @@ function ProjectRowLink({
   draggable,
   onSelect,
   onOpenIcon,
+  onOpenPriority,
+  priorityOpen,
   onDragStart,
   onDragEnd,
   onDragOver,
@@ -1209,8 +1263,21 @@ function ProjectRowLink({
             );
           case 'priority':
             return (
-              <span key={column} className={styles.priority}>
-                <PriorityIcon priority={row.priority} />
+              <span
+                key={column}
+                className={styles.priority}
+                role="presentation"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <PropertyTrigger
+                  roving
+                  name={priorityLabel(row.priority)}
+                  action="Set priority"
+                  open={priorityOpen}
+                  onOpen={onOpenPriority}
+                >
+                  <PriorityIcon priority={row.priority} decorative />
+                </PropertyTrigger>
               </span>
             );
           case 'lead':
@@ -1303,6 +1370,8 @@ function ProjectCard({
   dragging,
   onSelect,
   onOpenIcon,
+  onOpenPriority,
+  priorityOpen,
   onDragStart,
   onDragEnd,
 }: {
@@ -1311,6 +1380,9 @@ function ProjectCard({
   readonly onSelect: () => void;
   /** Opens the shared icon picker against the card's own glyph. */
   readonly onOpenIcon: (element: HTMLElement) => void;
+  /** Opens the shared priority picker against the card's own glyph. */
+  readonly onOpenPriority: (element: HTMLElement) => void;
+  readonly priorityOpen: boolean;
   readonly onDragStart: () => void;
   readonly onDragEnd: () => void;
 }) {
@@ -1331,7 +1403,17 @@ function ProjectCard({
         <span className={styles.name}>{row.name}</span>
       </span>
       <span className={styles.cardMeta}>
-        <PriorityIcon priority={row.priority} />
+        <span role="presentation" onClick={(event) => event.stopPropagation()}>
+          <PropertyTrigger
+            roving
+            name={priorityLabel(row.priority)}
+            action="Set priority"
+            open={priorityOpen}
+            onOpen={onOpenPriority}
+          >
+            <PriorityIcon priority={row.priority} decorative />
+          </PropertyTrigger>
+        </span>
         {row.targetDate === undefined ? null : (
           <span className={styles.target}>
             <CalendarGlyph />
