@@ -67,6 +67,7 @@ import { useEngine, useQuery, useSyncStatus } from './context';
 import { useActions } from './keymap';
 import { CommandMenu } from './CommandMenu';
 import { CommandMenuPeekEnabled } from './commandMenuPeek';
+import { ConnectionLostOverlay } from './ConnectionLostOverlay';
 import { HelpOverlay } from './HelpOverlay';
 import { pathToActiveIssues, pathToBacklogIssues } from './teamIssuePaths';
 import {
@@ -1766,6 +1767,7 @@ export function AppShell({
           />
         ) : null}
       </div>
+      <ConnectionLostOverlay />
     </CreateIssueProvider>
   );
 }
