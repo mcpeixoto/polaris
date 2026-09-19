@@ -245,14 +245,22 @@ describe('IssueList', () => {
     expect(screen.getByText('Rewrite the seeder')).toBeTruthy();
   });
 
-  it('groups the issues by status, in workflow order', () => {
+  it('keeps board columns in pipeline order', () => {
+    renderList('?layout=board');
+
+    expect(
+      screen.getAllByRole('listbox').map((column) => column.getAttribute('aria-label')),
+    ).toEqual(['Todo', 'In Progress']);
+  });
+
+  it('groups the issues by status, started work first', () => {
     renderList();
 
     const rows = screen.getAllByRole('option').map((option) => option.textContent);
     expect(rows).toEqual([
+      'ENG-3Rewrite the seeder',
       'ENG-1Fix the flake',
       'ENG-2Ship the importer',
-      'ENG-3Rewrite the seeder',
     ]);
   });
 
@@ -331,27 +339,27 @@ describe('IssueList', () => {
     await user.click(screen.getByRole('button', { name: 'Clear the filter' }));
 
     expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'ENG-3Rewrite the seeder',
       'ENG-1Fix the flake',
       'ENG-2Ship the importer',
-      'ENG-3Rewrite the seeder',
     ]);
   });
 
   it('starts with the cursor on the first row and moves it with j and k', async () => {
     const { user } = renderList();
 
-    expect(cursorText()).toBe('ENG-1Fix the flake');
+    expect(cursorText()).toBe('ENG-3Rewrite the seeder');
 
     await user.keyboard('j');
-    expect(cursorText()).toBe('ENG-2Ship the importer');
+    expect(cursorText()).toBe('ENG-1Fix the flake');
 
     await user.keyboard('jj');
     // Held against the end of the list rather than wrapping: a list that loops puts the user
     // at the top when they meant to reach the bottom.
-    expect(cursorText()).toBe('ENG-3Rewrite the seeder');
+    expect(cursorText()).toBe('ENG-2Ship the importer');
 
     await user.keyboard('k');
-    expect(cursorText()).toBe('ENG-2Ship the importer');
+    expect(cursorText()).toBe('ENG-1Fix the flake');
   });
 
   it('opens Peek with Space without leaving the list, and Esc puts it away', async () => {
@@ -359,18 +367,18 @@ describe('IssueList', () => {
 
     await user.keyboard('{Space}');
 
-    expect(screen.getByRole('complementary', { name: 'Peek ENG-1' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Fix the flake' })).toBeTruthy();
+    expect(screen.getByRole('complementary', { name: 'Peek ENG-3' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Rewrite the seeder' })).toBeTruthy();
     expect(screen.getByText('No description.')).toBeTruthy();
 
     await user.keyboard('j');
-    expect(cursorText()).toBe('ENG-2Ship the importer');
-    expect(screen.getByRole('complementary', { name: 'Peek ENG-2' })).toBeTruthy();
-    expect(screen.queryByRole('complementary', { name: 'Peek ENG-1' })).toBeNull();
+    expect(cursorText()).toBe('ENG-1Fix the flake');
+    expect(screen.getByRole('complementary', { name: 'Peek ENG-1' })).toBeTruthy();
+    expect(screen.queryByRole('complementary', { name: 'Peek ENG-3' })).toBeNull();
 
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('complementary')).toBeNull();
-    expect(cursorText()).toBe('ENG-2Ship the importer');
+    expect(cursorText()).toBe('ENG-1Fix the flake');
   });
 
   it('selects the cursor row with x and says how many are selected', async () => {
@@ -380,10 +388,10 @@ describe('IssueList', () => {
 
     await user.keyboard('jx');
 
-    expect(selectedTexts()).toEqual(['ENG-2Ship the importer']);
+    expect(selectedTexts()).toEqual(['ENG-1Fix the flake']);
     expect(screen.getByText('1 selected')).toBeTruthy();
     // The cursor did not move: selection and position are two different facts.
-    expect(cursorText()).toBe('ENG-2Ship the importer');
+    expect(cursorText()).toBe('ENG-1Fix the flake');
   });
 
   it('extends the selection with shift and the arrow keys', async () => {
@@ -392,10 +400,10 @@ describe('IssueList', () => {
     await user.keyboard('{Shift>}{ArrowDown}{/Shift}');
 
     // The first extension takes the row the cursor was on as well as the one it moved to.
-    expect(selectedTexts()).toEqual(['ENG-1Fix the flake', 'ENG-2Ship the importer']);
+    expect(selectedTexts()).toEqual(['ENG-3Rewrite the seeder', 'ENG-1Fix the flake']);
 
     await user.keyboard('{Shift>}{ArrowUp}{/Shift}');
-    expect(selectedTexts()).toEqual(['ENG-1Fix the flake']);
+    expect(selectedTexts()).toEqual(['ENG-3Rewrite the seeder']);
   });
 
   it('selects everything and clears again', async () => {
@@ -420,8 +428,8 @@ describe('IssueList', () => {
 
     expect(mutate).toHaveBeenCalledTimes(2);
     expect(mutate.mock.calls.map((call) => call[0].variables)).toEqual([
+      { id: 'issue-3', archived: true },
       { id: 'issue-1', archived: true },
-      { id: 'issue-2', archived: true },
     ]);
     // Optimistically a delete, matching the change the server emits for an archive: archived
     // work is not meant to sit in a replica waiting to be turned up by a filter.
@@ -435,7 +443,7 @@ describe('IssueList', () => {
 
     expect(mutate).toHaveBeenCalledTimes(1);
     expect(mutate.mock.calls[0]?.[0].variables.input).toMatchObject({
-      id: 'issue-2',
+      id: 'issue-1',
       assigneeId: 'user-ada',
     });
   });
@@ -447,7 +455,7 @@ describe('IssueList', () => {
 
     expect(mutate).toHaveBeenCalledTimes(1);
     expect(mutate.mock.calls[0]?.[0].variables.input).toMatchObject({
-      id: 'issue-1',
+      id: 'issue-3',
       assigneeId: 'user-ada',
     });
   });
