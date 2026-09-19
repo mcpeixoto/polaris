@@ -64,7 +64,7 @@ import {
 import { copyText, gitBranchNameFor } from '~/features/github/copy';
 import { issueIdsForAdhocList } from '~/features/issue/adhocList';
 import { listFindHits } from '~/features/issue/listFind';
-import { buildCreateURL } from '~/features/issue/create-url';
+import { buildCreateURL, parseCreateURL, resolveCreateURL } from '~/features/issue/create-url';
 import { EntityIcon } from '~/features/icon/EntityIcon';
 import { ArchiveGlyph } from '~/features/issue/glyphs';
 import {
@@ -2049,9 +2049,45 @@ export function IssueList({
    */
   const teamKeyForCreate = scope.team?.key;
   const groupBy = view.display.groupBy;
+  const projectForCreate = source.kind === 'project' ? source.projectId : undefined;
+  /**
+   * Open the composer on this page, seeded from the creation URL.
+   *
+   * Navigating to `/new` left the project (or cycle, or board column) the filer was in,
+   * and closing that route used to dump them on All issues. The overlay is the same
+   * composer; it just does not have to change rooms to exist. The URL remains the seed
+   * grammar, so a heading "+" and a pasted `/new?status=Todo&project=…` stay one path.
+   */
+  const openCreateFromUrl = useCallback(
+    (url: string) => {
+      let href = url;
+      if (projectForCreate !== undefined) {
+        const parsed = new URL(url, 'http://local.invalid');
+        if (!parsed.searchParams.has('project')) {
+          parsed.searchParams.set('project', projectForCreate);
+        }
+        const query = parsed.searchParams.toString();
+        href = query === '' ? parsed.pathname : `${parsed.pathname}?${query}`;
+      }
+      if (createIssue !== null) {
+        const parsed = new URL(href, 'http://local.invalid');
+        const accepted = createIssue.open(
+          resolveCreateURL(
+            engine.store,
+            parseCreateURL(parsed.searchParams, teamKeyForCreate ?? null),
+            viewerId,
+          ),
+        );
+        if (accepted) return;
+      }
+      void navigate(href);
+    },
+    [createIssue, engine.store, navigate, projectForCreate, teamKeyForCreate, viewerId],
+  );
   const onCreateInGroup = useCallback(
-    (row: HeaderRow) => void navigate(createUrlForGroup(row, groupBy, teamKeyForCreate)),
-    [navigate, groupBy, teamKeyForCreate],
+    (row: HeaderRow) =>
+      openCreateFromUrl(createUrlForGroup(row, groupBy, teamKeyForCreate, projectForCreate)),
+    [openCreateFromUrl, groupBy, teamKeyForCreate, projectForCreate],
   );
 
   /**
@@ -3039,7 +3075,7 @@ export function IssueList({
             onContextMenu={onRowContextMenu}
             onProperty={openFrom}
             openProperty={origin}
-            onCreateInColumn={(url) => void navigate(url)}
+            onCreateInColumn={openCreateFromUrl}
             onRegisterScrollTo={registerBoardScroll}
           />
         ) : (
@@ -3363,17 +3399,19 @@ function createUrlForGroup(
   row: HeaderRow,
   groupBy: DisplayGroupBy,
   teamKey: string | undefined,
+  project?: string | undefined,
 ): string {
+  const scope = { teamKey, project };
   if (groupBy === 'state' && row.stateId !== undefined) {
-    return buildCreateURL({ teamKey, statusName: row.name });
+    return buildCreateURL({ ...scope, statusName: row.name });
   }
   if (groupBy === 'priority' && row.priority !== undefined) {
-    return buildCreateURL({ teamKey, priority: row.priority });
+    return buildCreateURL({ ...scope, priority: row.priority });
   }
   if (groupBy === 'assignee' && row.userId !== undefined) {
-    return buildCreateURL({ teamKey, assignee: row.userId });
+    return buildCreateURL({ ...scope, assignee: row.userId });
   }
-  return buildCreateURL({ teamKey });
+  return buildCreateURL(scope);
 }
 
 /**

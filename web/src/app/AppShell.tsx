@@ -505,8 +505,11 @@ export function AppShell({
       onComposerClosed.current = undefined;
       onComposerCreated.current = undefined;
       closed?.();
+      // `/new` is a blank report under the overlay, not a place to stay. Going home from
+      // it dumped a filer who had opened it from a project onto All issues. Back is the
+      // page they were organising, which is the only room this sitting was about.
       if (pathname === '/new' || /\/team\/[^/]+\/new$/.test(pathname)) {
-        void navigate('/');
+        void navigate(-1);
       }
     },
     [navigate, pathname],
