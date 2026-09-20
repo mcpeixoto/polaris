@@ -344,6 +344,21 @@ export interface DisplayOptions {
    * turns on so every column they can drag into is on screen.
    */
   readonly showEmptyGroups?: boolean;
+  /**
+   * The order the reader arranged the groups into, by group key. Empty means "no opinion",
+   * and no opinion is the common case.
+   *
+   * Group keys are the dimension's own ids — a status id under status grouping, a person's
+   * under assignee — so an arrangement made under one grouping means nothing under another.
+   * It is cleared when the grouping changes rather than kept and ignored, because a stored
+   * order that silently does not apply is the kind of state somebody finds a year later and
+   * cannot explain.
+   *
+   * Partial on purpose: it names the groups that were moved and says nothing about the rest,
+   * which keep their computed order behind the ones it names. A status created after the
+   * arrangement therefore appears at the end instead of displacing it.
+   */
+  readonly groupOrder?: readonly string[];
   /** Which properties each row shows. Unknown names are ignored, never fatal. */
   readonly properties?: readonly DisplayProperty[];
 }
@@ -418,6 +433,11 @@ export const DEFAULT_DISPLAY: Required<DisplayOptions> = {
   showCompleted: true,
   showSnoozed: false,
   showEmptyGroups: false,
+  /**
+   * No arrangement, which is what lets `groupIssues` apply the order the product argues for
+   * — and what "Reset to default" puts back.
+   */
+  groupOrder: [],
   /**
    * Project sits with the rest of the row's scope rather than behind a tick: a team list
    * that does not name the project is one you cannot scan to organise, which is why the

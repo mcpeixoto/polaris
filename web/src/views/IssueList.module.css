@@ -403,6 +403,47 @@
   background: var(--bg-tertiary);
 }
 
+/*
+ * The heading being dragged, and the one it would land on.
+ *
+ * Half-opacity on the source rather than a lifted ghost: the browser already draws the drag
+ * image, and a second floating copy of the same bar is two headings answering to one pointer.
+ * The target gets a leading rule because a heading is a full-width bar — a ring around it
+ * would read as focus, which is a different thing and already spoken for below.
+ */
+.group[data-dragging='true'] {
+  opacity: 0.5;
+}
+
+.group[data-drop='true'] {
+  box-shadow: inset 2px 0 0 0 var(--border-focus);
+}
+
+/* The grip. Drawn on hover and on keyboard focus within the heading, so the bar stays quiet
+   until it is being used — the same bargain the row's hover checkbox makes. */
+.groupGrip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-3);
+  color: var(--text-tertiary);
+  opacity: 0;
+  cursor: grab;
+  transition: opacity var(--duration-instant) var(--ease-out);
+}
+
+.group:hover .groupGrip,
+.group:focus-within .groupGrip {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .groupGrip {
+    transition: none;
+  }
+}
+
 /* The fold control takes the whole bar bar the "+", so the heading is one big target. */
 .groupToggle {
   display: flex;

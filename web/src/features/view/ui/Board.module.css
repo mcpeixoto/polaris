@@ -148,6 +148,23 @@
   padding-inline: var(--space-3) var(--space-2);
 }
 
+/* The header doubles as the column's drag handle, so it says so under the pointer — on the
+   bar itself and not on the controls inside it, each of which keeps its own cursor. */
+.header[draggable='true'] {
+  cursor: grab;
+}
+
+.header[draggable='true'] button {
+  cursor: pointer;
+}
+
+/* Half opacity on the column being carried, for the reason the list's heading gives: the
+   browser already draws the drag image, and a second floating copy is two columns answering
+   to one pointer. */
+.column[data-dragging='true'] {
+  opacity: 0.5;
+}
+
 .name {
   overflow: hidden;
   color: var(--text-primary);

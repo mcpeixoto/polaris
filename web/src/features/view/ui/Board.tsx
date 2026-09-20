@@ -72,6 +72,7 @@ import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewerId } from '~/hooks/useViewer';
 import type { StateCategory, Store, User, UUID, WorkflowState } from '~/store';
 
+import { GROUP_DRAG, type GroupReorder } from '../groupOrder';
 import type { ViewGroup } from './useView';
 import styles from './Board.module.css';
 
@@ -134,6 +135,15 @@ export interface BoardProps {
    * it. Without this the cursor moved down a column and the column did not follow.
    */
   onRegisterScrollTo?: ((scrollTo: ((id: UUID) => void) | null) => void) | undefined;
+  /**
+   * Arranging the columns themselves, which is a different question from moving a card
+   * between them — and available under groupings where moving a card is not. A category
+   * column cannot receive a drop, because a drop would have to pick one of the statuses it
+   * covers; the column can still be moved, because moving it writes nothing to any issue.
+   *
+   * Absent where the view's groups cannot be arranged at all. See `canReorderGroups`.
+   */
+  reorder?: GroupReorder | undefined;
   readonly className?: string | undefined;
 }
 
@@ -241,6 +251,7 @@ export function Board({
   onProperty,
   openProperty,
   onRegisterScrollTo,
+  reorder,
   className,
 }: BoardProps) {
   const engine = useEngine();
@@ -580,6 +591,9 @@ export function Board({
             onDragOverColumn={setOver}
             onDropCard={onDropCard}
             registerScroller={registerScroller}
+            reorder={reorder}
+            first={group.key === groups[0]?.key}
+            last={group.key === groups[groups.length - 1]?.key}
           />
         ))}
       </div>
@@ -616,6 +630,10 @@ interface BoardColumnProps {
   onCreateInColumn: ((url: string) => void) | undefined;
   onDragOverColumn(key: string): void;
   onDropCard(group: ViewGroup, id: UUID, at: number | undefined): void;
+  reorder?: GroupReorder | undefined;
+  /** Whether the column is already at one end, so the menu can say so instead of no-opping. */
+  first: boolean;
+  last: boolean;
   registerScroller(key: string, scrollTo: ((index: number) => void) | null): void;
 }
 
@@ -654,6 +672,9 @@ function BoardColumn({
   onDragOverColumn,
   onDropCard,
   registerScroller,
+  reorder,
+  first,
+  last,
 }: BoardColumnProps) {
   const menu = useMenuTrigger();
   /**
@@ -715,7 +736,30 @@ function BoardColumn({
   // dangling reference is reported as an error by some screen readers.
   const cursorRendered = virtualCards.some((item) => group.ids[item.index] === cursorId);
 
+  /**
+   * Whether the thing being dragged is a column rather than a card.
+   *
+   * `types` is the only part of a `dataTransfer` a `dragover` may read — the payload is sealed
+   * until the drop — which is exactly why the heading sets a private type. Without this a
+   * column dragged across the board would light up every card gap it passed and land a
+   * `sortOrder` write on release. The held key is consulted too, for the browsers that hand
+   * back an empty `types` outside a real drag, which is what the card's own drop already
+   * works around.
+   */
+  const carriesGroup = (event: DragEvent<HTMLElement>): boolean =>
+    // `types` is optional-chained as well as `dataTransfer`: a synthetic drag — a test's, or
+    // a browser extension's — can hand over a transfer object without one, and a `TypeError`
+    // thrown out of a drop handler takes the board down rather than merely losing the drop.
+    event.dataTransfer?.types?.includes(GROUP_DRAG) === true ||
+    (reorder !== undefined && reorder.draggingKey !== null);
+
   const onDrop = (event: DragEvent<HTMLElement>) => {
+    if (carriesGroup(event)) {
+      event.preventDefault();
+      setInsertAt(null);
+      reorder?.onDrop(group.key);
+      return;
+    }
     if (!draggable) return;
     event.preventDefault();
     // The gap the pointer was last over, and nothing inferred when it was never over one.
@@ -738,7 +782,15 @@ function BoardColumn({
         .filter(Boolean)
         .join(' ')}
       aria-describedby={describedBy}
+      data-dragging={reorder?.draggingKey === group.key ? true : undefined}
       onDragOver={(event) => {
+        if (carriesGroup(event)) {
+          // A column accepts a column wherever it is over, and draws no card gap for it: the
+          // insertion rule answers "which gap", and a column has no gaps to land between.
+          event.preventDefault();
+          if (event.dataTransfer !== null) event.dataTransfer.dropEffect = 'move';
+          return;
+        }
         if (!draggable) return;
         // Without preventDefault the browser refuses the drop, which is the single most
         // common way an HTML5 drag ends in nothing happening at all.
@@ -753,7 +805,24 @@ function BoardColumn({
       onDragLeave={() => setInsertAt(null)}
       onDrop={onDrop}
     >
-      <header className={styles.header}>
+      {/*
+       * The header is the column's drag handle — the whole bar, not a separate grip, because
+       * everything else in it is already a control and a sixth one would crowd a 240-pixel
+       * column. `draggable` is set from `reorder` rather than from `draggable` above: moving a
+       * column writes a display option, not an issue, so it is offered under groupings where a
+       * card cannot be dropped at all.
+       */}
+      <header
+        className={styles.header}
+        draggable={reorder !== undefined}
+        onDragStart={(event) => {
+          if (reorder === undefined) return;
+          event.dataTransfer.setData(GROUP_DRAG, group.key);
+          event.dataTransfer.effectAllowed = 'move';
+          reorder.onStart(group.key);
+        }}
+        onDragEnd={() => reorder?.onEnd()}
+      >
         {/* The column's glyph, so a board reads as a row of states or people before a single
             name is read — the same mark the list's group heading carries. */}
         {glyph}
@@ -813,6 +882,31 @@ function BoardColumn({
               onSelect: () => {
                 menu.hide();
                 onToggleGroup?.(group.key);
+              },
+            },
+            /*
+             * The pointer-free way to arrange the columns, and the discoverable one. A drag is
+             * the fast path and it is also invisible until somebody tries it; a menu item is
+             * how the feature is found, and how it is reached without a mouse. Disabled at the
+             * ends rather than hidden, so the item does not move under the pointer as a column
+             * travels along the board.
+             */
+            {
+              id: 'move-left',
+              label: 'Move left',
+              disabled: reorder === undefined || first,
+              onSelect: () => {
+                menu.hide();
+                reorder?.onMove(group.key, -1);
+              },
+            },
+            {
+              id: 'move-right',
+              label: 'Move right',
+              disabled: reorder === undefined || last,
+              onSelect: () => {
+                menu.hide();
+                reorder?.onMove(group.key, 1);
               },
             },
           ]}

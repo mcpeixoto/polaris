@@ -107,6 +107,13 @@ import {
 } from '~/features/labels/labelView';
 import { readCollapsed, writeCollapsed } from '~/features/view/collapse';
 import {
+  canReorderGroups,
+  GROUP_DRAG,
+  reorderGroupKeys,
+  shiftGroupKey,
+  type GroupReorder,
+} from '~/features/view';
+import {
   isFavorite,
   setViewSubscription,
   toggleFavorite,
@@ -458,6 +465,9 @@ interface ListCommands {
   reorder(delta: number): void;
   reorderToEnd(delta: number): void;
   canReorder(): boolean;
+  /** Move the group the cursor is in one place up or down. */
+  moveGroup(delta: number): void;
+  canMoveGroup(): boolean;
   collapseGroup(): void;
   exportCsv(): void;
   pickStatus(): void;
@@ -737,6 +747,74 @@ export function IssueList({
   );
 
   const rows = useMemo(() => rowsOf(groups, collapsed), [groups, collapsed]);
+
+  /**
+   * Arranging the groups, which is written against the keys **as drawn** rather than against
+   * whatever `groupOrder` already says.
+   *
+   * A stored arrangement is partial — it names what has been moved — so building the next one
+   * from it would quietly drop every group it does not mention. Taking the drawn order and
+   * writing back a complete one means the first drag settles the whole arrangement, and a
+   * status added afterwards lands at the end because `groupIssues` puts what it cannot rank
+   * behind what it can.
+   *
+   * Declared up here rather than beside the other heading callbacks because `commands.current`
+   * is assigned during render, well above them, and a `const` read before its declaration is
+   * a ReferenceError rather than an undefined.
+   */
+  const groupKeys = useMemo(() => groups.map((group) => group.key), [groups]);
+  const reorderGroups = canReorderGroups(view.display.groupBy, view.display.subGroupBy);
+  const setGroupOrder = view.setDisplay;
+
+  const moveGroupBy = useCallback(
+    (key: string, delta: number) => {
+      const next = shiftGroupKey(groupKeys, key, delta);
+      // Identity, because both helpers return the input array when the move is a no-op: the
+      // top heading pressed upwards should not write a URL, a preference and a re-render.
+      if (next === groupKeys) return;
+      setGroupOrder({ groupOrder: next });
+    },
+    [groupKeys, setGroupOrder],
+  );
+
+  /**
+   * The heading under the pointer's grip.
+   *
+   * Both a ref and a state, which is not a duplicate: the state is what re-renders the bar at
+   * half opacity, and the ref is what the drop reads. A drop handler that read the state would
+   * read the value its own render closed over — and `dataTransfer` cannot be relied on to
+   * carry the key either, because a browser protecting it outside a real drag hands back the
+   * empty string. The board's card drag already makes the same bargain, for the same reason.
+   */
+  const draggingGroupRef = useRef<string | null>(null);
+  const [draggingGroup, setDraggingGroup] = useState<string | null>(null);
+  const groupReorder = useMemo<GroupReorder | undefined>(
+    () =>
+      reorderGroups
+        ? {
+            draggingKey: draggingGroup,
+            onStart: (key: string) => {
+              draggingGroupRef.current = key;
+              setDraggingGroup(key);
+            },
+            onEnd: () => {
+              draggingGroupRef.current = null;
+              setDraggingGroup(null);
+            },
+            onMove: (key: string, delta: number) => moveGroupBy(key, delta),
+            onDrop: (target: string) => {
+              const source = draggingGroupRef.current;
+              draggingGroupRef.current = null;
+              setDraggingGroup(null);
+              if (source === null) return;
+              const next = reorderGroupKeys(groupKeys, source, target);
+              if (next === groupKeys) return;
+              setGroupOrder({ groupOrder: next });
+            },
+          }
+        : undefined,
+    [draggingGroup, groupKeys, moveGroupBy, reorderGroups, setGroupOrder],
+  );
 
   // Derived outside the selector on purpose: the store compares a subscription's result
   // structurally, and a Map has no enumerable own properties — two different maps would
@@ -1112,6 +1190,8 @@ export function IssueList({
     reorder: () => {},
     reorderToEnd: () => {},
     canReorder: () => false,
+    moveGroup: () => {},
+    canMoveGroup: () => false,
     collapseGroup: () => {},
     exportCsv: () => {},
     pickStatus: () => {},
@@ -1345,6 +1425,14 @@ export function IssueList({
       view.display.groupBy === 'none' &&
       view.display.orderBy === 'manual' &&
       targets.length === 1,
+    moveGroup: (delta) => {
+      if (cursorGroupKey === '') return;
+      moveGroupBy(cursorGroupKey, delta);
+    },
+    // Available, not merely enabled, so the help overlay does not teach a chord on a list
+    // that has no headings to move — see `canReorder` above, which makes the same argument
+    // about `⌥↑`.
+    canMoveGroup: () => canReorderGroups(view.display.groupBy, view.display.subGroupBy),
     collapseGroup: () => {
       if (cursorGroupKey !== '') toggleGroup(cursorGroupKey);
     },
@@ -1900,6 +1988,33 @@ export function IssueList({
         available: () => commands.current.canReorder(),
         enabled: () => commands.current.canReorder(),
         run: () => commands.current.reorder(1),
+      },
+      /*
+       * Arranging the headings themselves, which is a different question from arranging the
+       * rows under them and deliberately reads as one: `⌥` moves an issue, `⌘⇧` moves the
+       * group it is in. `available` for the reason the four above it are — a list with no
+       * grouping has no heading to move, and a help sheet that taught the chord anyway would
+       * be teaching a keystroke that cannot fire.
+       */
+      {
+        id: 'issueList.moveGroupUp',
+        title: 'Move group up',
+        keys: ['mod+shift+ArrowUp'],
+        when: 'list',
+        group: 'Issues',
+        available: () => commands.current.canMoveGroup(),
+        enabled: () => commands.current.canMoveGroup(),
+        run: () => commands.current.moveGroup(-1),
+      },
+      {
+        id: 'issueList.moveGroupDown',
+        title: 'Move group down',
+        keys: ['mod+shift+ArrowDown'],
+        when: 'list',
+        group: 'Issues',
+        available: () => commands.current.canMoveGroup(),
+        enabled: () => commands.current.canMoveGroup(),
+        run: () => commands.current.moveGroup(1),
       },
       {
         id: 'issueList.moveIssueToTop',
@@ -3077,12 +3192,18 @@ export function IssueList({
             openProperty={origin}
             onCreateInColumn={openCreateFromUrl}
             onRegisterScrollTo={registerBoardScroll}
+            reorder={groupReorder}
           />
         ) : (
           <div className={styles.listPane}>
             {pinned === null ? null : (
               <div className={styles.pinned}>
-                <GroupHeader row={pinned} onToggle={onToggleGroup} onCreate={onCreateInGroup} />
+                <GroupHeader
+                  row={pinned}
+                  onToggle={onToggleGroup}
+                  onCreate={onCreateInGroup}
+                  reorder={groupReorder}
+                />
               </div>
             )}
             <div
@@ -3122,6 +3243,7 @@ export function IssueList({
                           row={row}
                           onToggle={onToggleGroup}
                           onCreate={onCreateInGroup}
+                          reorder={groupReorder}
                         />
                       ) : (
                         <IssueRow
@@ -3335,11 +3457,14 @@ function GroupHeader({
   row,
   onToggle,
   onCreate,
+  reorder,
 }: {
   row: HeaderRow;
   onToggle: (key: string) => void;
   /** Files a new issue into this group. Absent where the group is not something to file into. */
   onCreate?: ((row: HeaderRow) => void) | undefined;
+  /** Absent where the view's groups cannot be arranged — see `canReorderGroups`. */
+  reorder?: GroupReorder | undefined;
 }) {
   // Resolved here rather than carried on the row, because only one of the seven groupings has
   // a status to draw and the row type should not pretend otherwise. Cheap: the virtualiser
@@ -3353,8 +3478,52 @@ function GroupHeader({
 
   // Two controls in one bar, so the bar is a `div` and the fold is the button inside it: a
   // button cannot hold another button, and the "+" is a command of its own.
+  //
+  // The whole bar is the drag handle rather than only the grip, because a heading is a
+  // 36-pixel bar and a six-pixel target inside it is one most people miss. The grip is drawn
+  // so the bar says it can be moved; it is `aria-hidden`, because the thing a screen reader
+  // needs here is not a picture of a handle but the chord that does the same job, and that is
+  // registered — `issueList.moveGroupUp` and its twin, which appear in the help overlay.
   return (
-    <div className={styles.group}>
+    <div
+      className={styles.group}
+      draggable={reorder !== undefined}
+      data-dragging={reorder?.draggingKey === row.groupKey ? true : undefined}
+      data-drop={
+        reorder !== undefined &&
+        reorder.draggingKey !== null &&
+        reorder.draggingKey !== row.groupKey
+          ? true
+          : undefined
+      }
+      onDragStart={(event) => {
+        if (reorder === undefined) return;
+        // A payload as well as the ref, so a drop knows this was a heading and not a card:
+        // the board's columns accept both and have to tell them apart, and `types` is the
+        // only thing a `dragover` is allowed to read.
+        event.dataTransfer.setData(GROUP_DRAG, row.groupKey);
+        event.dataTransfer.effectAllowed = 'move';
+        reorder.onStart(row.groupKey);
+      }}
+      onDragEnd={() => reorder?.onEnd()}
+      onDragOver={(event) => {
+        if (reorder === undefined || reorder.draggingKey === null) return;
+        // Without this the browser refuses the drop, which is the single most common way an
+        // HTML5 drag ends in nothing happening at all.
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+      }}
+      onDrop={(event) => {
+        if (reorder === undefined) return;
+        event.preventDefault();
+        reorder.onDrop(row.groupKey);
+      }}
+    >
+      {reorder === undefined ? null : (
+        <span className={styles.groupGrip} aria-hidden="true">
+          <GripGlyph />
+        </span>
+      )}
       <button
         type="button"
         className={styles.groupToggle}
@@ -3451,6 +3620,20 @@ function SelectionBar({ open, children }: { open: boolean; children: ReactNode }
     <div className={styles.selectionBar} role="group" aria-label="Issue actions">
       {children}
     </div>
+  );
+}
+
+/** Six dots: the drag handle's mark, at the same weight as the chevron beside it. */
+function GripGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
+      <circle cx="6" cy="4" r="1.1" />
+      <circle cx="10" cy="4" r="1.1" />
+      <circle cx="6" cy="8" r="1.1" />
+      <circle cx="10" cy="8" r="1.1" />
+      <circle cx="6" cy="12" r="1.1" />
+      <circle cx="10" cy="12" r="1.1" />
+    </svg>
   );
 }
 
