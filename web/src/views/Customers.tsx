@@ -16,7 +16,7 @@
  * the switch now only decides what goes under the header.
  */
 
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router';
 
 import { useEngine } from '~/app/context';
@@ -34,17 +34,26 @@ import {
 } from '~/components';
 import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
 import {
+  CUSTOMER_STATUSES,
+  CustomerStatusPicker,
+  customerStatusItems,
+} from '~/features/customers/CustomerStatusPicker';
+import { CustomerTierPicker } from '~/features/customers/CustomerTierPicker';
+import {
   archiveCustomer,
   formatCustomerStatus,
   updateCustomer,
+  type CustomerFields,
 } from '~/features/customers/mutations';
 import { EntityLoading, useStoreSettled } from '~/features/entity-gate/EntityGate';
 import { copyText } from '~/features/github/copy';
 import { DotsGlyph } from '~/features/issue/glyphs';
 import { report } from '~/features/issue/mutations';
+import { UserPicker } from '~/features/members/UserPicker';
 import { useContextMenu } from '~/hooks/useContextMenu';
 import { listRowDomId, useListCursor } from '~/hooks/useListCursor';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewerRole } from '~/hooks/useViewer';
 import { ApiError } from '~/sync/api';
 import type { CustomerStatus, Store, UUID } from '~/store';
@@ -53,12 +62,21 @@ import styles from './Customers.module.css';
 /** The status filter, which is the statuses plus "all of them". */
 type StatusFilter = 'all' | CustomerStatus;
 
+/**
+ * The filter above the rows, which is `CUSTOMER_STATUSES` with "all of them" in front.
+ *
+ * Spelled out from the picker's list rather than beside it: this screen now draws the
+ * statuses in three places — the filter, the status cell, the row menu's submenu — and a
+ * fourth status added to the union has to reach all three or the filter quietly hides a
+ * set of customers nobody can get back.
+ */
 const STATUS_OPTIONS: readonly { value: StatusFilter; label: string }[] = [
   { value: 'all', label: 'All' },
-  { value: 'active', label: 'Active' },
-  { value: 'prospect', label: 'Prospect' },
-  { value: 'churned', label: 'Churned' },
+  ...CUSTOMER_STATUSES.map((value) => ({ value, label: formatCustomerStatus(value) })),
 ];
+
+/** The properties a row lets you change where they are drawn. */
+type CellProperty = 'status' | 'tier' | 'owner';
 
 /** What the rows are ordered by. Name is the default because the search is by name. */
 type Sort = 'name' | 'requests';
@@ -104,6 +122,47 @@ export function Customers() {
   const [rowMenuOpen, setRowMenuOpen] = useState(false);
   const rowMenuTrigger = useRef<HTMLButtonElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * The one property picker the rows share, and which property of which customer it holds.
+   *
+   * One picker rather than one per row, for the reason `useMenuTrigger` spells out: a row
+   * that scrolls out of the list unmounts and would take its menu with it, and three
+   * pickers per row is three live queries per row to serve the one that is open.
+   * `showFrom` moves the anchor to whichever cell was pressed, so the singleton still opens
+   * under the right glyph. Only one can be up at a time, which is why the kind lives beside
+   * the customer id rather than in a boolean each.
+   */
+  const cellPicker = useMenuTrigger<HTMLElement>();
+  const [editing, setEditing] = useState<{
+    readonly kind: CellProperty;
+    readonly id: UUID;
+  } | null>(null);
+
+  const openCellPicker = (kind: CellProperty, id: UUID, element: HTMLElement) => {
+    setEditing({ kind, id });
+    cellPicker.showFrom(element);
+  };
+
+  const cellOpen = (kind: CellProperty, id: UUID): boolean =>
+    cellPicker.open && editing?.kind === kind && editing.id === id;
+
+  /**
+   * The same pickers, opened from a row menu instead of from a cell.
+   *
+   * This exists because a right-click has no control to hang a menu off — the user aimed at
+   * a row — and the one-pixel anchor `useContextMenu` renders is unmounted by the close that
+   * precedes the picker opening. So the point is kept here and a fresh anchor drawn at it,
+   * the same trade `views/Projects.tsx` makes. The ⋯ menu needs none of this: its button is
+   * part of the row and outlives the menu, so that path goes through `openCellPicker`.
+   */
+  const [menuPicker, setMenuPicker] = useState<{
+    readonly kind: CellProperty;
+    readonly id: UUID;
+    readonly x: number;
+    readonly y: number;
+  } | null>(null);
+  const pickerAnchorRef = useRef<HTMLDivElement>(null);
 
   const workspace = useLiveQuery(
     (store) => store.workspaces.get(store.workspaceId) ?? null,
@@ -180,10 +239,50 @@ export function Customers() {
 
   const disabled = workspace !== null && !workspace.customerRequestsEnabled;
 
+  /**
+   * The tiers an admin has named, which decides whether the tier column is a control at all.
+   *
+   * A tier is free text — `customer.tier` is a string the API takes as given — and a
+   * workspace that has never filled this list in has nothing to choose between. Where that
+   * is the case the column stays what it was, and the detail screen's text field stays the
+   * way to set one; see `CustomerTierPicker`.
+   */
+  const tiers = workspace === null ? [] : workspace.customerTiers;
+
   const closeMenus = () => {
     setRowMenuOpen(false);
     setRowMenuId(null);
     contextMenu.close();
+  };
+
+  /**
+   * A property write from a row, and the one place a refusal from it is shown.
+   *
+   * `updateCustomer` is optimistic, so the row has already moved by the time the server
+   * answers. When it refuses, the sync layer puts the old value back — and without this
+   * line the row would simply flick back to what it was with nothing saying why.
+   */
+  /**
+   * A property row in the ⋯ menu and the right-click menu, which are the keyboard's way to
+   * a cell trigger that is deliberately not in the tab order. See `CellTrigger`.
+   */
+  const openFromMenu = (kind: CellProperty, id: UUID) => {
+    const button = rowMenuOpen ? rowMenuTrigger.current : null;
+    const at = contextMenu.at;
+    closeMenus();
+    if (button !== null) {
+      openCellPicker(kind, id, button);
+      return;
+    }
+    if (at !== null) setMenuPicker({ kind, id, x: at.x, y: at.y });
+  };
+
+  const save = (id: UUID, fields: CustomerFields, refused: string) => {
+    setFailure(null);
+    updateCustomer(engine, id, fields).catch((error: unknown) => {
+      setFailure(error instanceof ApiError && error.message !== '' ? error.message : refused);
+      report(error);
+    });
   };
 
   /**
@@ -211,26 +310,32 @@ export function Customers() {
             kind: 'submenu',
             id: 'status',
             label: 'Status',
-            items: STATUS_OPTIONS.filter((option) => option.value !== 'all').map((option) => ({
-              id: `status-${option.value}`,
-              label: option.label,
-              selected: option.value === row.status,
-              onSelect: () => {
-                closeMenus();
-                if (option.value === row.status) return;
-                setFailure(null);
-                updateCustomer(engine, row.id, {
-                  status: option.value as CustomerStatus,
-                }).catch((error: unknown) => {
-                  setFailure(
-                    error instanceof ApiError && error.message !== ''
-                      ? error.message
-                      : 'That status could not be saved.',
-                  );
-                  report(error);
-                });
-              },
-            })),
+            // The same rows the status cell's picker draws, from the same builder. A
+            // submenu rather than a picker of its own because it draws inside the menu it
+            // hangs from — and because this is the keyboard's way to the property, on a
+            // surface whose cell triggers are pointer-only by design. See CellTrigger.
+            items: customerStatusItems(row.status, (status) => {
+              closeMenus();
+              if (status === row.status) return;
+              save(row.id, { status }, 'That status could not be saved.');
+            }),
+          },
+          // Tier only where the workspace has named some. A row offering a picker that can
+          // clear a tier and never set one is worse than no row: it reads as the feature
+          // being here and broken rather than as not being set up yet.
+          ...(tiers.length === 0
+            ? []
+            : [
+                {
+                  id: 'tier',
+                  label: 'Tier…',
+                  onSelect: () => openFromMenu('tier', row.id),
+                },
+              ]),
+          {
+            id: 'owner',
+            label: 'Owner…',
+            onSelect: () => openFromMenu('owner', row.id),
           },
         ],
         archive: () => {
@@ -260,6 +365,19 @@ export function Customers() {
 
   const menuRow = rows.find((row) => row.id === rowMenuId) ?? null;
   const contextRow = rows.find((row) => row.id === contextMenu.id) ?? null;
+  // Which picker is up and whose, from whichever of the two ways opened it. Re-read from
+  // `rows` rather than captured when it opened, so a delta that lands while the menu is up
+  // ticks the value the customer actually holds now.
+  const openKind: CellProperty | null = cellPicker.open
+    ? (editing?.kind ?? null)
+    : (menuPicker?.kind ?? null);
+  const openId = cellPicker.open ? editing?.id : menuPicker?.id;
+  const editingRow = rows.find((row) => row.id === openId) ?? null;
+  const pickerTrigger = cellPicker.open ? cellPicker.ref : pickerAnchorRef;
+  const closePicker = () => {
+    cellPicker.hide();
+    setMenuPicker(null);
+  };
 
   return (
     <div className={styles.screen}>
@@ -358,16 +476,73 @@ export function Customers() {
                         <span className={styles.summary}>{row.domains.join(', ')}</span>
                       )}
                     </span>
-                    <span className={styles.status}>{formatCustomerStatus(row.status)}</span>
-                    <span className={styles.tier}>{row.tier ?? 'No tier'}</span>
-                    {row.ownerName === null ? (
-                      <span className={styles.ownerMuted}>No owner</span>
+                    {/* Three cells that are also controls. The press is stopped at the cell
+                        as well as at the button, because the whole row is a <Link>: without
+                        it, changing a customer's status would navigate away from the list
+                        you were changing it in. */}
+                    <span
+                      className={styles.status}
+                      role="presentation"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <CellTrigger
+                        name={formatCustomerStatus(row.status)}
+                        action="Change status"
+                        open={cellOpen('status', row.id)}
+                        onOpen={(element) => openCellPicker('status', row.id, element)}
+                      >
+                        <span className={styles.cellText}>{formatCustomerStatus(row.status)}</span>
+                      </CellTrigger>
+                    </span>
+                    {tiers.length === 0 ? (
+                      // Nothing to choose between: the workspace has named no tiers, and a
+                      // menu offering only "No tier" could take a value away and never give
+                      // one back. Settings → Customer requests is where the list is made.
+                      <span className={styles.tier}>{row.tier ?? 'No tier'}</span>
                     ) : (
-                      <span className={styles.owner}>
-                        <Avatar name={row.ownerName} size="xs" colorKey={row.ownerId} decorative />
-                        {row.ownerName}
+                      <span
+                        className={styles.tier}
+                        role="presentation"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <CellTrigger
+                          name={row.tier ?? 'No tier'}
+                          action="Set tier"
+                          muted={row.tier === null}
+                          open={cellOpen('tier', row.id)}
+                          onOpen={(element) => openCellPicker('tier', row.id, element)}
+                        >
+                          <span className={styles.cellText}>{row.tier ?? 'No tier'}</span>
+                        </CellTrigger>
                       </span>
                     )}
+                    <span
+                      className={styles.owner}
+                      role="presentation"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <CellTrigger
+                        name={row.ownerName ?? 'No owner'}
+                        action="Set owner"
+                        muted={row.ownerName === null}
+                        open={cellOpen('owner', row.id)}
+                        onOpen={(element) => openCellPicker('owner', row.id, element)}
+                      >
+                        {row.ownerName === null ? (
+                          // The disc keeps the column from shifting by an avatar's width as
+                          // owners come and go, the same way an unassigned issue row does.
+                          <span className={styles.noOwner} />
+                        ) : (
+                          <Avatar
+                            name={row.ownerName}
+                            size="xs"
+                            colorKey={row.ownerId}
+                            decorative
+                          />
+                        )}
+                        <span className={styles.cellText}>{row.ownerName ?? 'No owner'}</span>
+                      </CellTrigger>
+                    </span>
                     <span className={styles.count}>
                       {row.requestCount === 1 ? '1 request' : `${row.requestCount} requests`}
                     </span>
@@ -421,6 +596,68 @@ export function Customers() {
         items={contextRow === null ? [] : itemsFor(contextRow)}
       />
 
+      {/* A menu opened from the pointer needs something at the pointer to hang off, and the
+          one the context menu rendered went with it. Fixed, because the coordinates are a
+          pointer event's. */}
+      {menuPicker === null ? null : (
+        <div
+          ref={pickerAnchorRef}
+          style={{
+            position: 'fixed',
+            width: 1,
+            height: 1,
+            pointerEvents: 'none',
+            top: menuPicker.y,
+            left: menuPicker.x,
+          }}
+        />
+      )}
+
+      {/* The three pickers the rows share, opened either from a cell — anchored by
+          `cellPicker.ref`, which resolves to whichever cell called `showFrom` — or from a
+          row menu. Only ever one of them open. */}
+      <CustomerStatusPicker
+        open={openKind === 'status'}
+        onClose={closePicker}
+        trigger={pickerTrigger}
+        value={editingRow?.status}
+        onSelect={(status) => {
+          const row = editingRow;
+          closePicker();
+          // Choosing what is already set is a no-op, not an update: the server would take
+          // it, and every reader of `updatedAt` would see the customer as freshly changed.
+          if (row === null || status === row.status) return;
+          save(row.id, { status }, 'That status could not be saved.');
+        }}
+      />
+      <CustomerTierPicker
+        open={openKind === 'tier'}
+        onClose={closePicker}
+        trigger={pickerTrigger}
+        value={editingRow?.tier ?? null}
+        onSelect={(tier) => {
+          const row = editingRow;
+          closePicker();
+          if (row === null || tier === row.tier) return;
+          save(row.id, { tier }, 'That tier could not be saved.');
+        }}
+      />
+      <UserPicker
+        open={openKind === 'owner'}
+        onClose={closePicker}
+        trigger={pickerTrigger}
+        label="Owner"
+        noneLabel="No owner"
+        filterPlaceholder="Set owner…"
+        value={editingRow?.ownerId ?? null}
+        onSelect={(ownerId) => {
+          const row = editingRow;
+          closePicker();
+          if (row === null || ownerId === (row.ownerId ?? null)) return;
+          save(row.id, { ownerId }, 'That owner could not be saved.');
+        }}
+      />
+
       <ConfirmDialog
         open={confirming !== null}
         title={confirming === null ? 'Archive this customer?' : `Archive ${confirming.name}?`}
@@ -437,6 +674,63 @@ export function Customers() {
         }}
       />
     </div>
+  );
+}
+
+/**
+ * A property in a row, drawn as the value itself.
+ *
+ * `PropertyTrigger` is the component for this everywhere a property is a *glyph* — a status
+ * circle, a priority bar, an avatar — and it is an `IconButton`, which is square by
+ * construction and hides its contents from the accessibility tree. Every property in this
+ * row is a word: "Prospect", "Enterprise", somebody's name. Squashing those into a 22px box
+ * would throw away the column they are the point of, so this is the trade the issue row's
+ * own `MetaPill` already makes for its due date and estimate — the value stays legible and
+ * the button is drawn around it.
+ *
+ * What it keeps from `PropertyTrigger` is the part that is easy to leave out. The click is
+ * stopped before the row's `<Link>` sees it. And it stays out of the tab order, because
+ * these rows are `role="option"` in a listbox that navigates by `aria-activedescendant`,
+ * where a tab stop inside an option breaks the roving model — the cost being that this is a
+ * pointer affordance, and the keyboard reaches the same property through the row menu on
+ * `.` instead.
+ */
+function CellTrigger({
+  name,
+  action,
+  open,
+  muted = false,
+  onOpen,
+  children,
+}: {
+  /** The value, which is the control's accessible name. Not the property — that is `action`. */
+  readonly name: string;
+  /** The verb, in the tooltip: "Change status". Never the same words as `name`. */
+  readonly action: string;
+  readonly open: boolean;
+  /** Dimmed, for a property holding nothing: "No tier", "No owner". */
+  readonly muted?: boolean | undefined;
+  readonly onOpen: (element: HTMLElement) => void;
+  readonly children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={[styles.cellTrigger, muted ? styles.cellTriggerMuted : null]
+        .filter(Boolean)
+        .join(' ')}
+      aria-label={name}
+      title={action}
+      aria-haspopup="menu"
+      aria-expanded={open}
+      tabIndex={-1}
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpen(event.currentTarget);
+      }}
+    >
+      {children}
+    </button>
   );
 }
 

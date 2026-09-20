@@ -45,6 +45,7 @@ import {
   ListGroup,
   Menu,
   priorityLabel,
+  PropertyTrigger,
   StateIcon,
   Tabs,
   type MenuNode,
@@ -111,6 +112,7 @@ import {
 import { ReminderPicker } from '~/features/inbox/ReminderPicker';
 import { offerUndo } from '~/features/undo/UndoToast';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
+import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useSelection } from '~/hooks/useSelection';
 import { useViewerId } from '~/hooks/useViewer';
 import type { NotificationType, StateCategory, Store, UUID } from '~/store';
@@ -127,8 +129,15 @@ interface Row {
   readonly snoozedUntil: string | undefined;
   readonly issueIdentifier: string | undefined;
   readonly issueTitle: string | undefined;
-  /** The issue's workflow state, for the glyph at the row's right edge. */
-  readonly state: { category: StateCategory; color: string | undefined } | null;
+  /**
+   * The issue's workflow state, for the glyph at the row's right edge.
+   *
+   * The name is carried alongside the two things that draw the circle because the glyph is
+   * a control now, and a control's accessible name is the value it is showing — "Todo",
+   * "In Progress". Without it the button would announce as the category, which is the
+   * grouping a team's statuses fall into and not the status anybody picked.
+   */
+  readonly state: { name: string; category: StateCategory; color: string | undefined } | null;
   readonly href: string | undefined;
   readonly avatarName: string;
   readonly avatarUrl: string | null;
@@ -200,6 +209,36 @@ export function Inbox() {
   const [snoozeFor, setSnoozeFor] = useState<UUID | null>(null);
   const [contextFor, setContextFor] = useState<Row | null>(null);
   const [picker, setPicker] = useState<IssuePropertyKind | null>(null);
+  /**
+   * The status picker the *list* owns, which is a second one and deliberately not the
+   * contextual menu's.
+   *
+   * The menu's five pickers all hang off `anchor`, a ref the right-click path writes with
+   * the whole row element, and they open on `contextFor` — which is also what arms the
+   * cascading row-menu queries in `useIssueRowMenuOptions`. Clicking a glyph needs neither:
+   * it has to anchor on the glyph, 400px to the right of where the menu anchors, and it has
+   * no use for a menu's worth of options. Sharing the one picker would mean the two paths
+   * overwriting each other's anchor and a click on a circle paying for a menu nobody opened.
+   *
+   * So the anchor moves instead of the picker: `showFrom` positions this one against the
+   * button that asked for it, and there is exactly one of it however many rows are on
+   * screen — a row that scrolls out of a day group and unmounts cannot take an open menu
+   * with it. The row it is about is held by id rather than as a `Row`, because the rows are
+   * rebuilt on every delta and the one this points at must be the current one.
+   */
+  const statusPicker = useMenuTrigger<HTMLElement>();
+  const [statusFor, setStatusFor] = useState<UUID | null>(null);
+  const openStatusPicker = useCallback(
+    (id: UUID, element: HTMLElement) => {
+      setStatusFor(id);
+      statusPicker.showFrom(element);
+    },
+    [statusPicker],
+  );
+  const closeStatusPicker = useCallback(() => {
+    statusPicker.hide();
+    setStatusFor(null);
+  }, [statusPicker]);
   const [tab, setTab] = useState<InboxTab>(DEFAULT_INBOX_TAB);
   const [kinds, setKinds] = useState<ReadonlySet<InboxKind>>(() => new Set());
   const [filterOpen, setFilterOpen] = useState(false);
@@ -297,7 +336,10 @@ export function Inbox() {
             snoozedUntil: notification.snoozedUntil,
             issueIdentifier: identifier,
             issueTitle: issue?.title,
-            state: state === undefined ? null : { category: state.category, color: state.color },
+            state:
+              state === undefined
+                ? null
+                : { name: state.name, category: state.category, color: state.color },
             href: notificationHref(notification.type, notification.payload, notification.issueId),
             issue:
               issue === undefined
@@ -358,6 +400,15 @@ export function Inbox() {
   // that jumped back to the top every time would make working down an inbox impossible.
   const active = Math.min(cursor, Math.max(rows.length - 1, 0));
   const current = rows[active];
+
+  /**
+   * The row the status picker is open on, looked up fresh rather than captured.
+   *
+   * A delta arriving while the menu is up rebuilds every row, and the value the picker ticks
+   * has to be the one the store holds now — otherwise a status changed from another window
+   * would be ticked against the status this one happened to be showing when it opened.
+   */
+  const statusRow = statusFor === null ? undefined : rows.find((row) => row.id === statusFor);
 
   const open = useCallback(
     (row: Row | undefined) => {
@@ -824,8 +875,22 @@ export function Inbox() {
   /** One row, drawn the same whichever day group it fell into. */
   const renderRow = (row: Row) => (
     <li key={row.id} role="none">
-      <button
-        type="button"
+      {/*
+       * A div and not a button, which it was until the status circle became a control.
+       *
+       * `<button>` may not contain interactive content, and React says so loudly — once per
+       * row per render, with an owner stack attached, which took the inbox's own test files
+       * from two seconds to thirty-five. The same list rows everywhere else in the product
+       * (`IssueList`, `Search`) are already `role="option"` on a non-button, for the same
+       * reason: a row that carries editable properties cannot itself be one control.
+       *
+       * Nothing is lost by it. The cursor was never focus — it is `aria-activedescendant` on
+       * the list, which is the model this screen has always used — and `.row` already
+       * carried every reset a button needed, so the pixels do not move. What the row *was*
+       * paying for was the tab order, and that moves up to the list: one stop for a hundred
+       * notifications rather than a hundred, which is what a listbox is supposed to be.
+       */}
+      <div
         id={`notification-${row.id}`}
         role="option"
         // The selection, which is what `aria-selected` means in a listbox. The cursor is
@@ -912,16 +977,36 @@ export function Inbox() {
           <time className={styles.when} dateTime={row.createdAt} title={exact(row.createdAt)}>
             {age(row.createdAt)}
           </time>
-          {row.state === null ? null : (
+          {/* The status circle, which is where the status gets changed from.
+
+              Static when the row has no issue behind it to change — a digest, or a
+              notification whose issue this client has not replicated. A trigger there would
+              be a button that opens a picker with no team to ask for statuses and no issue
+              to write to, which is worse than a picture.
+
+              No `keys`: `PropertyTrigger` draws the chord that does the same thing, and this
+              screen registers none for status. The inbox's keyboard route to a status is the
+              row menu on `.`, and promising `S` here would be a tooltip telling a lie. */}
+          {row.state === null ? null : row.issue === null ? (
             <StateIcon
               category={row.state.category}
               color={row.state.color}
               decorative
               className={styles.state}
             />
+          ) : (
+            <PropertyTrigger
+              roving
+              name={row.state.name}
+              action="Change status"
+              open={statusPicker.open && statusFor === row.id}
+              onOpen={(element) => openStatusPicker(row.id, element)}
+            >
+              <StateIcon category={row.state.category} color={row.state.color} decorative />
+            </PropertyTrigger>
           )}
         </span>
-      </button>
+      </div>
     </li>
   );
 
@@ -1031,9 +1116,11 @@ export function Inbox() {
             aria-label="Notifications"
             aria-multiselectable={true}
             // Focusable so a menu opened from a row has somewhere to hand the keyboard back
-            // to when that row has been snoozed out from under it. Not in the tab order: the
-            // rows are buttons and are already reachable.
-            tabIndex={-1}
+            // to when that row has been snoozed out from under it — and, since the rows
+            // stopped being buttons, the one thing in the tab order that reaches the list at
+            // all. That is the arrangement `aria-activedescendant` asks for: Tab lands on
+            // the listbox once, and `J`/`K` walk it from there.
+            tabIndex={0}
             aria-activedescendant={current === undefined ? undefined : `notification-${current.id}`}
           >
             {/* Day groups. A hundred notifications in one undifferentiated run is a list you
@@ -1295,6 +1382,25 @@ export function Inbox() {
         teamId={contextFor?.issue?.teamId ?? ''}
         value={contextFor?.issue?.stateId}
         onSelect={(stateId) => updateIssue({ stateId })}
+      />
+      {/* The same picker again, for the circle on the row rather than for the menu — see
+          `statusPicker` above for why the two are not one. This one closes back onto its own
+          trigger instead of into the list: the glyph is a real button that is still on screen
+          when the menu shuts, which is exactly what the menu's copy cannot assume about a row
+          that may have been snoozed out from under it. */}
+      <StatusPicker
+        open={statusPicker.open && statusRow?.issue != null}
+        onClose={closeStatusPicker}
+        trigger={statusPicker.ref}
+        teamId={statusRow?.issue?.teamId ?? ''}
+        value={statusRow?.issue?.stateId}
+        onSelect={(stateId) => {
+          const issueId = statusRow?.issue?.id;
+          closeStatusPicker();
+          if (issueId !== undefined) {
+            updateIssues(engine, [issueId], { stateId }, viewerId).catch(report);
+          }
+        }}
       />
       <AssigneePicker
         open={picker === 'assignee' && contextFor?.issue != null}

@@ -241,9 +241,12 @@
   * lead's name is what the eye scans for, and a flex row puts it wherever the project name
   * happens to end.
   */
+/* Health, lead and target each carry a 22px trigger now, so each of those three tracks is
+   wider than the text in it needs. A track sized to the words alone clipped the control
+   that sets them, which is the one thing in the cell that cannot be read around. */
 .projectRow {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) 10ch 14ch 9ch 10ch auto;
+  grid-template-columns: auto minmax(0, 1fr) 14ch 17ch 12ch 10ch auto;
   align-items: center;
   gap: var(--space-2);
   height: 39px;
@@ -253,8 +256,14 @@
   font-size: var(--font-size-sm);
 }
 
+/* Flex, so the trigger and the words it stands for sit on one baseline rather than the
+   button dropping onto the text's line box. */
 .projectHealth,
 .projectTarget {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
   overflow: hidden;
   color: var(--text-secondary);
   text-overflow: ellipsis;
@@ -288,7 +297,7 @@
 
 @media (max-width: 960px) {
   .projectRow {
-    grid-template-columns: auto minmax(0, 1fr) 10ch 10ch auto;
+    grid-template-columns: auto minmax(0, 1fr) 14ch 10ch auto;
   }
 
   .projectLead,

@@ -28,7 +28,7 @@
  * throw away a link somebody made deliberately, and there is no undo for either.
  */
 
-import { useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
@@ -37,13 +37,13 @@ import {
   Avatar,
   Button,
   ConfirmDialog,
+  DatePicker,
   EmptyState,
   IconButton,
   Input,
+  PropertyTrigger,
   SaveIndicator,
   Section,
-  Select,
-  Textarea,
   TitleField,
   useSaveState,
   type TitleHandle,
@@ -58,7 +58,7 @@ import {
   updateInitiative,
 } from '~/features/initiatives/mutations';
 import { InitiativePicker } from '~/features/initiatives/InitiativePicker';
-import { createInitiativeUpdate } from '~/features/initiative-updates/mutations';
+import { InitiativeUpdateForm } from '~/features/initiative-updates/InitiativeUpdateComposer';
 import { latestInitiativeUpdate } from '~/features/initiative-updates/helpers';
 import { InitiativeGraph } from '~/features/initiatives/InitiativeGraph';
 import { ProgressBar } from '~/features/initiatives/ProgressBar';
@@ -74,17 +74,20 @@ import { IconPicker } from '~/features/icon/IconPicker';
 import { DEFAULT_ENTITY_COLOR } from '~/features/icon/glyphs';
 import { InitiativeGlyph } from '~/features/initiatives/glyphs';
 import { PlusGlyph } from '~/features/issue/glyphs';
-import { ProjectGlyph } from '~/features/projects/glyphs';
+import { CalendarGlyph, NoPersonGlyph, ProjectGlyph } from '~/features/projects/glyphs';
+import { updateProject } from '~/features/projects/mutations';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
+import { ProjectUpdateComposer } from '~/features/project-updates/ProjectUpdateComposer';
+import { UserPicker } from '~/features/members/UserPicker';
 import { personName } from '~/features/prefs/prefs';
 import { exact, when, whenDay } from '~/features/time';
-import { HealthDot, ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
-import { updateAge } from '~/features/project-updates/helpers';
+import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
+import { PROJECT_UPDATE_HEALTH_LABEL, updateAge } from '~/features/project-updates/helpers';
 import { report } from '~/features/issue/mutations';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
-import { useViewerId } from '~/hooks/useViewer';
+import { useViewer, useViewerId } from '~/hooks/useViewer';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import type { ProjectUpdateHealth, Store, UUID } from '~/store';
+import type { Store, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import styles from './InitiativeDetail.module.css';
 
@@ -102,30 +105,46 @@ interface Pending {
   readonly name: string;
 }
 
-const HEALTH_OPTIONS: readonly { readonly value: ProjectUpdateHealth; readonly label: string }[] = [
-  { value: 'on_track', label: 'On track' },
-  { value: 'at_risk', label: 'At risk' },
-  { value: 'off_track', label: 'Off track' },
-];
+/** Which property of a contributing project a row is currently editing. */
+type ProjectProperty = 'health' | 'lead' | 'target';
 
 export function InitiativeDetail() {
   const engine = useEngine();
+  const viewer = useViewer();
   const viewerId = useViewerId();
   const { initiativeId = '' } = useParams<{ initiativeId: string }>();
   const { railOpen, openMenuAt } = useInitiativeOutlet();
-  const [body, setBody] = useState('');
-  const [posting, setPosting] = useState(false);
-  const [health, setHealth] = useState<ProjectUpdateHealth>('on_track');
   const [nestedName, setNestedName] = useState('');
   const [nestError, setNestError] = useState<string | null>(null);
   const [projectError, setProjectError] = useState<string | null>(null);
-  const [updateError, setUpdateError] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
 
   const childPicker = useMenuTrigger();
   const projectPicker = useMenuTrigger();
   const titleIcon = useMenuTrigger('dialog');
   const titleRef = useRef<TitleHandle | null>(null);
+
+  /**
+   * One picker for the whole Projects section, and the cell it is currently pointed at.
+   *
+   * A picker per row would be one panel per project to serve the single open one, and the
+   * row that owns an open panel goes away the moment a project is unlinked. So the panels
+   * are singletons and the anchor moves — `showFrom` is the hook's answer to exactly this,
+   * and the same call the initiatives list makes about its own rows.
+   */
+  const projectProperty = useMenuTrigger<HTMLElement>();
+  const [editing, setEditing] = useState<{ property: ProjectProperty; id: UUID } | null>(null);
+  const openProjectProperty = useCallback(
+    (property: ProjectProperty, id: UUID, element: HTMLElement) => {
+      setEditing({ property, id });
+      projectProperty.showFrom(element);
+    },
+    [projectProperty],
+  );
+  const closeProjectProperty = useCallback(() => {
+    projectProperty.hide();
+    setEditing(null);
+  }, [projectProperty]);
 
   const saveState = useSaveState(describeRefusal);
   const { run: runSave } = saveState;
@@ -224,6 +243,12 @@ export function InitiativeDetail() {
     [initiativeId, children],
   );
 
+  // The row the open panel belongs to, looked up rather than held: the picker outlives a
+  // re-query of the section, and a row captured in state would keep answering with the
+  // lead somebody has just changed.
+  const editingProject =
+    editing === null ? null : (projects.find((row) => row.projectId === editing.id) ?? null);
+
   if (initiative === null) return null;
 
   const onAddProject = async (projectId: UUID) => {
@@ -276,26 +301,6 @@ export function InitiativeDetail() {
       await removeInitiativeRelation(engine, initiative.id, childId);
     } catch (failure) {
       setNestError(refusal(failure, 'That initiative could not be un-nested.'));
-    }
-  };
-
-  const onSubmitUpdate = async (event: FormEvent) => {
-    event.preventDefault();
-    if (posting || viewerId === null) return;
-    setPosting(true);
-    setUpdateError(null);
-    try {
-      await createInitiativeUpdate(engine, {
-        initiativeId: initiative.id,
-        health,
-        body,
-        authorId: viewerId,
-      });
-      setBody('');
-    } catch (failure) {
-      setUpdateError(refusal(failure, 'That update could not be posted.'));
-    } finally {
-      setPosting(false);
     }
   };
 
@@ -405,37 +410,14 @@ export function InitiativeDetail() {
                 {latest.body !== '' && <p className={styles.description}>{latest.body}</p>}
               </div>
             )}
-            <form className={styles.form} onSubmit={onSubmitUpdate}>
-              <Select
-                label="Health"
-                value={health}
-                prefix={<HealthDot health={health} />}
-                onChange={(event) => setHealth(event.target.value as ProjectUpdateHealth)}
-              >
-                {HEALTH_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-              <Textarea
-                label="Update"
-                value={body}
-                minRows={3}
-                placeholder="What changed since the last update?"
-                onChange={(event) => setBody(event.target.value)}
-              />
-              {updateError === null ? null : (
-                <p className={styles.error} role="alert">
-                  {updateError}
-                </p>
-              )}
-              <div className={styles.addRow}>
-                <Button type="submit" variant="primary" disabled={posting || viewerId === null}>
-                  Post update
-                </Button>
-              </div>
-            </form>
+            {/* The form itself lives beside the mutation it calls, because the initiatives
+                list posts the same update from its own health cell and two copies of one
+                composer is how one of them stops trimming a blank body. */}
+            <InitiativeUpdateForm
+              initiativeId={initiative.id}
+              {...(latest === undefined ? null : { initialHealth: latest.health })}
+              onPosted={() => {}}
+            />
           </section>
 
           {/* Autosaving on blur, like every other description in the product. It used to sit
@@ -490,6 +472,14 @@ export function InitiativeDetail() {
                   <ProjectRow
                     key={row.projectId}
                     row={row}
+                    openProperty={
+                      projectProperty.open && editing?.id === row.projectId
+                        ? editing.property
+                        : null
+                    }
+                    onProperty={(property, element) =>
+                      openProjectProperty(property, row.projectId, element)
+                    }
                     onRemove={() =>
                       setPending({ kind: 'project', id: row.projectId, name: row.name })
                     }
@@ -634,6 +624,57 @@ export function InitiativeDetail() {
         }}
       />
 
+      {/*
+        The three contributing-project cells that were facts and are now controls. They write
+        to the *project*, not to this initiative — a lead is the project's lead wherever it is
+        drawn, and the only thing this screen contributes is a second place to reach it.
+
+        Health is the exception that proves it: it is not a field on anything, it is the
+        newest project update's word, so the cell opens the composer the project overview
+        owns rather than a picker over a value nobody stores.
+      */}
+      <UserPicker
+        open={projectProperty.open && editing?.property === 'lead'}
+        onClose={closeProjectProperty}
+        trigger={projectProperty.ref}
+        label="Lead"
+        noneLabel="No lead"
+        filterPlaceholder="Set lead…"
+        value={editingProject?.leadId ?? null}
+        onSelect={(leadId) => {
+          const projectId = editingProject?.projectId;
+          closeProjectProperty();
+          if (projectId !== undefined) updateProject(engine, projectId, { leadId }).catch(report);
+        }}
+      />
+      <DatePicker
+        open={projectProperty.open && editing?.property === 'target'}
+        onClose={closeProjectProperty}
+        trigger={projectProperty.ref}
+        actionId="initiativeDetail.closeProjectTargetPicker"
+        actionGroup="Initiatives"
+        label="Target date"
+        clearLabel="No target date"
+        timezone={viewer?.timezone ?? 'UTC'}
+        value={editingProject?.targetDate ?? null}
+        onSelect={(day) => {
+          const projectId = editingProject?.projectId;
+          closeProjectProperty();
+          if (projectId !== undefined) {
+            updateProject(engine, projectId, { targetDate: day }).catch(report);
+          }
+        }}
+      />
+      <ProjectUpdateComposer
+        open={projectProperty.open && editing?.property === 'health'}
+        onClose={closeProjectProperty}
+        trigger={projectProperty.ref}
+        projectId={editingProject?.projectId ?? ''}
+        {...(editingProject?.health == null ? null : { initialHealth: editingProject.health })}
+        actionId="initiativeDetail.closeProjectUpdateComposer"
+        actionGroup="Initiatives"
+      />
+
       <ConfirmDialog
         open={pending !== null}
         title={
@@ -676,8 +717,24 @@ function describeRefusal(failure: unknown): string {
  * true, and only one of them tells two rows apart at a glance — the status is a word the
  * project list already carries a column for, and the icon is what somebody recognises the
  * project by everywhere else in the product.
+ *
+ * Health, lead and target are editable where they are read. The row is not a link — only
+ * the name is — so the cells need no `stopPropagation` of their own; `PropertyTrigger` does
+ * it anyway, which is what lets the same three cells work unchanged on a list whose whole
+ * row is an anchor.
  */
-function ProjectRow({ row, onRemove }: { row: InitiativeProjectRow; onRemove: () => void }) {
+function ProjectRow({
+  row,
+  openProperty,
+  onProperty,
+  onRemove,
+}: {
+  readonly row: InitiativeProjectRow;
+  /** Which of this row's panels is the one currently showing, if any. */
+  readonly openProperty: ProjectProperty | null;
+  readonly onProperty: (property: ProjectProperty, element: HTMLElement) => void;
+  readonly onRemove: () => void;
+}) {
   return (
     <li className={styles.projectRow}>
       <EntityIcon icon={row.icon} color={row.color} fallback={<ProjectGlyph />} />
@@ -685,6 +742,20 @@ function ProjectRow({ row, onRemove }: { row: InitiativeProjectRow; onRemove: ()
         {row.name}
       </Link>
       <span className={styles.projectHealth}>
+        {/* A plus rather than a health mark, because the act is not "choose a health" — it
+            is "post an update", and the mark beside it is the last one somebody posted. */}
+        {/* "No health", not "No update", although the cell beside it says the latter. The
+            trigger's name is the *value* of the property it opens, which is the health; and
+            a control answering to "update" is a control the composer's own "Update" field
+            has to share a name with on the screen this row sits on. */}
+        <PropertyTrigger
+          name={row.health === null ? 'No health' : PROJECT_UPDATE_HEALTH_LABEL[row.health]}
+          action="Post an update"
+          open={openProperty === 'health'}
+          onOpen={(element) => onProperty('health', element)}
+        >
+          <PlusGlyph />
+        </PropertyTrigger>
         {row.health === null ? (
           <span className={styles.projectMuted}>No update</span>
         ) : (
@@ -692,16 +763,33 @@ function ProjectRow({ row, onRemove }: { row: InitiativeProjectRow; onRemove: ()
         )}
       </span>
       <span className={styles.projectLead}>
+        <PropertyTrigger
+          name={row.leadName ?? 'Unassigned'}
+          action="Set lead"
+          open={openProperty === 'lead'}
+          onOpen={(element) => onProperty('lead', element)}
+        >
+          {row.leadName === null ? (
+            <NoPersonGlyph />
+          ) : (
+            <Avatar name={row.leadName} size="xs" colorKey={row.leadId} decorative />
+          )}
+        </PropertyTrigger>
         {row.leadName === null ? (
           <span className={styles.projectMuted}>No lead</span>
         ) : (
-          <>
-            <Avatar name={row.leadName} size="xs" colorKey={row.leadId} decorative />
-            {row.leadName}
-          </>
+          row.leadName
         )}
       </span>
       <span className={styles.projectTarget}>
+        <PropertyTrigger
+          name={row.targetDate === undefined ? 'No target date' : whenDay(row.targetDate)}
+          action="Set target date"
+          open={openProperty === 'target'}
+          onOpen={(element) => onProperty('target', element)}
+        >
+          <CalendarGlyph />
+        </PropertyTrigger>
         {row.targetDate === undefined ? (
           <span className={styles.projectMuted}>No target</span>
         ) : (

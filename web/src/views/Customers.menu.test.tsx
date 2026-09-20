@@ -115,7 +115,15 @@ describe('Customers row menu', () => {
     const fromRightClick = labels(await screen.findByRole('menu', { name: 'Options for Acme' }));
 
     expect(fromRightClick).toEqual(fromKebab);
-    expect(fromKebab).toEqual(['Open customer', 'Copy link', 'Status', 'Archive customer']);
+    // No Tier… row: this store holds no workspace, so no tiers have been named, and the
+    // menu does not offer a picker that could only take a tier away. See Customers.tsx.
+    expect(fromKebab).toEqual([
+      'Open customer',
+      'Copy link',
+      'Status',
+      'Owner…',
+      'Archive customer',
+    ]);
   });
 
   it('writes the status the submenu was asked for, and only when it changes', async () => {

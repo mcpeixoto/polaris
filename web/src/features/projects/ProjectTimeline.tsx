@@ -10,6 +10,10 @@
  * Bars are also draggable: a horizontal drag shifts start and target by whole days and
  * writes through `updateProject`, so the canvas is a planning surface rather than a
  * picture of dates set elsewhere.
+ *
+ * The status on a sidebar row is a control for the same reason: a planning surface where
+ * the one property you cannot change without leaving is the one that says whether the work
+ * has started is a planning surface with a hole in it.
  */
 
 import {
@@ -23,10 +27,11 @@ import {
 import { Link } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { Button, EmptyState } from '~/components';
+import { Button, EmptyState, PropertyTrigger, StateIcon } from '~/components';
 import { report } from '~/features/issue/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import type { UUID } from '~/store';
+import { useMenuTrigger } from '~/hooks/useMenuTrigger';
+import type { ProjectStatusCategory, UUID } from '~/store';
 
 import { buildProjectTimeline } from './computeProjectTimeline';
 import type { ProjectCustomerFilter } from './customerFilter';
@@ -34,7 +39,9 @@ import type { ProjectDependencyFilter } from './dependencyHelpers';
 import type { ProjectStatusFilter } from './display';
 import { updateProject } from './mutations';
 import type { RequiredProjectDisplay } from './ProjectDisplayMenu';
+import { ProjectStatusPicker } from './ProjectStatusPicker';
 import styles from './ProjectTimeline.module.css';
+import { PROJECT_STATUS_ICON } from './statusCategories';
 import { daysFromPx, shiftedProjectDates } from './timelineDrag';
 
 /** Pixels of travel before a press becomes a drag — under that, the bar is still a link. */
@@ -111,6 +118,48 @@ export function ProjectTimeline({
   } | null>(null);
   /** Project ids whose bar link must swallow the click that ends a drag. */
   const suppressClickRef = useRef<UUID | null>(null);
+
+  /**
+   * One status picker for the whole sidebar, anchored at the row that opened it.
+   *
+   * Same trade the project list makes: a picker per row is a live query per row to serve the
+   * one that is open, and the sidebar scrolls — a menu mounted inside a row goes wherever
+   * that row goes. `showFrom` moves the anchor instead and leaves the menu where it is.
+   */
+  const statusPicker = useMenuTrigger<HTMLElement>();
+  const [statusProjectId, setStatusProjectId] = useState<UUID | null>(null);
+  const openStatusPicker = useCallback(
+    (projectId: UUID, element: HTMLElement) => {
+      setStatusProjectId(projectId);
+      statusPicker.showFrom(element);
+    },
+    [statusPicker],
+  );
+
+  /**
+   * The status behind a row, which the layout computation does not carry.
+   *
+   * It hands over a `statusName` and nothing else, and that is the right shape for it: it is
+   * about geometry, and a second job would be a second reason for it to change. A trigger
+   * needs the category and colour for its glyph and the id for the picker to tick, and those
+   * are one hop away in the replica — so they are read here, inside a render the live query
+   * above already re-runs whenever a project or a status moves.
+   */
+  const statusOf = useCallback(
+    (
+      projectId: UUID,
+    ): { id: UUID | undefined; category: ProjectStatusCategory; color: string | undefined } => {
+      const project = engine.store.get('project', projectId);
+      const status =
+        project === undefined ? undefined : engine.store.projectStatuses.get(project.statusId);
+      return {
+        id: project?.statusId,
+        category: status?.category ?? 'planned',
+        color: status?.color,
+      };
+    },
+    [engine],
+  );
 
   // Assigning `scrollTop` fires the other pane's scroll event, so the guard is what stops
   // the two handlers bouncing a value between them forever.
@@ -233,7 +282,12 @@ export function ProjectTimeline({
             >
               <span className={styles.mark} style={{ background: bar.color }} aria-hidden="true" />
               <span className={styles.sidebarName}>{bar.name}</span>
-              <span className={styles.sidebarStatus}>{bar.statusName}</span>
+              <SidebarStatus
+                statusName={bar.statusName}
+                status={statusOf(bar.projectId)}
+                open={statusPicker.open && statusProjectId === bar.projectId}
+                onOpen={(element) => openStatusPicker(bar.projectId, element)}
+              />
             </Link>
           ))}
           {data.unscheduled.length > 0 && (
@@ -247,7 +301,12 @@ export function ProjectTimeline({
                     aria-hidden="true"
                   />
                   <span className={styles.sidebarName}>{row.name}</span>
-                  <span className={styles.sidebarStatus}>{row.statusName}</span>
+                  <SidebarStatus
+                    statusName={row.statusName}
+                    status={statusOf(row.id)}
+                    open={statusPicker.open && statusProjectId === row.id}
+                    onOpen={(element) => openStatusPicker(row.id, element)}
+                  />
                 </Link>
               ))}
             </>
@@ -349,7 +408,64 @@ export function ProjectTimeline({
           no dates — listed under Unscheduled.
         </p>
       )}
+
+      <ProjectStatusPicker
+        open={statusPicker.open}
+        onClose={statusPicker.hide}
+        trigger={statusPicker.ref}
+        value={statusProjectId === null ? undefined : statusOf(statusProjectId).id}
+        onSelect={(statusId) => {
+          const projectId = statusProjectId;
+          statusPicker.hide();
+          if (projectId !== null) updateProject(engine, projectId, { statusId }).catch(report);
+        }}
+      />
     </div>
+  );
+}
+
+/**
+ * The status on a sidebar row: the control that changes it, beside the word it is on.
+ *
+ * The project list draws this the other way around — the glyph is what you see and the word
+ * is hidden text for a screen reader — because a row there has a Status column wide enough
+ * to carry a progress ring. Here the word is the only status the reader gets, and swapping
+ * it for a coloured dot would be a fact removed rather than a fact moved. So the glyph is
+ * the button and the word stays drawn beside it, `aria-hidden` because the button is already
+ * named by it and announcing it twice is worse than not drawing it at all.
+ *
+ * `roving` keeps it out of the tab order: it lives inside the row's link, and the click is
+ * stopped before that link sees it — without which changing a status would also navigate
+ * away from the timeline you were changing it on.
+ */
+function SidebarStatus({
+  statusName,
+  status,
+  open,
+  onOpen,
+}: {
+  readonly statusName: string;
+  readonly status: { readonly category: ProjectStatusCategory; readonly color: string | undefined };
+  readonly open: boolean;
+  readonly onOpen: (element: HTMLElement) => void;
+}) {
+  return (
+    <span
+      className={styles.sidebarStatus}
+      role="presentation"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <PropertyTrigger roving name={statusName} action="Set status" open={open} onOpen={onOpen}>
+        <StateIcon
+          category={PROJECT_STATUS_ICON[status.category]}
+          color={status.color}
+          decorative
+        />
+      </PropertyTrigger>
+      <span aria-hidden="true" className={styles.sidebarStatusName}>
+        {statusName}
+      </span>
+    </span>
   );
 }
 

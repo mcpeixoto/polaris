@@ -33,10 +33,12 @@ import {
   Avatar,
   Button,
   ConfirmDialog,
+  DatePicker,
   EmptyState,
   LabelChip,
   ListGroup,
   Menu,
+  PropertyTrigger,
   SegmentedControl,
   StateIcon,
   Tooltip,
@@ -57,12 +59,19 @@ import { EntityIcon } from '~/features/icon/EntityIcon';
 import { IconPicker } from '~/features/icon/IconPicker';
 import { DEFAULT_ENTITY_COLOR } from '~/features/icon/glyphs';
 import {
+  applyInitiativeLabel,
+  removeInitiativeLabel,
+} from '~/features/initiative-labels/mutations';
+import { InitiativeLabelPicker } from '~/features/initiative-labels/InitiativeLabelPicker';
+import {
   archiveInitiative,
   formatInitiativeStatus,
   INITIATIVE_STATUS_ICON,
   INITIATIVE_STATUSES,
   updateInitiative,
 } from '~/features/initiatives/mutations';
+import { InitiativeStatusPicker } from '~/features/initiatives/InitiativeStatusPicker';
+import { UserPicker } from '~/features/members/UserPicker';
 import {
   changedInitiativeDisplayCount,
   isFlatList,
@@ -82,7 +91,9 @@ import { whenDay } from '~/features/time';
 import { CalendarGlyph, NoPersonGlyph, PlusGlyph } from '~/features/projects/glyphs';
 import { formatTimeframe } from '~/features/projects/properties';
 import { ActiveProjectsHealth } from '~/features/initiative-updates/ActiveProjectsHealth';
+import { InitiativeUpdateComposer } from '~/features/initiative-updates/InitiativeUpdateComposer';
 import {
+  INITIATIVE_UPDATE_HEALTH_LABEL,
   latestInitiativeUpdate,
   linkedProjectHealths,
   type LinkedProjectHealth,
@@ -155,6 +166,15 @@ interface RowGroup {
 /** How many label chips fit the cell before the rest become a count. */
 const LABELS_SHOWN = 2;
 
+/**
+ * Which of a row's cells is currently a control somebody has opened.
+ *
+ * One name for all five rather than five booleans threaded through the row, because only
+ * one panel is ever open: the list holds a single picker of each kind and points it at a
+ * row, so "which property, on which initiative" is the whole of the state.
+ */
+type RowProperty = 'status' | 'health' | 'labels' | 'owner' | 'target';
+
 /** Which screen's folds these are. One list, one bucket — see `features/view/collapse`. */
 const PREFERENCE_KEY = 'initiatives';
 
@@ -220,6 +240,48 @@ export function Initiatives() {
    */
   const iconPicker = useMenuTrigger<HTMLElement>('dialog');
   const [iconEditing, setIconEditing] = useState<UUID | null>(null);
+
+  /**
+   * The picker a row's own cell opened, and the cell it belongs to.
+   *
+   * One trigger for all five properties, for the same reason the icon picker is one: a row
+   * that a fold, a filter or a re-query takes away unmounts, and a panel mounted inside it
+   * goes with it. `showFrom` moves the anchor instead, and since only one panel is ever
+   * open one hook can serve every kind.
+   */
+  const propertyPicker = useMenuTrigger<HTMLElement>();
+  const [editing, setEditing] = useState<{ property: RowProperty; id: UUID } | null>(null);
+
+  /**
+   * The picker a context-menu item opened, and where it hangs.
+   *
+   * Its own anchor rather than the context menu's: that one is unmounted the moment the
+   * menu closes, and a picker positioned against an element that has gone lands in the
+   * corner. The same split the projects list makes, and for the same reason — a keystroke
+   * has a pointer position and no element that survives the menu.
+   */
+  const [menuPicker, setMenuPicker] = useState<{
+    kind: 'status' | 'owner' | 'target';
+    row: InitiativeRow;
+    x: number;
+    y: number;
+  } | null>(null);
+  const menuAnchorRef = useRef<HTMLDivElement>(null);
+
+  const openProperty = useCallback(
+    (property: RowProperty, id: UUID, element: HTMLElement) => {
+      setEditing({ property, id });
+      propertyPicker.showFrom(element);
+    },
+    [propertyPicker],
+  );
+
+  /** Shuts whichever path opened the panel, because a picker serves both. */
+  const closeProperty = useCallback(() => {
+    propertyPicker.hide();
+    setEditing(null);
+    setMenuPicker(null);
+  }, [propertyPicker]);
 
   const flat = isFlatList(display.grouping, status !== 'all');
 
@@ -332,6 +394,14 @@ export function Initiatives() {
   const editingIcon =
     iconEditing === null ? null : (rows.find((row) => row.id === iconEditing) ?? null);
 
+  // Same for the property pickers, and for the same reason: the row the panel was opened
+  // from may have been re-keyed by a fold since, and the value has to be the current one.
+  const editingRow = editing === null ? null : (rows.find((row) => row.id === editing.id) ?? null);
+
+  /** True while `property`'s panel is the one showing, from either path. */
+  const showing = (property: RowProperty): boolean =>
+    (propertyPicker.open && editing?.property === property) || menuPicker?.kind === property;
+
   useActions(
     [
       {
@@ -402,6 +472,43 @@ export function Initiatives() {
               if (viewer === null) return;
               void toggleFavorite(engine, viewer.id, 'initiative', contextRow.id).catch(report);
             },
+            // The keyboard's way to the three cells the row now makes clickable. A
+            // `PropertyTrigger` inside a `role="option"` row is pointer-only by
+            // construction — it is out of the tab order so the listbox keeps its roving
+            // focus — so every one of them needs a route through this menu or it is an
+            // affordance half the people using the list cannot reach.
+            properties: [
+              {
+                id: 'status',
+                label: 'Status…',
+                keys: 's',
+                onSelect: () => {
+                  const at = contextMenu.at;
+                  contextMenu.close();
+                  if (at !== null) setMenuPicker({ kind: 'status', row: contextRow, ...at });
+                },
+              },
+              {
+                id: 'owner',
+                label: 'Owner…',
+                keys: 'a',
+                onSelect: () => {
+                  const at = contextMenu.at;
+                  contextMenu.close();
+                  if (at !== null) setMenuPicker({ kind: 'owner', row: contextRow, ...at });
+                },
+              },
+              {
+                id: 'target',
+                label: 'Target date…',
+                keys: 't',
+                onSelect: () => {
+                  const at = contextMenu.at;
+                  contextMenu.close();
+                  if (at !== null) setMenuPicker({ kind: 'target', row: contextRow, ...at });
+                },
+              },
+            ],
             archive: () => {
               contextMenu.close();
               setArchiving({ id: contextRow.id, name: contextRow.name });
@@ -522,6 +629,10 @@ export function Initiatives() {
                       setIconEditing(row.id);
                       iconPicker.showFrom(element);
                     }}
+                    openProperty={
+                      propertyPicker.open && editing?.id === row.id ? editing.property : null
+                    }
+                    onProperty={(property, element) => openProperty(property, row.id, element)}
                     onContextMenu={(x, y) => contextMenu.openAt(x, y, row.path)}
                   />
                 ))}
@@ -562,6 +673,99 @@ export function Initiatives() {
         }}
         actionId="initiatives.closeIconPicker"
         label="Initiative icon"
+      />
+
+      {menuPicker === null ? null : (
+        <div
+          ref={menuAnchorRef}
+          style={{
+            position: 'fixed',
+            width: 1,
+            height: 1,
+            pointerEvents: 'none',
+            top: menuPicker.y,
+            left: menuPicker.x,
+          }}
+        />
+      )}
+      <InitiativeStatusPicker
+        open={showing('status')}
+        onClose={closeProperty}
+        trigger={menuPicker?.kind === 'status' ? menuAnchorRef : propertyPicker.ref}
+        value={menuPicker?.kind === 'status' ? menuPicker.row.status : editingRow?.status}
+        onSelect={(status) => {
+          const id = menuPicker?.kind === 'status' ? menuPicker.row.id : editingRow?.id;
+          closeProperty();
+          if (id !== undefined) updateInitiative(engine, id, { status }).catch(report);
+        }}
+      />
+      <UserPicker
+        open={showing('owner')}
+        onClose={closeProperty}
+        trigger={menuPicker?.kind === 'owner' ? menuAnchorRef : propertyPicker.ref}
+        label="Owner"
+        noneLabel="No owner"
+        filterPlaceholder="Owned by…"
+        value={
+          (menuPicker?.kind === 'owner' ? menuPicker.row.ownerId : editingRow?.ownerId) ?? null
+        }
+        onSelect={(ownerId) => {
+          const id = menuPicker?.kind === 'owner' ? menuPicker.row.id : editingRow?.id;
+          closeProperty();
+          if (id !== undefined) updateInitiative(engine, id, { ownerId }).catch(report);
+        }}
+      />
+      <DatePicker
+        open={showing('target')}
+        onClose={closeProperty}
+        trigger={menuPicker?.kind === 'target' ? menuAnchorRef : propertyPicker.ref}
+        actionId="initiatives.closeTargetPicker"
+        actionGroup="Initiatives"
+        label="Target date"
+        clearLabel="No target date"
+        timezone={viewer?.timezone ?? 'UTC'}
+        value={
+          (menuPicker?.kind === 'target' ? menuPicker.row.targetDate : editingRow?.targetDate) ??
+          null
+        }
+        onSelect={(day) => {
+          const row = menuPicker?.kind === 'target' ? menuPicker.row : editingRow;
+          closeProperty();
+          if (row === null || row === undefined) return;
+          void updateInitiative(
+            engine,
+            row.id,
+            // The precision is a property of the date and is set where the date is — on the
+            // initiative's own page. A day chosen from the list must not silently demote a
+            // quarter to a day, so the stored granularity travels back with it.
+            day === null
+              ? { targetDate: null }
+              : { targetDate: day, targetDateGranularity: row.targetGranularity ?? 'day' },
+          ).catch(report);
+        }}
+      />
+      <InitiativeLabelPicker
+        open={propertyPicker.open && editing?.property === 'labels'}
+        onClose={closeProperty}
+        trigger={propertyPicker.ref}
+        value={editingRow === null ? [] : editingRow.labels.map((label) => label.id)}
+        onApply={(labelId, displaced) => {
+          if (editingRow === null) return;
+          applyInitiativeLabel(engine, editingRow.id, labelId, displaced).catch(report);
+        }}
+        onRemove={(labelId) => {
+          if (editingRow === null) return;
+          removeInitiativeLabel(engine, editingRow.id, labelId).catch(report);
+        }}
+      />
+      <InitiativeUpdateComposer
+        open={propertyPicker.open && editing?.property === 'health'}
+        onClose={closeProperty}
+        trigger={propertyPicker.ref}
+        initiativeId={editingRow?.id ?? ''}
+        {...(editingRow?.health == null ? null : { initialHealth: editingRow.health })}
+        actionId="initiatives.closeUpdateComposer"
+        actionGroup="Initiatives"
       />
 
       {contextMenu.at === null ? null : <div {...contextMenu.anchorProps} />}
@@ -614,6 +818,10 @@ interface RowProps {
   onToggle(): void;
   /** Open the list's one icon picker against this row's glyph. */
   onIcon(element: HTMLElement): void;
+  /** Which of this row's cells has the list's panel hanging off it, if any. */
+  readonly openProperty: RowProperty | null;
+  /** Open the list's one picker of that kind against the cell's own glyph. */
+  onProperty(property: RowProperty, element: HTMLElement): void;
   onContextMenu(x: number, y: number): void;
 }
 
@@ -626,6 +834,8 @@ function Row({
   onCursor,
   onToggle,
   onIcon,
+  openProperty,
+  onProperty,
   onContextMenu,
 }: RowProps) {
   // The chevron is a command of its own and cannot live inside the link that opens the
@@ -699,7 +909,25 @@ function Row({
           <span className={styles.name}>{row.name}</span>
         </span>
         {display.columns.includes('health') ? (
-          <span className={styles.health}>
+          <span
+            className={styles.health}
+            role="presentation"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {/* Health is not a field on an initiative — it is the newest update's word — so
+                the cell cannot offer a menu of three healths to pick from. A plus, and what
+                it opens is the composer: a health with nothing said about it is how a feed
+                fills with rows that carry a colour and no reason. The mark beside it stays
+                a reported fact rather than becoming a control that looks like one. */}
+            <PropertyTrigger
+              roving
+              name={row.health === null ? 'No health' : INITIATIVE_UPDATE_HEALTH_LABEL[row.health]}
+              action="Post an update"
+              open={openProperty === 'health'}
+              onOpen={(element) => onProperty('health', element)}
+            >
+              <PlusGlyph />
+            </PropertyTrigger>
             {row.health === null ? (
               <span className={styles.muted}>No updates</span>
             ) : (
@@ -711,14 +939,34 @@ function Row({
             )}
           </span>
         ) : null}
-        <span className={styles.status}>
-          <StateIcon category={INITIATIVE_STATUS_ICON[row.status]} decorative />
+        <span
+          className={styles.status}
+          role="presentation"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <PropertyTrigger
+            roving
+            name={formatInitiativeStatus(row.status)}
+            action="Change status"
+            open={openProperty === 'status'}
+            onOpen={(element) => onProperty('status', element)}
+          >
+            <StateIcon category={INITIATIVE_STATUS_ICON[row.status]} decorative />
+          </PropertyTrigger>
           {formatInitiativeStatus(row.status)}
         </span>
         {/* Past two chips the rest become a count, which is the one thing that cannot
             overflow a fixed-height row. */}
         {display.columns.includes('labels') ? (
-          <span className={styles.labels}>
+          <span
+            className={styles.labels}
+            role="presentation"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {/* The picker is a control at the end of the strip rather than the chips
+                themselves becoming buttons — the same call the triage pane made, and the
+                reason is that a chip is a value and two of them side by side would give a
+                row two buttons that both claim to be "the labels". */}
             {row.labels.slice(0, LABELS_SHOWN).map((label) => (
               <LabelChip key={label.id} name={label.name} color={label.color} compact />
             ))}
@@ -732,17 +980,40 @@ function Row({
                 <span className={styles.labelsMore}>+{row.labels.length - LABELS_SHOWN}</span>
               </Tooltip>
             )}
+            <PropertyTrigger
+              roving
+              name={labelSummary(row.labels)}
+              action="Add labels"
+              open={openProperty === 'labels'}
+              onOpen={(element) => onProperty('labels', element)}
+            >
+              <PlusGlyph />
+            </PropertyTrigger>
           </span>
         ) : null}
-        <span className={styles.owner}>
-          {row.ownerName === null ? (
-            <Tooltip label="No owner">
+        <span
+          className={styles.owner}
+          role="presentation"
+          onClick={(event) => event.stopPropagation()}
+        >
+          {/* "Unassigned" rather than "No owner", which is the word the picker and the rail
+              both use for the same emptiness. Grouping by owner puts an ownerless run under
+              a heading called "No owner", and a trigger answering to the same name would
+              make "the No owner button" two different controls on one screen — the same
+              ambiguity the icon button above is named for the kind to avoid. It is also the
+              word every other person-shaped trigger in the product already carries. */}
+          <PropertyTrigger
+            roving
+            name={row.ownerName ?? 'Unassigned'}
+            action="Set owner"
+            open={openProperty === 'owner'}
+            onOpen={(element) => onProperty('owner', element)}
+          >
+            {row.ownerName === null ? (
               <span className={styles.noOwner}>
                 <NoPersonGlyph />
               </span>
-            </Tooltip>
-          ) : (
-            <>
+            ) : (
               <Avatar
                 name={row.ownerName}
                 src={row.ownerAvatar}
@@ -750,19 +1021,35 @@ function Row({
                 colorKey={row.ownerId}
                 decorative
               />
-              <span className={styles.ownerName}>{row.ownerName}</span>
-            </>
+            )}
+          </PropertyTrigger>
+          {row.ownerName === null ? null : (
+            <span className={styles.ownerName}>{row.ownerName}</span>
           )}
         </span>
         {display.columns.includes('targetDate') ? (
-          <span className={styles.target}>
+          <span
+            className={styles.target}
+            role="presentation"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <PropertyTrigger
+              roving
+              name={
+                row.targetDate === undefined
+                  ? 'No target date'
+                  : formatTarget(row.targetDate, row.targetGranularity)
+              }
+              action="Set target date"
+              open={openProperty === 'target'}
+              onOpen={(element) => onProperty('target', element)}
+            >
+              <CalendarGlyph />
+            </PropertyTrigger>
             {row.targetDate === undefined ? (
               <span className={styles.muted}>No target</span>
             ) : (
-              <>
-                <CalendarGlyph />
-                {formatTarget(row.targetDate, row.targetGranularity)}
-              </>
+              formatTarget(row.targetDate, row.targetGranularity)
             )}
           </span>
         ) : null}
@@ -820,6 +1107,17 @@ function formatTarget(day: string, granularity: TimeframeGranularity | undefined
  * nothing else — a heading reading "Initiatives" above every initiative is a row of pixels
  * that says what the page title already said.
  */
+/**
+ * The labels as one accessible name, because that is the value the trigger stands for.
+ *
+ * The chips beside it say the same thing to a sighted reader; a trigger named "Labels"
+ * would be named for the property instead, which is the one thing `PropertyTrigger` asks
+ * its callers not to do.
+ */
+function labelSummary(labels: readonly InitiativeLabel[]): string {
+  return labels.length === 0 ? 'No labels' : labels.map((label) => label.name).join(', ');
+}
+
 function groupRows(rows: readonly InitiativeRow[], grouping: string): RowGroup[] {
   if (grouping === 'none') return [{ key: '', name: '', rows }];
 
