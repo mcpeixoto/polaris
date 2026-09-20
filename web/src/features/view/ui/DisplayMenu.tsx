@@ -348,6 +348,10 @@ function changedCount(
   if (display.showCompleted !== defaults.showCompleted) count++;
   if (display.showSnoozed !== defaults.showSnoozed) count++;
   if (!sameProperties(display.properties, defaults.properties)) count++;
+  // An arrangement counts as one changed option however many headings were moved. It is one
+  // decision — "these go in this order" — and counting the keys would make the header read
+  // "6 changed" for a view whose only difference is that somebody dragged Blocked to the top.
+  if (display.groupOrder.length !== defaults.groupOrder.length) count++;
   return count;
 }
 
@@ -649,6 +653,29 @@ export function DisplayMenu({
         </div>
         {display.groupBy === defaults.groupBy ? null : (
           <p className={styles.changed}>Default: {GROUP_LABELS[defaults.groupBy]}</p>
+        )}
+
+        {/*
+         * The way back from an arrangement, and the only place the menu mentions one at all.
+         * There is no control here for *making* the order — that is the drag, on the thing
+         * itself — but an option somebody set by dragging is exactly the kind that gets
+         * forgotten and then reported as "why is this list in a weird order", so the menu
+         * that answers "what is this view doing that a fresh one would not" has to be able to
+         * say it and undo it. Drawn only when there is one, because a permanently disabled
+         * button teaches nothing.
+         */}
+        {display.groupOrder.length === 0 ? null : (
+          <div className={styles.row}>
+            <span className={styles.rowLabel}>Group order</span>
+            <Button
+              className={styles.control}
+              size="xs"
+              variant="ghost"
+              onClick={() => onChange({ groupOrder: [] })}
+            >
+              Reset arranged order
+            </Button>
+          </div>
         )}
 
         {/* The swimlane inside each group. Offered second because it is a refinement of the

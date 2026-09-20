@@ -32,6 +32,8 @@ Filterable dimensions seen across the docs: team, status, status type, assignee,
 - **Grouping**: status, assignee, project, priority, cycle, label, label group, parent issue, team, customer, release, SLA status, no grouping. *Focus* grouping is unique to My Issues.
 - **Sub-grouping (swimlanes)**: available in list and board (as rows). Grouping headers stay sticky. Drag-and-drop across groups applies the target group's property.
 - **Ordering**: status, manual, priority, last created, last updated, due date, link count; reverse toggle (except manual). Manual ordering is workspace-global.
+- **Group order**: grouped by status, a list reads triage, started, unstarted, backlog, completed, canceled — what needs a decision before what already had one. The board keeps the pipeline (see *Board layout*).
+- **Arranging the groups**: drag a group heading (or a board column header) to put it where you want it. `Cmd/Ctrl+Shift+↑/↓` moves the group the cursor is in; a column's ⋯ menu has **Move left** / **Move right**. The arrangement is part of the view — it travels in the link and is saved with a saved view — and it overrides the default order in both layouts. Groups you have not moved keep their computed order behind the ones you have, so a status added later appears at the end. Clear it with **Reset arranged order** in the display menu. Not available under no grouping or under swimlanes, where a group key names two dimensions at once.
 - **Sub-issues** toggle, **Show empty groups** toggle.
 - **Display properties** (per-card fields): ID, status, assignee, priority, SLA, project, due date, milestone, cycle, release, estimate, labels, links, customers, customer revenue, time in status, created date, updated date, pull requests and commits, Sentry issues. Availability varies by view and enabled features.
 - Group headers show issue count **or** total estimate; click to toggle.
@@ -47,9 +49,10 @@ Filterable dimensions seen across the docs: team, status, status type, assignee,
 
 - Toggle with `Cmd/Ctrl+B` or the board/list icons.
 - Defaults to grouping by status; regroupable (project, priority, cycle, label, label group, SLA status, …).
-- When grouped by status, boards always render **workflow order** (unlike lists).
+- When grouped by status, boards render **workflow order** by default (unlike lists) — until somebody arranges the columns, which overrides it. See *Group order* above.
 - Create in a column with the column `+`.
 - **Hide columns** from the column ⋯ menu; hidden columns collect at the far right and still accept drops.
+- **Move columns** by dragging a column header, or with **Move left** / **Move right** in the same ⋯ menu. Moving a column writes a display option rather than anything on an issue, so it works under groupings where a card cannot be dropped at all.
 - Move an issue to top/bottom of a column: `Option/Alt+Shift+↑/↓`. Keyboard/command moves go to the top; mouse drops land where you drop.
 - Horizontal navigation: `Shift`+scroll, trackpad horizontal scroll, or click-drag empty space.
 - `T` collapses/expands a swimlane.

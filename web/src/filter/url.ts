@@ -60,6 +60,7 @@ export const DISPLAY_PARAMS = {
   showCompleted: 'completed',
   showSnoozed: 'snoozed',
   showEmptyGroups: 'empty',
+  groupOrder: 'groups',
   properties: 'show',
 } as const;
 
@@ -146,6 +147,12 @@ export function toDisplayParams(display: DisplayOptions): Record<string, string>
     String(display.showEmptyGroups ?? DEFAULT_DISPLAY.showEmptyGroups),
     String(DEFAULT_DISPLAY.showEmptyGroups),
   );
+  // Written only when there is an arrangement to write. Unlike `show=`, the empty string is
+  // not a choice here: "no groups arranged" and "the arrangement was cleared" are the same
+  // state, so there is nothing for an empty parameter to say that its absence does not.
+  if (display.groupOrder !== undefined && display.groupOrder.length > 0) {
+    out[DISPLAY_PARAMS.groupOrder] = display.groupOrder.join(',');
+  }
   if (display.properties !== undefined) {
     const value = display.properties.join(',');
     if (value !== DEFAULT_DISPLAY.properties.join(',')) out[DISPLAY_PARAMS.properties] = value;
@@ -255,6 +262,7 @@ export function parseDisplayParams(params: URLSearchParams): DisplayOptions {
     showCompleted?: boolean;
     showSnoozed?: boolean;
     showEmptyGroups?: boolean;
+    groupOrder?: string[];
     properties?: DisplayProperty[];
   } = {};
 
@@ -284,6 +292,18 @@ export function parseDisplayParams(params: URLSearchParams): DisplayOptions {
 
   const empty = params.get(DISPLAY_PARAMS.showEmptyGroups);
   if (empty === 'true' || empty === 'false') out.showEmptyGroups = empty === 'true';
+
+  const groupOrder = params.get(DISPLAY_PARAMS.groupOrder);
+  if (groupOrder !== null) {
+    // Nothing is validated beyond being non-empty, because there is nothing here to validate
+    // against: a group key is a status id, a person's id, a due date or a priority number
+    // depending on the grouping, and this module does not know the grouping. A key naming a
+    // group the view does not have is simply never matched — `groupIssues` ranks what it
+    // recognises and computes the rest — so an arrangement from a deleted status degrades to
+    // an arrangement of what is left rather than to an error.
+    const keys = groupOrder.split(',').filter((key) => key !== '');
+    if (keys.length > 0) out.groupOrder = keys;
+  }
 
   const properties = params.get(DISPLAY_PARAMS.properties);
   if (properties === '') {

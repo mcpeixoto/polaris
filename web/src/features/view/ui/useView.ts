@@ -390,6 +390,9 @@ export function useView({
       display.showSubIssues,
       display.showCompleted,
       display.showEmptyGroups,
+      // Joined rather than spread: the dependency list has a fixed shape, and an array whose
+      // length changes as groups are moved would shift every entry after it.
+      display.groupOrder.join(','),
       // A pinned clock is part of the question; the wall clock deliberately is not.
       now ?? 0,
       timezone,
@@ -442,7 +445,20 @@ export function useView({
         ? bar
         : (fallbackParams ?? EMPTY_PARAMS);
       const current = resolveDisplay(live);
-      const merged = { ...current, ...(typeof patch === 'function' ? patch(current) : patch) };
+      const changes = typeof patch === 'function' ? patch(current) : patch;
+      const merged = { ...current, ...changes };
+      // A manual arrangement is a list of keys belonging to one dimension, so changing the
+      // dimension makes it meaningless rather than merely stale: status ids under an assignee
+      // grouping match nothing, and the order would sit in the URL doing nothing until
+      // somebody grouped by status again and found their old arrangement back. Dropped unless
+      // the same patch is setting one — which is what a drag does.
+      if (
+        changes.groupBy !== undefined &&
+        changes.groupBy !== current.groupBy &&
+        changes.groupOrder === undefined
+      ) {
+        merged.groupOrder = [];
+      }
       const next = toDisplayParams(merged);
       writeParams((search) => {
         // Cleared first: `toDisplayParams` omits every value that is already the default,
@@ -577,6 +593,7 @@ function computeView(
     admitsStatus(combined),
     display.showEmptyGroups,
     display.layout,
+    display.groupOrder,
   );
 
   return {
@@ -628,6 +645,7 @@ function resolveDisplay(params: URLSearchParams): Required<DisplayOptions> {
     subGroupBy: parsed.subGroupBy ?? DEFAULT_DISPLAY.subGroupBy,
     showEmptyGroups: parsed.showEmptyGroups ?? DEFAULT_DISPLAY.showEmptyGroups,
     showSnoozed: parsed.showSnoozed ?? DEFAULT_DISPLAY.showSnoozed,
+    groupOrder: parsed.groupOrder ?? DEFAULT_DISPLAY.groupOrder,
     properties: parsed.properties ?? DEFAULT_DISPLAY.properties,
   };
 }

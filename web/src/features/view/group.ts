@@ -47,17 +47,22 @@ const NONE = ' none';
  * How a list scans statuses, which is not the pipeline.
  *
  * A board is a workflow left to right: triage, then the queue, then started, then done.
- * A list is a scan of what to look at: what is done, what is moving, what is waiting,
- * what is parked, then what is dead. `CATEGORY_ORDER` stays the product's pipeline —
- * pickers, settings and the board all keep it — so this map is only consulted when
- * grouping a list.
+ * A list is a scan of what needs a decision, and finished work needs none — so it reads
+ * what has to be unblocked, what is moving, what is queued, what is parked, and only then
+ * what is already settled. Triage leads because it is an inbox: nothing in it has been
+ * looked at yet. Done and Canceled sink to the bottom for the same reason they used to
+ * lead and should not have — they are the answer to "what happened", not to "what now".
+ *
+ * `CATEGORY_ORDER` stays the product's pipeline — pickers, settings and the board all keep
+ * it — so this map is only consulted when grouping a list, and only when the view has no
+ * order of its own. A `groupOrder` the reader arranged by hand beats both.
  */
 const LIST_STATE_CATEGORY_ORDER: Readonly<Record<StateCategory, number>> = {
-  completed: 0,
+  triage: 0,
   started: 1,
   unstarted: 2,
   backlog: 3,
-  triage: 4,
+  completed: 4,
   canceled: 5,
   duplicate: 6,
 };
@@ -95,6 +100,16 @@ export function groupIssues(
    * looking the same until `useView` passes the layout it already knows.
    */
   layout: ViewLayout = 'board',
+  /**
+   * The order the reader dragged the groups into, by group key. Empty means "no opinion".
+   *
+   * It wins over every rule below it, including the one that pins the unset group last: a
+   * heading somebody has taken hold of and moved is not a default to be second-guessed. Keys
+   * it does not name keep their computed order and follow the ones it does, so a status
+   * created after the arrangement was made appears at the bottom rather than silently
+   * reshuffling what was arranged around it.
+   */
+  groupOrder: readonly string[] = [],
 ): IssueGroup[] {
   if (groupBy === 'none') {
     return [{ key: 'all', label: '', issues: sortIssues([...issues], store, orderBy, direction) }];
@@ -190,8 +205,35 @@ export function groupIssues(
           : sortIssues(bucket, store, orderBy, direction),
     });
   }
-  groups.sort((a, b) => compareGroups(a, b, groupBy, store, layout));
+  const ranks = rankOf(groupOrder);
+  groups.sort((a, b) => {
+    const left = ranks.get(a.key);
+    const right = ranks.get(b.key);
+    if (left !== undefined && right !== undefined) return left - right;
+    // One side arranged and the other not: the arranged one leads. The alternative — slotting
+    // an unranked group back into its computed position among the ranked ones — needs the two
+    // orders to be comparable, and they are not: a rank is an index into a list somebody made
+    // and a category rank is a fact about the product.
+    if (left !== undefined) return -1;
+    if (right !== undefined) return 1;
+    return compareGroups(a, b, groupBy, store, layout);
+  });
   return groups;
+}
+
+/** Group key to its place in a manual order, first mention winning. */
+function rankOf(groupOrder: readonly string[]): Map<string, number> {
+  const ranks = new Map<string, number>();
+  // Empty is the common case by a long way, and building a map per keystroke for it is the
+  // kind of cost this module's header says it does not pay.
+  if (groupOrder.length === 0) return ranks;
+  for (const [index, key] of groupOrder.entries()) {
+    // A duplicate key would otherwise make the comparator disagree with itself depending on
+    // which mention it read, and a sort over an inconsistent comparator is undefined rather
+    // than merely odd. A URL is hand-editable, so this is reachable input.
+    if (!ranks.has(key)) ranks.set(key, index);
+  }
+  return ranks;
 }
 
 function describe(key: string, groupBy: DisplayGroupBy, store: Store): Omit<IssueGroup, 'issues'> {

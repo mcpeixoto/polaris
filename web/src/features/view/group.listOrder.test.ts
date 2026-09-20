@@ -1,10 +1,11 @@
 /**
- * A list scans statuses in the opposite direction to a board.
+ * A list scans statuses in a different direction from a board.
  *
  * The board is a pipeline — backlog, then unstarted, then started, then done — and
  * `group.test.ts` pins that as the default, because pickers and settings share it.
- * The list is a scan of what to look at: done, then moving, then waiting, then parked,
- * then dead. That split lives in `groupIssues`'s layout argument, not in `CATEGORY_ORDER`.
+ * The list is a scan of what needs a decision: triage, then what is moving, then what is
+ * queued, then what is parked, and only then what is already settled. That split lives in
+ * `groupIssues`'s layout argument, not in `CATEGORY_ORDER`.
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -22,6 +23,7 @@ const TODO = '01900000-0000-7000-8000-0000000000c1';
 const DOING = '01900000-0000-7000-8000-0000000000c2';
 const DONE = '01900000-0000-7000-8000-0000000000c3';
 const CANCELED = '01900000-0000-7000-8000-0000000000c4';
+const TRIAGE = '01900000-0000-7000-8000-0000000000c5';
 
 function state(id: string, name: string, category: string, position: string): WorkflowState {
   return {
@@ -106,9 +108,9 @@ beforeEach(async () => {
 });
 
 describe('list status group order', () => {
-  it('reads finished work first, then moving, then waiting, then parked, then dead', () => {
+  it('reads moving first, then waiting, then parked, then what is already settled', () => {
     const groups = groupIssues([], store, 'state', 'manual', 'asc', TEAM, undefined, true, 'list');
-    expect(groups.map((g) => g.label)).toEqual(['Done', 'Doing', 'Todo', 'Backlog', 'Canceled']);
+    expect(groups.map((g) => g.label)).toEqual(['Doing', 'Todo', 'Backlog', 'Done', 'Canceled']);
   });
 
   it('keeps the pipeline when the layout is a board', () => {
@@ -141,10 +143,10 @@ describe('list status group order', () => {
       'list',
     );
     expect(list.map((g) => g.key)).toEqual([
-      'completed',
       'started',
       'unstarted',
       'backlog',
+      'completed',
       'canceled',
     ]);
 
@@ -166,5 +168,99 @@ describe('list status group order', () => {
       'completed',
       'canceled',
     ]);
+  });
+  it('puts triage at the top of a list, because nothing in it has been looked at yet', () => {
+    store.applyChanges([
+      {
+        v: 6,
+        type: 'workflowState',
+        id: TRIAGE,
+        op: 'upsert',
+        actor: { type: 'system' },
+        payload: state(TRIAGE, 'Triage', 'triage', 'a0'),
+      },
+    ]);
+    const groups = groupIssues([], store, 'state', 'manual', 'asc', TEAM, undefined, true, 'list');
+    expect(groups.map((g) => g.label)).toEqual([
+      'Triage',
+      'Doing',
+      'Todo',
+      'Backlog',
+      'Done',
+      'Canceled',
+    ]);
+  });
+});
+
+describe('an arranged group order', () => {
+  it('overrides the computed order for the groups it names', () => {
+    const groups = groupIssues([], store, 'state', 'manual', 'asc', TEAM, undefined, true, 'list', [
+      DONE,
+      DOING,
+    ]);
+    expect(groups.map((g) => g.label)).toEqual(['Done', 'Doing', 'Todo', 'Backlog', 'Canceled']);
+  });
+
+  it('overrides the board too, because an arrangement is a choice and the pipeline is a default', () => {
+    const groups = groupIssues(
+      [],
+      store,
+      'state',
+      'manual',
+      'asc',
+      TEAM,
+      undefined,
+      true,
+      'board',
+      [DONE],
+    );
+    expect(groups.map((g) => g.label)).toEqual(['Done', 'Backlog', 'Todo', 'Doing', 'Canceled']);
+  });
+
+  it('leaves the groups it does not name in their computed order, behind the ones it does', () => {
+    const groups = groupIssues([], store, 'state', 'manual', 'asc', TEAM, undefined, true, 'list', [
+      CANCELED,
+    ]);
+    expect(groups.map((g) => g.label)).toEqual(['Canceled', 'Doing', 'Todo', 'Backlog', 'Done']);
+  });
+
+  it('ignores a key for a group the view does not have', () => {
+    const groups = groupIssues([], store, 'state', 'manual', 'asc', TEAM, undefined, true, 'list', [
+      '01900000-0000-7000-8000-0000000000ff',
+      DONE,
+    ]);
+    expect(groups.map((g) => g.label)).toEqual(['Done', 'Doing', 'Todo', 'Backlog', 'Canceled']);
+  });
+
+  it('takes the first mention of a duplicated key, so the comparator cannot disagree with itself', () => {
+    const groups = groupIssues([], store, 'state', 'manual', 'asc', TEAM, undefined, true, 'list', [
+      DONE,
+      TODO,
+      DONE,
+    ]);
+    expect(groups.map((g) => g.label)).toEqual(['Done', 'Todo', 'Doing', 'Backlog', 'Canceled']);
+  });
+
+  it('can lift the unset group off the bottom, which nothing else may do', () => {
+    const issues = [
+      issue({ id: 'i-assigned', assigneeId: '01900000-0000-7000-8000-0000000000a1' }),
+      issue({ id: 'i-unassigned' }),
+    ];
+    const natural = groupIssues(issues, store, 'assignee', 'manual', 'asc', TEAM);
+    expect(natural[natural.length - 1]?.label).toBe('Unassigned');
+
+    const arranged = groupIssues(
+      issues,
+      store,
+      'assignee',
+      'manual',
+      'asc',
+      TEAM,
+      undefined,
+      true,
+      'list',
+      [' none'],
+    );
+    expect(arranged[0]?.label).toBe('Unassigned');
   });
 });

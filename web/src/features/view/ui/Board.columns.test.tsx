@@ -144,9 +144,16 @@ interface Options {
   readonly collapsed?: readonly string[];
   readonly display?: Partial<DisplayOptions>;
   readonly cursorId?: UUID | null;
+  /** Off by default, so every case above stays about a board whose columns are fixed. */
+  readonly reorderable?: boolean;
 }
 
-function renderBoard({ collapsed = [], display = {}, cursorId = null }: Options = {}) {
+function renderBoard({
+  collapsed = [],
+  display = {},
+  cursorId = null,
+  reorderable = false,
+}: Options = {}) {
   const store = seeded();
   const mutate = vi.fn().mockResolvedValue({ bulkUpdateIssues: { skipped: [] } });
   const engine = { store, mutate } as unknown as SyncEngine;
@@ -154,6 +161,12 @@ function renderBoard({ collapsed = [], display = {}, cursorId = null }: Options 
   const onContextMenu = vi.fn();
   const onCreateInColumn = vi.fn();
   const onFocus = vi.fn();
+  const onStart = vi.fn();
+  const onDrop = vi.fn();
+  const onMove = vi.fn();
+  const reorder = reorderable
+    ? { draggingKey: null, onStart, onEnd: vi.fn(), onDrop, onMove }
+    : undefined;
 
   render(
     <KeymapProvider>
@@ -173,6 +186,7 @@ function renderBoard({ collapsed = [], display = {}, cursorId = null }: Options 
           onToggleGroup={onToggleGroup}
           onContextMenu={onContextMenu}
           onCreateInColumn={onCreateInColumn}
+          reorder={reorder}
         />
       </EngineProvider>
     </KeymapProvider>,
@@ -185,6 +199,9 @@ function renderBoard({ collapsed = [], display = {}, cursorId = null }: Options 
     onContextMenu,
     onCreateInColumn,
     onFocus,
+    onStart,
+    onDrop,
+    onMove,
     user: userEvent.setup(),
   };
 }
@@ -348,4 +365,80 @@ function transfer(): DataTransfer {
     setData: (type: string, value: string) => data.set(type, value),
     getData: (type: string) => data.get(type) ?? '',
   } as unknown as DataTransfer;
+}
+
+/**
+ * Arranging the columns, which is a different question from moving a card between them.
+ *
+ * The board is given the callbacks rather than owning them — `IssueList` computes the next
+ * arrangement, because it is the half that knows the view's display options — so what is
+ * asserted here is the half a column owns: that the header offers the gesture, that the menu
+ * offers the pointer-free version and knows where the ends are, and that a column being
+ * dragged does not get mistaken for a card.
+ */
+describe('arranging the columns', () => {
+  it('offers nothing when the groups cannot be arranged', async () => {
+    const { user } = renderBoard();
+
+    expect(column('Todo').querySelector('header')?.getAttribute('draggable')).not.toBe('true');
+    await user.click(screen.getByRole('button', { name: 'Options for Todo' }));
+    expect(
+      (await screen.findByRole('menuitem', { name: 'Move left' })).getAttribute('aria-disabled'),
+    ).toBe('true');
+  });
+
+  it('makes the header the drag handle', () => {
+    renderBoard({ reorderable: true });
+
+    expect(column('Todo').querySelector('header')?.getAttribute('draggable')).toBe('true');
+  });
+
+  it('reports a drop on a column as a move of the held column', () => {
+    const { onStart, onDrop } = renderBoard({ reorderable: true });
+    const transfer = dataTransfer();
+
+    fireEvent.dragStart(column('Todo').querySelector('header')!, { dataTransfer: transfer });
+    fireEvent.drop(column('In Progress'), { dataTransfer: transfer });
+
+    expect(onStart).toHaveBeenCalledWith('s-todo');
+    expect(onDrop).toHaveBeenCalledWith('s-doing');
+  });
+
+  it('does not read a dragged column as a dropped card', () => {
+    const { mutate } = renderBoard({ reorderable: true });
+    const transfer = dataTransfer();
+
+    fireEvent.dragStart(column('Todo').querySelector('header')!, { dataTransfer: transfer });
+    fireEvent.dragOver(column('In Progress'), { dataTransfer: transfer });
+    fireEvent.drop(column('In Progress'), { dataTransfer: transfer });
+
+    // A column landing on a column writes a display option and nothing on any issue. Without
+    // the private drag type this landed a `sortOrder` write on release.
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it('moves a column from the menu, and knows where the ends are', async () => {
+    const { user, onMove } = renderBoard({ reorderable: true });
+
+    await user.click(screen.getByRole('button', { name: 'Options for Todo' }));
+    expect(
+      (await screen.findByRole('menuitem', { name: 'Move left' })).getAttribute('aria-disabled'),
+    ).toBe('true');
+    await user.click(await screen.findByRole('menuitem', { name: 'Move right' }));
+    expect(onMove).toHaveBeenCalledWith('s-todo', 1);
+  });
+});
+
+/** Enough of a `DataTransfer` for the handlers, which only set, read and list types. */
+function dataTransfer() {
+  const held = new Map<string, string>();
+  return {
+    setData: (type: string, value: string) => void held.set(type, value),
+    getData: (type: string) => held.get(type) ?? '',
+    get types() {
+      return [...held.keys()];
+    },
+    effectAllowed: 'none',
+    dropEffect: 'none',
+  };
 }

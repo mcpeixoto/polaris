@@ -16,5 +16,8 @@ export type { ViewClock } from './context';
 export { groupIssues, sortIssues, subGroupIssues } from './group';
 export type { IssueGroup } from './group';
 
+export { canReorderGroups, GROUP_DRAG, reorderGroupKeys, shiftGroupKey } from './groupOrder';
+export type { GroupReorder } from './groupOrder';
+
 export { FOCUS_KEYS, FOCUS_LABELS, focusKeyOf, focusRank, sortFocusIssues } from './focus';
 export type { FocusKey } from './focus';

@@ -58,3 +58,35 @@ describe('display properties from a URL', () => {
     expect(parseDisplayParams(params).properties).toEqual([...DISPLAY_PROPERTIES]);
   });
 });
+
+/**
+ * An arranged group order in a link.
+ *
+ * It is the one display option whose values this module cannot validate — a group key is a
+ * status id, a person's id, a date or a priority number depending on a grouping `url.ts` does
+ * not know about. So the contract is narrower than the others' and worth pinning: whatever
+ * goes in comes back, an empty arrangement is not written at all, and a key naming nothing is
+ * carried rather than rejected, because `groupIssues` is the half that knows what a key means.
+ */
+describe('group order in a URL', () => {
+  it('round-trips an arrangement', () => {
+    const order = ['state-c', 'state-a', 'state-b'];
+    const params = new URLSearchParams(toDisplayParams({ groupOrder: order }));
+    expect(params.get('groups')).toBe('state-c,state-a,state-b');
+    expect(parseDisplayParams(params)).toEqual({ groupOrder: order });
+  });
+
+  it('writes nothing for no arrangement, which is what absence already says', () => {
+    expect(toDisplayParams({ groupOrder: [] })).toEqual({});
+  });
+
+  it('reads an empty parameter as no arrangement rather than as an empty one', () => {
+    expect(parseDisplayParams(new URLSearchParams({ groups: '' }))).toEqual({});
+  });
+
+  it('drops the gaps a hand-edited link leaves behind', () => {
+    expect(parseDisplayParams(new URLSearchParams({ groups: 'a,,b,' }))).toEqual({
+      groupOrder: ['a', 'b'],
+    });
+  });
+});
