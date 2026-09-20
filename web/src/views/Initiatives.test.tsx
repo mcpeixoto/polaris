@@ -217,7 +217,10 @@ describe('Initiatives list grouping', () => {
     ]);
     renderList(h, { url: '/initiatives?group=owner' });
 
-    const grace = screen.getByRole('button', { name: /Grace/ });
+    // `expanded`, because the row under the heading carries an owner trigger named after
+    // the same person — the value is what a property trigger is called. A group heading is
+    // the disclosure on the run; the triggers beside it are menus that are shut.
+    const grace = screen.getByRole('button', { name: /Grace/, expanded: true });
     const none = screen.getByRole('button', { name: /No owner/ });
     expect(grace.compareDocumentPosition(none) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // A grouping flattens the tree, so no row keeps a chevron of its own.

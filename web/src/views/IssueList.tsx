@@ -66,7 +66,7 @@ import { issueIdsForAdhocList } from '~/features/issue/adhocList';
 import { listFindHits } from '~/features/issue/listFind';
 import { buildCreateURL, parseCreateURL, resolveCreateURL } from '~/features/issue/create-url';
 import { EntityIcon } from '~/features/icon/EntityIcon';
-import { ArchiveGlyph } from '~/features/issue/glyphs';
+import { ArchiveGlyph, EstimateGlyph } from '~/features/issue/glyphs';
 import {
   archiveIssues,
   deleteIssues,
@@ -3815,6 +3815,7 @@ function MetaPill({
   action,
   open,
   overdue = false,
+  placeholder,
   onOpen,
   children,
 }: {
@@ -3822,13 +3823,29 @@ function MetaPill({
   action: string;
   open: boolean;
   overdue?: boolean | undefined;
+  /**
+   * Nothing is set, so this pill is the route to setting it rather than a fact about the
+   * issue — quieter, and named for the hole it fills: "No cycle", "No due date".
+   *
+   * `'always'` keeps it on the row; `'hover'` reserves its width and fades it in with the
+   * row's other hover affordances. Which of the two a property gets is a judgement about
+   * whether *empty* is a state somebody scans for — see the call sites.
+   */
+  placeholder?: 'always' | 'hover' | undefined;
   onOpen: (element: HTMLElement) => void;
   children: ReactNode;
 }) {
   return (
     <button
       type="button"
-      className={[styles.pill, overdue ? styles.overdue : null].filter(Boolean).join(' ')}
+      className={[
+        styles.pill,
+        overdue ? styles.overdue : null,
+        placeholder === undefined ? null : styles.placeholder,
+        placeholder === 'hover' ? styles.onHover : null,
+      ]
+        .filter(Boolean)
+        .join(' ')}
       aria-label={overdue ? `${name} overdue` : name}
       title={action}
       aria-haspopup="menu"
@@ -3990,6 +4007,12 @@ const IssueRow = memo(function IssueRow({
             : (store.projects.get(found.projectId)?.color ?? null),
         cycleName:
           found.cycleId === undefined ? null : (store.cycles.get(found.cycleId)?.name ?? null),
+        // Whether the *team* runs cycles and estimates at all, which is a different question
+        // from whether this issue carries one. A null `estimate` means both "nobody has sized
+        // it" and "this team does not size anything", and the row now draws a placeholder for
+        // the first and nothing for the second — so the two facts have to arrive separately.
+        cycles: team?.cyclesEnabled === true,
+        estimates: team !== undefined && estimatesEnabled(team),
         // Live children only, on the same terms the detail page counts them: a canceled or
         // archived child is not work this issue is still waiting on.
         subIssues: subIssueProgress(store, id).total,
@@ -4128,8 +4151,45 @@ const IssueRow = memo(function IssueRow({
           pickerOpen={openProperty === 'labels'}
         />
       ) : null}
+      {/*
+       * Every property here is a control whether or not it has a value.
+       *
+       * A pill that only rendered once its value existed meant the properties could be
+       * *changed* with a pointer and never *set* with one: an issue with no cycle had no
+       * cycle pill, so there was nowhere on the row to press to give it one, and the only
+       * routes left were a chord and the context menu. Assignee had already solved this with
+       * `.unassigned` — the control is always there and reads "Unassigned" — and these are
+       * the same fix in the shape the meta row uses.
+       *
+       * Which properties earn a permanent slot is a judgement, not a rule, because the wrong
+       * answer is a list where every row carries four grey pills saying nothing:
+       *
+       * - **Cycle and estimate are always drawn**, where the team uses them at all. Both are
+       *   planning fields, and in planning *the unsized issue and the uncycled one are
+       *   exactly what you are scanning for* — the hole is the fact. Both are also gated on
+       *   a team setting, so a team that does not estimate or run cycles sees neither, and
+       *   cycle is not in the default property set: it is on the row because somebody ticked
+       *   it, which is already a statement of intent.
+       * - **Project and due date appear on hover**, reserving their width so nothing shifts.
+       *   Most issues have no deadline and belong to no project, and that is the ordinary
+       *   condition rather than a gap — a permanent marker for it would put the least
+       *   informative pill on the most rows. Overdue is the one thing on this row worth
+       *   interrupting a scan for, and an empty twin beside it every time would dilute it.
+       */}
       <span className={styles.meta}>
-        {properties.has('project') && issue.projectName !== null ? (
+        {!properties.has('project') ? null : issue.projectName === null ? (
+          <MetaPill
+            name="No project"
+            action="Set project"
+            open={openProperty === 'project'}
+            placeholder="hover"
+            onOpen={(element) => onProperty('project', id, rowIndex, element)}
+          >
+            <span className={styles.pillGlyph}>
+              <ProjectGlyph />
+            </span>
+          </MetaPill>
+        ) : (
           <MetaPill
             name={issue.projectName}
             action="Set project"
@@ -4146,8 +4206,22 @@ const IssueRow = memo(function IssueRow({
             </span>
             <span className={styles.pillText}>{issue.projectName}</span>
           </MetaPill>
-        ) : null}
-        {properties.has('cycle') && issue.cycleName !== null ? (
+        )}
+        {!properties.has('cycle') ? null : issue.cycleName === null ? (
+          issue.cycles ? (
+            <MetaPill
+              name="No cycle"
+              action="Set cycle"
+              open={openProperty === 'cycle'}
+              placeholder="always"
+              onOpen={(element) => onProperty('cycle', id, rowIndex, element)}
+            >
+              <span className={styles.pillGlyph}>
+                <CycleGlyph />
+              </span>
+            </MetaPill>
+          ) : null
+        ) : (
           <MetaPill
             name={issue.cycleName}
             action="Set cycle"
@@ -4159,8 +4233,22 @@ const IssueRow = memo(function IssueRow({
             </span>
             <span className={styles.pillText}>{issue.cycleName}</span>
           </MetaPill>
-        ) : null}
-        {properties.has('estimate') && issue.estimate !== null ? (
+        )}
+        {!properties.has('estimate') ? null : issue.estimate === null ? (
+          issue.estimates ? (
+            <MetaPill
+              name="No estimate"
+              action="Set estimate"
+              open={openProperty === 'estimate'}
+              placeholder="always"
+              onOpen={(element) => onProperty('estimate', id, rowIndex, element)}
+            >
+              <span className={styles.pillGlyph}>
+                <EstimateGlyph width="14" height="14" />
+              </span>
+            </MetaPill>
+          ) : null
+        ) : (
           <MetaPill
             name={issue.estimate}
             action="Set estimate"
@@ -4169,7 +4257,7 @@ const IssueRow = memo(function IssueRow({
           >
             <span className={styles.pillText}>{issue.estimate}</span>
           </MetaPill>
-        ) : null}
+        )}
         {/*
          * Overdue says the word, and says it to everybody.
          *
@@ -4179,7 +4267,19 @@ const IssueRow = memo(function IssueRow({
          * `--text-danger` now rather than `--priority-urgent`: a theme that recolours
          * urgency must not silently recolour a missed deadline.
          */}
-        {properties.has('dueDate') && issue.dueDate !== null ? (
+        {!properties.has('dueDate') ? null : issue.dueDate === null ? (
+          <MetaPill
+            name="No due date"
+            action="Set due date"
+            open={openProperty === 'due'}
+            placeholder="hover"
+            onOpen={(element) => onProperty('due', id, rowIndex, element)}
+          >
+            <span className={styles.pillGlyph}>
+              <CalendarGlyph />
+            </span>
+          </MetaPill>
+        ) : (
           <MetaPill
             name={issue.dueDate}
             action="Set due date"
@@ -4193,7 +4293,7 @@ const IssueRow = memo(function IssueRow({
             <span className={styles.pillText}>{issue.dueDate}</span>
             {issue.overdue ? <span className={styles.srOnly}> overdue</span> : null}
           </MetaPill>
-        ) : null}
+        )}
         {/* Only where there are some: a "0" on every row would be a column of noise about a
             structure most issues are not part of. */}
         {issue.subIssues === 0 ? null : (

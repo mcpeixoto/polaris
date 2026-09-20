@@ -76,6 +76,42 @@
   flex: none;
 }
 
+/*
+ * The project peek's eyebrow, once it became the control that changes the status.
+ *
+ * It sits inside `.identifier` and inherits that line's type and colour rather than
+ * restating them, because two copies of the same three declarations is two places for them
+ * to drift. What it adds is the affordance the rail's triggers already wear: the hover wash,
+ * and the same wash held while the menu is open — by then the pointer is over the menu
+ * rather than over the button, and without it the panel stops saying which control the menu
+ * belongs to. The negative inline margin keeps the word itself on the line it was on before
+ * it grew padding.
+ */
+.statusTrigger {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  min-height: var(--control-height-md);
+  margin-inline-start: calc(var(--space-2) * -1);
+  padding-inline: var(--space-2);
+  border: none;
+  border-radius: var(--radius-md);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.statusTrigger:hover,
+.statusTrigger[aria-expanded='true'] {
+  background-color: var(--bg-hover);
+}
+
+.statusTrigger:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
 .title {
   margin: 0 0 var(--space-3);
   color: var(--text-primary);

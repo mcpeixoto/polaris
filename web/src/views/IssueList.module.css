@@ -732,6 +732,41 @@ button.pill:focus-visible {
 }
 
 /*
+ * A property with nothing in it yet — the pill is the way to set one rather than a fact.
+ *
+ * Dashed and tertiary for the same reason `.unassigned` is: the shape says "a value goes
+ * here" without claiming a value is there, and a reader scanning the column can tell the
+ * filled ones from the empty ones without reading a word. Glyph only, no text: "No cycle"
+ * spelled out on every row of a planning board is the wall of grey this is meant to avoid,
+ * so the words live in the `aria-label` where a screen reader still gets them.
+ */
+.placeholder {
+  border-style: dashed;
+}
+
+/*
+ * The placeholders that only appear under the pointer — the project and the due date, which
+ * most issues are right not to have.
+ *
+ * Opacity and not `display`, exactly as `.rowMore` above: the pill keeps its width whether
+ * it is drawn or not, so the titles above and below do not re-truncate as the pointer walks
+ * the list. `:focus-within` is what keeps it reachable when the keyboard is in the row.
+ */
+.onHover {
+  opacity: 0;
+}
+
+.row:hover .onHover,
+.row:focus-within .onHover,
+.active .onHover {
+  opacity: 1;
+}
+
+.onHover:focus-visible {
+  opacity: 1;
+}
+
+/*
  * The ⋯ that reveals the row's context menu without a right-click. Invisible until the row
  * is hovered or focused-within, so a dense list stays dense — and always reachable from the
  * keyboard once the row is the active descendant's focus parent.

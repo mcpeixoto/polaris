@@ -124,6 +124,11 @@
  * The list takes focus itself when a menu opened from a row closes — the row may have been
  * snoozed away by then, and the list is what owns the cursor. So it needs a ring of its own:
  * the alternative is a keyboard user whose focus is somewhere with nothing to show for it.
+ *
+ * It is also the only ring on this side of the screen. The rows stopped being buttons when
+ * the status circle became a control — a button cannot hold another one — so there is no
+ * `.row:focus-visible` any more, and there is nothing to draw one for: the cursor is
+ * `aria-activedescendant`, and `.active` is what marks it.
  */
 .list:focus-visible {
   outline: var(--focus-ring-width) solid var(--border-focus);
@@ -158,11 +163,6 @@
 /* The cursor. A wash, and the pane beside it is the second, larger mark. */
 .active {
   background-color: var(--bg-selected);
-}
-
-.row:focus-visible {
-  outline: var(--focus-ring-width) solid var(--border-focus);
-  outline-offset: calc(var(--focus-ring-offset) * -1);
 }
 
 /*

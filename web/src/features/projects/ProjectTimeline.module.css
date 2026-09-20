@@ -99,11 +99,22 @@
   white-space: nowrap;
 }
 
+/* The glyph that opens the status picker, with the word it is currently on beside it. The
+   cell no longer truncates as a whole: the button has to keep its square, so the ellipsis
+   moved inwards to the word. */
+.sidebarStatus {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+  min-width: 0;
+}
+
 /* Ellipsis is allowed here: a project status name is workspace data, not a product string
    this file controls, so there is no fixed set of words that could be sized to. */
-.sidebarStatus {
+.sidebarStatusName {
   overflow: hidden;
-  flex: none;
+  min-width: 0;
   max-width: 8ch;
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);

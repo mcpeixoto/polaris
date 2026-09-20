@@ -28,7 +28,7 @@
  * away and says so.
  */
 
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
@@ -39,17 +39,14 @@ import {
   DatePicker,
   IconButton,
   Input,
-  Menu,
   PriorityIcon,
   priorityLabel,
   PropertyPill,
   SaveIndicator,
   StateIcon,
-  Textarea,
   TitleField,
   Tooltip,
   useSaveState,
-  type MenuNode,
 } from '~/components';
 import { DescriptionEditor } from '~/editor/DescriptionEditor';
 import { EntityIcon } from '~/features/icon/EntityIcon';
@@ -68,13 +65,12 @@ import {
   updateProject,
 } from '~/features/projects/mutations';
 import { MilestoneSection } from '~/features/project-milestones/MilestoneSection';
-import { createProjectUpdate } from '~/features/project-updates/mutations';
-import { HealthDot, ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
-import { HealthGlyph, PencilGlyph } from '~/features/project-updates/glyphs';
+import { ProjectUpdateForm } from '~/features/project-updates/ProjectUpdateComposer';
+import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
+import { PencilGlyph } from '~/features/project-updates/glyphs';
 import { ProjectUpdateEditor } from '~/features/project-updates/ProjectUpdateEditor';
 import {
   listProjectUpdates,
-  PROJECT_UPDATE_HEALTH_LABEL,
   PROJECT_UPDATE_HEALTH_TOKEN,
 } from '~/features/project-updates/helpers';
 import { personName } from '~/features/prefs/prefs';
@@ -83,22 +79,15 @@ import { useViewerId } from '~/hooks/useViewer';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { IssueCustomers } from '~/features/customers/IssueCustomers';
-import type { ProjectUpdateHealth, UUID } from '~/store';
+import type { UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import styles from './ProjectOverview.module.css';
-
-const HEALTHS: readonly ProjectUpdateHealth[] = ['on_track', 'at_risk', 'off_track'];
 
 export function ProjectOverview() {
   const engine = useEngine();
   const viewerId = useViewerId();
   const { projectId = '' } = useParams<{ projectId: string }>();
-  const [health, setHealth] = useState<ProjectUpdateHealth>('on_track');
-  const [body, setBody] = useState('');
-  const [posting, setPosting] = useState(false);
-  const [postError, setPostError] = useState<string | null>(null);
   const [editingLatest, setEditingLatest] = useState(false);
-  const healthMenu = useMenuTrigger();
   const icon = useMenuTrigger<HTMLButtonElement>('dialog');
 
   // Autosave with nothing to show for it was the state of three detail screens: the summary
@@ -134,44 +123,6 @@ export function ProjectOverview() {
   );
 
   if (project === null) return null;
-
-  const onSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (posting || viewerId === null) return;
-    // A blank post is a health change with nothing said about it, and the feed reads as a
-    // row of empty entries. Refused here rather than at the API, so the answer is instant.
-    const written = body.trim();
-    if (written === '') {
-      setPostError('An update needs something to say.');
-      return;
-    }
-    setPosting(true);
-    setPostError(null);
-    try {
-      await createProjectUpdate(engine, {
-        projectId: project.id,
-        health,
-        body: written,
-        authorId: viewerId,
-      });
-      setBody('');
-    } catch (failure) {
-      // Without this the promise rejected into nothing: the form cleared its posting flag
-      // in `finally` and looked exactly as it does after a successful post, so a refused
-      // update — offline, a server that said no — read as one that had gone out.
-      setPostError(failure instanceof ApiError ? failure.message : 'That update was not posted.');
-    } finally {
-      setPosting(false);
-    }
-  };
-
-  const healthItems: MenuNode[] = HEALTHS.map((value) => ({
-    id: value,
-    label: PROJECT_UPDATE_HEALTH_LABEL[value],
-    icon: <HealthGlyph health={value} />,
-    selected: value === health,
-    onSelect: () => setHealth(value),
-  }));
 
   return (
     <div className={styles.screen}>
@@ -280,45 +231,11 @@ export function ProjectOverview() {
               so the composer stands down while the editor is open — which also keeps one
               "Health" control on the screen rather than two identically named ones. */}
           {!editingLatest && (
-            <form className={styles.composer} onSubmit={onSubmit}>
-              <Textarea
-                label="Update"
-                hideLabel
-                surface="plain"
-                value={body}
-                minRows={2}
-                placeholder="What changed since the last update?"
-                onChange={(event) => {
-                  setBody(event.target.value);
-                  if (postError !== null) setPostError(null);
-                }}
-              />
-              {postError === null ? null : (
-                <p className={styles.error} role="alert">
-                  {postError}
-                </p>
-              )}
-              <div className={styles.composerFoot}>
-                <Button
-                  {...healthMenu.props}
-                  variant="secondary"
-                  aria-label="Health"
-                  icon={<HealthDot health={health} />}
-                >
-                  {PROJECT_UPDATE_HEALTH_LABEL[health]}
-                </Button>
-                <Menu
-                  open={healthMenu.open}
-                  onClose={healthMenu.hide}
-                  trigger={healthMenu.ref}
-                  label="Health"
-                  items={healthItems}
-                />
-                <Button type="submit" variant="primary" disabled={posting || viewerId === null}>
-                  Post update
-                </Button>
-              </div>
-            </form>
+            <ProjectUpdateForm
+              projectId={project.id}
+              initialHealth={latest?.update.health}
+              onPosted={() => {}}
+            />
           )}
         </section>
 

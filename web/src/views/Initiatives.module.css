@@ -81,11 +81,17 @@
  * row's border rather than being clipped.
  */
 .table {
-  --initiative-labels: 12ch;
-  --initiative-health: 16ch;
-  --initiative-target: 11ch;
+  /*
+   * Every cell but the name and the two roll-ups now carries a 22px trigger beside its
+   * words, so each of those tracks is a few characters wider than the text alone asks for.
+   * A track sized to the words clipped the control that sets them, which is the one thing
+   * in a cell that cannot be read around.
+   */
+  --initiative-labels: 16ch;
+  --initiative-health: 20ch;
+  --initiative-target: 14ch;
   --initiative-progress: 9ch;
-  --initiative-grid: minmax(0, 1fr) var(--initiative-health) 11ch var(--initiative-labels) 14ch
+  --initiative-grid: minmax(0, 1fr) var(--initiative-health) 14ch var(--initiative-labels) 16ch
     var(--initiative-target) 8ch var(--initiative-progress);
 
   overflow-y: auto;

@@ -379,6 +379,42 @@ button.pill:focus-visible {
   outline-offset: var(--focus-ring-offset);
 }
 
+/*
+ * A property with nothing in it yet — the pill is the way to set one rather than a fact.
+ *
+ * Dashed for the same reason `.unassigned` above is: the shape says "a value goes here"
+ * without claiming a value is there, and a reader can tell the filled pills from the empty
+ * ones without reading a word. Glyph only, no text: "No cycle" spelled out on every card of
+ * a planning board is the wall of grey this is meant to avoid, so the words live in the
+ * `aria-label` where a screen reader still gets them. The list row draws the same thing.
+ */
+.placeholder {
+  border-style: dashed;
+}
+
+/*
+ * The placeholders that only appear under the pointer — the project and the due date, which
+ * most issues are right not to have.
+ *
+ * Opacity and not `display`: the meta row wraps, so a pill that appeared on hover could push
+ * the run onto a second line and change the card's height, which is the one measurement the
+ * virtualiser's estimate depends on. Reserved and faded, the card is the same size whether
+ * the pointer is on it or not.
+ */
+.onHover {
+  opacity: 0;
+}
+
+.card:hover .onHover,
+.card:focus-within .onHover,
+.active .onHover {
+  opacity: 1;
+}
+
+.onHover:focus-visible {
+  opacity: 1;
+}
+
 /* A pill that is only its glyph — the priority, the status — is square rather than a capsule
    with nothing in it, and 24px is what makes it line up with the pills beside it. */
 .glyphPill {

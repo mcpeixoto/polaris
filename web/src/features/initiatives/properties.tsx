@@ -52,10 +52,10 @@ import { InitiativeLabelPicker } from '~/features/initiative-labels/InitiativeLa
 import {
   formatInitiativeStatus,
   INITIATIVE_STATUS_ICON,
-  INITIATIVE_STATUSES,
   updateInitiative,
 } from '~/features/initiatives/mutations';
 import { InitiativeGlyph } from '~/features/initiatives/glyphs';
+import { InitiativeStatusPicker } from '~/features/initiatives/InitiativeStatusPicker';
 import { INITIATIVE_RAIL_KEY } from '~/features/initiatives/outlet';
 import { CalendarGlyph, PlusGlyph, UnassignedGlyph } from '~/features/issue/glyphs';
 import { UserPicker } from '~/features/members/UserPicker';
@@ -196,14 +196,6 @@ export function InitiativeProperties({ initiativeId, variant }: InitiativeProper
   const granularity = initiative.targetDateGranularity ?? 'day';
   const leadTeamName = teams.find((team) => team.id === initiative.leadTeamId)?.name ?? null;
 
-  const statusItems: MenuNode[] = INITIATIVE_STATUSES.map((value) => ({
-    id: value,
-    label: formatInitiativeStatus(value),
-    icon: <StateIcon category={INITIATIVE_STATUS_ICON[value]} decorative />,
-    selected: value === initiative.status,
-    onSelect: () => save({ status: value }),
-  }));
-
   const priorityItems: MenuNode[] = PRIORITY_LEVELS.map((level) => ({
     id: String(level),
     label: priorityLabel(level),
@@ -243,12 +235,12 @@ export function InitiativeProperties({ initiativeId, variant }: InitiativeProper
   // draws nothing, so the pair of instances on screen is one panel at a time.
   const pickers = (
     <>
-      <Menu
+      <InitiativeStatusPicker
         open={status.open}
         onClose={status.hide}
         trigger={status.ref}
-        label="Status"
-        items={statusItems}
+        value={initiative.status}
+        onSelect={(next) => save({ status: next })}
       />
       <Menu
         open={priority.open}

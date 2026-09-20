@@ -46,6 +46,7 @@ import {
   Avatar,
   Button,
   ConfirmDialog,
+  DatePicker,
   EmptyState,
   ListGroup,
   Menu,
@@ -103,6 +104,7 @@ import {
   PlusGlyph,
   ProjectGlyph,
 } from '~/features/projects/glyphs';
+import { browserTimezone } from '~/features/locale';
 import { EntityIcon } from '~/features/icon/EntityIcon';
 import { IconPicker } from '~/features/icon/IconPicker';
 import { ProjectDisplayMenu } from '~/features/projects/ProjectDisplayMenu';
@@ -115,6 +117,11 @@ import { isFavorite, toggleFavorite } from '~/features/view/mutations';
 import { UserPicker } from '~/features/members/UserPicker';
 import { listProjectMilestones } from '~/features/project-milestones/helpers';
 import { ProjectHealthCell } from '~/features/project-updates/ProjectHealthCell';
+import { ProjectUpdateComposer } from '~/features/project-updates/ProjectUpdateComposer';
+import {
+  latestProjectUpdate,
+  PROJECT_UPDATE_HEALTH_LABEL,
+} from '~/features/project-updates/helpers';
 import { projectProgress, type Progress } from '~/features/initiatives/progress';
 import { ProjectPeek } from '~/features/peek/ProjectPeek';
 import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
@@ -424,7 +431,7 @@ export function Projects() {
    * closes, and a picker positioned against a element that has gone lands in the corner.
    */
   const [picker, setPicker] = useState<{
-    kind: 'status' | 'lead' | 'priority';
+    kind: 'status' | 'lead' | 'priority' | 'targetDate' | 'health';
     row: ProjectRow;
     x: number;
     y: number;
@@ -456,13 +463,40 @@ export function Projects() {
    * an element that survives the menu closing — and this trigger is the click on the glyph.
    */
   const priorityPicker = useMenuTrigger<HTMLElement>();
-  const [priorityId, setPriorityId] = useState<UUID | null>(null);
-  const openPriorityPicker = useCallback(
-    (id: UUID, element: HTMLElement) => {
-      setPriorityId(id);
-      priorityPicker.showFrom(element);
+  const leadPicker = useMenuTrigger<HTMLElement>();
+  const statusPicker = useMenuTrigger<HTMLElement>();
+  // `dialog`, not `menu`: a calendar and a composer are panels with fields in them, and
+  // `aria-haspopup` is the promise the trigger makes about what it opens.
+  const targetPicker = useMenuTrigger<HTMLElement>('dialog');
+  const healthPicker = useMenuTrigger<HTMLElement>('dialog');
+
+  /**
+   * Which property is being edited, and on which row.
+   *
+   * One piece of state for five panels rather than five ids: only one of them can be
+   * showing, and keeping that as five independent values is how a cell ends up lit for a
+   * row whose panel closed three clicks ago.
+   */
+  const [editing, setEditing] = useState<{ kind: ProjectRowPicker; id: UUID } | null>(null);
+
+  const openRowPicker = useCallback(
+    (kind: ProjectRowPicker, id: UUID, element: HTMLElement) => {
+      setEditing({ kind, id });
+      const trigger = {
+        priority: priorityPicker,
+        lead: leadPicker,
+        status: statusPicker,
+        targetDate: targetPicker,
+        health: healthPicker,
+      }[kind];
+      trigger.showFrom(element);
     },
-    [priorityPicker],
+    [priorityPicker, leadPicker, statusPicker, targetPicker, healthPicker],
+  );
+
+  const rowPickers: ProjectRowPickers = useMemo(
+    () => ({ onOpen: openRowPicker, openOn: editing }),
+    [openRowPicker, editing],
   );
 
   // An empty replica is not an empty workspace. Until the first sync settles, "No projects
@@ -677,6 +711,26 @@ export function Projects() {
               if (at !== null) setPicker({ kind: 'lead', row, x: at.x, y: at.y });
             },
           },
+          {
+            id: 'targetDate',
+            label: 'Target date…',
+            keys: 'd',
+            onSelect: () => {
+              const at = contextMenu.at;
+              contextMenu.close();
+              if (at !== null) setPicker({ kind: 'targetDate', row, x: at.x, y: at.y });
+            },
+          },
+          {
+            id: 'health',
+            label: 'Post update…',
+            keys: 'u',
+            onSelect: () => {
+              const at = contextMenu.at;
+              contextMenu.close();
+              if (at !== null) setPicker({ kind: 'health', row, x: at.x, y: at.y });
+            },
+          },
         ],
         archive: () => {
           contextMenu.close();
@@ -688,7 +742,10 @@ export function Projects() {
 
   const contextRow = rowById(contextMenu.id);
   const iconRow = rowById(iconId);
-  const priorityRow = rowById(priorityId);
+  /** The row whichever of the five row panels is open belongs to. */
+  const editingRow = rowById(editing?.id ?? null);
+  /** The same row for the composer, which the row menu can also open. */
+  const composingRow = healthPicker.open ? editingRow : picker?.row;
 
   // A drop writes manual order, so it is offered only where manual order is what the list
   // is in. See the note the display menu puts under the ordering control.
@@ -705,8 +762,7 @@ export function Projects() {
       draggable={draggable}
       onSelect={() => cursor.setCursor(row.id)}
       onOpenIcon={(element) => openIconPicker(row.id, element)}
-      onOpenPriority={(element) => openPriorityPicker(row.id, element)}
-      priorityOpen={priorityPicker.open && priorityId === row.id}
+      pickers={rowPickers}
       onDragStart={() => setDraggingId(row.id)}
       onDragEnd={() => {
         setDraggingId(null);
@@ -904,8 +960,7 @@ export function Projects() {
                             dragging={draggingId === row.id}
                             onSelect={() => cursor.setCursor(row.id)}
                             onOpenIcon={(element) => openIconPicker(row.id, element)}
-                            onOpenPriority={(element) => openPriorityPicker(row.id, element)}
-                            priorityOpen={priorityPicker.open && priorityId === row.id}
+                            pickers={rowPickers}
                             onDragStart={() => setDraggingId(row.id)}
                             onDragEnd={() => {
                               setDraggingId(null);
@@ -1069,42 +1124,103 @@ export function Projects() {
           }
         }}
       />
+      {/* Each of these serves two ways in. The cell click carries its own element, so the
+          panel hangs off the glyph that was clicked; the context-menu item has only a
+          pointer, so it hangs off the one-pixel anchor `picker` positions. One mounted
+          component either way — see the note on `useMenuTrigger`. */}
       <ProjectStatusPicker
-        open={picker?.kind === 'status'}
-        onClose={() => setPicker(null)}
-        trigger={pickerAnchorRef}
-        value={picker?.row.statusId}
+        open={statusPicker.open || picker?.kind === 'status'}
+        onClose={() => {
+          statusPicker.hide();
+          setEditing(null);
+          if (picker?.kind === 'status') setPicker(null);
+        }}
+        trigger={statusPicker.open ? statusPicker.ref : pickerAnchorRef}
+        value={statusPicker.open ? editingRow?.statusId : picker?.row.statusId}
         onSelect={(statusId) => {
-          const row = picker?.row;
+          const id = statusPicker.open ? editingRow?.id : picker?.row.id;
+          statusPicker.hide();
+          setEditing(null);
           setPicker(null);
-          if (row !== undefined) updateProject(engine, row.id, { statusId }).catch(report);
+          if (id !== undefined) updateProject(engine, id, { statusId }).catch(report);
         }}
       />
       <UserPicker
-        open={picker?.kind === 'lead'}
-        onClose={() => setPicker(null)}
-        trigger={pickerAnchorRef}
+        open={leadPicker.open || picker?.kind === 'lead'}
+        onClose={() => {
+          leadPicker.hide();
+          setEditing(null);
+          if (picker?.kind === 'lead') setPicker(null);
+        }}
+        trigger={leadPicker.open ? leadPicker.ref : pickerAnchorRef}
         label="Lead"
         noneLabel="No lead"
         filterPlaceholder="Set lead…"
-        value={picker?.row.leadId ?? null}
+        value={(leadPicker.open ? editingRow?.leadId : picker?.row.leadId) ?? null}
         onSelect={(leadId) => {
-          const row = picker?.row;
+          const id = leadPicker.open ? editingRow?.id : picker?.row.id;
+          leadPicker.hide();
+          setEditing(null);
           setPicker(null);
-          if (row !== undefined) updateProject(engine, row.id, { leadId }).catch(report);
+          if (id !== undefined) updateProject(engine, id, { leadId }).catch(report);
         }}
+      />
+      <DatePicker
+        open={targetPicker.open || picker?.kind === 'targetDate'}
+        onClose={() => {
+          targetPicker.hide();
+          setEditing(null);
+          if (picker?.kind === 'targetDate') setPicker(null);
+        }}
+        trigger={targetPicker.open ? targetPicker.ref : pickerAnchorRef}
+        value={(targetPicker.open ? editingRow?.targetDate : picker?.row.targetDate) ?? null}
+        timezone={browserTimezone()}
+        actionId="projects.closeTargetPicker"
+        actionGroup="Projects"
+        label="Target date"
+        clearLabel="No target date"
+        onSelect={(targetDate) => {
+          const row = targetPicker.open ? editingRow : picker?.row;
+          setPicker(null);
+          if (row === null || row === undefined) return;
+          updateProject(engine, row.id, {
+            targetDate,
+            // The granularity a date is meant at is the project's own; the list has no
+            // control for it, so it is carried rather than reset to a day.
+            targetDateGranularity: row.targetGranularity,
+          }).catch(report);
+        }}
+      />
+      <ProjectUpdateComposer
+        open={healthPicker.open || picker?.kind === 'health'}
+        onClose={() => {
+          healthPicker.hide();
+          setEditing(null);
+          if (picker?.kind === 'health') setPicker(null);
+        }}
+        trigger={healthPicker.open ? healthPicker.ref : pickerAnchorRef}
+        projectId={composingRow?.id ?? ''}
+        initialHealth={
+          composingRow === null || composingRow === undefined
+            ? undefined
+            : latestProjectUpdate(engine.store, composingRow.id)?.health
+        }
+        actionId="projects.closeUpdateComposer"
+        actionGroup="Projects"
       />
       <PriorityPicker
         open={priorityPicker.open || picker?.kind === 'priority'}
         onClose={() => {
           priorityPicker.hide();
+          setEditing(null);
           if (picker?.kind === 'priority') setPicker(null);
         }}
         trigger={priorityPicker.open ? priorityPicker.ref : pickerAnchorRef}
-        value={(priorityPicker.open ? priorityRow?.priority : picker?.row.priority) ?? 0}
+        value={(priorityPicker.open ? editingRow?.priority : picker?.row.priority) ?? 0}
         onSelect={(priority) => {
-          const id = priorityPicker.open ? priorityRow?.id : picker?.row.id;
+          const id = priorityPicker.open ? editingRow?.id : picker?.row.id;
           priorityPicker.hide();
+          setEditing(null);
           setPicker(null);
           if (id !== undefined) updateProject(engine, id, { priority }).catch(report);
         }}
@@ -1140,6 +1256,104 @@ export function Projects() {
       />
     </div>
   );
+}
+
+/**
+ * The completion ring, and the control that changes the status it is named for.
+ *
+ * `PropertyTrigger` is the usual answer and is the wrong one here: it draws its children in
+ * an `aria-hidden` slot, which is right for a glyph whose meaning the button's own name
+ * already carries, and wrong for this ring — the ring is a `role="img"` named with the
+ * ratio ("In progress: 1 of 2 issues completed"), and that sentence is the only place a
+ * screen reader gets the count. Wrapping it in a `PropertyTrigger` deleted it.
+ *
+ * So this follows `ProjectIconButton` instead, which is this file's existing answer to
+ * "a control that is not a bare glyph": the click is stopped before the anchor, the button
+ * carries the verb, and what it contains keeps saying what it said.
+ */
+function ProjectStatusButton({
+  row,
+  detail,
+  open,
+  onOpen,
+}: {
+  readonly row: ProjectRow;
+  readonly detail: string;
+  readonly open: boolean;
+  readonly onOpen: (element: HTMLElement) => void;
+}) {
+  return (
+    <button
+      type="button"
+      draggable={false}
+      // Out of the tab order for the same reason every other trigger on these rows is:
+      // the listbox navigates by `aria-activedescendant`, and a tab stop inside an option
+      // breaks the roving model. The row menu's `S` is the keyboard's way to this edit.
+      tabIndex={-1}
+      className={styles.statusButton}
+      aria-haspopup="menu"
+      aria-expanded={open}
+      aria-label={`Change status for ${row.name}`}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onOpen(event.currentTarget);
+      }}
+      onDragStart={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+    >
+      <ProgressRing
+        percent={row.progress.percent}
+        label={row.statusName}
+        detail={detail}
+        // The status's own colour is workspace data, and no theme overrules it.
+        style={row.statusColor === '' ? undefined : { color: row.statusColor }}
+      />
+    </button>
+  );
+}
+
+/**
+ * The five properties a row can edit without leaving the list.
+ *
+ * Not `icon`: that one is a control of its own shape — a glyph with a colour behind it —
+ * and it already had its own trigger before any of these did.
+ */
+type ProjectRowPicker = 'priority' | 'health' | 'lead' | 'targetDate' | 'status';
+
+/**
+ * What a row needs to make its cells editable: a way to open a panel, and a way to know
+ * whether the one showing is its own.
+ *
+ * Passed as one object rather than a pair of props per property. Five properties is ten
+ * props of prop-drilling through two components and four call sites, and the tenth one is
+ * where somebody wires `status`'s open flag to `lead`'s picker.
+ */
+interface ProjectRowPickers {
+  readonly onOpen: (kind: ProjectRowPicker, id: UUID, element: HTMLElement) => void;
+  /** The property being edited and the row it belongs to — `null` when nothing is open. */
+  readonly openOn: { readonly kind: ProjectRowPicker; readonly id: UUID } | null;
+}
+
+/**
+ * What the health trigger is called.
+ *
+ * The cell itself draws four different things — a badge, "Update missing", "No update",
+ * or nothing expected — and a button has to have one name whichever it is. This reads the
+ * same fact the cell reads rather than repeating its branching: the newest update's word,
+ * or the absence of one.
+ */
+function healthTriggerName(store: Store, row: ProjectRow): string {
+  const latest = latestProjectUpdate(store, row.id);
+  if (latest === undefined) return 'No update posted';
+  return PROJECT_UPDATE_HEALTH_LABEL[latest.health];
+}
+
+/** Whether `kind`'s panel is the one open, and open against this row. */
+function isOpenOn(pickers: ProjectRowPickers, kind: ProjectRowPicker, id: UUID): boolean {
+  return pickers.openOn !== null && pickers.openOn.kind === kind && pickers.openOn.id === id;
 }
 
 /**
@@ -1191,9 +1405,7 @@ interface RowLinkProps {
   readonly onSelect: () => void;
   /** Opens the shared icon picker against the row's own glyph. */
   readonly onOpenIcon: (element: HTMLElement) => void;
-  /** Opens the shared priority picker against the row's own glyph. */
-  readonly onOpenPriority: (element: HTMLElement) => void;
-  readonly priorityOpen: boolean;
+  readonly pickers: ProjectRowPickers;
   readonly onDragStart: () => void;
   readonly onDragEnd: () => void;
   readonly onDragOver: (event: DragEvent<HTMLAnchorElement>) => void;
@@ -1211,8 +1423,7 @@ function ProjectRowLink({
   draggable,
   onSelect,
   onOpenIcon,
-  onOpenPriority,
-  priorityOpen,
+  pickers,
   onDragStart,
   onDragEnd,
   onDragOver,
@@ -1258,7 +1469,19 @@ function ProjectRowLink({
           case 'health':
             return (
               <span key={column} className={styles.health}>
-                <ProjectHealthCell store={store} projectId={row.id} compact />
+                {/* Health is the only cell here that is not a field on the project: it is
+                    what the newest update says. So the trigger does not open a picker —
+                    there is nothing to pick — it opens the composer, and the reader files
+                    the update the cell is complaining is missing. */}
+                <PropertyTrigger
+                  roving
+                  name={healthTriggerName(store, row)}
+                  action="Post a project update"
+                  open={isOpenOn(pickers, 'health', row.id)}
+                  onOpen={(element) => pickers.onOpen('health', row.id, element)}
+                >
+                  <ProjectHealthCell store={store} projectId={row.id} compact />
+                </PropertyTrigger>
               </span>
             );
           case 'priority':
@@ -1273,8 +1496,8 @@ function ProjectRowLink({
                   roving
                   name={priorityLabel(row.priority)}
                   action="Set priority"
-                  open={priorityOpen}
-                  onOpen={onOpenPriority}
+                  open={isOpenOn(pickers, 'priority', row.id)}
+                  onOpen={(element) => pickers.onOpen('priority', row.id, element)}
                 >
                   <PriorityIcon priority={row.priority} decorative />
                 </PropertyTrigger>
@@ -1283,38 +1506,62 @@ function ProjectRowLink({
           case 'lead':
             return (
               <span key={column} className={styles.lead}>
-                {row.leadName === null ? (
-                  <span className={styles.noLead} title="No lead">
-                    <NoPersonGlyph />
-                  </span>
-                ) : (
-                  // The name beside the face. An avatar alone is an identity puzzle in a
-                  // list of twenty projects: initials in a coloured disc identify somebody
-                  // you already know is in the list, and nobody else.
-                  <>
-                    <span className={styles.leadAvatar}>
-                      <Avatar
-                        name={row.leadName}
-                        src={row.leadAvatar}
-                        size="sm"
-                        colorKey={row.leadId}
-                        decorative
-                      />
+                <PropertyTrigger
+                  roving
+                  name={row.leadName ?? 'No lead'}
+                  action="Set lead"
+                  open={isOpenOn(pickers, 'lead', row.id)}
+                  onOpen={(element) => pickers.onOpen('lead', row.id, element)}
+                >
+                  {row.leadName === null ? (
+                    <span className={styles.noLead}>
+                      <NoPersonGlyph />
                     </span>
-                    <span className={styles.leadName}>{row.leadName}</span>
-                  </>
-                )}
+                  ) : (
+                    // The name beside the face. An avatar alone is an identity puzzle in a
+                    // list of twenty projects: initials in a coloured disc identify somebody
+                    // you already know is in the list, and nobody else.
+                    <>
+                      <span className={styles.leadAvatar}>
+                        <Avatar
+                          name={row.leadName}
+                          src={row.leadAvatar}
+                          size="sm"
+                          colorKey={row.leadId}
+                          decorative
+                        />
+                      </span>
+                      <span className={styles.leadName}>{row.leadName}</span>
+                    </>
+                  )}
+                </PropertyTrigger>
               </span>
             );
           case 'targetDate':
             return (
               <span key={column} className={styles.target}>
-                {row.targetDate === undefined ? null : (
-                  <>
+                {/* Drawn even when there is no date, which the read-only cell did not do:
+                    a project without a target is exactly the one somebody wants to give a
+                    target to, and an empty cell offered nowhere to click. Same trade the
+                    assignee pill makes on an issue row. */}
+                <PropertyTrigger
+                  roving
+                  name={
+                    row.targetDate === undefined
+                      ? 'No target date'
+                      : formatTimeframe(row.targetDate, row.targetGranularity)
+                  }
+                  action="Set target date"
+                  open={isOpenOn(pickers, 'targetDate', row.id)}
+                  onOpen={(element) => pickers.onOpen('targetDate', row.id, element)}
+                >
+                  <span className={row.targetDate === undefined ? styles.targetEmpty : undefined}>
                     <CalendarGlyph />
-                    {formatTimeframe(row.targetDate, row.targetGranularity)}
-                  </>
-                )}
+                    {row.targetDate === undefined
+                      ? null
+                      : formatTimeframe(row.targetDate, row.targetGranularity)}
+                  </span>
+                </PropertyTrigger>
               </span>
             );
           case 'issues':
@@ -1326,12 +1573,11 @@ function ProjectRowLink({
           case 'status':
             return (
               <span key={column} className={styles.status}>
-                <ProgressRing
-                  percent={row.progress.percent}
-                  label={row.statusName}
+                <ProjectStatusButton
+                  row={row}
                   detail={done}
-                  // The status's own colour is workspace data, and no theme overrules it.
-                  style={row.statusColor === '' ? undefined : { color: row.statusColor }}
+                  open={isOpenOn(pickers, 'status', row.id)}
+                  onOpen={(element) => pickers.onOpen('status', row.id, element)}
                 />
                 <span aria-hidden="true">{row.progress.percent}%</span>
                 {/* The ring names the status for assistive tech; this puts the word in the
@@ -1370,8 +1616,7 @@ function ProjectCard({
   dragging,
   onSelect,
   onOpenIcon,
-  onOpenPriority,
-  priorityOpen,
+  pickers,
   onDragStart,
   onDragEnd,
 }: {
@@ -1380,9 +1625,7 @@ function ProjectCard({
   readonly onSelect: () => void;
   /** Opens the shared icon picker against the card's own glyph. */
   readonly onOpenIcon: (element: HTMLElement) => void;
-  /** Opens the shared priority picker against the card's own glyph. */
-  readonly onOpenPriority: (element: HTMLElement) => void;
-  readonly priorityOpen: boolean;
+  readonly pickers: ProjectRowPickers;
   readonly onDragStart: () => void;
   readonly onDragEnd: () => void;
 }) {
@@ -1408,25 +1651,57 @@ function ProjectCard({
             roving
             name={priorityLabel(row.priority)}
             action="Set priority"
-            open={priorityOpen}
-            onOpen={onOpenPriority}
+            open={isOpenOn(pickers, 'priority', row.id)}
+            onOpen={(element) => pickers.onOpen('priority', row.id, element)}
           >
             <PriorityIcon priority={row.priority} decorative />
           </PropertyTrigger>
         </span>
-        {row.targetDate === undefined ? null : (
-          <span className={styles.target}>
-            <CalendarGlyph />
-            {formatTimeframe(row.targetDate, row.targetGranularity)}
-          </span>
-        )}
+        <span className={styles.target}>
+          <PropertyTrigger
+            roving
+            name={
+              row.targetDate === undefined
+                ? 'No target date'
+                : formatTimeframe(row.targetDate, row.targetGranularity)
+            }
+            action="Set target date"
+            open={isOpenOn(pickers, 'targetDate', row.id)}
+            onOpen={(element) => pickers.onOpen('targetDate', row.id, element)}
+          >
+            <span className={row.targetDate === undefined ? styles.targetEmpty : undefined}>
+              <CalendarGlyph />
+              {row.targetDate === undefined
+                ? null
+                : formatTimeframe(row.targetDate, row.targetGranularity)}
+            </span>
+          </PropertyTrigger>
+        </span>
         <span className={styles.cardSpacer} />
         <span className={styles.count}>{row.progress.percent}%</span>
-        {row.leadName === null ? null : (
-          <span title={row.leadName} className={styles.leadAvatar}>
-            <Avatar name={row.leadName} src={row.leadAvatar} size="sm" colorKey={row.leadId} />
-          </span>
-        )}
+        <PropertyTrigger
+          roving
+          name={row.leadName ?? 'No lead'}
+          action="Set lead"
+          open={isOpenOn(pickers, 'lead', row.id)}
+          onOpen={(element) => pickers.onOpen('lead', row.id, element)}
+        >
+          {row.leadName === null ? (
+            <span className={styles.noLead}>
+              <NoPersonGlyph />
+            </span>
+          ) : (
+            <span className={styles.leadAvatar}>
+              <Avatar
+                name={row.leadName}
+                src={row.leadAvatar}
+                size="sm"
+                colorKey={row.leadId}
+                decorative
+              />
+            </span>
+          )}
+        </PropertyTrigger>
       </span>
     </Link>
   );

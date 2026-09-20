@@ -55,7 +55,8 @@ import {
   PropertyTrigger,
   StateIcon,
 } from '~/components';
-import { issueEstimateLabel } from '~/features/estimate';
+import { estimatesEnabled, issueEstimateLabel } from '~/features/estimate';
+import { EstimateGlyph } from '~/features/issue/glyphs';
 import { EntityIcon } from '~/features/icon/EntityIcon';
 import { createUrlForGroup } from '~/features/issue/create-url';
 import { reorderIssue, report, updateIssues, type IssueFields } from '~/features/issue/mutations';
@@ -1040,8 +1041,11 @@ function MoreGlyph() {
   );
 }
 
-/* The two pill glyphs, the same paths the list row draws — kept in step by eye, because the
-   component library has no icon module and a dependency for two paths is one to keep current. */
+/* The pill glyphs, the same paths the list row draws — kept in step by eye, because the
+   component library has no icon module and a dependency for three paths is one to keep
+   current. The estimate's comes from `~/features/issue/glyphs` instead: it was already drawn
+   there for the rail and the row menu, and a fourth hand-copy of three bars is a fourth
+   chance for them to drift. */
 
 function CalendarGlyph() {
   return (
@@ -1078,6 +1082,21 @@ function ProjectGlyph() {
   );
 }
 
+function CycleGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+      <path d="M13 8A5 5 0 1 1 8 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path
+        d="M8 1.5 10 3 8 4.5"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /**
  * A text meta pill that opens a picker when the board can edit in place.
  *
@@ -1090,6 +1109,7 @@ function MetaPill({
   action,
   open,
   overdue = false,
+  placeholder,
   onOpen,
   children,
 }: {
@@ -1097,10 +1117,23 @@ function MetaPill({
   action: string;
   open: boolean;
   overdue?: boolean | undefined;
+  /**
+   * Nothing is set, so this pill is the route to setting it rather than a fact about the
+   * issue — quieter, and named for the hole it fills: "No cycle", "No due date". The list
+   * row's `MetaPill` takes the same prop and means the same thing by it.
+   */
+  placeholder?: 'always' | 'hover' | undefined;
   onOpen: ((element: HTMLElement) => void) | undefined;
   children: ReactNode;
 }) {
-  const className = [styles.pill, overdue ? styles.overdue : null].filter(Boolean).join(' ');
+  const className = [
+    styles.pill,
+    overdue ? styles.overdue : null,
+    placeholder === undefined ? null : styles.placeholder,
+    placeholder === 'hover' ? styles.onHover : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
   const label = overdue ? `${name} overdue` : name;
   if (onOpen === undefined) {
     return <span className={className}>{children}</span>;
@@ -1165,8 +1198,18 @@ interface CardData {
   /** The project's emoji, when the team set one; the pill falls back to the project glyph. */
   readonly projectIcon: string | null;
   readonly projectColor: string | null;
+  /** The cycle this issue is in, or null. The list row has always drawn it; the card now does. */
+  readonly cycleName: string | null;
   /** Already in the team's scale — "3", "M" — or null when the team does not estimate. */
   readonly estimate: string | null;
+  /**
+   * Whether the *team* runs cycles and estimates at all, which is a different question from
+   * whether this issue carries one. A null `estimate` means both "nobody has sized it" and
+   * "this team does not size anything", and the card draws a placeholder for the first and
+   * nothing for the second — so the two facts have to arrive separately.
+   */
+  readonly cycles: boolean;
+  readonly estimates: boolean;
   /** Already in the team's timezone, because a due date is the team's Friday. */
   readonly dueDate: string | null;
   readonly overdue: boolean;
@@ -1211,7 +1254,7 @@ const BoardCard = memo(function BoardCard({
     (store) => cardOf(store, id),
     // `issueRelation` for the blocked flag: a blocker linked elsewhere has to reach the card
     // it blocks, and nothing else in this list would wake it.
-    ['issue', 'team', 'user', 'workflowState', 'project', 'issueRelation'],
+    ['issue', 'team', 'user', 'workflowState', 'project', 'cycle', 'issueRelation'],
     [id, fullNames],
   );
 
@@ -1362,7 +1405,37 @@ const BoardCard = memo(function BoardCard({
             <StateIcon category={issue.stateCategory} color={issue.stateColor} decorative />
           </PropertyTrigger>
         )}
-        {properties.has('project') && issue.projectName !== null ? (
+        {/*
+         * The pills below are controls whether or not they have a value, and the list row
+         * makes the same call for the same reasons — see the long note over its meta row.
+         *
+         * In short: a pill that only rendered once its value existed meant these properties
+         * could be *changed* with a pointer and never *set* with one. Cycle and estimate keep
+         * a permanent placeholder where the team uses them at all, because in planning the
+         * uncycled and unsized cards are precisely what you are looking for. Project and due
+         * date get one only under the pointer: most issues are right to have neither, and a
+         * permanent marker for the ordinary condition is the pill that would end up on the
+         * most cards while saying the least.
+         *
+         * Placeholders only exist where `onProperty` does. A board with no picker behind it
+         * draws its pills as inert spans, and an inert dashed pill saying "No cycle" is an
+         * empty slot with no way to fill it.
+         */}
+        {!properties.has('project') ? null : issue.projectName === null ? (
+          onProperty === undefined ? null : (
+            <MetaPill
+              name="No project"
+              action="Set project"
+              open={openProperty === 'project'}
+              placeholder="hover"
+              onOpen={(element) => onProperty('project', id, index, element)}
+            >
+              <span className={styles.pillGlyph}>
+                <ProjectGlyph />
+              </span>
+            </MetaPill>
+          )
+        ) : (
           <MetaPill
             name={issue.projectName}
             action="Set project"
@@ -1383,8 +1456,53 @@ const BoardCard = memo(function BoardCard({
             </span>
             <span className={styles.pillText}>{issue.projectName}</span>
           </MetaPill>
-        ) : null}
-        {properties.has('estimate') && issue.estimate !== null ? (
+        )}
+        {!properties.has('cycle') ? null : issue.cycleName === null ? (
+          onProperty === undefined || !issue.cycles ? null : (
+            <MetaPill
+              name="No cycle"
+              action="Set cycle"
+              open={openProperty === 'cycle'}
+              placeholder="always"
+              onOpen={(element) => onProperty('cycle', id, index, element)}
+            >
+              <span className={styles.pillGlyph}>
+                <CycleGlyph />
+              </span>
+            </MetaPill>
+          )
+        ) : (
+          <MetaPill
+            name={issue.cycleName}
+            action="Set cycle"
+            open={openProperty === 'cycle'}
+            onOpen={
+              onProperty === undefined
+                ? undefined
+                : (element) => onProperty('cycle', id, index, element)
+            }
+          >
+            <span className={styles.pillGlyph}>
+              <CycleGlyph />
+            </span>
+            <span className={styles.pillText}>{issue.cycleName}</span>
+          </MetaPill>
+        )}
+        {!properties.has('estimate') ? null : issue.estimate === null ? (
+          onProperty === undefined || !issue.estimates ? null : (
+            <MetaPill
+              name="No estimate"
+              action="Set estimate"
+              open={openProperty === 'estimate'}
+              placeholder="always"
+              onOpen={(element) => onProperty('estimate', id, index, element)}
+            >
+              <span className={styles.pillGlyph}>
+                <EstimateGlyph width="14" height="14" />
+              </span>
+            </MetaPill>
+          )
+        ) : (
           <MetaPill
             name={issue.estimate}
             action="Set estimate"
@@ -1397,8 +1515,22 @@ const BoardCard = memo(function BoardCard({
           >
             <span className={styles.pillText}>{issue.estimate}</span>
           </MetaPill>
-        ) : null}
-        {properties.has('dueDate') && issue.dueDate !== null ? (
+        )}
+        {!properties.has('dueDate') ? null : issue.dueDate === null ? (
+          onProperty === undefined ? null : (
+            <MetaPill
+              name="No due date"
+              action="Set due date"
+              open={openProperty === 'due'}
+              placeholder="hover"
+              onOpen={(element) => onProperty('due', id, index, element)}
+            >
+              <span className={styles.pillGlyph}>
+                <CalendarGlyph />
+              </span>
+            </MetaPill>
+          )
+        ) : (
           <MetaPill
             name={issue.dueDate}
             action="Set due date"
@@ -1418,7 +1550,7 @@ const BoardCard = memo(function BoardCard({
                 mean overdue. The list row draws exactly this. */}
             {issue.overdue ? <span className={styles.srOnly}> overdue</span> : null}
           </MetaPill>
-        ) : null}
+        )}
         {properties.has('labels') ? (
           <LabelList
             issueId={id}
@@ -1484,7 +1616,10 @@ function cardOf(store: Store, id: UUID): CardData | null {
       found.projectId === undefined ? null : (store.projects.get(found.projectId)?.icon ?? null),
     projectColor:
       found.projectId === undefined ? null : (store.projects.get(found.projectId)?.color ?? null),
+    cycleName: found.cycleId === undefined ? null : (store.cycles.get(found.cycleId)?.name ?? null),
     estimate: team === undefined ? null : issueEstimateLabel(found.estimate, team),
+    cycles: team?.cyclesEnabled === true,
+    estimates: team !== undefined && estimatesEnabled(team),
     dueDate: found.dueDate === undefined ? null : whenDay(found.dueDate, zone),
     overdue: found.dueDate !== undefined && isOverdue(found.dueDate, zone),
   };

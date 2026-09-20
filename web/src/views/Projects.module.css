@@ -556,3 +556,32 @@
   flex: 1;
   min-height: 0;
 }
+
+/* A target cell with no date still draws its calendar, faintly: the control has to be
+   there for a project that has no target, because that is the project somebody wants to
+   give one to. The assignee pill on an issue row makes the same trade. */
+.targetEmpty {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-tertiary);
+}
+
+/* The ring's own button: no chrome of its own, because the ring is the affordance. */
+.statusButton {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+}
+
+.statusButton:hover {
+  opacity: 0.8;
+}
+
+.statusButton:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}

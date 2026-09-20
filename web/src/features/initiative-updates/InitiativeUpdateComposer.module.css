@@ -1,0 +1,29 @@
+/* The overview's composer, moved here with the form it frames. Unboxed: on the overview it
+   already sits inside the update card, and in the popover the panel is the box. */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* The overview's own `addRow`, kept to the pixel: the form moved out of the view, and a
+   button that changed edge on the way would be a redesign smuggled into a refactor. */
+.actions {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+/* Field's error treatment, on a message the form draws itself. */
+.error {
+  margin: 0;
+  color: var(--text-danger);
+  font-size: var(--font-size-sm);
+}
+
+/* A width, because a textarea with no column to sit in is otherwise as wide as the longest
+   word somebody typed. */
+.panel .form {
+  width: 20rem;
+  max-width: 80vw;
+}
