@@ -271,6 +271,12 @@
   min-width: 0;
 }
 
+/* A long name used to paint into the priority column: the cell had no clip of its own, and
+   the trigger was a 22px box the name overflowed in both directions. */
+.lead {
+  overflow: hidden;
+}
+
 .leadAvatar {
   display: inline-flex;
   flex: none;
@@ -294,11 +300,52 @@
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  min-width: 0;
   overflow: hidden;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/*
+ * A property cell that is also a control, sized to the value rather than to a glyph.
+ * See CellTrigger for why this is not IconButton.
+ *
+ * The wash is `--bg-selected` and not `--bg-hover`: the row is already wearing the hover
+ * wash by the time the pointer is on one of these, so a child painted the same colour is
+ * invisible at exactly the moment it has to say "this one, not the whole row". The negative
+ * inline start margin pulls the padding back out so the text still lines up with the column
+ * heading it sits under.
+ */
+.cellTrigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  min-width: 0;
+  margin-inline-start: calc(-1 * var(--space-1));
+  padding: var(--space-1);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.cellTrigger:hover,
+.cellTrigger[aria-expanded='true'] {
+  background-color: var(--bg-selected);
+  color: var(--text-primary);
+}
+
+.cellTrigger:focus-visible {
+  outline: var(--focus-ring-width) solid var(--border-focus);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .count {
@@ -560,9 +607,15 @@
 /* A target cell with no date still draws its calendar, faintly: the control has to be
    there for a project that has no target, because that is the project somebody wants to
    give one to. The assignee pill on an issue row makes the same trade. */
+.targetValue,
 .targetEmpty {
   display: inline-flex;
   align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.targetEmpty {
   color: var(--text-tertiary);
 }
 

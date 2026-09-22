@@ -200,6 +200,53 @@ describe('Projects row status', () => {
   });
 });
 
+describe('Projects row values stay readable', () => {
+  /*
+    Health, the lead and the target date used to be PropertyTriggers. A PropertyTrigger is
+    an IconButton: a 22px square that centres whatever it is given and marks it aria-hidden,
+    which is correct for a glyph and wrong for a sentence. "Update missing" was clipped to
+    its last word, and a long lead painted across the columns on either side. The words are
+    the control now, so they have to be in the tree as themselves.
+  */
+  function hostOf(root: HTMLElement, pattern: RegExp): HTMLElement {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let current = walker.nextNode();
+    while (current !== null) {
+      if (pattern.test(current.textContent ?? '')) {
+        const host = current.parentElement;
+        if (host === null) throw new Error('text has no element');
+        return host;
+      }
+      current = walker.nextNode();
+    }
+    throw new Error(`no text matching ${pattern}`);
+  }
+
+  it('draws the lead, the target date and the health claim outside any hidden slot', () => {
+    mount();
+    const migrate = row('Migrate');
+
+    const lead = within(migrate).getByRole('button', { name: 'Grace Hopper' });
+    expect(hostOf(lead, /Grace Hopper/).closest('[aria-hidden="true"]')).toBeNull();
+
+    const date = within(migrate).getByRole('button', { name: /2026/ });
+    expect(hostOf(date, /2026/).closest('[aria-hidden="true"]')).toBeNull();
+
+    const health = within(migrate).getByRole('button', { name: 'No update posted' });
+    // This fixture has no workspace, so the cell reads "No update" rather than the
+    // staleness sentence a real workspace draws. Either way the words were the thing
+    // the glyph button hid.
+    expect(hostOf(health, /^No update$/).closest('[aria-hidden="true"]')).toBeNull();
+  });
+
+  it('draws the board card date outside any hidden slot too', () => {
+    mount({ url: '/projects?layout=board' });
+
+    const date = within(row('Migrate')).getByRole('button', { name: /2026/ });
+    expect(hostOf(date, /2026/).closest('[aria-hidden="true"]')).toBeNull();
+  });
+});
+
 describe('Projects row health', () => {
   it('opens the update composer rather than a picker, because health is not a field', async () => {
     const { ui } = mount();
