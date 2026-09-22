@@ -1357,6 +1357,66 @@ function isOpenOn(pickers: ProjectRowPickers, kind: ProjectRowPicker, id: UUID):
 }
 
 /**
+ * A property drawn as the value itself: a health claim, a lead's name, a target date.
+ *
+ * `PropertyTrigger` is an `IconButton`, square by construction, and it hides its children
+ * from the accessibility tree. That is right for a glyph — the priority bars, the card's
+ * avatar — whose meaning the button's name already carries. It is wrong for a sentence.
+ * Centred in a 22px box, "Update missing" is clipped by the cell on the left and a long
+ * lead spills into the columns beside it. The customer list's own cell trigger is the same
+ * trade: the value stays legible, and the button is drawn around it.
+ *
+ * What it keeps from `PropertyTrigger` is the part that is easy to leave out. The click is
+ * stopped before the row's `<Link>` sees it, and the control stays out of the tab order,
+ * because these rows are `role="option"` in a listbox that navigates by
+ * `aria-activedescendant`. The keyboard reaches the same property through the row menu.
+ */
+function CellTrigger({
+  name,
+  action,
+  open,
+  onOpen,
+  children,
+}: {
+  /** The value, which is the control's accessible name. Not the property — that is `action`. */
+  readonly name: string;
+  /** The verb, in the tooltip: "Set lead". Never the same words as `name`. */
+  readonly action: string;
+  readonly open: boolean;
+  readonly onOpen: (element: HTMLElement) => void;
+  readonly children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={styles.cellTrigger}
+      aria-label={name}
+      title={action}
+      aria-haspopup="menu"
+      aria-expanded={open}
+      tabIndex={-1}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onOpen(event.currentTarget);
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** The calendar, and the date beside it when the project has one. */
+function TargetDateLabel({ row }: { readonly row: ProjectRow }) {
+  return (
+    <span className={row.targetDate === undefined ? styles.targetEmpty : styles.targetValue}>
+      <CalendarGlyph />
+      {row.targetDate === undefined ? null : formatTimeframe(row.targetDate, row.targetGranularity)}
+    </span>
+  );
+}
+
+/**
  * The project's glyph, and the control that changes it.
  *
  * A button inside a link, which is normally a smell and is accepted here on three counts:
@@ -1473,15 +1533,14 @@ function ProjectRowLink({
                     what the newest update says. So the trigger does not open a picker —
                     there is nothing to pick — it opens the composer, and the reader files
                     the update the cell is complaining is missing. */}
-                <PropertyTrigger
-                  roving
+                <CellTrigger
                   name={healthTriggerName(store, row)}
                   action="Post a project update"
                   open={isOpenOn(pickers, 'health', row.id)}
                   onOpen={(element) => pickers.onOpen('health', row.id, element)}
                 >
                   <ProjectHealthCell store={store} projectId={row.id} compact />
-                </PropertyTrigger>
+                </CellTrigger>
               </span>
             );
           case 'priority':
@@ -1506,8 +1565,7 @@ function ProjectRowLink({
           case 'lead':
             return (
               <span key={column} className={styles.lead}>
-                <PropertyTrigger
-                  roving
+                <CellTrigger
                   name={row.leadName ?? 'No lead'}
                   action="Set lead"
                   open={isOpenOn(pickers, 'lead', row.id)}
@@ -1534,7 +1592,7 @@ function ProjectRowLink({
                       <span className={styles.leadName}>{row.leadName}</span>
                     </>
                   )}
-                </PropertyTrigger>
+                </CellTrigger>
               </span>
             );
           case 'targetDate':
@@ -1544,8 +1602,7 @@ function ProjectRowLink({
                     a project without a target is exactly the one somebody wants to give a
                     target to, and an empty cell offered nowhere to click. Same trade the
                     assignee pill makes on an issue row. */}
-                <PropertyTrigger
-                  roving
+                <CellTrigger
                   name={
                     row.targetDate === undefined
                       ? 'No target date'
@@ -1555,13 +1612,8 @@ function ProjectRowLink({
                   open={isOpenOn(pickers, 'targetDate', row.id)}
                   onOpen={(element) => pickers.onOpen('targetDate', row.id, element)}
                 >
-                  <span className={row.targetDate === undefined ? styles.targetEmpty : undefined}>
-                    <CalendarGlyph />
-                    {row.targetDate === undefined
-                      ? null
-                      : formatTimeframe(row.targetDate, row.targetGranularity)}
-                  </span>
-                </PropertyTrigger>
+                  <TargetDateLabel row={row} />
+                </CellTrigger>
               </span>
             );
           case 'issues':
@@ -1658,8 +1710,7 @@ function ProjectCard({
           </PropertyTrigger>
         </span>
         <span className={styles.target}>
-          <PropertyTrigger
-            roving
+          <CellTrigger
             name={
               row.targetDate === undefined
                 ? 'No target date'
@@ -1669,13 +1720,8 @@ function ProjectCard({
             open={isOpenOn(pickers, 'targetDate', row.id)}
             onOpen={(element) => pickers.onOpen('targetDate', row.id, element)}
           >
-            <span className={row.targetDate === undefined ? styles.targetEmpty : undefined}>
-              <CalendarGlyph />
-              {row.targetDate === undefined
-                ? null
-                : formatTimeframe(row.targetDate, row.targetGranularity)}
-            </span>
-          </PropertyTrigger>
+            <TargetDateLabel row={row} />
+          </CellTrigger>
         </span>
         <span className={styles.cardSpacer} />
         <span className={styles.count}>{row.progress.percent}%</span>
