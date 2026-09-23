@@ -642,8 +642,15 @@
  *
  * The rounding is on the panel and the clipping is too, so a screen's own header paints
  * inside the corner rather than squaring it off.
+ *
+ * `grid-column: 2` pins the pane to the 1fr track in every state. Once nav is
+ * `position: absolute` (the 960px drawer) or unmounted (collapsed), it is not a grid item,
+ * so auto-placement would put main in column 1 — which is 0px — and `overflow: hidden`
+ * would clip the pane away.
  */
 .main {
+  /* Always the second track: sidebar slot (real, collapsed-zero, or drawer-zero) then 1fr. */
+  grid-column: 2;
   overflow: hidden;
   display: flex;
   flex-direction: column;
