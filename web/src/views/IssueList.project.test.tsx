@@ -8,7 +8,8 @@
  */
 
 import { render, screen, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { EngineProvider } from '~/app/context';
@@ -148,13 +149,24 @@ function renderList(search = '') {
         <EngineProvider engine={engine} status={{ phase: 'idle' }}>
           <Routes>
             <Route path="/team/:teamKey" element={<IssueList />} />
+            <Route path="/project/:projectId" element={<div>project</div>} />
           </Routes>
+          <Where />
         </EngineProvider>
       </KeymapProvider>
     </MemoryRouter>,
   );
 
   return { store, mutate };
+}
+
+function where(): string {
+  return screen.getByTestId('location').textContent ?? '';
+}
+
+function Where() {
+  const location = useLocation();
+  return <p data-testid="location">{location.pathname}</p>;
 }
 
 function rowNamed(title: string): HTMLElement {
@@ -186,9 +198,9 @@ describe('the project on a list row', () => {
   it('names the project on a row that has one, without asking Display', () => {
     renderList();
 
-    expect(
-      within(rowNamed('Fix the flake')).getByRole('button', { name: 'Onboarding' }),
-    ).toBeTruthy();
+    const project = within(rowNamed('Fix the flake')).getByRole('link', { name: 'Onboarding' });
+    expect(project.getAttribute('href')).toBe('/project/project-1');
+    expect(project.getAttribute('title')).toBe('Open project');
     expect(within(rowNamed('Fix the flake')).getByText('🚀')).toBeTruthy();
   });
 
@@ -196,14 +208,23 @@ describe('the project on a list row', () => {
     renderList();
 
     expect(
-      within(rowNamed('Ship the importer')).queryByRole('button', { name: 'Onboarding' }),
+      within(rowNamed('Ship the importer')).queryByRole('link', { name: 'Onboarding' }),
     ).toBeNull();
   });
 
   it('drops the project when the display options leave it out', () => {
     renderList('?show=priority');
 
-    expect(screen.queryByRole('button', { name: 'Onboarding' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Onboarding' })).toBeNull();
     expect(screen.getByText('Fix the flake')).toBeTruthy();
+  });
+
+  it('opens the project when its name is clicked', async () => {
+    const user = userEvent.setup();
+    renderList();
+
+    await user.click(within(rowNamed('Fix the flake')).getByRole('link', { name: 'Onboarding' }));
+
+    expect(where()).toBe('/project/project-1');
   });
 });

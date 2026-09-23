@@ -366,15 +366,26 @@
   cursor: default;
 }
 
-button.pill {
+:is(button, a).pill {
   cursor: pointer;
 }
 
-button.pill:hover {
+/*
+ * The filled project pill is a link, painted as the same control. `a:visited` would
+ * otherwise win on colour, and a preference that underlines links would draw a line
+ * through the middle of the pill.
+ */
+a.pill,
+a.pill:visited {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+:is(button, a).pill:hover {
   background-color: var(--bg-hover);
 }
 
-button.pill:focus-visible {
+:is(button, a).pill:focus-visible {
   outline: var(--focus-ring-width) solid var(--border-focus);
   outline-offset: var(--focus-ring-offset);
 }

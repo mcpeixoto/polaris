@@ -40,7 +40,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
 import { useEngine } from '~/app/context';
@@ -3860,6 +3860,42 @@ function MetaPill({
   );
 }
 
+/**
+ * The project's name, as a way into the project.
+ *
+ * Every other pill on the row opens a picker, because a priority or a due date is a value
+ * and the useful thing to do with it is change it. A project is a place. The name on the
+ * row is that place, and pressing it goes there — the list of every other project was the
+ * wrong thing to put under a name that already says which one this issue is in.
+ *
+ * An issue with no project has nowhere to go, so that pill stays the picker. Moving an
+ * issue that already has one stays on `Shift+P` and the row menu's Project….
+ */
+function ProjectLink({
+  name,
+  projectId,
+  children,
+}: {
+  name: string;
+  projectId: string;
+  children: ReactNode;
+}) {
+  return (
+    <Link
+      to={`/project/${projectId}`}
+      className={styles.pill}
+      aria-label={name}
+      title="Open project"
+      onClick={(event) => {
+        // The row underneath opens the issue. This click is the project's.
+        event.stopPropagation();
+      }}
+    >
+      {children}
+    </Link>
+  );
+}
+
 function ProjectGlyph() {
   return (
     <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
@@ -3985,6 +4021,8 @@ const IssueRow = memo(function IssueRow({
       // indistinguishable from a top-level issue, so the list said nothing about a structure
       // the product is built around.
       const parent = found.parentId === undefined ? undefined : store.issues.get(found.parentId);
+      const project =
+        found.projectId === undefined ? undefined : store.projects.get(found.projectId);
       return {
         identifier: store.identifierOf(found),
         parentIdentifier: parent === undefined ? null : store.identifierOf(parent),
@@ -3993,18 +4031,10 @@ const IssueRow = memo(function IssueRow({
         // learn to ignore.
         blockedBy: blockedBy(store, id),
         title: found.title,
-        projectName:
-          found.projectId === undefined
-            ? null
-            : (store.projects.get(found.projectId)?.name ?? null),
-        projectIcon:
-          found.projectId === undefined
-            ? null
-            : (store.projects.get(found.projectId)?.icon ?? null),
-        projectColor:
-          found.projectId === undefined
-            ? null
-            : (store.projects.get(found.projectId)?.color ?? null),
+        projectId: project?.id ?? null,
+        projectName: project?.name ?? null,
+        projectIcon: project?.icon ?? null,
+        projectColor: project?.color ?? null,
         cycleName:
           found.cycleId === undefined ? null : (store.cycles.get(found.cycleId)?.name ?? null),
         // Whether the *team* runs cycles and estimates at all, which is a different question
@@ -4175,6 +4205,8 @@ const IssueRow = memo(function IssueRow({
        *   condition rather than a gap — a permanent marker for it would put the least
        *   informative pill on the most rows. Overdue is the one thing on this row worth
        *   interrupting a scan for, and an empty twin beside it every time would dilute it.
+       *   A project that *is* set is not that placeholder: its name opens the project.
+       *   See `ProjectLink`.
        */}
       <span className={styles.meta}>
         {!properties.has('project') ? null : issue.projectName === null ? (
@@ -4189,13 +4221,8 @@ const IssueRow = memo(function IssueRow({
               <ProjectGlyph />
             </span>
           </MetaPill>
-        ) : (
-          <MetaPill
-            name={issue.projectName}
-            action="Set project"
-            open={openProperty === 'project'}
-            onOpen={(element) => onProperty('project', id, rowIndex, element)}
-          >
+        ) : issue.projectId === null ? null : (
+          <ProjectLink name={issue.projectName} projectId={issue.projectId}>
             <span className={styles.pillGlyph}>
               <EntityIcon
                 icon={issue.projectIcon ?? undefined}
@@ -4205,7 +4232,7 @@ const IssueRow = memo(function IssueRow({
               />
             </span>
             <span className={styles.pillText}>{issue.projectName}</span>
-          </MetaPill>
+          </ProjectLink>
         )}
         {!properties.has('cycle') ? null : issue.cycleName === null ? (
           issue.cycles ? (
