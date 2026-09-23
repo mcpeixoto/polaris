@@ -41,6 +41,7 @@ import {
   type DragEvent,
   type ReactNode,
 } from 'react';
+import { Link } from 'react-router';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
 import { useEngine } from '~/app/context';
@@ -1156,6 +1157,36 @@ function MetaPill({
   );
 }
 
+/**
+ * The project's name, as a way into the project. The list row's `ProjectLink` is the same
+ * control and makes the same call: a set project is a place, so the pill goes there, and
+ * only the empty one opens the picker.
+ */
+function ProjectLink({
+  name,
+  projectId,
+  children,
+}: {
+  name: string;
+  projectId: string;
+  children: ReactNode;
+}) {
+  return (
+    <Link
+      to={`/project/${projectId}`}
+      className={styles.pill}
+      aria-label={name}
+      title="Open project"
+      onClick={(event) => {
+        // The card underneath opens the issue. This click is the project's.
+        event.stopPropagation();
+      }}
+    >
+      {children}
+    </Link>
+  );
+}
+
 interface BoardCardProps {
   id: UUID;
   /** Where the card is in its column, so a right-click can put the cursor on it. */
@@ -1194,6 +1225,7 @@ interface CardData {
   readonly assigneeId: string | null;
   readonly assigneeName: string | null;
   readonly assigneeAvatar: string | null;
+  readonly projectId: string | null;
   readonly projectName: string | null;
   /** The project's emoji, when the team set one; the pill falls back to the project glyph. */
   readonly projectIcon: string | null;
@@ -1419,33 +1451,12 @@ const BoardCard = memo(function BoardCard({
          *
          * Placeholders only exist where `onProperty` does. A board with no picker behind it
          * draws its pills as inert spans, and an inert dashed pill saying "No cycle" is an
-         * empty slot with no way to fill it.
+         * empty slot with no way to fill it. A project that is already set is a link either
+         * way — opening it does not need a picker behind the card.
          */}
-        {!properties.has('project') ? null : issue.projectName === null ? (
-          onProperty === undefined ? null : (
-            <MetaPill
-              name="No project"
-              action="Set project"
-              open={openProperty === 'project'}
-              placeholder="hover"
-              onOpen={(element) => onProperty('project', id, index, element)}
-            >
-              <span className={styles.pillGlyph}>
-                <ProjectGlyph />
-              </span>
-            </MetaPill>
-          )
-        ) : (
-          <MetaPill
-            name={issue.projectName}
-            action="Set project"
-            open={openProperty === 'project'}
-            onOpen={
-              onProperty === undefined
-                ? undefined
-                : (element) => onProperty('project', id, index, element)
-            }
-          >
+        {!properties.has('project') ? null : issue.projectName !== null &&
+          issue.projectId !== null ? (
+          <ProjectLink name={issue.projectName} projectId={issue.projectId}>
             <span className={styles.pillGlyph}>
               <EntityIcon
                 icon={issue.projectIcon ?? undefined}
@@ -1455,6 +1466,18 @@ const BoardCard = memo(function BoardCard({
               />
             </span>
             <span className={styles.pillText}>{issue.projectName}</span>
+          </ProjectLink>
+        ) : onProperty === undefined ? null : (
+          <MetaPill
+            name="No project"
+            action="Set project"
+            open={openProperty === 'project'}
+            placeholder="hover"
+            onOpen={(element) => onProperty('project', id, index, element)}
+          >
+            <span className={styles.pillGlyph}>
+              <ProjectGlyph />
+            </span>
           </MetaPill>
         )}
         {!properties.has('cycle') ? null : issue.cycleName === null ? (
@@ -1596,6 +1619,7 @@ function cardOf(store: Store, id: UUID): CardData | null {
   const assignee = found.assigneeId === undefined ? undefined : store.users.get(found.assigneeId);
   const team = store.get('team', found.teamId);
   const zone = team?.timezone;
+  const project = found.projectId === undefined ? undefined : store.projects.get(found.projectId);
 
   return {
     identifier: store.identifierOf(found),
@@ -1610,12 +1634,10 @@ function cardOf(store: Store, id: UUID): CardData | null {
     // headings go the same way — see `describe` in `group.ts`.
     assigneeName: assignee === undefined ? null : personName(assignee),
     assigneeAvatar: assignee?.avatarUrl ?? null,
-    projectName:
-      found.projectId === undefined ? null : (store.projects.get(found.projectId)?.name ?? null),
-    projectIcon:
-      found.projectId === undefined ? null : (store.projects.get(found.projectId)?.icon ?? null),
-    projectColor:
-      found.projectId === undefined ? null : (store.projects.get(found.projectId)?.color ?? null),
+    projectId: project?.id ?? null,
+    projectName: project?.name ?? null,
+    projectIcon: project?.icon ?? null,
+    projectColor: project?.color ?? null,
     cycleName: found.cycleId === undefined ? null : (store.cycles.get(found.cycleId)?.name ?? null),
     estimate: team === undefined ? null : issueEstimateLabel(found.estimate, team),
     cycles: team?.cyclesEnabled === true,

@@ -7,6 +7,7 @@
 
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, useLocation } from 'react-router';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { EngineProvider } from '~/app/context';
@@ -142,23 +143,35 @@ interface BoardHandlers {
 function renderBoard(properties: readonly DisplayProperty[], handlers: BoardHandlers = {}) {
   const engine = { store: seeded(), mutate: vi.fn() } as unknown as SyncEngine;
   render(
-    <KeymapProvider>
-      <EngineProvider engine={engine} status={{ phase: 'idle' }}>
-        <Board
-          groups={GROUPS}
-          display={{ ...DEFAULT_DISPLAY, layout: 'board', properties }}
-          selected={new Set()}
-          cursorId={null}
-          label="Engineering"
-          onOpen={handlers.onOpen ?? vi.fn()}
-          onFocus={vi.fn()}
-          onToggle={vi.fn()}
-          onExtend={vi.fn()}
-          {...(handlers.onProperty === undefined ? {} : { onProperty: handlers.onProperty })}
-        />
-      </EngineProvider>
-    </KeymapProvider>,
+    <MemoryRouter>
+      <KeymapProvider>
+        <EngineProvider engine={engine} status={{ phase: 'idle' }}>
+          <Where />
+          <Board
+            groups={GROUPS}
+            display={{ ...DEFAULT_DISPLAY, layout: 'board', properties }}
+            selected={new Set()}
+            cursorId={null}
+            label="Engineering"
+            onOpen={handlers.onOpen ?? vi.fn()}
+            onFocus={vi.fn()}
+            onToggle={vi.fn()}
+            onExtend={vi.fn()}
+            {...(handlers.onProperty === undefined ? {} : { onProperty: handlers.onProperty })}
+          />
+        </EngineProvider>
+      </KeymapProvider>
+    </MemoryRouter>,
   );
+}
+
+function where(): string {
+  return screen.getByTestId('location').textContent ?? '';
+}
+
+function Where() {
+  const location = useLocation();
+  return <p data-testid="location">{location.pathname}</p>;
 }
 
 // jsdom lays nothing out; see Board.test.tsx for why a height is enough.
@@ -206,25 +219,28 @@ describe('a card', () => {
     expect(screen.getByText('overdue', { exact: false })).toBeTruthy();
   });
 
-  it('draws project and due date as buttons when the card can edit in place', () => {
+  it('draws a set project as a link, and the due date as a button when the card can edit', () => {
     renderBoard(['project', 'dueDate'], { onProperty: vi.fn() });
 
-    expect(screen.getByRole('button', { name: 'Onboarding' })).toBeTruthy();
+    const project = screen.getByRole('link', { name: 'Onboarding' });
+    expect(project.getAttribute('href')).toBe('/project/project-1');
+    expect(project.getAttribute('title')).toBe('Open project');
     // The seed's due date is in the past; whenDay turns it into a relative label, and that
     // label is the button's accessible name — the same bargain status and assignee use.
     expect(screen.getByRole('button', { name: /overdue/i })).toBeTruthy();
   });
 
-  it('reports project and due presses to the same onProperty the glyph triggers use', async () => {
+  it('opens the project from its name, and still edits the due date in place', async () => {
     const onProperty = vi.fn();
-    renderBoard(['project', 'dueDate'], { onProperty });
+    const onOpen = vi.fn();
+    renderBoard(['project', 'dueDate'], { onProperty, onOpen });
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole('button', { name: 'Onboarding' }));
-    expect(onProperty.mock.calls[0]?.[0]).toBe('project');
-    expect(onProperty.mock.calls[0]?.[1]).toBe('issue-1');
+    await user.click(screen.getByRole('link', { name: 'Onboarding' }));
+    expect(onProperty).not.toHaveBeenCalled();
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(where()).toBe('/project/project-1');
 
-    onProperty.mockClear();
     await user.click(screen.getByRole('button', { name: /overdue/i }));
     expect(onProperty.mock.calls[0]?.[0]).toBe('due');
   });
