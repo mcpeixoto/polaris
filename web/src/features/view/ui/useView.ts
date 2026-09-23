@@ -54,11 +54,10 @@ import {
   DISPLAY_PARAMS,
   FILTER_PARAM,
   filterIssues,
+  isStateCategory,
   parseDisplayParams,
-  parseFilterParam,
   filterSearchString,
   toDisplayParams,
-  toFilterParam,
   type DisplayOptions,
   type FilterNode,
 } from '~/filter';
@@ -73,9 +72,13 @@ import {
 import { report } from '~/features/issue/mutations';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewer, useViewerId } from '~/hooks/useViewer';
-import type { Issue, Store, UUID } from '~/store';
+import type { Issue, StateCategory, Store, UUID } from '~/store';
 
 import { setViewPreference } from '../mutations';
+import { andCategoryTab, applyFilterParam, readFilter } from './filterParam';
+
+/** The category tab. Separate from `filter` so clearing one leaves the other. */
+const TAB_PARAM = 'tab';
 
 /**
  * One group, holding ids rather than issues.
@@ -114,6 +117,14 @@ export interface ViewState {
    */
   readonly count: number;
   setFilter(next: FilterNode): void;
+  /**
+   * The category tab currently narrowing the list, or `all`.
+   *
+   * ANDed with the filter inside the view, and stored under its own URL parameter so a
+   * cleared filter does not clear the tab.
+   */
+  readonly category: 'all' | StateCategory;
+  setCategory(next: string): void;
   /** Merges a patch over the current options and writes the result back to the URL. */
   setDisplay(patch: DisplayPatch): void;
 }
@@ -277,6 +288,9 @@ export function useView({
 
   const raw = params.get(FILTER_PARAM);
   const { filter, error } = useMemo(() => readFilter(raw), [raw]);
+  const tabRaw = params.get(TAB_PARAM);
+  const category: 'all' | StateCategory =
+    tabRaw !== null && isStateCategory(tabRaw) ? tabRaw : 'all';
 
   // Any one of them, not all of them: `toDisplayParams` omits everything already at its
   // default, so a link that says only `layout=board` is still a complete statement about how
@@ -379,6 +393,7 @@ export function useView({
         sourceFilter,
         hideCustomers,
         teamId,
+        category,
       ),
     VIEW_DEPS,
     [
@@ -399,6 +414,7 @@ export function useView({
       sourceFilter,
       hideCustomers,
       teamId ?? '',
+      category,
       ...inputs,
     ],
   );
@@ -422,12 +438,18 @@ export function useView({
 
   const setFilter = useCallback(
     (next: FilterNode) => {
-      const encoded = toFilterParam(next);
       writeParams((search) => {
-        // An empty string is what a filter matching everything serialises to, and a bare
-        // `?filter=` in a shared link says "filtered" about a view that is not.
-        if (encoded === '') search.delete(FILTER_PARAM);
-        else search.set(FILTER_PARAM, encoded);
+        applyFilterParam(search, next);
+      });
+    },
+    [writeParams],
+  );
+
+  const setCategory = useCallback(
+    (next: string) => {
+      writeParams((search) => {
+        if (next === 'all' || !isStateCategory(next)) search.delete(TAB_PARAM);
+        else search.set(TAB_PARAM, next);
       });
     },
     [writeParams],
@@ -530,6 +552,8 @@ export function useView({
     groups: view.groups,
     count: view.count,
     setFilter,
+    category,
+    setCategory,
     setDisplay,
   };
 }
@@ -556,9 +580,13 @@ function computeView(
   sourceFilter: FilterNode | undefined,
   hideCustomers: boolean,
   teamId: UUID | undefined,
+  category: string,
 ): ViewResult {
+  const narrowed = andCategoryTab(filter, category === 'all' ? null : category);
   const combined =
-    sourceFilter === undefined ? filter : { conj: 'and' as const, nodes: [sourceFilter, filter] };
+    sourceFilter === undefined
+      ? narrowed
+      : { conj: 'and' as const, nodes: [sourceFilter, narrowed] };
   const matched = filterIssues(source, combined, filterContextFor(store, clock, { hideCustomers }));
 
   let issues: Issue[] = [];
@@ -614,22 +642,6 @@ function computeView(
 
 function toViewGroup({ issues, ...rest }: IssueGroup): ViewGroup {
   return { ...rest, ids: issues.map((issue) => issue.id) };
-}
-
-/**
- * Parses the filter, keeping hold of why it failed.
- *
- * `parseFilterParam` reports through a callback because it must not throw — a link that
- * opens an unfiltered list is a mild disappointment, a link that throws is a page the
- * reader cannot open and cannot repair. Capturing the message here is what lets the filter
- * bar say so instead of silently showing everything.
- */
-function readFilter(raw: string | null): { filter: FilterNode; error: string | null } {
-  let error: string | null = null;
-  const filter = parseFilterParam(raw, (message) => {
-    error = message;
-  });
-  return { filter, error };
 }
 
 /** Absence means the default, and `DEFAULT_DISPLAY` is the one place that says which. */

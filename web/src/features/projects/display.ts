@@ -27,7 +27,8 @@ export type ProjectLayout = 'list' | 'board' | 'timeline';
 export type ProjectTimelineZoom = 'week' | 'month' | 'quarter' | 'year';
 
 /** What a heading on the list stands for. `none` is one flat run of rows. */
-export type ProjectGrouping = 'none' | 'status' | 'lead' | 'team' | 'priority';
+export type ProjectGrouping =
+  'none' | 'status' | 'statusCategory' | 'lead' | 'team' | 'priority' | 'targetDate';
 
 /**
  * What decides the order inside a group.
@@ -36,7 +37,8 @@ export type ProjectGrouping = 'none' | 'status' | 'lead' | 'team' | 'priority';
  * write — see `orderingNote`, which says so on the screen rather than silently ignoring a
  * drag under an ordering that cannot keep it.
  */
-export type ProjectOrdering = 'manual' | 'name' | 'targetDate' | 'priority' | 'updated';
+export type ProjectOrdering =
+  'manual' | 'name' | 'targetDate' | 'priority' | 'updated' | 'status' | 'created';
 
 export type ProjectDirection = 'asc' | 'desc';
 
@@ -86,13 +88,23 @@ export const PROJECT_DISPLAY_PARAMS = {
   showMilestones: 'milestones',
 } as const;
 
-const GROUPINGS: readonly ProjectGrouping[] = ['none', 'status', 'lead', 'team', 'priority'];
+const GROUPINGS: readonly ProjectGrouping[] = [
+  'none',
+  'status',
+  'statusCategory',
+  'lead',
+  'team',
+  'priority',
+  'targetDate',
+];
 const ORDERINGS: readonly ProjectOrdering[] = [
   'manual',
   'name',
   'targetDate',
   'priority',
   'updated',
+  'status',
+  'created',
 ];
 
 /** Whether two column sets are the same choice, order included — see `toProjectDisplayParams`. */
@@ -120,6 +132,9 @@ export function projectOrderingNote(
   }
   if (ordering === 'priority' && grouping === 'priority') {
     return 'Every project in a band already has the same priority, so this ordering has nothing left to decide and the rows fall back to manual order.';
+  }
+  if (ordering === 'status' && grouping === 'status') {
+    return 'Every project in a status already has that status, so this ordering has nothing left to decide and the rows fall back to manual order.';
   }
   return null;
 }

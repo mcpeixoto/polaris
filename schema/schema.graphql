@@ -662,6 +662,11 @@ type View {
   icon: String
   color: String
   """
+  Which list the saved filter is about: `issue` or `project`. Defaults to issues.
+  Stored with the filter because a project field in an issue filter is a hard error.
+  """
+  target: String!
+  """
   The filter AST.
 
   Deliberately not a typed GraphQL tree. The grammar has exactly one definition — the
@@ -2845,6 +2850,8 @@ input CreateViewInput {
   description: String
   icon: String
   color: String
+  """Which list the filter is about. Omit for issues. `issue` or `project`."""
+  target: String
   filter: JSON!
   display: JSON
 }

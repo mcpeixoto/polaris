@@ -1207,6 +1207,7 @@ type View struct {
 	UpdatedAt   time.Time
 	ArchivedAt  *time.Time
 	ProjectID   *uuid.UUID
+	Target      string
 }
 
 type ViewPreference struct {

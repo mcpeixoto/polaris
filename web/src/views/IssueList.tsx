@@ -57,6 +57,7 @@ import {
   priorityLabel,
   PropertyTrigger,
   StateIcon,
+  STATE_LABELS,
   Tabs,
   Tooltip,
   type TabItem,
@@ -154,6 +155,7 @@ import { isSnoozed, useTriageClock } from '~/features/triage/wake';
 import { InsightsPanel } from '~/features/insights/InsightsPanel';
 import { Board } from '~/features/view/ui/Board';
 import { DisplayMenu } from '~/features/view/ui/DisplayMenu';
+import { CategoryTabs } from '~/features/view/ui/CategoryTabs';
 import { FilterBar } from '~/features/view/ui/FilterBar';
 import {
   displayOverrides,
@@ -178,6 +180,7 @@ import {
   type FilterNode,
 } from '~/filter';
 import {
+  CATEGORY_ORDER,
   subIssueProgress,
   type DateOnly,
   type DueDateSource,
@@ -434,6 +437,14 @@ const SCOPES: readonly { key: ScopeKey; label: string; filter: FilterNode }[] = 
  * By encoded form rather than by structure, because that is the one comparison the grammar
  * already guarantees: two filters that mean the same thing serialise the same way.
  */
+/** Workflow categories plus All. A separate control from the Active / Backlog / All pills. */
+const ISSUE_CATEGORY_TABS: readonly { value: 'all' | StateCategory; label: string }[] = [
+  { value: 'all', label: 'All' },
+  ...(Object.keys(CATEGORY_ORDER) as StateCategory[])
+    .sort((a, b) => CATEGORY_ORDER[a] - CATEGORY_ORDER[b])
+    .map((category) => ({ value: category, label: STATE_LABELS[category] })),
+];
+
 function scopeOfFilter(filter: FilterNode): ScopeKey | null {
   const param = toFilterParam(filter);
   if (param === '') return 'all';
@@ -677,6 +688,16 @@ export function IssueList({
         ? MY_ISSUES_ASSIGNED_DISPLAY
         : undefined),
   });
+
+  // Category tabs sit beside the scope pills and narrow through their own URL parameter.
+  // Triage is a queue with its own source filter; Inbox and Trash are not this screen.
+  const showCategoryTabs =
+    source.kind === 'team' ||
+    source.kind === 'assignee' ||
+    source.kind === 'creator' ||
+    source.kind === 'subscriber' ||
+    source.kind === 'view' ||
+    source.kind === 'project';
 
   /**
    * The optional properties every row draws, resolved once for the whole list.
@@ -2489,6 +2510,15 @@ export function IssueList({
               </button>
             ))}
           </div>
+        ) : null}
+        {showCategoryTabs ? (
+          <CategoryTabs
+            className={styles.scope}
+            label="Status category"
+            value={view.category}
+            onChange={view.setCategory}
+            options={ISSUE_CATEGORY_TABS}
+          />
         ) : null}
         <div className={styles.find}>
           <Input

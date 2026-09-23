@@ -51,7 +51,7 @@ const idPrefix = "01900000-0000-7000-8000-"
 var uuidFields = map[string]bool{
 	"state": true, "assignee": true, "creator": true, "subscriber": true,
 	"label": true, "team": true, "parent": true, "blockedBy": true, "blocking": true,
-	"template": true, "customer": true,
+	"template": true, "customer": true, "status": true, "lead": true,
 }
 
 type conformance struct {
@@ -164,6 +164,36 @@ type conformance struct {
 		Filter  json.RawMessage `json:"filter"`
 		Message string          `json:"message"`
 	} `json:"errors"`
+
+	ProjectStatuses []struct {
+		ID        uuid.UUID `json:"id"`
+		Name      string    `json:"name"`
+		Category  string    `json:"category"`
+		Position  string    `json:"position"`
+		IsDefault bool      `json:"isDefault"`
+	} `json:"projectStatuses"`
+
+	Projects []struct {
+		ID         uuid.UUID   `json:"id"`
+		Name       string      `json:"name"`
+		StatusID   uuid.UUID   `json:"statusId"`
+		Priority   int         `json:"priority"`
+		LeadID     *uuid.UUID  `json:"leadId"`
+		SortOrder  string      `json:"sortOrder"`
+		StartDate  *string     `json:"startDate"`
+		TargetDate *string     `json:"targetDate"`
+		TeamIDs    []uuid.UUID `json:"teamIds"`
+		ArchivedAt *time.Time  `json:"archivedAt"`
+		DeletedAt  *time.Time  `json:"deletedAt"`
+		CreatedAt  time.Time   `json:"createdAt"`
+		UpdatedAt  time.Time   `json:"updatedAt"`
+	} `json:"projects"`
+
+	ProjectCases []struct {
+		Name   string          `json:"name"`
+		Filter json.RawMessage `json:"filter"`
+		Expect []string        `json:"expect"`
+	} `json:"projectCases"`
 }
 
 func loadConformance(t *testing.T) *conformance {
@@ -287,6 +317,50 @@ func TestConformance(t *testing.T) {
 			// Compared as a set. Ordering is a display option and is tested separately;
 			// mixing the two here would make an ordering change look like a filter
 			// regression.
+			if !slices.Equal(gotIDs, wantIDs) {
+				t.Fatalf("id set mismatch\n got: %v\nwant: %v\nsql:  %s\nargs: %v",
+					shortIDs(gotIDs), shortIDs(wantIDs), compiled.SQL, compiled.Args)
+			}
+		})
+	}
+
+	for _, tc := range fx.ProjectCases {
+		t.Run("project/"+tc.Name, func(t *testing.T) {
+			parsed, err := filter.ParseSubject(expandFilter(t, tc.Filter), filter.SubjectProject)
+			if err != nil {
+				t.Fatalf("parse: %v", err)
+			}
+
+			compiled, err := filter.Compile(parsed, filter.Options{
+				Now:       fx.EvaluatedAt,
+				Location:  loc,
+				ArgOffset: 1,
+				Subject:   filter.SubjectProject,
+			})
+			if err != nil {
+				t.Fatalf("compile: %v", err)
+			}
+
+			query := `SELECT id FROM project WHERE workspace_id = $1 AND ` + compiled.SQL
+			args := append([]any{fx.Workspace.ID}, compiled.Args...)
+			rows, err := db.Pool().Query(ctx, query, args...)
+			if err != nil {
+				t.Fatalf("query: %v\n%s\nargs: %v", err, query, args)
+			}
+			got, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+			if err != nil {
+				t.Fatalf("scan: %v\n%s", err, query)
+			}
+			gotIDs := make([]string, 0, len(got))
+			for _, id := range got {
+				gotIDs = append(gotIDs, id.String())
+			}
+			wantIDs := make([]string, 0, len(tc.Expect))
+			for _, name := range tc.Expect {
+				wantIDs = append(wantIDs, expandID(name))
+			}
+			slices.Sort(gotIDs)
+			slices.Sort(wantIDs)
 			if !slices.Equal(gotIDs, wantIDs) {
 				t.Fatalf("id set mismatch\n got: %v\nwant: %v\nsql:  %s\nargs: %v",
 					shortIDs(gotIDs), shortIDs(wantIDs), compiled.SQL, compiled.Args)
@@ -474,5 +548,33 @@ func insertWorkspace(t *testing.T, ctx context.Context, pool *pgxpool.Pool, fx *
 		exec(`INSERT INTO issue_subscription (id, workspace_id, issue_id, user_id, reason, unsubscribed)
 		      VALUES ($1, $2, $3, $4, $5, $6)`,
 			s.ID, fx.Workspace.ID, s.IssueID, s.UserID, s.Reason, s.Unsubscribed)
+	}
+
+	for _, st := range fx.ProjectStatuses {
+		exec(`INSERT INTO project_status (id, workspace_id, name, category, position, is_default)
+		      VALUES ($1, $2, $3, $4, $5, $6)`,
+			st.ID, fx.Workspace.ID, st.Name, st.Category, st.Position, st.IsDefault)
+	}
+
+	for _, project := range fx.Projects {
+		day := "day"
+		var startGran, targetGran *string
+		if project.StartDate != nil {
+			startGran = &day
+		}
+		if project.TargetDate != nil {
+			targetGran = &day
+		}
+		exec(`INSERT INTO project (id, workspace_id, name, status_id, priority, lead_id, sort_order,
+		        start_date, start_date_granularity, target_date, target_date_granularity,
+		        archived_at, deleted_at, created_at, updated_at)
+		      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+			project.ID, fx.Workspace.ID, project.Name, project.StatusID, project.Priority, project.LeadID,
+			project.SortOrder, project.StartDate, startGran, project.TargetDate, targetGran,
+			project.ArchivedAt, project.DeletedAt, project.CreatedAt, project.UpdatedAt)
+		for _, teamID := range project.TeamIDs {
+			exec(`INSERT INTO project_team (id, workspace_id, project_id, team_id) VALUES ($1, $2, $3, $4)`,
+				uuid.Must(uuid.NewV7()), fx.Workspace.ID, project.ID, teamID)
+		}
 	}
 }

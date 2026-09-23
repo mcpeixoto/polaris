@@ -689,6 +689,11 @@ export interface View {
   readonly description?: string;
   readonly icon?: string;
   readonly color?: string;
+  /**
+   * Which list the saved filter is about. Absent means issues, which is every view
+   * saved before the field existed.
+   */
+  readonly target?: 'issue' | 'project';
   readonly filter: FilterNode;
   readonly display: DisplayOptions;
   readonly position: string;

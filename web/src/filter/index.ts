@@ -20,6 +20,8 @@ export {
   EMPTY_FILTER,
   FILTER_FIELDS,
   FILTER_OPS,
+  fieldApplies,
+  fieldSpec,
   isCustomerStatus,
   isFilterClause,
   isFilterField,
@@ -27,6 +29,7 @@ export {
   isFilterOp,
   isStateCategory,
   operatorApplies,
+  PROJECT_STATUS_CATEGORIES,
   takesNoValues,
   takesSingleValue,
 } from './types';
@@ -43,6 +46,7 @@ export type {
   FilterGroup,
   FilterNode,
   FilterOp,
+  FilterSubject,
   FilterValueType,
   ViewLayout,
 } from './types';
@@ -50,6 +54,8 @@ export type {
 export { FilterError, isValidFilter, validateFilter } from './validate';
 
 export { admitsStatus, compileFilter, filterIssues } from './evaluate';
+export { filterProjects } from './projectEvaluate';
+export type { ProjectFilterContext } from './projectEvaluate';
 export type { FilterContext, IssuePredicate } from './evaluate';
 
 export {

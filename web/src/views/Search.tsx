@@ -69,7 +69,6 @@ import {
   EMPTY_FILTER,
   FILTER_PARAM,
   filterSearchString,
-  parseFilterParam,
   toFilterParam,
   type FilterNode,
 } from '~/filter';
@@ -88,6 +87,7 @@ import { LabelPicker } from '~/features/labels/LabelPicker';
 import { applyLabel, removeLabel } from '~/features/labels/mutations';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { FilterBar } from '~/features/view/ui/FilterBar';
+import { applyFilterParam, readFilter } from '~/features/view/ui/filterParam';
 import {
   SEARCH_QUERY,
   type SearchComment,
@@ -339,11 +339,7 @@ export function Search() {
   const setFilterParam = useCallback(
     (next: FilterNode) => {
       const search = new URLSearchParams(latestParams.current);
-      const encoded = toFilterParam(next);
-      // Deleted rather than left empty: a bare `?filter=` in a shared link says "filtered"
-      // about a search that is not.
-      if (encoded === '') search.delete(FILTER_PARAM);
-      else search.set(FILTER_PARAM, encoded);
+      applyFilterParam(search, next);
       // `filterSearchString`, never `URLSearchParams.toString()`: the serialiser escapes the
       // parentheses and commas the grammar is built from, and a link nobody can read before
       // clicking it is the one thing this grammar exists to avoid. See `filter/url.ts`.
@@ -1558,21 +1554,6 @@ function variablesFor(
       ...(filter === undefined ? null : { filter }),
     },
   };
-}
-
-/**
- * The URL's filter, and what went wrong with it if anything did.
- *
- * The same two lines `useView` keeps, and deliberately the same shape: a URL is untrusted
- * input, `parseFilterParam` reports rather than throws, and the only way a link's broken
- * filter reaches the reader is a caller that holds on to the message.
- */
-function readFilter(raw: string | null): { filter: FilterNode; error: string | null } {
-  let error: string | null = null;
-  const filter = parseFilterParam(raw, (message) => {
-    error = message;
-  });
-  return { filter, error };
 }
 
 /**

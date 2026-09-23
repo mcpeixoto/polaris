@@ -70,6 +70,8 @@ export interface NewView {
   readonly private?: boolean | undefined;
   readonly icon?: string | undefined;
   readonly color?: string | undefined;
+  /** Which list the filter is about. Absent means issues. */
+  readonly target?: 'issue' | 'project' | undefined;
   /** The viewer, when it is known. Only used by the optimistic row. */
   readonly ownerId?: UUID | undefined;
 }
@@ -111,6 +113,7 @@ export async function createView(engine: SyncEngine, input: NewView): Promise<UU
     ...(input.description === undefined ? null : { description: input.description }),
     ...(input.icon === undefined ? null : { icon: input.icon }),
     ...(input.color === undefined ? null : { color: input.color }),
+    target: input.target ?? 'issue',
     filter: input.filter,
     display: input.display ?? {},
     position: lastViewPosition(store, input.teamId, input.projectId),
@@ -132,6 +135,7 @@ export async function createView(engine: SyncEngine, input: NewView): Promise<UU
           ...(input.description === undefined ? null : { description: input.description }),
           ...(input.icon === undefined ? null : { icon: input.icon }),
           ...(input.color === undefined ? null : { color: input.color }),
+          ...(input.target === undefined ? null : { target: input.target }),
           ...(input.display === undefined ? null : { display: input.display }),
         },
       },

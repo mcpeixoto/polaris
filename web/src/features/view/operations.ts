@@ -31,6 +31,7 @@ export const VIEW_FIELDS = /* GraphQL */ `
     description
     icon
     color
+    target
     filter
     display
     position

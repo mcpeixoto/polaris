@@ -686,6 +686,59 @@
       "name": "an unrecognised state category",
       "filter": { "field": "stateCategory", "op": "eq", "values": ["frozen"] },
       "message": "category"
+    },
+    {
+      "name": "a project field on an issue filter",
+      "filter": { "field": "lead", "op": "isNull" },
+      "message": "does not apply"
     }
+  ],
+
+  "projectStatuses": [
+    { "id": "01900000-0000-7000-8000-0000000000f1", "name": "Backlog", "category": "backlog", "position": "a0", "isDefault": true },
+    { "id": "01900000-0000-7000-8000-0000000000f2", "name": "Started", "category": "started", "position": "a1", "isDefault": false }
+  ],
+
+  "projects": [
+    {
+      "id": "01900000-0000-7000-8000-0000000000d1",
+      "name": "Alpha", "statusId": "01900000-0000-7000-8000-0000000000f1",
+      "priority": 1, "leadId": "01900000-0000-7000-8000-0000000000a1",
+      "sortOrder": "a0", "startDate": "2026-08-01", "targetDate": "2026-09-01",
+      "teamIds": ["01900000-0000-7000-8000-0000000000b1"],
+      "createdAt": "2026-08-01T00:00:00Z", "updatedAt": "2026-08-10T00:00:00Z"
+    },
+    {
+      "id": "01900000-0000-7000-8000-0000000000d2",
+      "name": "Beta", "statusId": "01900000-0000-7000-8000-0000000000f2",
+      "priority": 3, "sortOrder": "a1",
+      "teamIds": ["01900000-0000-7000-8000-0000000000b1", "01900000-0000-7000-8000-0000000000b2"],
+      "createdAt": "2026-07-01T00:00:00Z", "updatedAt": "2026-08-02T00:00:00Z"
+    },
+    {
+      "id": "01900000-0000-7000-8000-0000000000d3",
+      "name": "Gamma", "statusId": "01900000-0000-7000-8000-0000000000f1",
+      "priority": 0, "sortOrder": "a2", "teamIds": ["01900000-0000-7000-8000-0000000000b1"],
+      "deletedAt": "2026-08-12T00:00:00Z",
+      "createdAt": "2026-06-01T00:00:00Z", "updatedAt": "2026-08-12T00:00:00Z"
+    },
+    {
+      "id": "01900000-0000-7000-8000-0000000000d4",
+      "name": "Delta", "statusId": "01900000-0000-7000-8000-0000000000f1",
+      "priority": 2, "sortOrder": "a3", "teamIds": ["01900000-0000-7000-8000-0000000000b1"],
+      "archivedAt": "2026-08-11T00:00:00Z",
+      "createdAt": "2026-05-01T00:00:00Z", "updatedAt": "2026-08-11T00:00:00Z"
+    }
+  ],
+
+  "projectCases": [
+    { "name": "an empty project filter matches the live projects", "filter": {}, "expect": ["d1", "d2"] },
+    { "name": "project status category", "filter": { "field": "statusCategory", "op": "eq", "values": ["started"] }, "expect": ["d2"] },
+    { "name": "project lead", "filter": { "field": "lead", "op": "eq", "values": ["a1"] }, "expect": ["d1"] },
+    { "name": "a project with no lead", "filter": { "field": "lead", "op": "isNull" }, "expect": ["d2"] },
+    { "name": "project priority", "filter": { "field": "priority", "op": "eq", "values": ["1"] }, "expect": ["d1"] },
+    { "name": "project team is a set", "filter": { "field": "team", "op": "in", "values": ["b2"] }, "expect": ["d2"] },
+    { "name": "project name is folded", "filter": { "field": "name", "op": "contains", "values": ["alp"] }, "expect": ["d1"] },
+    { "name": "a project with no target date", "filter": { "field": "targetDate", "op": "isNull" }, "expect": ["d2"] }
   ]
 }

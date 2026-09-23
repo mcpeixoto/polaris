@@ -1876,6 +1876,7 @@ type ComplexityRoot struct {
 		OwnerID     func(childComplexity int) int
 		Position    func(childComplexity int) int
 		ProjectID   func(childComplexity int) int
+		Target      func(childComplexity int) int
 		TeamID      func(childComplexity int) int
 		UpdatedAt   func(childComplexity int) int
 		WorkspaceID func(childComplexity int) int
@@ -11990,6 +11991,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.View.ProjectID(childComplexity), true
+	case "View.target":
+		if e.ComplexityRoot.View.Target == nil {
+			break
+		}
+
+		return e.ComplexityRoot.View.Target(childComplexity), true
 	case "View.teamId":
 		if e.ComplexityRoot.View.TeamID == nil {
 			break
@@ -13439,6 +13446,11 @@ type View {
   description: String
   icon: String
   color: String
+  """
+  Which list the saved filter is about: ` + "`" + `issue` + "`" + ` or ` + "`" + `project` + "`" + `. Defaults to issues.
+  Stored with the filter because a project field in an issue filter is a hard error.
+  """
+  target: String!
   """
   The filter AST.
 
@@ -15623,6 +15635,8 @@ input CreateViewInput {
   description: String
   icon: String
   color: String
+  """Which list the filter is about. Omit for issues. ` + "`" + `issue` + "`" + ` or ` + "`" + `project` + "`" + `."""
+  target: String
   filter: JSON!
   display: JSON
 }
@@ -19875,6 +19889,8 @@ func (ec *executionContext) childFields_View(ctx context.Context, field graphql.
 		return ec.fieldContext_View_icon(ctx, field)
 	case "color":
 		return ec.fieldContext_View_color(ctx, field)
+	case "target":
+		return ec.fieldContext_View_target(ctx, field)
 	case "filter":
 		return ec.fieldContext_View_filter(ctx, field)
 	case "display":
@@ -66585,6 +66601,29 @@ func (ec *executionContext) fieldContext_View_color(_ context.Context, field gra
 	return graphql.NewScalarFieldContext("View", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _View_target(ctx context.Context, field graphql.CollectedField, obj *View) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_View_target(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Target, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_View_target(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("View", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _View_filter(ctx context.Context, field graphql.CollectedField, obj *View) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -72671,7 +72710,7 @@ func (ec *executionContext) unmarshalInputCreateViewInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"teamId", "projectId", "private", "name", "description", "icon", "color", "filter", "display"}
+	fieldsInOrder := [...]string{"teamId", "projectId", "private", "name", "description", "icon", "color", "target", "filter", "display"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -72727,6 +72766,13 @@ func (ec *executionContext) unmarshalInputCreateViewInput(ctx context.Context, o
 				return it, err
 			}
 			it.Color = data
+		case "target":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("target"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Target = data
 		case "filter":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("filter"))
 			data, err := ec.unmarshalNJSON2encodingᚋjsonᚐRawMessage(ctx, v)
@@ -91592,6 +91638,11 @@ func (ec *executionContext) _View(ctx context.Context, sel ast.SelectionSet, obj
 		case "color":
 			out.Values[i] = ec._View_color(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "target":
+			out.Values[i] = ec._View_target(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "filter":

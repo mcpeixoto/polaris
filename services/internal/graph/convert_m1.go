@@ -407,6 +407,7 @@ func toView(v model.View) generated.View {
 		Description: v.Description,
 		Icon:        v.Icon,
 		Color:       v.Color,
+		Target:      v.Target,
 		Filter:      jsonOrEmptyObject(v.Filter),
 		Display:     jsonOrEmptyObject(v.Display),
 		Position:    v.Position,

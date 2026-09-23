@@ -321,6 +321,16 @@ function compileClause(clause: FilterClause, context: FilterContext): IssuePredi
     case 'customerImportant':
       if (context.hideCustomers === true) return NEVER;
       return compileCustomerClause(clause, context);
+
+    // Project fields. Validation refuses them on an issue filter; reaching one here means
+    // a caller compiled a tree it did not validate, and matching every issue would hide that.
+    case 'status':
+    case 'statusCategory':
+    case 'lead':
+    case 'startDate':
+    case 'targetDate':
+    case 'name':
+      throw new FilterError('', `field "${clause.field}" does not apply to issues`);
   }
 }
 

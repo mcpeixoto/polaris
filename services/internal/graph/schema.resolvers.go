@@ -2783,6 +2783,7 @@ func (r *mutationResolver) CreateView(ctx context.Context, input generated.Creat
 		Color:       input.Color,
 		Filter:      input.Filter,
 		Display:     input.Display,
+		Target:      deref(input.Target),
 	}
 	view, version, err := idempotent(ctx, r.Svc, p, clientID, opID, in,
 		func(ctx context.Context) (model.View, int64, error) {

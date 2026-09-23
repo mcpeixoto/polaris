@@ -17,9 +17,10 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import type { Issue, StateCategory, Timestamp, UUID, WorkflowState } from '~/store/types';
+import type { Issue, Project, StateCategory, Timestamp, UUID, WorkflowState } from '~/store/types';
 
 import { filterIssues, type FilterContext } from './evaluate';
+import { filterProjects } from './projectEvaluate';
 import { RELATIVE_KEYWORDS, resolveRelative } from './relative';
 import { FILTER_FIELDS, isFilterField } from './types';
 import { FilterError, validateFilter } from './validate';
@@ -112,6 +113,30 @@ interface Fixture {
     readonly name: string;
     readonly filter: unknown;
     readonly message: string;
+  }[];
+  readonly projectStatuses?: readonly {
+    readonly id: UUID;
+    readonly category: string;
+  }[];
+  readonly projects?: readonly {
+    readonly id: UUID;
+    readonly name: string;
+    readonly statusId: UUID;
+    readonly priority: number;
+    readonly leadId?: UUID;
+    readonly sortOrder: string;
+    readonly startDate?: string;
+    readonly targetDate?: string;
+    readonly teamIds: readonly UUID[];
+    readonly archivedAt?: Timestamp;
+    readonly deletedAt?: Timestamp;
+    readonly createdAt: Timestamp;
+    readonly updatedAt: Timestamp;
+  }[];
+  readonly projectCases?: readonly {
+    readonly name: string;
+    readonly filter: unknown;
+    readonly expect: readonly string[];
   }[];
 }
 
@@ -321,6 +346,46 @@ describe('filter conformance', () => {
       // Compared as a set, sorted: ordering is a display option and is tested separately.
       // Mixing the two here would make an ordering change look like a filter regression.
       const got = filterIssues(issues, filter, context).sort();
+      expect(got).toEqual(testCase.expect.map(expandId).sort());
+    });
+  }
+});
+
+const projectStatuses = new Map(
+  (fixture.projectStatuses ?? []).map((row) => [row.id, row.category]),
+);
+const projectTeams = new Map<UUID, Set<UUID>>();
+for (const row of fixture.projects ?? []) {
+  projectTeams.set(row.id, new Set(row.teamIds));
+}
+const projects: Project[] = (fixture.projects ?? []).map((row) => ({
+  id: row.id,
+  workspaceId: fixture.workspace.id,
+  name: row.name,
+  description: '',
+  color: '#6b7280',
+  statusId: row.statusId,
+  priority: row.priority,
+  leadId: row.leadId,
+  sortOrder: row.sortOrder,
+  startDate: row.startDate,
+  targetDate: row.targetDate,
+  updateSchedule: 'default',
+  archivedAt: row.archivedAt,
+  deletedAt: row.deletedAt,
+  createdAt: row.createdAt,
+  updatedAt: row.updatedAt,
+}));
+
+describe('project filter conformance', () => {
+  for (const testCase of fixture.projectCases ?? []) {
+    it(testCase.name, () => {
+      const filter = validateFilter(expandFilter(testCase.filter), 'project');
+      const got = filterProjects(projects, filter, {
+        time: context.time,
+        categoryOf: (statusId) => projectStatuses.get(statusId),
+        teamsOf: (projectId) => projectTeams.get(projectId),
+      }).sort();
       expect(got).toEqual(testCase.expect.map(expandId).sort());
     });
   }
