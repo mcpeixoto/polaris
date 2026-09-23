@@ -69,7 +69,7 @@ func (q *Queries) AddFavorite(ctx context.Context, arg AddFavoriteParams) (Favor
 const archiveView = `-- name: ArchiveView :one
 UPDATE view SET archived_at = now()
 WHERE id = $1 AND archived_at IS NULL
-RETURNING id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
+RETURNING id, workspace_id, team_id, owner_id, project_id, name, description, icon, color, target,
           filter, display, position, created_by, archived_at, created_at, updated_at
 `
 
@@ -83,6 +83,7 @@ type ArchiveViewRow struct {
 	Description *string
 	Icon        *string
 	Color       *string
+	Target      string
 	Filter      json.RawMessage
 	Display     json.RawMessage
 	Position    string
@@ -108,6 +109,7 @@ func (q *Queries) ArchiveView(ctx context.Context, id uuid.UUID) (ArchiveViewRow
 		&i.Description,
 		&i.Icon,
 		&i.Color,
+		&i.Target,
 		&i.Filter,
 		&i.Display,
 		&i.Position,
@@ -163,12 +165,12 @@ func (q *Queries) ClearFavoritesInFolder(ctx context.Context, folderID uuid.UUID
 const createView = `-- name: CreateView :one
 
 INSERT INTO view (id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
-                  filter, display, position, created_by)
+                  target, filter, display, position, created_by)
 VALUES ($1, $2, $3, $4,
         $5, $6, $7, $8,
-        $9, $10, $11, $12,
-        $13)
-RETURNING id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
+        $9, $10, $11, $12, $13,
+        $14)
+RETURNING id, workspace_id, team_id, owner_id, project_id, name, description, icon, color, target,
           filter, display, position, created_by, archived_at, created_at, updated_at
 `
 
@@ -182,6 +184,7 @@ type CreateViewParams struct {
 	Description *string
 	Icon        *string
 	Color       *string
+	Target      string
 	Filter      json.RawMessage
 	Display     json.RawMessage
 	Position    string
@@ -198,6 +201,7 @@ type CreateViewRow struct {
 	Description *string
 	Icon        *string
 	Color       *string
+	Target      string
 	Filter      json.RawMessage
 	Display     json.RawMessage
 	Position    string
@@ -219,6 +223,7 @@ func (q *Queries) CreateView(ctx context.Context, arg CreateViewParams) (CreateV
 		arg.Description,
 		arg.Icon,
 		arg.Color,
+		arg.Target,
 		arg.Filter,
 		arg.Display,
 		arg.Position,
@@ -235,6 +240,7 @@ func (q *Queries) CreateView(ctx context.Context, arg CreateViewParams) (CreateV
 		&i.Description,
 		&i.Icon,
 		&i.Color,
+		&i.Target,
 		&i.Filter,
 		&i.Display,
 		&i.Position,
@@ -333,7 +339,7 @@ func (q *Queries) GetLastViewPositionForProject(ctx context.Context, projectID *
 }
 
 const getView = `-- name: GetView :one
-SELECT id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
+SELECT id, workspace_id, team_id, owner_id, project_id, name, description, icon, color, target,
        filter, display, position, created_by, archived_at, created_at, updated_at
 FROM view
 WHERE id = $1
@@ -349,6 +355,7 @@ type GetViewRow struct {
 	Description *string
 	Icon        *string
 	Color       *string
+	Target      string
 	Filter      json.RawMessage
 	Display     json.RawMessage
 	Position    string
@@ -371,6 +378,7 @@ func (q *Queries) GetView(ctx context.Context, id uuid.UUID) (GetViewRow, error)
 		&i.Description,
 		&i.Icon,
 		&i.Color,
+		&i.Target,
 		&i.Filter,
 		&i.Display,
 		&i.Position,
@@ -570,7 +578,7 @@ func (q *Queries) ListViewPreferences(ctx context.Context, arg ListViewPreferenc
 }
 
 const listViewsForUser = `-- name: ListViewsForUser :many
-SELECT id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
+SELECT id, workspace_id, team_id, owner_id, project_id, name, description, icon, color, target,
        filter, display, position, created_by, archived_at, created_at, updated_at
 FROM view
 WHERE workspace_id = $1
@@ -597,6 +605,7 @@ type ListViewsForUserRow struct {
 	Description *string
 	Icon        *string
 	Color       *string
+	Target      string
 	Filter      json.RawMessage
 	Display     json.RawMessage
 	Position    string
@@ -628,6 +637,7 @@ func (q *Queries) ListViewsForUser(ctx context.Context, arg ListViewsForUserPara
 			&i.Description,
 			&i.Icon,
 			&i.Color,
+			&i.Target,
 			&i.Filter,
 			&i.Display,
 			&i.Position,
@@ -852,7 +862,7 @@ func (q *Queries) StreamViewPreferencesForBootstrap(ctx context.Context, arg Str
 }
 
 const streamViewsForBootstrap = `-- name: StreamViewsForBootstrap :many
-SELECT id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
+SELECT id, workspace_id, team_id, owner_id, project_id, name, description, icon, color, target,
        filter, display, position, created_by, archived_at, created_at, updated_at
 FROM view
 WHERE view.workspace_id = $1
@@ -895,6 +905,7 @@ type StreamViewsForBootstrapRow struct {
 	Description *string
 	Icon        *string
 	Color       *string
+	Target      string
 	Filter      json.RawMessage
 	Display     json.RawMessage
 	Position    string
@@ -944,6 +955,7 @@ func (q *Queries) StreamViewsForBootstrap(ctx context.Context, arg StreamViewsFo
 			&i.Description,
 			&i.Icon,
 			&i.Color,
+			&i.Target,
 			&i.Filter,
 			&i.Display,
 			&i.Position,
@@ -1021,7 +1033,7 @@ SET name        = COALESCE($1, name),
     owner_id    = CASE WHEN $8::boolean THEN NULL
                        ELSE COALESCE($9, owner_id) END
 WHERE id = $10 AND archived_at IS NULL
-RETURNING id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
+RETURNING id, workspace_id, team_id, owner_id, project_id, name, description, icon, color, target,
           filter, display, position, created_by, archived_at, created_at, updated_at
 `
 
@@ -1048,6 +1060,7 @@ type UpdateViewRow struct {
 	Description *string
 	Icon        *string
 	Color       *string
+	Target      string
 	Filter      json.RawMessage
 	Display     json.RawMessage
 	Position    string
@@ -1081,6 +1094,7 @@ func (q *Queries) UpdateView(ctx context.Context, arg UpdateViewParams) (UpdateV
 		&i.Description,
 		&i.Icon,
 		&i.Color,
+		&i.Target,
 		&i.Filter,
 		&i.Display,
 		&i.Position,

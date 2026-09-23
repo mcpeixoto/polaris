@@ -54,6 +54,9 @@ type CreateViewInput struct {
 
 	Filter  json.RawMessage
 	Display json.RawMessage
+	// Target is "issue" or "project". Empty means issues, which is every view saved
+	// before the column existed and every caller that does not say.
+	Target string
 }
 
 // CreateView saves a filter, having first proved the filter can be read.
@@ -66,7 +69,11 @@ func (s *Service) CreateView(ctx context.Context, p *authz.Principal, in CreateV
 	if err != nil {
 		return model.View{}, 0, err
 	}
-	filterJSON, err := validateViewFilter(in.Filter)
+	target, err := normalizeViewTarget(in.Target)
+	if err != nil {
+		return model.View{}, 0, err
+	}
+	filterJSON, err := validateViewFilterFor(in.Filter, subjectOf(target))
 	if err != nil {
 		return model.View{}, 0, err
 	}
@@ -159,6 +166,7 @@ func (s *Service) CreateView(ctx context.Context, p *authz.Principal, in CreateV
 			Description: in.Description,
 			Icon:        in.Icon,
 			Color:       in.Color,
+			Target:      target,
 			Filter:      filterJSON,
 			Display:     displayJSON,
 			Position:    pos,
@@ -210,17 +218,11 @@ func (s *Service) UpdateView(ctx context.Context, p *authz.Principal, in UpdateV
 		}
 		name = &n
 	}
-	// The filter is revalidated on every edit, not only at creation. A view that was saved
-	// with a filter the compiler accepted and then edited into one it does not is the same
-	// broken saved view, arriving a week later.
+	// The filter is revalidated on every edit, against the subject stored on the row —
+	// which this input does not carry, so the check happens once the row is loaded.
+	// A view that was saved with a filter the compiler accepted and then edited into one
+	// it does not is the same broken saved view, arriving a week later.
 	var filterJSON json.RawMessage
-	if !isAbsentJSON(in.Filter) {
-		f, err := validateViewFilter(in.Filter)
-		if err != nil {
-			return model.View{}, 0, err
-		}
-		filterJSON = f
-	}
 	var displayJSON json.RawMessage
 	if !isAbsentJSON(in.Display) {
 		d, err := jsonObject("display", in.Display)
@@ -240,6 +242,13 @@ func (s *Service) UpdateView(ctx context.Context, p *authz.Principal, in UpdateV
 		existing, oldScope, err := s.requireViewAccess(ctx, q, p, in.ID)
 		if err != nil {
 			return err
+		}
+		if !isAbsentJSON(in.Filter) {
+			f, err := validateViewFilterFor(in.Filter, subjectOf(existing.Target))
+			if err != nil {
+				return err
+			}
+			filterJSON = f
 		}
 
 		var position *string
@@ -795,6 +804,10 @@ func (s *Service) MoveFavorite(
 // saved view that fails every time anybody opens it, months later, put there by somebody
 // who has since left.
 func validateViewFilter(raw json.RawMessage) (json.RawMessage, error) {
+	return validateViewFilterFor(raw, filter.SubjectIssue)
+}
+
+func validateViewFilterFor(raw json.RawMessage, subject filter.Subject) (json.RawMessage, error) {
 	if isAbsentJSON(raw) {
 		// The canonical empty filter: a group with no children, which is an AND over
 		// nothing and therefore matches everything. It is also the column's default, so a
@@ -804,7 +817,7 @@ func validateViewFilter(raw json.RawMessage) (json.RawMessage, error) {
 	if len(raw) > maxViewJSONBytes {
 		return nil, platform.Validation("filter", "that filter is too large to save")
 	}
-	if _, err := filter.Parse(raw); err != nil {
+	if _, err := filter.ParseSubject(raw, subject); err != nil {
 		// The compiler's own message names the field, operator or value it could not read,
 		// and it quotes only what the caller sent. Replacing it with something generic
 		// would leave the author guessing which of a dozen clauses is the wrong one.
@@ -839,6 +852,24 @@ func jsonObject(field string, raw json.RawMessage) (json.RawMessage, error) {
 // absence too: it is how GraphQL delivers an optional field that was not set, and writing
 // it through to a NOT NULL jsonb column stores the literal null every client then
 // dereferences.
+func normalizeViewTarget(raw string) (string, error) {
+	switch raw {
+	case "", model.ViewTargetIssue:
+		return model.ViewTargetIssue, nil
+	case model.ViewTargetProject:
+		return model.ViewTargetProject, nil
+	default:
+		return "", platform.Validation("target", "a view is about issues or projects")
+	}
+}
+
+func subjectOf(target string) filter.Subject {
+	if target == model.ViewTargetProject {
+		return filter.SubjectProject
+	}
+	return filter.SubjectIssue
+}
+
 func isAbsentJSON(raw json.RawMessage) bool {
 	trimmed := bytes.TrimSpace(raw)
 	return len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null"))
@@ -1325,6 +1356,7 @@ func toView(v store.GetViewRow) model.View {
 		Description: v.Description,
 		Icon:        v.Icon,
 		Color:       v.Color,
+		Target:      v.Target,
 		Filter:      v.Filter,
 		Display:     v.Display,
 		Position:    v.Position,

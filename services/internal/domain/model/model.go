@@ -514,6 +514,11 @@ const (
 	PulseDigestWeekly = "weekly"
 )
 
+const (
+	ViewTargetIssue   = "issue"
+	ViewTargetProject = "project"
+)
+
 // View is a saved filter plus how to display it.
 type View struct {
 	ID          uuid.UUID `json:"id"`
@@ -531,6 +536,9 @@ type View struct {
 	Icon        *string `json:"icon,omitempty"`
 	Color       *string `json:"color,omitempty"`
 
+	// Target is which list the filter is about: "issue" or "project". A project field in
+	// an issue filter is refused, so the subject is stored with the filter.
+	Target string `json:"target"`
 	// Filter is the filter AST, exactly as the one compiler consumes it — the same bytes
 	// the client evaluates against its replica and the server compiles to SQL.
 	Filter json.RawMessage `json:"filter"`

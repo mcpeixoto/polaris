@@ -13,7 +13,7 @@
  * places is a field that will be described differently in two places.
  */
 
-import { CATEGORY_ORDER } from '~/store/types';
+import { CATEGORY_ORDER, type StateCategory } from '~/store/types';
 
 /**
  * A node is either a clause or a group, distinguished by their keys rather than by a
@@ -76,7 +76,32 @@ export type FilterField =
   | 'customerTier'
   | 'customerRevenue'
   | 'customerSize'
-  | 'customerImportant';
+  | 'customerImportant'
+  | 'status'
+  | 'statusCategory'
+  | 'lead'
+  | 'startDate'
+  | 'targetDate'
+  | 'name';
+
+/**
+ * Which list a field may appear in.
+ *
+ * One grammar, two subjects. A project field in an issue filter is a hard error, the same
+ * as an unknown field: ignoring it would widen the result set. Fields that name the same
+ * idea on both — priority, team, created, updated — are `both`. `team` is a single id on
+ * an issue and a set on a project; `fieldSpec` is what says so.
+ */
+export type FilterSubject = 'issue' | 'project';
+
+/** Project status categories. The wire values, in the order the tabs draw them. */
+export const PROJECT_STATUS_CATEGORIES = [
+  'backlog',
+  'planned',
+  'started',
+  'completed',
+  'canceled',
+] as const;
 
 /** Closed set for `customerStatus`. Wire values match `Customer.status`. */
 export const CUSTOMER_STATUSES = ['active', 'prospect', 'churned'] as const;
@@ -141,6 +166,11 @@ export interface FilterFieldSpec {
    * `customerStatus` uses the customer ones. An unknown value is a hard error.
    */
   readonly enums?: readonly string[];
+  /**
+   * Which subjects may name this field. Absent means issues only, which is what every
+   * field was before projects joined the grammar.
+   */
+  readonly subjects?: readonly FilterSubject[];
 }
 
 /**
@@ -163,14 +193,16 @@ export const FILTER_FIELDS: Readonly<Record<FilterField, FilterFieldSpec>> = {
   creator: { type: 'uuid', nullable: true, multi: false },
   // A set per issue: whether that user is subscribed and has not unsubscribed.
   subscriber: { type: 'uuid', nullable: false, multi: true },
-  // The raw value — 0 none, 1 urgent … 4 low — not the display rank.
-  priority: { type: 'number', nullable: false, multi: false },
+  // The raw value — 0 none, 1 urgent … 4 low — not the display rank. The same scale on
+  // a project, which is why the field belongs to both subjects.
+  priority: { type: 'number', nullable: false, multi: false, subjects: ['issue', 'project'] },
   label: { type: 'uuid', nullable: false, multi: true },
-  team: { type: 'uuid', nullable: false, multi: false },
+  // One team on an issue. A set on a project — see `fieldSpec`.
+  team: { type: 'uuid', nullable: false, multi: false, subjects: ['issue', 'project'] },
   estimate: { type: 'number', nullable: true, multi: false },
   dueDate: { type: 'date', nullable: true, multi: false },
-  createdAt: { type: 'timestamp', nullable: false, multi: false },
-  updatedAt: { type: 'timestamp', nullable: false, multi: false },
+  createdAt: { type: 'timestamp', nullable: false, multi: false, subjects: ['issue', 'project'] },
+  updatedAt: { type: 'timestamp', nullable: false, multi: false, subjects: ['issue', 'project'] },
   completedAt: { type: 'timestamp', nullable: true, multi: false },
   title: { type: 'text', nullable: false, multi: false },
   description: { type: 'text', nullable: false, multi: false },
@@ -199,7 +231,40 @@ export const FILTER_FIELDS: Readonly<Record<FilterField, FilterFieldSpec>> = {
   customerRevenue: { type: 'number', nullable: true, multi: false },
   customerSize: { type: 'number', nullable: true, multi: false },
   customerImportant: { type: 'boolean', nullable: false, multi: false },
+  // Project status, not a workflow state. A different column and a different vocabulary,
+  // so it is not `state` under another name.
+  status: { type: 'uuid', nullable: false, multi: false, subjects: ['project'] },
+  statusCategory: {
+    type: 'enum',
+    nullable: false,
+    multi: false,
+    enums: PROJECT_STATUS_CATEGORIES,
+    subjects: ['project'],
+  },
+  lead: { type: 'uuid', nullable: true, multi: false, subjects: ['project'] },
+  startDate: { type: 'date', nullable: true, multi: false, subjects: ['project'] },
+  targetDate: { type: 'date', nullable: true, multi: false, subjects: ['project'] },
+  name: { type: 'text', nullable: false, multi: false, subjects: ['project'] },
 };
+
+/** Whether a field may be used in a filter over this subject. */
+export function fieldApplies(field: FilterField, subject: FilterSubject): boolean {
+  const listed = FILTER_FIELDS[field].subjects;
+  if (listed === undefined) return subject === 'issue';
+  return listed.includes(subject);
+}
+
+/**
+ * The spec a subject actually evaluates.
+ *
+ * `team` is the one field whose shape changes: an issue has one team, a project has a set
+ * of them, and `notIn` means "has none of these" only for the set.
+ */
+export function fieldSpec(field: FilterField, subject: FilterSubject = 'issue'): FilterFieldSpec {
+  const spec = FILTER_FIELDS[field];
+  if (subject === 'project' && field === 'team') return { ...spec, multi: true };
+  return spec;
+}
 
 /**
  * Whether a string names a field this grammar knows.
@@ -216,7 +281,7 @@ export function isFilterOp(value: string): value is FilterOp {
 }
 
 /** Whether a string names one of the seven state categories. */
-export function isStateCategory(value: string): boolean {
+export function isStateCategory(value: string): value is StateCategory {
   return Object.prototype.hasOwnProperty.call(CATEGORY_ORDER, value);
 }
 

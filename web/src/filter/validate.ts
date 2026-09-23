@@ -15,9 +15,11 @@
  */
 
 import {
+  fieldApplies,
   FILTER_FIELDS,
   isFilterField,
   isFilterOp,
+  type FilterSubject,
   operatorApplies,
   takesNoValues,
   takesSingleValue,
@@ -75,8 +77,8 @@ const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|
  * relies on: what comes back carries the grammar's keys and nothing else, so `evaluate.ts`
  * never has to ask whether a node it is compiling was checked.
  */
-export function validateFilter(input: unknown): FilterNode {
-  return validateNode(input, '', 0);
+export function validateFilter(input: unknown, subject: FilterSubject = 'issue'): FilterNode {
+  return validateNode(input, '', 0, subject);
 }
 
 /** Whether a value is a filter this build can evaluate. For call sites with no error to show. */
@@ -90,7 +92,12 @@ export function isValidFilter(input: unknown): input is FilterNode {
   }
 }
 
-function validateNode(input: unknown, path: string, depth: number): FilterNode {
+function validateNode(
+  input: unknown,
+  path: string,
+  depth: number,
+  subject: FilterSubject,
+): FilterNode {
   if (depth > MAX_DEPTH) {
     throw new FilterError(path, `a filter may not nest more than ${MAX_DEPTH} levels deep`);
   }
@@ -99,8 +106,8 @@ function validateNode(input: unknown, path: string, depth: number): FilterNode {
   }
 
   const record = input as Record<string, unknown>;
-  if ('field' in record) return validateClause(record, path);
-  if ('conj' in record || 'nodes' in record) return validateGroup(record, path, depth);
+  if ('field' in record) return validateClause(record, path, subject);
+  if ('conj' in record || 'nodes' in record) return validateGroup(record, path, depth, subject);
   // `{}` is the column default and means the canonical empty filter — an AND over nothing,
   // which matches everything. Rejecting it would make a freshly created view unopenable.
   if (Object.keys(record).length === 0) return { conj: 'and', nodes: [] };
@@ -111,7 +118,11 @@ function validateNode(input: unknown, path: string, depth: number): FilterNode {
 const CLAUSE_KEYS: ReadonlySet<string> = new Set(['field', 'op', 'values']);
 const GROUP_KEYS: ReadonlySet<string> = new Set(['conj', 'nodes']);
 
-function validateClause(record: Record<string, unknown>, path: string): FilterClause {
+function validateClause(
+  record: Record<string, unknown>,
+  path: string,
+  subject: FilterSubject,
+): FilterClause {
   rejectUnknownKeys(record, CLAUSE_KEYS, path, 'a clause carries field, op and values');
 
   const name = record['field'];
@@ -119,6 +130,12 @@ function validateClause(record: Record<string, unknown>, path: string): FilterCl
     throw new FilterError(path, `unknown field ${quote(name)}`);
   }
   const field: FilterField = name;
+  // A field the other subject owns is the same failure as one the grammar has never heard
+  // of: keeping the clause would match rows the filter does not name.
+  if (!fieldApplies(field, subject)) {
+    const noun = subject === 'project' ? 'projects' : 'issues';
+    throw new FilterError(path, `field "${field}" does not apply to ${noun}`);
+  }
 
   const operator = record['op'];
   if (typeof operator !== 'string' || !isFilterOp(operator)) {
@@ -161,7 +178,12 @@ function validateClause(record: Record<string, unknown>, path: string): FilterCl
   return { field, op, values };
 }
 
-function validateGroup(record: Record<string, unknown>, path: string, depth: number): FilterGroup {
+function validateGroup(
+  record: Record<string, unknown>,
+  path: string,
+  depth: number,
+  subject: FilterSubject,
+): FilterGroup {
   rejectUnknownKeys(record, GROUP_KEYS, path, 'a group carries conj and nodes');
 
   const conj = record['conj'];
@@ -178,7 +200,7 @@ function validateGroup(record: Record<string, unknown>, path: string, depth: num
     raw === undefined
       ? []
       : raw.map((child: unknown, i: number) =>
-          validateNode(child, join(path, `nodes[${i}]`), depth + 1),
+          validateNode(child, join(path, `nodes[${i}]`), depth + 1, subject),
         );
 
   // An absent conjunction means `and`, and stating it in the validated tree means nothing
@@ -208,7 +230,12 @@ function validateValue(value: string, field: FilterField, path: string): void {
     case 'enum': {
       const allowed = FILTER_FIELDS[field].enums ?? [];
       if (!allowed.includes(value)) {
-        const kind = field === 'customerStatus' ? 'a customer status' : 'a state category';
+        const kind =
+          field === 'customerStatus'
+            ? 'a customer status'
+            : field === 'statusCategory'
+              ? 'a project status category'
+              : 'a state category';
         throw new FilterError(path, `"${value}" is not ${kind}`);
       }
       return;
@@ -261,7 +288,11 @@ function describe(field: FilterField): string {
     case 'uuid':
       return 'an id';
     case 'enum':
-      return field === 'customerStatus' ? 'a customer status' : 'a state category';
+      return field === 'customerStatus'
+        ? 'a customer status'
+        : field === 'statusCategory'
+          ? 'a project status category'
+          : 'a state category';
     case 'number':
       return 'a number';
     case 'date':

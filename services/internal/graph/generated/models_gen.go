@@ -732,13 +732,15 @@ type CreateViewInput struct {
 	// Attaches the view as a tab on this project rather than in a sidebar.
 	ProjectID *uuid.UUID `json:"projectId,omitempty"`
 	// True keeps the view private to its creator.
-	Private     *bool           `json:"private,omitempty"`
-	Name        string          `json:"name"`
-	Description *string         `json:"description,omitempty"`
-	Icon        *string         `json:"icon,omitempty"`
-	Color       *string         `json:"color,omitempty"`
-	Filter      json.RawMessage `json:"filter"`
-	Display     json.RawMessage `json:"display,omitempty"`
+	Private     *bool   `json:"private,omitempty"`
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
+	Icon        *string `json:"icon,omitempty"`
+	Color       *string `json:"color,omitempty"`
+	// Which list the filter is about. Omit for issues. `issue` or `project`.
+	Target  *string         `json:"target,omitempty"`
+	Filter  json.RawMessage `json:"filter"`
+	Display json.RawMessage `json:"display,omitempty"`
 }
 
 type CreateWebhookInput struct {
@@ -3017,6 +3019,9 @@ type View struct {
 	Description *string    `json:"description,omitempty"`
 	Icon        *string    `json:"icon,omitempty"`
 	Color       *string    `json:"color,omitempty"`
+	// Which list the saved filter is about: `issue` or `project`. Defaults to issues.
+	// Stored with the filter because a project field in an issue filter is a hard error.
+	Target string `json:"target"`
 	// The filter AST.
 	//
 	// Deliberately not a typed GraphQL tree. The grammar has exactly one definition — the

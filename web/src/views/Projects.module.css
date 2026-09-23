@@ -52,6 +52,12 @@
   overflow-x: auto;
 }
 
+/* The grammar bar's own rule draws a second toolbar. Here it sits in the one this page has. */
+.toolbar .grammar {
+  padding: 0;
+  border-bottom: 0;
+}
+
 /*
  * The table. One grid template, declared once here and read by the column header and every
  * row, so the two cannot drift: a header that says "Lead" over a column of target dates is

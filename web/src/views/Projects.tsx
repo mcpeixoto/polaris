@@ -53,7 +53,6 @@ import {
   PriorityIcon,
   priorityLabel,
   PropertyTrigger,
-  SegmentedControl,
   type MenuNode,
 } from '~/components';
 import {
@@ -76,7 +75,6 @@ import { EntityLoading, useStoreSettled } from '~/features/entity-gate/EntityGat
 import {
   activeProjectFilterCount,
   changedProjectDisplayCount,
-  DEFAULT_PROJECT_FILTERS,
   matchesProjectStatusFilter,
   PROJECT_DISPLAY_PARAMS,
   PROJECT_FILTER_PARAMS,
@@ -105,6 +103,9 @@ import {
   ProjectGlyph,
 } from '~/features/projects/glyphs';
 import { browserTimezone } from '~/features/locale';
+import { CategoryTabs } from '~/features/view/ui/CategoryTabs';
+import { FilterBar } from '~/features/view/ui/FilterBar';
+import { applyFilterParam, readFilter } from '~/features/view/ui/filterParam';
 import { EntityIcon } from '~/features/icon/EntityIcon';
 import { IconPicker } from '~/features/icon/IconPicker';
 import { ProjectDisplayMenu } from '~/features/projects/ProjectDisplayMenu';
@@ -125,6 +126,13 @@ import {
 import { projectProgress, type Progress } from '~/features/initiatives/progress';
 import { ProjectPeek } from '~/features/peek/ProjectPeek';
 import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
+import {
+  FILTER_PARAM,
+  filterProjects,
+  filterSearchString,
+  toFilterParam,
+  type FilterNode,
+} from '~/filter';
 import { useContextMenu } from '~/hooks/useContextMenu';
 import { useListCursor, listRowDomId } from '~/hooks/useListCursor';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -132,7 +140,14 @@ import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewer } from '~/hooks/useViewer';
 import { PRIORITY_LEVELS } from '~/components/PriorityIcon';
 import { compareOrderKeys } from '~/store';
-import type { Project, ProjectStatus, Store, TimeframeGranularity, UUID } from '~/store';
+import type {
+  Project,
+  ProjectStatus,
+  ProjectStatusCategory,
+  Store,
+  TimeframeGranularity,
+  UUID,
+} from '~/store';
 import styles from './Projects.module.css';
 
 /** A Space tap keeps Peek; a hold longer than this puts it away on release. */
@@ -146,6 +161,8 @@ interface ProjectRow {
   readonly priority: number;
   readonly sortOrder: string;
   readonly updatedAt: string;
+  readonly createdAt: string;
+  readonly statusCategory: ProjectStatusCategory | undefined;
   readonly statusId: UUID;
   readonly statusName: string;
   readonly statusColor: string;
@@ -246,6 +263,11 @@ export function Projects() {
   // Filters live in the query string beside the display options, so a reload or a pasted
   // link shows what the sender was looking at rather than the layout without the filters.
   const filters = useMemo(() => resolveProjectFilters(searchParams), [searchParams]);
+  const filterParam = searchParams.get(FILTER_PARAM);
+  const { filter, error: filterError } = useMemo(
+    () => readFilter(filterParam, 'project'),
+    [filterParam],
+  );
 
   const setFilters = useCallback(
     (patch: Partial<ProjectFilterOptions>) => {
@@ -276,6 +298,15 @@ export function Projects() {
     [display, searchParams, setSearchParams],
   );
 
+  const setFilter = useCallback(
+    (next: FilterNode) => {
+      const search = new URLSearchParams(window.location.search);
+      applyFilterParam(search, next);
+      void navigate({ search: filterSearchString(search) }, { replace: true });
+    },
+    [navigate],
+  );
+
   const team = useLiveQuery(
     (store) =>
       teamKey === undefined
@@ -286,7 +317,7 @@ export function Projects() {
   );
 
   const rows = useLiveQuery(
-    (store) => listProjectRows(store, team?.id, filters),
+    (store) => listProjectRows(store, team?.id, filters, filter, browserTimezone(), Date.now()),
     [
       'project',
       'projectStatus',
@@ -305,7 +336,7 @@ export function Projects() {
       'customer',
       'customerRequest',
     ],
-    [team?.id ?? '', filters.dependency, filters.customer, filters.status],
+    [team?.id ?? '', filters.dependency, filters.customer, filters.status, toFilterParam(filter)],
   );
 
   /** Every status in the workspace, in the workspace's order: the board's columns. */
@@ -506,8 +537,13 @@ export function Projects() {
   // Whether the list is empty because there is nothing, or empty because the header's
   // dropdowns excluded everything. Without the distinction the screen tells somebody their
   // projects are gone and offers to make more — see the same flag in IssueList.
-  const filtered = activeProjectFilterCount(filters) > 0;
-  const clearFilters = useCallback(() => setFilters(DEFAULT_PROJECT_FILTERS), [setFilters]);
+  const filtered = activeProjectFilterCount(filters) > 0 || toFilterParam(filter) !== '';
+  const clearFilters = useCallback(() => {
+    const params = new URLSearchParams(window.location.search);
+    for (const key of Object.values(PROJECT_FILTER_PARAMS)) params.delete(key);
+    params.delete(FILTER_PARAM);
+    void navigate({ search: filterSearchString(params) }, { replace: true });
+  }, [navigate]);
 
   const onDropOnRow = useCallback(
     async (target: ProjectRow) => {
@@ -800,15 +836,22 @@ export function Projects() {
           time, the URL remembering which, and the shared control rather than this screen's
           own copy of it. The other two are rarer and live behind Filter, beside Display. */}
       <div className={styles.toolbar}>
-        <SegmentedControl
+        <CategoryTabs
           className={styles.pills}
-          variant="bare"
-          aria-label="Status"
+          label="Status"
           value={filters.status}
           onChange={(value) => setFilters({ status: value })}
           options={STATUS_PILLS.map((pill) => ({ value: pill.value, label: pill.label }))}
         />
         <div className={styles.toolbarEnd}>
+          <FilterBar
+            className={styles.grammar}
+            subject="project"
+            filter={filter}
+            onChange={setFilter}
+            error={filterError}
+            timezone={browserTimezone()}
+          />
           {/* Dependencies and customers behind one control rather than two selects standing
               open. Both are rare — most workspaces have no project dependencies and no
               customer requests at all — and a permanently visible dropdown for each put two
@@ -1857,11 +1900,32 @@ function listProjectRows(
   store: Store,
   teamId: UUID | undefined,
   filters: ProjectFilterOptions,
+  filter: FilterNode,
+  timezone: string,
+  now: number,
 ): ProjectRow[] {
   const statusRank = new Map(orderedStatuses(store).map((status, index) => [status.id, index]));
+  const matched =
+    toFilterParam(filter) === ''
+      ? null
+      : new Set(
+          filterProjects(store.projects.values(), filter, {
+            time: { now, timezone },
+            categoryOf: (statusId) => store.projectStatuses.get(statusId)?.category,
+            teamsOf: (projectId) => {
+              const ids = new Set<UUID>();
+              for (const linkId of store.projectTeamIdsFor(projectId)) {
+                const memberTeam = store.projectTeams.get(linkId)?.teamId;
+                if (memberTeam !== undefined) ids.add(memberTeam);
+              }
+              return ids;
+            },
+          }),
+        );
   const projects: Project[] = [];
   for (const project of store.projects.values()) {
     if (project.archivedAt !== undefined || project.deletedAt !== undefined) continue;
+    if (matched !== null && !matched.has(project.id)) continue;
     if (!matchesDependencyFilter(store, project.id, filters.dependency)) continue;
     if (!matchesProjectCustomerFilter(store, project.id, filters.customer)) continue;
     if (!matchesProjectStatusFilter(store, project.id, filters.status)) continue;
@@ -1887,9 +1951,11 @@ function listProjectRows(
       priority: project.priority,
       sortOrder: project.sortOrder,
       updatedAt: project.updatedAt,
+      createdAt: project.createdAt,
       statusId: project.statusId,
       statusName: status?.name ?? 'No status',
       statusColor: status?.color ?? project.color,
+      statusCategory: status?.category,
       statusRank: statusRank.get(project.statusId) ?? statusRank.size,
       leadName: lead?.displayName ?? null,
       leadId: project.leadId,
@@ -1939,6 +2005,28 @@ function groupKeyOf(row: ProjectRow, grouping: ProjectGrouping): GroupKey {
         key: `status-${row.statusId}`,
         name: row.statusName,
         rank: row.statusRank,
+        glyph: null,
+        dropPriority: null,
+      };
+    case 'statusCategory':
+      return {
+        key: row.statusCategory === undefined ? 'category-none' : `category-${row.statusCategory}`,
+        name:
+          row.statusCategory === undefined
+            ? 'No status'
+            : PROJECT_STATUS_CATEGORY_LABELS[row.statusCategory],
+        rank:
+          row.statusCategory === undefined
+            ? Number.MAX_SAFE_INTEGER
+            : PROJECT_STATUS_CATEGORIES.indexOf(row.statusCategory),
+        glyph: null,
+        dropPriority: null,
+      };
+    case 'targetDate':
+      return {
+        key: row.targetDate === undefined ? 'target-none' : `target-${row.targetDate}`,
+        name: row.targetDate ?? 'No target date',
+        rank: row.targetDate === undefined ? Number.MAX_SAFE_INTEGER : 0,
         glyph: null,
         dropPriority: null,
       };
@@ -2004,6 +2092,14 @@ export function groupRows(
       }
       case 'updated':
         return sign * a.updatedAt.localeCompare(b.updatedAt);
+      case 'created':
+        return sign * a.createdAt.localeCompare(b.createdAt);
+      case 'status': {
+        const byStatus = a.statusRank - b.statusRank;
+        if (byStatus !== 0) return sign * byStatus;
+        if (a.sortOrder !== b.sortOrder) return a.sortOrder < b.sortOrder ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      }
       default: {
         // Manual: the arrangement people drag rows into. Ungrouped it still leads with the
         // priority band, because that is the order the drag writes into.

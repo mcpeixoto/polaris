@@ -70,6 +70,22 @@ const (
 	FieldCustomerRevenue   Field = "customerRevenue"
 	FieldCustomerSize      Field = "customerSize"
 	FieldCustomerImportant Field = "customerImportant"
+	FieldStatus            Field = "status"
+	FieldStatusCategory    Field = "statusCategory"
+	FieldLead              Field = "lead"
+	FieldStartDate         Field = "startDate"
+	FieldTargetDate        Field = "targetDate"
+	FieldName              Field = "name"
+)
+
+// Subject is which table a filter is over. Zero is not a subject; callers that omit one
+// are asking about issues, which is what every filter was before projects joined.
+type Subject uint8
+
+const (
+	SubjectIssue Subject = 1 << iota
+	SubjectProject
+	subjectBoth = SubjectIssue | SubjectProject
 )
 
 // Op is the comparison a clause performs.
@@ -294,6 +310,18 @@ const (
 // one of the recursive functions: a check that runs once the tree exists never runs at all
 // on the document that was going to kill the process.
 func Parse(data []byte) (Node, error) {
+	return parse(data, SubjectIssue)
+}
+
+// ParseSubject is Parse for a filter over something other than issues.
+func ParseSubject(data []byte, subject Subject) (Node, error) {
+	if subject == 0 {
+		subject = SubjectIssue
+	}
+	return parse(data, subject)
+}
+
+func parse(data []byte, subject Subject) (Node, error) {
 	if len(data) > MaxBytes {
 		return Node{}, fmt.Errorf("filter: that filter is too large (%d bytes, the limit is %d)", len(data), MaxBytes)
 	}
@@ -305,7 +333,7 @@ func Parse(data []byte) (Node, error) {
 	if err := json.Unmarshal(data, &n); err != nil {
 		return Node{}, err
 	}
-	if err := n.Validate(); err != nil {
+	if err := n.ValidateSubject(subject); err != nil {
 		return Node{}, err
 	}
 	return n, nil
@@ -356,12 +384,20 @@ func checkShape(data []byte) error {
 // Nothing is tolerated and nothing is dropped. The alternative — skipping a clause that
 // does not make sense — widens the result set, and the user is never told, which is how a
 // filter ends up returning issues it plainly says it excludes.
-func (n Node) Validate() error { return n.validate(1) }
+func (n Node) Validate() error { return n.validate(1, SubjectIssue) }
+
+// ValidateSubject is Validate for a filter that is not about issues.
+func (n Node) ValidateSubject(subject Subject) error {
+	if subject == 0 {
+		subject = SubjectIssue
+	}
+	return n.validate(1, subject)
+}
 
 // validate carries the depth so a tree built in Go — a saved view read back, a test, an
 // SLA rule — is held to the same ceiling as one that arrived as JSON. checkShape covers
 // the parse path and cannot cover this one.
-func (n Node) validate(depth int) error {
+func (n Node) validate(depth int, subject Subject) error {
 	if depth > MaxDepth {
 		return fmt.Errorf("filter: that filter nests more than %d levels deep", MaxDepth)
 	}
@@ -372,13 +408,13 @@ func (n Node) validate(depth int) error {
 			return fmt.Errorf("filter: unknown conjunction %q, expected \"and\" or \"or\"", n.Conj)
 		}
 		for _, child := range n.Nodes {
-			if err := child.validate(depth + 1); err != nil {
+			if err := child.validate(depth+1, subject); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
-	_, err := n.bind()
+	_, err := n.bind(subject)
 	return err
 }
 
@@ -455,6 +491,16 @@ type fieldSpec struct {
 
 	// enums is the closed set for kindCategory fields that are not state categories.
 	enums map[string]bool
+
+	// subjects is who may name the field. Zero means issues only.
+	subjects Subject
+
+	// projectColumn overrides column when the filter is over a project. Empty means the
+	// issue column name is also the project's, which is true of priority and the timestamps.
+	projectColumn string
+
+	// projectMembership replaces column with an EXISTS when the project holds a set.
+	projectMembership string
 }
 
 // fields is the grammar. Adding one here is the only place it needs adding on this side;
@@ -470,14 +516,18 @@ var fields = map[Field]fieldSpec{
 	// stop working the moment anything re-subscribed the user.
 	FieldSubscriber: {kind: kindUUID, membership: `EXISTS (SELECT 1 FROM issue_subscription f_sub` +
 		` WHERE f_sub.issue_id = %[1]s.id AND f_sub.unsubscribed = false AND f_sub.user_id = ANY(%[2]s))`},
-	FieldPriority: {kind: kindInt, column: "priority"},
+	FieldPriority: {kind: kindInt, column: "priority", subjects: subjectBoth},
 	FieldLabel: {kind: kindUUID, membership: `EXISTS (SELECT 1 FROM issue_label f_label` +
 		` WHERE f_label.issue_id = %[1]s.id AND f_label.label_id = ANY(%[2]s))`},
-	FieldTeam:        {kind: kindUUID, column: "team_id"},
+	FieldTeam: {
+		kind: kindUUID, column: "team_id", subjects: subjectBoth,
+		projectMembership: `EXISTS (SELECT 1 FROM project_team f_pt` +
+			` WHERE f_pt.project_id = %[1]s.id AND f_pt.team_id = ANY(%[2]s))`,
+	},
 	FieldEstimate:    {kind: kindInt, column: "estimate", nullable: true},
 	FieldDueDate:     {kind: kindDate, column: "due_date", nullable: true},
-	FieldCreatedAt:   {kind: kindTimestamp, column: "created_at"},
-	FieldUpdatedAt:   {kind: kindTimestamp, column: "updated_at"},
+	FieldCreatedAt:   {kind: kindTimestamp, column: "created_at", subjects: subjectBoth},
+	FieldUpdatedAt:   {kind: kindTimestamp, column: "updated_at", subjects: subjectBoth},
 	FieldCompletedAt: {kind: kindTimestamp, column: "completed_at", nullable: true},
 	FieldTitle:       {kind: kindText, column: "title"},
 	FieldDescription: {kind: kindText, column: "description"},
@@ -525,6 +575,21 @@ var fields = map[Field]fieldSpec{
 		flag:     true,
 		presence: `EXISTS (SELECT 1 FROM customer_request cr WHERE cr.issue_id = %s.id AND cr.important)`,
 	},
+
+	FieldStatus: {kind: kindUUID, column: "status_id", subjects: SubjectProject},
+	FieldStatusCategory: {
+		kind: kindCategory, subjects: SubjectProject, enums: projectStatusCategories,
+		membership: `EXISTS (SELECT 1 FROM project_status f_ps` +
+			` WHERE f_ps.id = %[1]s.status_id AND f_ps.category = ANY(%[2]s))`,
+	},
+	FieldLead:       {kind: kindUUID, column: "lead_id", nullable: true, subjects: SubjectProject},
+	FieldStartDate:  {kind: kindDate, column: "start_date", nullable: true, subjects: SubjectProject},
+	FieldTargetDate: {kind: kindDate, column: "target_date", nullable: true, subjects: SubjectProject},
+	FieldName:       {kind: kindText, column: "name", subjects: SubjectProject},
+}
+
+var projectStatusCategories = map[string]bool{
+	"backlog": true, "planned": true, "started": true, "completed": true, "canceled": true,
 }
 
 // customerRelatedFrom joins live customers attributed onto the issue. Deleted customers
@@ -541,6 +606,29 @@ var knownOps = map[Op]bool{
 	OpContains: true, OpNotContains: true,
 	OpGt: true, OpGte: true, OpLt: true, OpLte: true,
 	OpIsNull: true, OpIsNotNull: true,
+}
+
+// resolve reports the spec a subject evaluates, or false when the field is not its.
+func (s fieldSpec) resolve(subject Subject) (fieldSpec, bool) {
+	who := s.subjects
+	if who == 0 {
+		who = SubjectIssue
+	}
+	if who&subject == 0 {
+		return fieldSpec{}, false
+	}
+	if subject != SubjectProject {
+		return s, true
+	}
+	out := s
+	if s.projectColumn != "" {
+		out.column = s.projectColumn
+	}
+	if s.projectMembership != "" {
+		out.membership = s.projectMembership
+		out.column = ""
+	}
+	return out, true
 }
 
 // allows reports whether an operator means anything for this kind of field.
@@ -572,10 +660,21 @@ type bound struct {
 
 // bind is the whole of clause validation, and it returns what the compiler needs so the
 // work is not repeated. Validate throws the result away; Compile keeps it.
-func (n Node) bind() (bound, error) {
+func (n Node) bind(subject Subject) (bound, error) {
+	if subject == 0 {
+		subject = SubjectIssue
+	}
 	spec, ok := fields[n.Field]
 	if !ok {
 		return bound{}, fmt.Errorf("filter: unknown field %q", n.Field)
+	}
+	spec, ok = spec.resolve(subject)
+	if !ok {
+		noun := "issues"
+		if subject == SubjectProject {
+			noun = "projects"
+		}
+		return bound{}, fmt.Errorf("filter: field %q does not apply to %s", n.Field, noun)
 	}
 	if !knownOps[n.Op] {
 		return bound{}, fmt.Errorf("filter: unknown operator %q on field %q", n.Op, n.Field)
@@ -635,10 +734,14 @@ func parseValue(field Field, spec fieldSpec, raw string) (any, error) {
 			allowed = stateCategories
 		}
 		if !allowed[raw] {
-			if spec.enums != nil {
-				return nil, fmt.Errorf("filter: unknown customer status %q on field %q", raw, field)
+			what := "state category"
+			switch field {
+			case FieldCustomerStatus:
+				what = "customer status"
+			case FieldStatusCategory:
+				what = "project status category"
 			}
-			return nil, fmt.Errorf("filter: unknown state category %q on field %q", raw, field)
+			return nil, fmt.Errorf("filter: unknown %s %q on field %q", what, raw, field)
 		}
 		return raw, nil
 

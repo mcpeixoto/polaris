@@ -44,6 +44,7 @@ import {
   type DisplayOrderBy,
   type DisplayProperty,
   type FilterNode,
+  type FilterSubject,
   type ViewLayout,
 } from './types';
 import { FilterError, validateFilter } from './validate';
@@ -231,6 +232,7 @@ export function filterSearchString(params: URLSearchParams): string {
 export function parseFilterParam(
   raw: string | null | undefined,
   onError?: (message: string) => void,
+  subject: FilterSubject = 'issue',
 ): FilterNode {
   if (raw === null || raw === undefined || raw.trim() === '') return EMPTY_FILTER;
 
@@ -242,7 +244,7 @@ export function parseFilterParam(
       nodes.length === 1 && isFilterGroup(nodes[0]!) ? nodes[0]! : { conj: 'and', nodes };
     // Validated by the same validator the server's compiler mirrors. A URL is exactly the
     // path by which a filter the compiler would reject reaches a saved view.
-    validateFilter(filter);
+    validateFilter(filter, subject);
     return filter;
   } catch (error) {
     onError?.(error instanceof FilterError ? error.message : 'that filter could not be read');

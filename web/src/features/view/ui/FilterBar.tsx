@@ -72,13 +72,19 @@ import {
 } from '~/components';
 import { formatCustomerStatus } from '~/features/customers/mutations';
 import { browserTimezone } from '~/features/locale';
+import {
+  PROJECT_STATUS_CATEGORY_LABELS,
+  PROJECT_STATUS_ICON,
+} from '~/features/projects/statusCategories';
 import { usePresence, type ExitProps } from '~/hooks/usePresence';
 import { whenDay } from '~/features/time';
 import {
   CUSTOMER_STATUSES,
   EMPTY_FILTER,
+  fieldApplies,
   FILTER_FIELDS,
   FILTER_OPS,
+  PROJECT_STATUS_CATEGORIES,
   isFilterClause,
   isFilterOp,
   isFilterGroup,
@@ -93,6 +99,7 @@ import {
   type FilterGroup,
   type FilterNode,
   type FilterOp,
+  type FilterSubject,
   type FilterValueType,
   type RelativeKeyword,
 } from '~/filter';
@@ -138,6 +145,11 @@ export interface FilterBarProps {
    */
   readonly timezone?: string | undefined;
   readonly className?: string | undefined;
+  /**
+   * Which list the bar is filtering. Issues by default. A project bar offers project
+   * fields and refuses to emit a clause the project grammar would reject.
+   */
+  readonly subject?: FilterSubject | undefined;
 }
 
 /** Where a node sits in the tree: the index at each level, outermost first. */
@@ -153,6 +165,7 @@ const OPTION_DEPS: readonly EntityType[] = [
   'customer',
   'customerRequest',
   'workspace',
+  'projectStatus',
 ];
 
 /**
@@ -171,6 +184,7 @@ export function FilterBar({
   error = null,
   timezone,
   className,
+  subject = 'issue',
 }: FilterBarProps) {
   const zone = timezone ?? browserTimezone();
   const viewer = useViewer();
@@ -287,7 +301,7 @@ export function FilterBar({
 
   const fieldItems = (target: Path | null): MenuNode[] => {
     const items: MenuNode[] = [];
-    for (const group of fieldGroups(hideCustomers)) {
+    for (const group of fieldGroups(subject, hideCustomers)) {
       items.push({ kind: 'heading', label: group.heading });
       for (const field of group.fields) {
         items.push({
@@ -1578,6 +1592,12 @@ const FIELD_LABELS: Readonly<Record<FilterField, string>> = {
   customerRevenue: 'Customer revenue',
   customerSize: 'Customer size',
   customerImportant: 'Important request',
+  status: 'Status',
+  statusCategory: 'Status category',
+  lead: 'Lead',
+  startDate: 'Start date',
+  targetDate: 'Target date',
+  name: 'Name',
 };
 
 /** Said in the add menu where the label alone would leave a real question open. */
@@ -1604,6 +1624,8 @@ const UNKNOWN_ENTITY: Partial<Record<FilterField, string>> = {
   blocking: 'an unknown issue',
   template: 'an unknown template',
   customer: 'an unknown customer',
+  status: 'an unknown status',
+  lead: 'an unknown person',
 };
 
 interface FieldGroup {
@@ -1652,12 +1674,21 @@ const CUSTOMER_FIELDS = new Set<FilterField>([
  * which is the kind of gap nobody finds for a year. Landing under "Other" is not a good
  * home; it is a visible one.
  */
-function fieldGroups(hideCustomers: boolean): readonly FieldGroup[] {
-  const groups = hideCustomers
-    ? GROUPED_FIELDS.filter((group) => group.heading !== 'Customers')
-    : GROUPED_FIELDS;
+const PROJECT_GROUPED_FIELDS: readonly FieldGroup[] = [
+  { heading: 'Properties', fields: ['status', 'statusCategory', 'priority', 'team', 'name'] },
+  { heading: 'People', fields: ['lead'] },
+  { heading: 'Dates', fields: ['startDate', 'targetDate', 'createdAt', 'updatedAt'] },
+];
+
+function fieldGroups(subject: FilterSubject, hideCustomers: boolean): readonly FieldGroup[] {
+  const source = subject === 'project' ? PROJECT_GROUPED_FIELDS : GROUPED_FIELDS;
+  const groups =
+    hideCustomers && subject !== 'project'
+      ? source.filter((group) => group.heading !== 'Customers')
+      : source;
   const placed = new Set(groups.flatMap((group) => group.fields));
   const rest = (Object.keys(FILTER_FIELDS) as FilterField[]).filter((field) => {
+    if (!fieldApplies(field, subject)) return false;
     if (placed.has(field)) return false;
     if (hideCustomers && CUSTOMER_FIELDS.has(field)) return false;
     return true;
@@ -1829,6 +1860,10 @@ function entityName(store: Store, field: FilterField, id: UUID): string | null {
   switch (field) {
     case 'state':
       return store.get('workflowState', id)?.name ?? null;
+    case 'status':
+      return store.get('projectStatus', id)?.name ?? null;
+    case 'lead':
+      return store.get('user', id)?.displayName ?? null;
     case 'assignee':
     case 'creator':
     case 'subscriber':
@@ -1868,6 +1903,22 @@ function entityGlyph(store: Store, field: FilterField, id: UUID): OptionGlyph | 
       return state === undefined
         ? undefined
         : { kind: 'state', category: state.category, color: state.color };
+    }
+    case 'status': {
+      const status = store.get('projectStatus', id);
+      return status === undefined
+        ? undefined
+        : {
+            kind: 'state',
+            category: PROJECT_STATUS_ICON[status.category],
+            color: status.color,
+          };
+    }
+    case 'lead': {
+      const user = store.get('user', id);
+      return user === undefined
+        ? undefined
+        : { kind: 'person', personId: user.id, name: user.displayName, avatar: user.avatarUrl };
     }
     case 'assignee':
     case 'creator':
@@ -1919,6 +1970,13 @@ function staticOptions(field: FilterField): readonly ValueOption[] {
         return CUSTOMER_STATUSES.map((status) => ({
           id: status,
           label: formatCustomerStatus(status),
+        }));
+      }
+      if (field === 'statusCategory') {
+        return PROJECT_STATUS_CATEGORIES.map((category) => ({
+          id: category,
+          label: PROJECT_STATUS_CATEGORY_LABELS[category],
+          glyph: { kind: 'state', category: PROJECT_STATUS_ICON[category] } as const,
         }));
       }
       return (Object.keys(CATEGORY_ORDER) as StateCategory[]).map((category) => ({
@@ -2016,6 +2074,26 @@ function candidates(
           glyph: { kind: 'state', category: state.category, color: state.color } as const,
         }));
     }
+    case 'status':
+      return [...store.projectStatuses.values()]
+        .filter((status) => status.archivedAt === undefined)
+        .sort(
+          (a, b) =>
+            PROJECT_STATUS_CATEGORIES.indexOf(a.category) -
+              PROJECT_STATUS_CATEGORIES.indexOf(b.category) ||
+            (a.position < b.position ? -1 : a.position > b.position ? 1 : 0),
+        )
+        .map((status) => ({
+          id: status.id,
+          label: status.name,
+          hint: PROJECT_STATUS_CATEGORY_LABELS[status.category],
+          glyph: {
+            kind: 'state',
+            category: PROJECT_STATUS_ICON[status.category],
+            color: status.color,
+          } as const,
+        }));
+    case 'lead':
     case 'assignee':
     case 'creator':
     case 'subscriber':

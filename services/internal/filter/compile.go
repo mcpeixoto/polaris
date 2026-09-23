@@ -54,6 +54,9 @@ type Options struct {
 	// `customerCount eq 0` would otherwise return the whole workspace from an empty
 	// replica.
 	HideCustomers bool
+
+	// Subject is the table the fragment is over. Zero means issues.
+	Subject Subject
 }
 
 // aliasPattern is the one string in this package that reaches SQL text uninterpolated.
@@ -76,13 +79,21 @@ const (
 // not accept could still produce SQL, and the point of strict validation is that there is
 // no path around it.
 func Compile(root Node, opts Options) (Compiled, error) {
-	if err := root.Validate(); err != nil {
+	subject := opts.Subject
+	if subject == 0 {
+		subject = SubjectIssue
+	}
+	if err := root.ValidateSubject(subject); err != nil {
 		return Compiled{}, err
 	}
 
 	alias := opts.Alias
 	if alias == "" {
-		alias = "issue"
+		if subject == SubjectProject {
+			alias = "project"
+		} else {
+			alias = "issue"
+		}
 	}
 	if !aliasPattern.MatchString(alias) {
 		return Compiled{}, fmt.Errorf("filter: %q is not a usable table alias", alias)
@@ -97,7 +108,10 @@ func Compile(root Node, opts Options) (Compiled, error) {
 		loc = time.UTC
 	}
 
-	c := &compiler{alias: alias, now: now, loc: loc, offset: opts.ArgOffset, hideCustomers: opts.HideCustomers}
+	c := &compiler{
+		alias: alias, now: now, loc: loc, offset: opts.ArgOffset,
+		hideCustomers: opts.HideCustomers, subject: subject,
+	}
 
 	predicate, err := c.node(root)
 	if err != nil {
@@ -121,7 +135,9 @@ func Compile(root Node, opts Options) (Compiled, error) {
 	if !mentions(root, FieldDeleted) {
 		parts = append(parts, alias+".deleted_at IS NULL")
 	}
-	if !mentions(root, FieldState) && !mentions(root, FieldStateCategory) {
+	// Triage is an issue status. A project has no state_id, and the exclusion would not
+	// parse against that table.
+	if subject == SubjectIssue && !mentions(root, FieldState) && !mentions(root, FieldStateCategory) {
 		// Triage is a category, not a view. An empty filter that pulled unreviewed work
 		// into the backlog would mix two queues, and a view would have to remember to
 		// exclude it — which is how it would sometimes forget. Naming state or
@@ -153,6 +169,7 @@ type compiler struct {
 	offset        int
 	args          []any
 	hideCustomers bool
+	subject       Subject
 }
 
 // placeholder appends an argument and returns the $n that reads it. The only way a value
@@ -197,7 +214,7 @@ func (c *compiler) group(n Node) (string, error) {
 }
 
 func (c *compiler) clause(n Node) (string, error) {
-	b, err := n.bind()
+	b, err := n.bind(c.subject)
 	if err != nil {
 		return "", err
 	}

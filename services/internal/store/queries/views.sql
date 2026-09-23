@@ -2,16 +2,16 @@
 
 -- name: CreateView :one
 INSERT INTO view (id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
-                  filter, display, position, created_by)
+                  target, filter, display, position, created_by)
 VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.narg(team_id), sqlc.narg(owner_id),
         sqlc.narg(project_id), sqlc.arg(name), sqlc.narg(description), sqlc.narg(icon),
-        sqlc.narg(color), sqlc.arg(filter), sqlc.arg(display), sqlc.arg(position),
+        sqlc.narg(color), sqlc.arg(target), sqlc.arg(filter), sqlc.arg(display), sqlc.arg(position),
         sqlc.narg(created_by))
-RETURNING id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
+RETURNING id, workspace_id, team_id, owner_id, project_id, name, description, icon, color, target,
           filter, display, position, created_by, archived_at, created_at, updated_at;
 
 -- name: GetView :one
-SELECT id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
+SELECT id, workspace_id, team_id, owner_id, project_id, name, description, icon, color, target,
        filter, display, position, created_by, archived_at, created_at, updated_at
 FROM view
 WHERE id = $1;
@@ -21,7 +21,7 @@ WHERE id = $1;
 -- a project, not in the sidebar.
 --
 -- name: ListViewsForUser :many
-SELECT id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
+SELECT id, workspace_id, team_id, owner_id, project_id, name, description, icon, color, target,
        filter, display, position, created_by, archived_at, created_at, updated_at
 FROM view
 WHERE workspace_id = sqlc.arg(workspace_id)
@@ -47,7 +47,7 @@ ORDER BY position;
 -- removal happen does not have.
 --
 -- name: StreamViewsForBootstrap :many
-SELECT id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
+SELECT id, workspace_id, team_id, owner_id, project_id, name, description, icon, color, target,
        filter, display, position, created_by, archived_at, created_at, updated_at
 FROM view
 WHERE view.workspace_id = sqlc.arg(workspace_id)
@@ -84,7 +84,7 @@ SET name        = COALESCE(sqlc.narg(name), name),
     owner_id    = CASE WHEN sqlc.arg(clear_owner)::boolean THEN NULL
                        ELSE COALESCE(sqlc.narg(owner_id), owner_id) END
 WHERE id = sqlc.arg(id) AND archived_at IS NULL
-RETURNING id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
+RETURNING id, workspace_id, team_id, owner_id, project_id, name, description, icon, color, target,
           filter, display, position, created_by, archived_at, created_at, updated_at;
 
 -- Deleting a view archives it. Favourites and view_preference rows point at views by id
@@ -94,7 +94,7 @@ RETURNING id, workspace_id, team_id, owner_id, project_id, name, description, ic
 -- name: ArchiveView :one
 UPDATE view SET archived_at = now()
 WHERE id = $1 AND archived_at IS NULL
-RETURNING id, workspace_id, team_id, owner_id, project_id, name, description, icon, color,
+RETURNING id, workspace_id, team_id, owner_id, project_id, name, description, icon, color, target,
           filter, display, position, created_by, archived_at, created_at, updated_at;
 
 -- Positions are compared across every sidebar view in the workspace, which is the order the

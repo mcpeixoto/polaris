@@ -73,9 +73,11 @@ const LAYOUT_LABELS: Readonly<Record<ProjectLayout, string>> = {
 const GROUPING_LABELS: Readonly<Record<ProjectGrouping, string>> = {
   none: 'No grouping',
   status: 'Status',
+  statusCategory: 'Status category',
   lead: 'Lead',
   team: 'Team',
   priority: 'Priority',
+  targetDate: 'Target date',
 };
 
 const ORDERING_LABELS: Readonly<Record<ProjectOrdering, string>> = {
@@ -84,6 +86,8 @@ const ORDERING_LABELS: Readonly<Record<ProjectOrdering, string>> = {
   targetDate: 'Target date',
   priority: 'Priority',
   updated: 'Updated',
+  status: 'Status',
+  created: 'Created',
 };
 
 const DIRECTION_LABELS: Readonly<Record<ProjectDirection, string>> = {
@@ -108,13 +112,23 @@ const ZOOM_LABELS: Readonly<Record<ProjectTimelineZoom, string>> = {
 };
 
 const LAYOUT_ORDER: readonly ProjectLayout[] = ['list', 'board', 'timeline'];
-const GROUPING_ORDER: readonly ProjectGrouping[] = ['none', 'status', 'lead', 'team', 'priority'];
+const GROUPING_ORDER: readonly ProjectGrouping[] = [
+  'none',
+  'status',
+  'statusCategory',
+  'lead',
+  'team',
+  'priority',
+  'targetDate',
+];
 const ORDERING_ORDER: readonly ProjectOrdering[] = [
   'manual',
-  'name',
-  'targetDate',
+  'status',
   'priority',
+  'targetDate',
+  'created',
   'updated',
+  'name',
 ];
 const DIRECTION_ORDER: readonly ProjectDirection[] = ['asc', 'desc'];
 const ZOOM_ORDER: readonly ProjectTimelineZoom[] = ['week', 'month', 'quarter', 'year'];
