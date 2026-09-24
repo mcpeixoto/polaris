@@ -33,8 +33,16 @@
    * cyan accent, and this interface is grey by roughly ninety per cent of its area, so
    * the tint is not a detail.
    *
-   * 950 exists outside the usual 50–900 run because the dark theme needs three separated
-   * surfaces below neutral-800 — page, panel, control — and ten stops only offer two.
+   * 950 and 925 sit below the usual 50–900 run because the dark theme separates four
+   * surfaces: the sidebar (950), the page (925), a panel (900) and a control (800). The
+   * page is one shade lighter than the sidebar so the two read as different planes; 900
+   * stays above the page so a panel still lifts off it.
+   *
+   * 450 sits between 400 and 500 for the same reason. Dark tertiary text used to be 500,
+   * which clears 4.5:1 on 950 and drops under the floor the moment the page lightens.
+   * 450 is the dimmest stop that still clears 4.5:1 on the dark page (4.56:1) and still
+   * fails on a raised surface (4.42:1 on 900, 3.67:1 on 800), so tertiary ink stays off
+   * cards.
    */
   --color-white: #ffffff;
   --color-black: #05070a;
@@ -44,11 +52,13 @@
   --color-neutral-200: #e1e4e9;
   --color-neutral-300: #c9ced6;
   --color-neutral-400: #9aa1ad;
+  --color-neutral-450: #7c838e;
   --color-neutral-500: #767d89;
   --color-neutral-600: #545a63;
   --color-neutral-700: #3c414a;
   --color-neutral-800: #282c33;
   --color-neutral-900: #1a1d22;
+  --color-neutral-925: #171a1f;
   --color-neutral-950: #0e1013;
 
   /* --- Accent ramp ---------------------------------------------------
@@ -349,13 +359,13 @@
    * that reading breaks: nothing else on screen says a control is there, so its edge is the
    * control's only visual affordance and owes the full 3:1 non-text contrast.
    *
-   * --border-strong does not clear it — 2.60:1 light, 2.74:1 dark against the page — so this
+   * --border-strong does not clear it — 2.60:1 light, 2.51:1 dark against the page — so this
    * is a separate role rather than a change to that one. Widening --border-strong would drag
    * every decorative separator in the product up with it, which is a heavier visual change
    * than the accessibility fix needs, and the two are genuinely different jobs.
    *
    * Neutral 500 in both themes, and the symmetry is a coincidence worth stating: it clears
-   * against white (4.26:1) and against the near-black page (4.44:1) alike, and still clears
+   * against white (4.26:1) and against the dark page (4.21:1) alike, and still clears
    * on the raised surfaces a checkbox actually appears on (3.93:1 on --bg-elevated in dark).
    */
   --border-control: var(--color-neutral-500);
@@ -429,7 +439,7 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --bg-primary: var(--color-neutral-950);
+  --bg-primary: var(--color-neutral-925);
   --bg-secondary: var(--color-neutral-900);
   --bg-tertiary: var(--color-neutral-800);
   --bg-sidebar: var(--color-neutral-950);
@@ -440,7 +450,7 @@
 
   --text-primary: var(--color-neutral-100);
   --text-secondary: var(--color-neutral-400);
-  --text-tertiary: var(--color-neutral-500);
+  --text-tertiary: var(--color-neutral-450);
   --text-danger: var(--color-red-400);
   --text-inverse: var(--color-neutral-950);
 
@@ -503,7 +513,7 @@
   :root:not([data-theme='light']) {
     color-scheme: dark;
 
-    --bg-primary: var(--color-neutral-950);
+    --bg-primary: var(--color-neutral-925);
     --bg-secondary: var(--color-neutral-900);
     --bg-tertiary: var(--color-neutral-800);
     --bg-sidebar: var(--color-neutral-950);
@@ -514,7 +524,7 @@
 
     --text-primary: var(--color-neutral-100);
     --text-secondary: var(--color-neutral-400);
-    --text-tertiary: var(--color-neutral-500);
+    --text-tertiary: var(--color-neutral-450);
     --text-danger: var(--color-red-400);
     --text-inverse: var(--color-neutral-950);
 

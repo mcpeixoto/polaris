@@ -185,9 +185,9 @@ labels lead.
   well — an overdue date says "overdue", it is not merely red. This binds links too: a link
   distinguished from surrounding prose by colour alone needs 3:1 against that prose, which
   the accent does not have in either theme, so a link inside a sentence is underlined.
-- **`--text-tertiary` is only safe on `--bg-primary`.** In dark it is neutral-500, which
-  clears 4.5:1 against the page by a tenth and then fails the moment the text lands on a
-  raised surface — 4.08:1 on `--bg-elevated`, 3.38:1 on `--bg-tertiary`. Body text on a card,
+- **`--text-tertiary` is only safe on `--bg-primary`.** In dark it is neutral-450, which
+  clears 4.5:1 against the page (4.56:1) and then fails the moment the text lands on a
+  raised surface — 4.42:1 on `--bg-elevated`, 3.67:1 on `--bg-tertiary`. Body text on a card,
   a menu, a dialog or a popover takes `--text-secondary`. Tertiary keeps the surfaces it was
   measured for: the page itself, icons at the 3:1 floor, and disabled text, which is exempt.
   This one rule has already been hit independently in `Kbd`, `Menu`, `Modal`, `LabelChip` and

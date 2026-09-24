@@ -336,14 +336,14 @@ function trackWindowState(win: BrowserWindow): void {
  * on a light desktop no longer gets a black flash on every launch.
  */
 function windowBackground(): string {
-  return nativeTheme.shouldUseDarkColors ? '#0d0e10' : '#ffffff';
+  return nativeTheme.shouldUseDarkColors ? '#171a1f' : '#ffffff';
 }
 
 /** The Windows controls overlay, recoloured with the theme so it is not a grey notch. */
 function titleBarOverlayColors(): { color: string; symbolColor: string; height: number } {
   const dark = nativeTheme.shouldUseDarkColors;
   return {
-    color: dark ? '#0d0e10' : '#ffffff',
+    color: dark ? '#171a1f' : '#ffffff',
     symbolColor: dark ? '#eeeff1' : '#282a30',
     // Repeated in preload.cts's `chromeOf`, which is what the renderer insets by.
     height: TITLE_BAR_HEIGHT,

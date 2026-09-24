@@ -309,7 +309,7 @@
 
 .selectionCount {
   margin-right: var(--space-2);
-  /* Secondary and not tertiary: the bar is `--bg-elevated`, where tertiary is 4.08:1 in
+  /* Secondary and not tertiary: the bar is `--bg-elevated`, where tertiary is 4.42:1 in
      dark — and this is the one line on it that says how many rows are about to change. */
   color: var(--text-secondary);
   font-size: var(--font-size-sm);

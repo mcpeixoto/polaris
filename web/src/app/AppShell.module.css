@@ -624,7 +624,7 @@
   padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
   background: var(--bg-tertiary);
-  /* On --bg-tertiary, which the composition doc measures at 3.38:1 for tertiary ink in the
+  /* On --bg-tertiary, which the composition doc measures at 3.67:1 for tertiary ink in the
      dark theme. This is the clearest case of the rule in the file. */
   color: var(--text-secondary);
   font-size: var(--font-size-xs);

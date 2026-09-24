@@ -62,7 +62,7 @@
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   /* --text-secondary, not tertiary: this sheet is inside Modal's `.dialog`, a raised surface
-     where tertiary measures 4.08:1 and fails body text. The size and weight are what separate
+     where tertiary measures 4.42:1 and fails body text. The size and weight are what separate
      the heading from its rows; the colour was never carrying that on its own. */
   color: var(--text-secondary);
 }

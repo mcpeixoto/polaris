@@ -33,7 +33,7 @@
    *
    * --text-tertiary is tuned against the *page*, where it clears 4.5:1 with almost nothing
    * to spare — 4.60:1 in dark. A key chip is not on the page: it sits a surface step up,
-   * and tertiary ink on --bg-tertiary measures 3.38:1 in dark. That is a fail for text by
+   * and tertiary ink on --bg-tertiary measures 3.67:1 in dark. That is a fail for text by
    * any reading, and these are not decorative glyphs; a shortcut hint nobody can read is a
    * shortcut nobody learns. Secondary is 5.39:1 dark and 8.98:1 light, and still visibly
    * quieter than the label beside it.

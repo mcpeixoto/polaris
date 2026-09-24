@@ -108,7 +108,7 @@
  * Quieter by weight rather than by colour, and that is the whole point. The obvious version
  * was --text-tertiary, and it is the one colour on this chip that cannot be checked: every
  * other value here is derived from --label-color, but the *ground* is too — a 14% wash of a
- * hex somebody picked in a colour well, over --bg-tertiary. Tertiary ink starts at 3.38:1
+ * hex somebody picked in a colour well, over --bg-tertiary. Tertiary ink starts at 3.67:1
  * against the unwashed surface in dark, and which side of the floor it lands on after the
  * mix is a property of workspace data. That is exactly the arithmetic the header comment
  * says this component exists to avoid: contrast is the theme's problem, solved once, and
