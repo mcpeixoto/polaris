@@ -1,7 +1,7 @@
 /**
  * The shell's chrome: the top row with its two buttons, the sections a
  * person can close, the team rows with their emoji and their cycles, and the foot of the
- * column with help and the plan.
+ * column with the desktop downloads, help and the plan.
  *
  * Every assertion here is about a control that exists or a destination it reaches, not about
  * a pixel — the stylesheet is checked by eye, and what a test can hold still is that the
@@ -439,6 +439,17 @@ describe('a team’s three lists', () => {
 });
 
 describe('the foot of the sidebar', () => {
+  it('offers the desktop builds from a download button', async () => {
+    const user = userEvent.setup();
+    renderShell(seeded());
+    const nav = screen.getByRole('navigation', { name: 'Workspace' });
+    await user.click(within(nav).getByRole('button', { name: 'Download apps' }));
+    const menu = screen.getByRole('menu', { name: 'Download Polaris' });
+    expect(within(menu).getByRole('menuitem', { name: /Apple Silicon/ })).toBeTruthy();
+    expect(within(menu).getByRole('menuitem', { name: /Installer/ })).toBeTruthy();
+    expect(within(menu).getByRole('menuitem', { name: /AppImage/ })).toBeTruthy();
+  });
+
   it('opens the shortcut sheet from the help button', async () => {
     const user = userEvent.setup();
     renderShell(seeded());
