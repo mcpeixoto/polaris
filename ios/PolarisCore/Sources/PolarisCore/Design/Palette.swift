@@ -31,8 +31,9 @@ public enum Palette {
     public static let neutral500: UInt32 = 0x767D89
     /// An iOS-only stop, between 400 and 500.
     ///
-    /// The web's `--text-tertiary` in dark is neutral-500, and on a *page* it is fine — 4.62:1.
-    /// It is not fine on the raised surfaces this app draws tertiary text on: a placeholder
+    /// The web's `--text-tertiary` in dark is neutral-450 (`#7c838e`), which clears 4.5:1 on
+    /// the dark page (`#171a1f`) and fails on a raised surface. It is not fine on the raised
+    /// surfaces this app draws tertiary text on either: a placeholder
     /// inside a field, an eyebrow on a card. A placeholder is real text — WCAG exempts inactive
     /// controls, not the words inside an active one — and that failure is the one three
     /// separate accessibility audits of this app have caught.

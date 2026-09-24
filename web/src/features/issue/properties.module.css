@@ -51,7 +51,7 @@
   width: 240px;
 }
 
-/* Secondary and not tertiary: this sits on `--bg-elevated`, where tertiary measures 4.08:1 in
+/* Secondary and not tertiary: this sits on `--bg-elevated`, where tertiary measures 4.42:1 in
    dark and fails body text. See 08-ui-composition.md. */
 .note {
   margin: 0;

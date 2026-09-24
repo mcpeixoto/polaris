@@ -245,7 +245,7 @@
  *
  * --text-secondary, and it used to be --text-tertiary. That is a contrast fix, not a
  * loudness preference. In dark — which is what the shipped default preference resolves to —
- * --text-tertiary is neutral-500 and the card is neutral-900, which measures 4.08:1: under
+ * --text-tertiary is neutral-450 and the card is neutral-900, which measures 4.42:1: under
  * the 4.5:1 floor body text owes. It clears comfortably on the darker --bg-primary that
  * settings pages use, which is why the same token is fine there and not here. --text-secondary
  * is 6.50:1 on this surface and 10.23:1 in light.
@@ -299,8 +299,8 @@
 .footer {
   max-width: 420px;
   text-align: center;
-  /* See .subtitle: --text-tertiary on the page colour is 4.08:1 in dark, and this line sits
-     on the page rather than on the card, so there is no lift to make up the difference. */
+  /* See .subtitle: tertiary ink fails on the card. This line sits on the page, where it
+     would clear, and stays secondary so the two lines of the screen do not change weight. */
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   /* Last, because it is the way out of a screen the user has only just been shown. */

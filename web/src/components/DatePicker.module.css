@@ -58,7 +58,7 @@
 
 .relativeDay {
   flex: none;
-  /* Secondary and not tertiary: this sits on `--bg-elevated`, where tertiary measures 4.08:1
+  /* Secondary and not tertiary: this sits on `--bg-elevated`, where tertiary measures 4.42:1
      in dark and fails body text. See 08-ui-composition.md. */
   color: var(--text-secondary);
   font-size: var(--font-size-sm);

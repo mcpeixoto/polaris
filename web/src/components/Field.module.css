@@ -112,7 +112,7 @@
  * The ink is secondary rather than tertiary, and that is the widest-reaching contrast fix in
  * the kit: Field is the frame behind Input, Textarea, Select and SecretField, so every form
  * hint in the product inherits this rule — including the ones inside a dialog, where the text
- * sits on --bg-elevated and tertiary measures 4.08:1 in dark. Tertiary is tuned against the
+ * sits on --bg-elevated and tertiary measures 4.42:1 in dark. Tertiary is tuned against the
  * page and nothing else; see docs/03-architecture/08-ui-composition.md.
  */
 .message {
