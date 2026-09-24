@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const advanceNotificationCursor = `-- name: AdvanceNotificationCursor :exec
@@ -54,6 +55,44 @@ type AdvanceNotificationEmailCursorParams struct {
 func (q *Queries) AdvanceNotificationEmailCursor(ctx context.Context, arg AdvanceNotificationEmailCursorParams) error {
 	_, err := q.db.Exec(ctx, advanceNotificationEmailCursor, arg.UserID, arg.SentAt)
 	return err
+}
+
+const claimDueNotice = `-- name: ClaimDueNotice :one
+INSERT INTO notification_due (user_id, issue_id, kind, due_date)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT DO NOTHING
+RETURNING user_id, issue_id, kind, due_date
+`
+
+type ClaimDueNoticeParams struct {
+	UserID  uuid.UUID
+	IssueID uuid.UUID
+	Kind    string
+	DueDate pgtype.Date
+}
+
+type ClaimDueNoticeRow struct {
+	UserID  uuid.UUID
+	IssueID uuid.UUID
+	Kind    string
+	DueDate pgtype.Date
+}
+
+func (q *Queries) ClaimDueNotice(ctx context.Context, arg ClaimDueNoticeParams) (ClaimDueNoticeRow, error) {
+	row := q.db.QueryRow(ctx, claimDueNotice,
+		arg.UserID,
+		arg.IssueID,
+		arg.Kind,
+		arg.DueDate,
+	)
+	var i ClaimDueNoticeRow
+	err := row.Scan(
+		&i.UserID,
+		&i.IssueID,
+		&i.Kind,
+		&i.DueDate,
+	)
+	return i, err
 }
 
 const claimNotificationsForEmail = `-- name: ClaimNotificationsForEmail :many
@@ -733,6 +772,105 @@ func (q *Queries) ListNotificationsForIssue(ctx context.Context, arg ListNotific
 	return items, nil
 }
 
+const listOpenIssuesWithDueDates = `-- name: ListOpenIssuesWithDueDates :many
+SELECT i.id, i.workspace_id, i.assignee_id, i.due_date, i.number, i.title,
+       t.key AS team_key, t.timezone AS team_timezone
+FROM issue i
+JOIN team t ON t.id = i.team_id
+JOIN workflow_state s ON s.id = i.state_id
+WHERE i.workspace_id = $1
+  AND i.deleted_at IS NULL
+  AND i.archived_at IS NULL
+  AND i.due_date IS NOT NULL
+  AND i.due_date <= CURRENT_DATE + 1
+  AND s.category NOT IN ('completed', 'canceled', 'duplicate')
+  AND NOT EXISTS (
+    SELECT 1 FROM notification_due d
+    WHERE d.issue_id = i.id
+      AND d.due_date = i.due_date
+      AND d.kind = 'overdue'
+      AND (i.assignee_id IS NULL OR d.user_id = i.assignee_id)
+  )
+ORDER BY i.due_date, i.id
+LIMIT 2000
+`
+
+type ListOpenIssuesWithDueDatesRow struct {
+	ID           uuid.UUID
+	WorkspaceID  uuid.UUID
+	AssigneeID   *uuid.UUID
+	DueDate      pgtype.Date
+	Number       int64
+	Title        string
+	TeamKey      string
+	TeamTimezone string
+}
+
+func (q *Queries) ListOpenIssuesWithDueDates(ctx context.Context, workspaceID uuid.UUID) ([]ListOpenIssuesWithDueDatesRow, error) {
+	rows, err := q.db.Query(ctx, listOpenIssuesWithDueDates, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOpenIssuesWithDueDatesRow{}
+	for rows.Next() {
+		var i ListOpenIssuesWithDueDatesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.AssigneeID,
+			&i.DueDate,
+			&i.Number,
+			&i.Title,
+			&i.TeamKey,
+			&i.TeamTimezone,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspacesWithDueIssues = `-- name: ListWorkspacesWithDueIssues :many
+
+SELECT DISTINCT i.workspace_id
+FROM issue i
+JOIN workflow_state s ON s.id = i.state_id
+WHERE i.deleted_at IS NULL
+  AND i.archived_at IS NULL
+  AND i.due_date IS NOT NULL
+  AND i.due_date <= CURRENT_DATE + 1
+  AND s.category NOT IN ('completed', 'canceled', 'duplicate')
+`
+
+// Due dates.
+//
+// A deadline is a calendar fact, not a mutation, so these queries are the sweep's whole
+// view of the table. The fan-out never writes an issue_due row.
+func (q *Queries) ListWorkspacesWithDueIssues(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listWorkspacesWithDueIssues)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var workspace_id uuid.UUID
+		if err := rows.Scan(&workspace_id); err != nil {
+			return nil, err
+		}
+		items = append(items, workspace_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkspacesWithPendingNotifications = `-- name: ListWorkspacesWithPendingNotifications :many
 SELECT wv.workspace_id
 FROM workspace_version wv
@@ -1198,6 +1336,75 @@ func (q *Queries) UnsubscribeNonMembersFromTeamIssues(ctx context.Context, teamI
 		return nil, err
 	}
 	return items, nil
+}
+
+const upsertDueNotification = `-- name: UpsertDueNotification :one
+INSERT INTO notification (id, workspace_id, user_id, type, issue_id, comment_id,
+                          actor_type, actor_id, change_version, group_key, count, payload)
+VALUES ($1, $2, $3, $4,
+        $5, NULL, 'system', NULL, $6,
+        $7, $8, $9)
+ON CONFLICT (user_id, group_key) DO UPDATE
+SET count          = notification.count + EXCLUDED.count,
+    read_at        = NULL,
+    change_version = EXCLUDED.change_version,
+    payload        = jsonb_build_object(
+      'kind', EXCLUDED.payload->>'kind',
+      'issueIds', COALESCE(notification.payload->'issueIds', '[]'::jsonb)
+                  || COALESCE(EXCLUDED.payload->'issueIds', '[]'::jsonb)
+    )
+RETURNING id, workspace_id, user_id, type, issue_id, comment_id, actor_type, actor_id,
+          change_version, group_key, count, payload, read_at, snoozed_until, deleted_at,
+          created_at, updated_at, emailed_at, pushed_at
+`
+
+type UpsertDueNotificationParams struct {
+	ID            uuid.UUID
+	WorkspaceID   uuid.UUID
+	UserID        uuid.UUID
+	Type          string
+	IssueID       *uuid.UUID
+	ChangeVersion int64
+	GroupKey      string
+	Count         int32
+	Payload       []byte
+}
+
+func (q *Queries) UpsertDueNotification(ctx context.Context, arg UpsertDueNotificationParams) (Notification, error) {
+	row := q.db.QueryRow(ctx, upsertDueNotification,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.UserID,
+		arg.Type,
+		arg.IssueID,
+		arg.ChangeVersion,
+		arg.GroupKey,
+		arg.Count,
+		arg.Payload,
+	)
+	var i Notification
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.UserID,
+		&i.Type,
+		&i.IssueID,
+		&i.CommentID,
+		&i.ActorType,
+		&i.ActorID,
+		&i.ChangeVersion,
+		&i.GroupKey,
+		&i.Count,
+		&i.Payload,
+		&i.ReadAt,
+		&i.SnoozedUntil,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EmailedAt,
+		&i.PushedAt,
+	)
+	return i, err
 }
 
 const upsertNotification = `-- name: UpsertNotification :one

@@ -221,6 +221,21 @@ func run() error {
 			},
 		},
 		{
+			// A notice is owed from 08:00 in the team's zone. The claim is the memory, so
+			// saying it twice is impossible, and a restart during the morning still says it.
+			name:   "sweep due dates",
+			every:  time.Hour,
+			atBoot: true,
+			run: func(ctx context.Context) error {
+				n, err := svc.SweepDueNotifications(ctx, time.Now())
+				if err == nil && n > 0 {
+					log.Info("wrote due-date notices", "rows", n)
+				}
+				return err
+			},
+			critical: false,
+		},
+		{
 			// The trash's retention sweep: issues soft-deleted longer ago than the restore
 			// window, removed for real.
 			//

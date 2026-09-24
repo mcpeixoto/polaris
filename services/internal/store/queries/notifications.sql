@@ -498,3 +498,65 @@ WHERE s.workspace_id = sqlc.arg(workspace_id)
   AND s.id > sqlc.arg(after_id)
 ORDER BY s.id
 LIMIT sqlc.arg(page_size);
+
+-- Due dates.
+--
+-- A deadline is a calendar fact, not a mutation, so these queries are the sweep's whole
+-- view of the table. The fan-out never writes an issue_due row.
+
+-- name: ListWorkspacesWithDueIssues :many
+SELECT DISTINCT i.workspace_id
+FROM issue i
+JOIN workflow_state s ON s.id = i.state_id
+WHERE i.deleted_at IS NULL
+  AND i.archived_at IS NULL
+  AND i.due_date IS NOT NULL
+  AND i.due_date <= CURRENT_DATE + 1
+  AND s.category NOT IN ('completed', 'canceled', 'duplicate');
+
+-- name: ListOpenIssuesWithDueDates :many
+SELECT i.id, i.workspace_id, i.assignee_id, i.due_date, i.number, i.title,
+       t.key AS team_key, t.timezone AS team_timezone
+FROM issue i
+JOIN team t ON t.id = i.team_id
+JOIN workflow_state s ON s.id = i.state_id
+WHERE i.workspace_id = sqlc.arg(workspace_id)
+  AND i.deleted_at IS NULL
+  AND i.archived_at IS NULL
+  AND i.due_date IS NOT NULL
+  AND i.due_date <= CURRENT_DATE + 1
+  AND s.category NOT IN ('completed', 'canceled', 'duplicate')
+  AND NOT EXISTS (
+    SELECT 1 FROM notification_due d
+    WHERE d.issue_id = i.id
+      AND d.due_date = i.due_date
+      AND d.kind = 'overdue'
+      AND (i.assignee_id IS NULL OR d.user_id = i.assignee_id)
+  )
+ORDER BY i.due_date, i.id
+LIMIT 2000;
+
+-- name: ClaimDueNotice :one
+INSERT INTO notification_due (user_id, issue_id, kind, due_date)
+VALUES (sqlc.arg(user_id), sqlc.arg(issue_id), sqlc.arg(kind), sqlc.arg(due_date))
+ON CONFLICT DO NOTHING
+RETURNING user_id, issue_id, kind, due_date;
+
+-- name: UpsertDueNotification :one
+INSERT INTO notification (id, workspace_id, user_id, type, issue_id, comment_id,
+                          actor_type, actor_id, change_version, group_key, count, payload)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(user_id), sqlc.arg(type),
+        sqlc.narg(issue_id), NULL, 'system', NULL, sqlc.arg(change_version),
+        sqlc.arg(group_key), sqlc.arg(count), sqlc.arg(payload))
+ON CONFLICT (user_id, group_key) DO UPDATE
+SET count          = notification.count + EXCLUDED.count,
+    read_at        = NULL,
+    change_version = EXCLUDED.change_version,
+    payload        = jsonb_build_object(
+      'kind', EXCLUDED.payload->>'kind',
+      'issueIds', COALESCE(notification.payload->'issueIds', '[]'::jsonb)
+                  || COALESCE(EXCLUDED.payload->'issueIds', '[]'::jsonb)
+    )
+RETURNING id, workspace_id, user_id, type, issue_id, comment_id, actor_type, actor_id,
+          change_version, group_key, count, payload, read_at, snoozed_until, deleted_at,
+          created_at, updated_at, emailed_at, pushed_at;
