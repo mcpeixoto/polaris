@@ -95,7 +95,8 @@ var notInTheAPI = map[string]string{
 	// IssueRestoreWindow and nothing else, and a mutation that let somebody choose it would
 	// be a way to defeat the recovery window the trash exists to be. What a caller can do —
 	// empty their own workspace's trash, admin-only — is purgeDeletedIssues.
-	"PurgeExpiredIssues": "worker cron",
+	"PurgeExpiredIssues":    "worker cron",
+	"SweepDueNotifications": "worker cron",
 
 	// Not a mutation at all — it matches the "Resolve" verb but reads a principal. It is
 	// called by the auth middleware and the socket handshake, never by a caller.

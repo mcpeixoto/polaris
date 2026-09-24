@@ -71,6 +71,7 @@ var serverSideOnly = map[string]string{
 	"DeliverNotificationDigests": "worker cron: sends the digest mail",
 	"DeliverPulseDigests":        "worker cron: writes Pulse morning inbox summaries",
 	"DeliverPushNotifications":   "worker cron: sends APNs alerts for inbox rows",
+	"SweepDueNotifications":      "worker cron: writes due and overdue notices",
 	"AdvanceCycles":              "worker cron: closes ended cycles, rolls work, auto-adds",
 	"AdvanceRecurringIssues":     "worker cron: mints the next occurrence after the due date passes",
 	"AutoCloseIssues":            "worker cron: closes stale open issues per team period",

@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -263,7 +264,7 @@ func pushAlertsFor(rows []store.ClaimNotificationsForPushRow) []pushAlert {
 	}
 	out := make([]pushAlert, 0, len(rows))
 	for _, row := range rows {
-		body := describePushEvent(row.Type, row.IssueIdentifier, int64(row.Count))
+		body := describePushEvent(row.Type, row.IssueIdentifier, int64(row.Count), row.Payload)
 		data := map[string]string{"route": "inbox", "notificationId": row.ID.String()}
 		thread := "inbox"
 		if row.IssueID != nil {
@@ -284,7 +285,7 @@ func pushAlertsFor(rows []store.ClaimNotificationsForPushRow) []pushAlert {
 
 // describePushEvent is the APNs body line. Kept in sync with web describeEvent's tone —
 // short, past-tense, naming the issue.
-func describePushEvent(typ, identifier string, count int64) string {
+func describePushEvent(typ, identifier string, count int64, payload []byte) string {
 	if identifier == "" {
 		identifier = "an issue"
 	}
@@ -300,7 +301,14 @@ func describePushEvent(typ, identifier string, count int64) string {
 	case "issue_priority_raised":
 		return "raised the priority of " + identifier + others
 	case "issue_due":
-		return identifier + " is due" + others
+		switch dueKind(payload) {
+		case "overdue":
+			return identifier + " is overdue" + others
+		case "today":
+			return identifier + " is due today" + others
+		default:
+			return identifier + " is due" + others
+		}
 	case "issue_blocked":
 		return "blocked " + identifier + others
 	case "comment":
@@ -312,4 +320,14 @@ func describePushEvent(typ, identifier string, count int64) string {
 	default:
 		return "updated " + identifier + others
 	}
+}
+
+func dueKind(payload []byte) string {
+	var bag struct {
+		Kind string `json:"kind"`
+	}
+	if err := json.Unmarshal(payload, &bag); err != nil {
+		return ""
+	}
+	return bag.Kind
 }

@@ -177,6 +177,7 @@ type Querier interface {
 	// worker's claim, which takes whatever is oldest — here somebody is watching one session
 	// and the answer belongs to them.
 	ClaimAgentSessionByID(ctx context.Context, arg ClaimAgentSessionByIDParams) (AgentSession, error)
+	ClaimDueNotice(ctx context.Context, arg ClaimDueNoticeParams) (ClaimDueNoticeRow, error)
 	// ClaimIdempotencyKey is the first statement of every mutation.
 	//
 	// ON CONFLICT DO NOTHING means a concurrent duplicate loses the race and returns no row;
@@ -1096,6 +1097,7 @@ type Querier interface {
 	ListOauthApplicationsForWorkspace(ctx context.Context, workspaceID *uuid.UUID) ([]ListOauthApplicationsForWorkspaceRow, error)
 	// Open work in a closing cycle: unstarted and started, not backlog/triage/canceled/completed.
 	ListOpenIssuesInCycle(ctx context.Context, cycleID *uuid.UUID) ([]ListOpenIssuesInCycleRow, error)
+	ListOpenIssuesWithDueDates(ctx context.Context, workspaceID uuid.UUID) ([]ListOpenIssuesWithDueDatesRow, error)
 	ListPendingInvites(ctx context.Context, workspaceID uuid.UUID) ([]Invite, error)
 	ListProjectDependenciesBlockedBy(ctx context.Context, blockedProjectID uuid.UUID) ([]ProjectDependency, error)
 	ListProjectDependenciesBlocking(ctx context.Context, blockingProjectID uuid.UUID) ([]ProjectDependency, error)
@@ -1234,6 +1236,11 @@ type Querier interface {
 	ListWorkflowStatesForTeam(ctx context.Context, teamID uuid.UUID) ([]WorkflowState, error)
 	ListWorkflowStatesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]WorkflowState, error)
 	ListWorkspacesForAccount(ctx context.Context, accountID *uuid.UUID) ([]ListWorkspacesForAccountRow, error)
+	// Due dates.
+	//
+	// A deadline is a calendar fact, not a mutation, so these queries are the sweep's whole
+	// view of the table. The fan-out never writes an issue_due row.
+	ListWorkspacesWithDueIssues(ctx context.Context) ([]uuid.UUID, error)
 	// ListWorkspacesWithPendingNotifications drives the fan-out job, which like the retention
 	// sweep has no principal and therefore no workspace of its own to start from.
 	//
@@ -1932,6 +1939,7 @@ type Querier interface {
 	UpdateWebhookEnabled(ctx context.Context, arg UpdateWebhookEnabledParams) (UpdateWebhookEnabledRow, error)
 	UpdateWorkflowState(ctx context.Context, arg UpdateWorkflowStateParams) (WorkflowState, error)
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (Workspace, error)
+	UpsertDueNotification(ctx context.Context, arg UpsertDueNotificationParams) (Notification, error)
 	UpsertGitHubTeamAutomation(ctx context.Context, arg UpsertGitHubTeamAutomationParams) (GithubTeamAutomation, error)
 	UpsertGitLabTeamAutomation(ctx context.Context, arg UpsertGitLabTeamAutomationParams) (GitlabTeamAutomation, error)
 	// The inbox, and the subscriptions that decide who gets one.

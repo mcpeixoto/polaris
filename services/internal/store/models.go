@@ -754,6 +754,14 @@ type NotificationCursor struct {
 	UpdatedAt   time.Time
 }
 
+type NotificationDue struct {
+	UserID    uuid.UUID
+	IssueID   uuid.UUID
+	Kind      string
+	DueDate   pgtype.Date
+	CreatedAt time.Time
+}
+
 type NotificationEmailCursor struct {
 	UserID     uuid.UUID
 	LastSentAt time.Time
