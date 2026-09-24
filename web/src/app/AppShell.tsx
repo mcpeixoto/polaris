@@ -25,6 +25,7 @@ import {
 import { NavLink, useLocation, useNavigate } from 'react-router';
 
 import { AgentPanel } from '~/features/agent/AgentPanel';
+import { DownloadApps } from '~/features/downloads/DownloadApps';
 import { useAgentPanel } from '~/features/agent/useAgentPanel';
 import { EntityIcon } from '~/features/icon/EntityIcon';
 import { useDesktopNotifications, useUnreadBadge } from '~/features/inbox/desktop';
@@ -1614,12 +1615,13 @@ export function AppShell({
             </NavSection>
 
             {/*
-              The foot of the column: help, which plan this is, and the way to put the
-              sidebar away. The plan is drawn only when the replica can name it — a pill
-              reading "unknown plan" would be a question, not an answer. For admins it opens
-              Billing; see PlanPill for why that is a button and not a link.
+              The foot of the column: the desktop apps, help, which plan this is, and the
+              way to put the sidebar away. The plan is drawn only when the replica can name
+              it — a pill reading "unknown plan" would be a question, not an answer. For
+              admins it opens Billing; see PlanPill for why that is a button and not a link.
             */}
             <div className={styles.footer}>
+              <DownloadApps />
               <IconButton
                 aria-label="Help"
                 tooltip="Keyboard shortcuts"
