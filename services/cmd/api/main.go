@@ -128,7 +128,7 @@ func run() error {
 
 func newGraphQLHandler(svc *domain.Service, cfg platform.Config) http.Handler {
 	es := generated.NewExecutableSchema(generated.Config{
-		Resolvers:  &graph.Resolver{Svc: svc},
+		Resolvers:  &graph.Resolver{Svc: svc, PushPublicKey: cfg.VAPIDPublicKey},
 		Directives: graph.Directives(),
 	})
 

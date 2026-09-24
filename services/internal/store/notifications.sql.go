@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const advanceNotificationCursor = `-- name: AdvanceNotificationCursor :exec
@@ -54,6 +55,63 @@ type AdvanceNotificationEmailCursorParams struct {
 func (q *Queries) AdvanceNotificationEmailCursor(ctx context.Context, arg AdvanceNotificationEmailCursorParams) error {
 	_, err := q.db.Exec(ctx, advanceNotificationEmailCursor, arg.UserID, arg.SentAt)
 	return err
+}
+
+const claimDueNotice = `-- name: ClaimDueNotice :one
+INSERT INTO notification_due (user_id, issue_id, kind, due_date)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT DO NOTHING
+RETURNING user_id, issue_id, kind, due_date
+`
+
+type ClaimDueNoticeParams struct {
+	UserID  uuid.UUID
+	IssueID uuid.UUID
+	Kind    string
+	DueDate pgtype.Date
+}
+
+type ClaimDueNoticeRow struct {
+	UserID  uuid.UUID
+	IssueID uuid.UUID
+	Kind    string
+	DueDate pgtype.Date
+}
+
+// ClaimDueNotice records that this person has been told about this deadline.
+//
+// ON CONFLICT DO NOTHING is the whole of "once". A second pass, an hour later or a year
+// later, inserts nothing and returns no row, and the caller takes that as "already said".
+// The due date is part of the key, so a deadline that moves is not the same claim.
+func (q *Queries) ClaimDueNotice(ctx context.Context, arg ClaimDueNoticeParams) (ClaimDueNoticeRow, error) {
+	row := q.db.QueryRow(ctx, claimDueNotice,
+		arg.UserID,
+		arg.IssueID,
+		arg.Kind,
+		arg.DueDate,
+	)
+	var i ClaimDueNoticeRow
+	err := row.Scan(
+		&i.UserID,
+		&i.IssueID,
+		&i.Kind,
+		&i.DueDate,
+	)
+	return i, err
+}
+
+const claimNotificationPush = `-- name: ClaimNotificationPush :execrows
+INSERT INTO notification_push (notification_id, pushed_at)
+VALUES ($1, now())
+ON CONFLICT DO NOTHING
+`
+
+func (q *Queries) ClaimNotificationPush(ctx context.Context, notificationID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, claimNotificationPush, notificationID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const claimNotificationsForEmail = `-- name: ClaimNotificationsForEmail :many
@@ -152,6 +210,17 @@ func (q *Queries) ClaimNotificationsForEmail(ctx context.Context, arg ClaimNotif
 	return items, nil
 }
 
+const countPushSubscriptions = `-- name: CountPushSubscriptions :one
+SELECT count(*) FROM push_subscription WHERE user_id = $1
+`
+
+func (q *Queries) CountPushSubscriptions(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countPushSubscriptions, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countUnreadNotifications = `-- name: CountUnreadNotifications :one
 SELECT count(*) FROM notification
 WHERE user_id = $1 AND read_at IS NULL AND deleted_at IS NULL AND snoozed_until IS NULL
@@ -206,6 +275,40 @@ func (q *Queries) DeleteNotification(ctx context.Context, arg DeleteNotification
 		&i.EmailedAt,
 	)
 	return i, err
+}
+
+const deletePushSubscription = `-- name: DeletePushSubscription :execrows
+DELETE FROM push_subscription
+WHERE user_id = $1 AND endpoint = $2
+`
+
+type DeletePushSubscriptionParams struct {
+	UserID   uuid.UUID
+	Endpoint string
+}
+
+func (q *Queries) DeletePushSubscription(ctx context.Context, arg DeletePushSubscriptionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deletePushSubscription, arg.UserID, arg.Endpoint)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deletePushSubscriptionByEndpoint = `-- name: DeletePushSubscriptionByEndpoint :execrows
+DELETE FROM push_subscription WHERE endpoint = $1
+`
+
+// DeletePushSubscriptionByEndpoint is the push service saying the device is gone.
+//
+// Not scoped to a user, because the caller is the worker and the endpoint is the identity
+// the push service handed back. A 410 names a subscription, not a person.
+func (q *Queries) DeletePushSubscriptionByEndpoint(ctx context.Context, endpoint string) (int64, error) {
+	result, err := q.db.Exec(ctx, deletePushSubscriptionByEndpoint, endpoint)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const ensureIssueSubscription = `-- name: EnsureIssueSubscription :one
@@ -729,6 +832,235 @@ func (q *Queries) ListNotificationsForIssue(ctx context.Context, arg ListNotific
 	return items, nil
 }
 
+const listNotificationsPendingPush = `-- name: ListNotificationsPendingPush :many
+SELECT n.id, n.user_id, n.type, n.count, n.payload,
+       coalesce(i.title, '')::text AS issue_title,
+       coalesce(i.number, 0)::bigint AS issue_number,
+       coalesce(t.key, '')::text AS team_key
+FROM notification n
+LEFT JOIN issue i ON i.id = n.issue_id
+LEFT JOIN team t ON t.id = i.team_id
+WHERE n.deleted_at IS NULL
+  AND n.read_at IS NULL
+  AND (n.snoozed_until IS NULL OR n.snoozed_until <= now())
+  AND n.created_at > now() - interval '1 hour'
+  AND EXISTS (
+    SELECT 1 FROM push_subscription s
+    WHERE s.user_id = n.user_id AND s.created_at <= n.created_at
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM notification_push p WHERE p.notification_id = n.id
+  )
+ORDER BY n.created_at
+LIMIT $1
+`
+
+type ListNotificationsPendingPushRow struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	Type        string
+	Count       int32
+	Payload     []byte
+	IssueTitle  string
+	IssueNumber int64
+	TeamKey     string
+}
+
+// ListNotificationsPendingPush is the inbox rows a registered phone has not yet been told
+// about, and only those.
+//
+// The subscription's created_at is the line. A phone registered at noon does not receive
+// the morning's backlog — turning notifications on is not a request to be caught up, and
+// the inbox already holds that — and a row older than an hour is left for the inbox too.
+// An hour is long enough that a push service having a bad minute is retried, and short
+// enough that enabling the feature on an install that has been running without it does not
+// empty a week of assignments onto the lock screen.
+//
+// Read and snoozed rows are excluded for the same reason the digest excludes them: the
+// person has already dealt with the news, and the phone is the channel for when they have
+// not.
+func (q *Queries) ListNotificationsPendingPush(ctx context.Context, pageSize int32) ([]ListNotificationsPendingPushRow, error) {
+	rows, err := q.db.Query(ctx, listNotificationsPendingPush, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListNotificationsPendingPushRow{}
+	for rows.Next() {
+		var i ListNotificationsPendingPushRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Type,
+			&i.Count,
+			&i.Payload,
+			&i.IssueTitle,
+			&i.IssueNumber,
+			&i.TeamKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOpenIssuesWithDueDates = `-- name: ListOpenIssuesWithDueDates :many
+SELECT i.id, i.workspace_id, i.assignee_id, i.due_date, i.number, i.title,
+       t.key AS team_key, t.timezone AS team_timezone
+FROM issue i
+JOIN team t ON t.id = i.team_id
+JOIN workflow_state s ON s.id = i.state_id
+WHERE i.workspace_id = $1
+  AND i.deleted_at IS NULL
+  AND i.archived_at IS NULL
+  AND i.due_date IS NOT NULL
+  AND i.due_date <= CURRENT_DATE + 1
+  AND s.category NOT IN ('completed', 'canceled', 'duplicate')
+  AND NOT EXISTS (
+    SELECT 1 FROM notification_due d
+    WHERE d.issue_id = i.id
+      AND d.due_date = i.due_date
+      AND d.kind = 'overdue'
+      AND (i.assignee_id IS NULL OR d.user_id = i.assignee_id)
+  )
+ORDER BY i.due_date, i.id
+LIMIT 2000
+`
+
+type ListOpenIssuesWithDueDatesRow struct {
+	ID           uuid.UUID
+	WorkspaceID  uuid.UUID
+	AssigneeID   *uuid.UUID
+	DueDate      pgtype.Date
+	Number       int64
+	Title        string
+	TeamKey      string
+	TeamTimezone string
+}
+
+// ListOpenIssuesWithDueDates is one workspace's candidates.
+//
+// An overdue notice that has already been delivered to the assignee (or to anyone, when the
+// issue has no assignee) is left out. Without that, a workspace whose old deadlines were
+// all told months ago would fill the page with them and a deadline set this morning would
+// wait behind rows the sweep is going to skip. "Due today" is not excluded: the same issue
+// is still owed its overdue notice tomorrow, and the claim below is what stops today from
+// being said twice.
+//
+// The page is a bound, not a guess at how many deadlines a team has. Whatever is past it
+// stays a candidate and is the next pass's work, which is safe because a pass that committed
+// has claimed what it told and the next one will not see those rows.
+func (q *Queries) ListOpenIssuesWithDueDates(ctx context.Context, workspaceID uuid.UUID) ([]ListOpenIssuesWithDueDatesRow, error) {
+	rows, err := q.db.Query(ctx, listOpenIssuesWithDueDates, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOpenIssuesWithDueDatesRow{}
+	for rows.Next() {
+		var i ListOpenIssuesWithDueDatesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.AssigneeID,
+			&i.DueDate,
+			&i.Number,
+			&i.Title,
+			&i.TeamKey,
+			&i.TeamTimezone,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPushSubscriptionsForUser = `-- name: ListPushSubscriptionsForUser :many
+SELECT id, user_id, endpoint, p256dh, auth, created_at
+FROM push_subscription
+WHERE user_id = $1
+ORDER BY created_at
+`
+
+func (q *Queries) ListPushSubscriptionsForUser(ctx context.Context, userID uuid.UUID) ([]PushSubscription, error) {
+	rows, err := q.db.Query(ctx, listPushSubscriptionsForUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PushSubscription{}
+	for rows.Next() {
+		var i PushSubscription
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Endpoint,
+			&i.P256dh,
+			&i.Auth,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspacesWithDueIssues = `-- name: ListWorkspacesWithDueIssues :many
+
+SELECT DISTINCT i.workspace_id
+FROM issue i
+JOIN workflow_state s ON s.id = i.state_id
+WHERE i.deleted_at IS NULL
+  AND i.archived_at IS NULL
+  AND i.due_date IS NOT NULL
+  AND i.due_date <= CURRENT_DATE + 1
+  AND s.category NOT IN ('completed', 'canceled', 'duplicate')
+`
+
+// ---------------------------------------------------------------------------------------
+// Due dates.
+//
+// A deadline is a calendar fact, not a mutation, so these queries are the sweep's whole
+// view of the table. The fan-out never writes an issue_due row; see notify.Deliveries.
+// ListWorkspacesWithDueIssues is which workspaces the sweep has to open.
+//
+// due_date <= CURRENT_DATE + 1 rather than <= today in the team's zone. The furthest-ahead
+// zone is fourteen hours past UTC, so "today" there can be tomorrow's UTC date, and a
+// stricter comparison would skip a deadline on the morning it is due. Anything further out
+// is not due and not overdue, and the Go side still applies the team's zone and the morning
+// hour — this predicate only keeps the query off the issues that cannot possibly qualify.
+func (q *Queries) ListWorkspacesWithDueIssues(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listWorkspacesWithDueIssues)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var workspace_id uuid.UUID
+		if err := rows.Scan(&workspace_id); err != nil {
+			return nil, err
+		}
+		items = append(items, workspace_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkspacesWithPendingNotifications = `-- name: ListWorkspacesWithPendingNotifications :many
 SELECT wv.workspace_id
 FROM workspace_version wv
@@ -884,6 +1216,15 @@ func (q *Queries) ReleaseNotificationEmailClaim(ctx context.Context, arg Release
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const releaseNotificationPush = `-- name: ReleaseNotificationPush :exec
+DELETE FROM notification_push WHERE notification_id = $1
+`
+
+func (q *Queries) ReleaseNotificationPush(ctx context.Context, notificationID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, releaseNotificationPush, notificationID)
+	return err
 }
 
 const setIssueSubscription = `-- name: SetIssueSubscription :one
@@ -1146,6 +1487,87 @@ func (q *Queries) StreamNotificationsForBootstrap(ctx context.Context, arg Strea
 	return items, nil
 }
 
+const upsertDueNotification = `-- name: UpsertDueNotification :one
+INSERT INTO notification (id, workspace_id, user_id, type, issue_id, comment_id,
+                          actor_type, actor_id, change_version, group_key, count, payload)
+VALUES ($1, $2, $3, $4,
+        $5, NULL, 'system', NULL, $6,
+        $7, $8, $9)
+ON CONFLICT (user_id, group_key) DO UPDATE
+SET count          = notification.count + EXCLUDED.count,
+    read_at        = NULL,
+    change_version = EXCLUDED.change_version,
+    payload        = jsonb_build_object(
+      'kind', EXCLUDED.payload->>'kind',
+      'issueIds', COALESCE(notification.payload->'issueIds', '[]'::jsonb)
+                  || COALESCE(EXCLUDED.payload->'issueIds', '[]'::jsonb)
+    )
+RETURNING id, workspace_id, user_id, type, issue_id, comment_id, actor_type, actor_id,
+          change_version, group_key, count, payload, read_at, snoozed_until, deleted_at,
+          created_at, updated_at, emailed_at
+`
+
+type UpsertDueNotificationParams struct {
+	ID            uuid.UUID
+	WorkspaceID   uuid.UUID
+	UserID        uuid.UUID
+	Type          string
+	IssueID       *uuid.UUID
+	ChangeVersion int64
+	GroupKey      string
+	Count         int32
+	Payload       []byte
+}
+
+// UpsertDueNotification folds every deadline one person is hearing about this morning into
+// one inbox row.
+//
+// The conflict target is the same (user_id, group_key) the fan-out uses, and the group key
+// is the morning — kind and the team's local date — so three issues due today are one row
+// carrying a count rather than three interruptions. count is added, not set, because a
+// deadline created later the same morning has to join the row that already went out.
+//
+// There is no change_version guard, unlike UpsertNotification. The fan-out's guard exists
+// because it replays versions; this statement is only reached for a claim that just
+// succeeded, and a claim cannot succeed twice. A guard here would instead drop the second
+// issue whenever the workspace version had not moved, which is the ordinary case for a
+// sweep that runs while nobody is typing.
+func (q *Queries) UpsertDueNotification(ctx context.Context, arg UpsertDueNotificationParams) (Notification, error) {
+	row := q.db.QueryRow(ctx, upsertDueNotification,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.UserID,
+		arg.Type,
+		arg.IssueID,
+		arg.ChangeVersion,
+		arg.GroupKey,
+		arg.Count,
+		arg.Payload,
+	)
+	var i Notification
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.UserID,
+		&i.Type,
+		&i.IssueID,
+		&i.CommentID,
+		&i.ActorType,
+		&i.ActorID,
+		&i.ChangeVersion,
+		&i.GroupKey,
+		&i.Count,
+		&i.Payload,
+		&i.ReadAt,
+		&i.SnoozedUntil,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EmailedAt,
+	)
+	return i, err
+}
+
 const upsertNotification = `-- name: UpsertNotification :one
 
 INSERT INTO notification (id, workspace_id, user_id, type, issue_id, comment_id,
@@ -1236,6 +1658,52 @@ func (q *Queries) UpsertNotification(ctx context.Context, arg UpsertNotification
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.EmailedAt,
+	)
+	return i, err
+}
+
+const upsertPushSubscription = `-- name: UpsertPushSubscription :one
+
+INSERT INTO push_subscription (id, user_id, endpoint, p256dh, auth)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (endpoint) DO UPDATE
+SET user_id    = EXCLUDED.user_id,
+    p256dh     = EXCLUDED.p256dh,
+    auth       = EXCLUDED.auth,
+    created_at = now()
+RETURNING id, user_id, endpoint, p256dh, auth, created_at
+`
+
+type UpsertPushSubscriptionParams struct {
+	ID       uuid.UUID
+	UserID   uuid.UUID
+	Endpoint string
+	P256dh   string
+	Auth     string
+}
+
+// ---------------------------------------------------------------------------------------
+// Web Push.
+//
+// The subscription is a device. The claim is what makes a row push at most once: the push
+// service has no unique key we can conflict on, and a second copy of the same banner is
+// how a phone gets muted.
+func (q *Queries) UpsertPushSubscription(ctx context.Context, arg UpsertPushSubscriptionParams) (PushSubscription, error) {
+	row := q.db.QueryRow(ctx, upsertPushSubscription,
+		arg.ID,
+		arg.UserID,
+		arg.Endpoint,
+		arg.P256dh,
+		arg.Auth,
+	)
+	var i PushSubscription
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Endpoint,
+		&i.P256dh,
+		&i.Auth,
+		&i.CreatedAt,
 	)
 	return i, err
 }

@@ -3,6 +3,8 @@ package domain
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/peixotolabs/polaris/services/internal/domain/model"
 )
 
 // NotificationPrefs is the whole of `user.notification_prefs`, in one place.
@@ -39,6 +41,29 @@ type NotificationPrefs struct {
 	// EmailPerNotification asks for an email per notification instead of the digest. A
 	// preference, never a default — see the M1 scope table.
 	EmailPerNotification *bool `json:"emailPerNotification"`
+	// Push is the notification types that also go to a phone, when this install has push
+	// configured and the person has registered a device.
+	//
+	// Nil means the quiet default — assignment, mention, urgent, blocked, due dates — and
+	// an empty slice means the phone stays silent. The two have to be distinguishable,
+	// because a client that has never seen this key must not be treated as somebody who
+	// switched the phone off, and somebody who switched it off must not be given the
+	// default back. Muting a type still wins over this list: a muted type is not delivered
+	// anywhere, and the phone is not an exception.
+	Push []string `json:"push"`
+}
+
+// defaultPushTypes is what a phone receives until the person says otherwise.
+//
+// The same five the settings screen renders as on. A sixth default here would buzz a
+// phone for a type the screen claims is off, which is the preference bug this package
+// exists to stop having twice.
+var defaultPushTypes = []string{
+	model.NotifyIssueAssigned,
+	model.NotifyMention,
+	model.NotifyIssuePriorityUp,
+	model.NotifyIssueBlocked,
+	model.NotifyIssueDue,
 }
 
 // The digest cadences. Off is a real choice and not the absence of one, which is why it is a
@@ -108,6 +133,26 @@ func emailPrefsOf(raw json.RawMessage) emailPrefs {
 		out.PerNotification = *bag.EmailPerNotification
 	}
 	return out
+}
+
+// wantsPush reports whether this person wants typ on their phone.
+//
+// A muted type is never wanted, whatever the phone list says. An absent list is the
+// default; an empty list is a deliberate silence.
+func wantsPush(raw json.RawMessage, typ string) bool {
+	if mutedTypes(raw)[typ] {
+		return false
+	}
+	names := parseNotificationPrefs(raw).Push
+	if names == nil {
+		names = defaultPushTypes
+	}
+	for _, name := range names {
+		if name == typ {
+			return true
+		}
+	}
+	return false
 }
 
 // interval is how long this cadence waits between messages.

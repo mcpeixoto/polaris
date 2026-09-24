@@ -443,6 +443,192 @@ WHERE s.issue_id = ANY(sqlc.arg(issue_ids)::uuid[])
   AND i.team_id = ANY(sqlc.arg(team_ids)::uuid[])
 ORDER BY s.issue_id, s.created_at;
 
+-- ---------------------------------------------------------------------------------------
+-- Due dates.
+--
+-- A deadline is a calendar fact, not a mutation, so these queries are the sweep's whole
+-- view of the table. The fan-out never writes an issue_due row; see notify.Deliveries.
+
+-- ListWorkspacesWithDueIssues is which workspaces the sweep has to open.
+--
+-- due_date <= CURRENT_DATE + 1 rather than <= today in the team's zone. The furthest-ahead
+-- zone is fourteen hours past UTC, so "today" there can be tomorrow's UTC date, and a
+-- stricter comparison would skip a deadline on the morning it is due. Anything further out
+-- is not due and not overdue, and the Go side still applies the team's zone and the morning
+-- hour — this predicate only keeps the query off the issues that cannot possibly qualify.
+--
+-- name: ListWorkspacesWithDueIssues :many
+SELECT DISTINCT i.workspace_id
+FROM issue i
+JOIN workflow_state s ON s.id = i.state_id
+WHERE i.deleted_at IS NULL
+  AND i.archived_at IS NULL
+  AND i.due_date IS NOT NULL
+  AND i.due_date <= CURRENT_DATE + 1
+  AND s.category NOT IN ('completed', 'canceled', 'duplicate');
+
+-- ListOpenIssuesWithDueDates is one workspace's candidates.
+--
+-- An overdue notice that has already been delivered to the assignee (or to anyone, when the
+-- issue has no assignee) is left out. Without that, a workspace whose old deadlines were
+-- all told months ago would fill the page with them and a deadline set this morning would
+-- wait behind rows the sweep is going to skip. "Due today" is not excluded: the same issue
+-- is still owed its overdue notice tomorrow, and the claim below is what stops today from
+-- being said twice.
+--
+-- The page is a bound, not a guess at how many deadlines a team has. Whatever is past it
+-- stays a candidate and is the next pass's work, which is safe because a pass that committed
+-- has claimed what it told and the next one will not see those rows.
+--
+-- name: ListOpenIssuesWithDueDates :many
+SELECT i.id, i.workspace_id, i.assignee_id, i.due_date, i.number, i.title,
+       t.key AS team_key, t.timezone AS team_timezone
+FROM issue i
+JOIN team t ON t.id = i.team_id
+JOIN workflow_state s ON s.id = i.state_id
+WHERE i.workspace_id = sqlc.arg(workspace_id)
+  AND i.deleted_at IS NULL
+  AND i.archived_at IS NULL
+  AND i.due_date IS NOT NULL
+  AND i.due_date <= CURRENT_DATE + 1
+  AND s.category NOT IN ('completed', 'canceled', 'duplicate')
+  AND NOT EXISTS (
+    SELECT 1 FROM notification_due d
+    WHERE d.issue_id = i.id
+      AND d.due_date = i.due_date
+      AND d.kind = 'overdue'
+      AND (i.assignee_id IS NULL OR d.user_id = i.assignee_id)
+  )
+ORDER BY i.due_date, i.id
+LIMIT 2000;
+
+-- ClaimDueNotice records that this person has been told about this deadline.
+--
+-- ON CONFLICT DO NOTHING is the whole of "once". A second pass, an hour later or a year
+-- later, inserts nothing and returns no row, and the caller takes that as "already said".
+-- The due date is part of the key, so a deadline that moves is not the same claim.
+--
+-- name: ClaimDueNotice :one
+INSERT INTO notification_due (user_id, issue_id, kind, due_date)
+VALUES (sqlc.arg(user_id), sqlc.arg(issue_id), sqlc.arg(kind), sqlc.arg(due_date))
+ON CONFLICT DO NOTHING
+RETURNING user_id, issue_id, kind, due_date;
+
+-- UpsertDueNotification folds every deadline one person is hearing about this morning into
+-- one inbox row.
+--
+-- The conflict target is the same (user_id, group_key) the fan-out uses, and the group key
+-- is the morning — kind and the team's local date — so three issues due today are one row
+-- carrying a count rather than three interruptions. count is added, not set, because a
+-- deadline created later the same morning has to join the row that already went out.
+--
+-- There is no change_version guard, unlike UpsertNotification. The fan-out's guard exists
+-- because it replays versions; this statement is only reached for a claim that just
+-- succeeded, and a claim cannot succeed twice. A guard here would instead drop the second
+-- issue whenever the workspace version had not moved, which is the ordinary case for a
+-- sweep that runs while nobody is typing.
+--
+-- name: UpsertDueNotification :one
+INSERT INTO notification (id, workspace_id, user_id, type, issue_id, comment_id,
+                          actor_type, actor_id, change_version, group_key, count, payload)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(user_id), sqlc.arg(type),
+        sqlc.narg(issue_id), NULL, 'system', NULL, sqlc.arg(change_version),
+        sqlc.arg(group_key), sqlc.arg(count), sqlc.arg(payload))
+ON CONFLICT (user_id, group_key) DO UPDATE
+SET count          = notification.count + EXCLUDED.count,
+    read_at        = NULL,
+    change_version = EXCLUDED.change_version,
+    payload        = jsonb_build_object(
+      'kind', EXCLUDED.payload->>'kind',
+      'issueIds', COALESCE(notification.payload->'issueIds', '[]'::jsonb)
+                  || COALESCE(EXCLUDED.payload->'issueIds', '[]'::jsonb)
+    )
+RETURNING id, workspace_id, user_id, type, issue_id, comment_id, actor_type, actor_id,
+          change_version, group_key, count, payload, read_at, snoozed_until, deleted_at,
+          created_at, updated_at, emailed_at;
+
+-- ---------------------------------------------------------------------------------------
+-- Web Push.
+--
+-- The subscription is a device. The claim is what makes a row push at most once: the push
+-- service has no unique key we can conflict on, and a second copy of the same banner is
+-- how a phone gets muted.
+
+-- name: UpsertPushSubscription :one
+INSERT INTO push_subscription (id, user_id, endpoint, p256dh, auth)
+VALUES (sqlc.arg(id), sqlc.arg(user_id), sqlc.arg(endpoint), sqlc.arg(p256dh), sqlc.arg(auth))
+ON CONFLICT (endpoint) DO UPDATE
+SET user_id    = EXCLUDED.user_id,
+    p256dh     = EXCLUDED.p256dh,
+    auth       = EXCLUDED.auth,
+    created_at = now()
+RETURNING id, user_id, endpoint, p256dh, auth, created_at;
+
+-- name: DeletePushSubscription :execrows
+DELETE FROM push_subscription
+WHERE user_id = sqlc.arg(user_id) AND endpoint = sqlc.arg(endpoint);
+
+-- DeletePushSubscriptionByEndpoint is the push service saying the device is gone.
+--
+-- Not scoped to a user, because the caller is the worker and the endpoint is the identity
+-- the push service handed back. A 410 names a subscription, not a person.
+--
+-- name: DeletePushSubscriptionByEndpoint :execrows
+DELETE FROM push_subscription WHERE endpoint = sqlc.arg(endpoint);
+
+-- name: CountPushSubscriptions :one
+SELECT count(*) FROM push_subscription WHERE user_id = sqlc.arg(user_id);
+
+-- name: ListPushSubscriptionsForUser :many
+SELECT id, user_id, endpoint, p256dh, auth, created_at
+FROM push_subscription
+WHERE user_id = sqlc.arg(user_id)
+ORDER BY created_at;
+
+-- ListNotificationsPendingPush is the inbox rows a registered phone has not yet been told
+-- about, and only those.
+--
+-- The subscription's created_at is the line. A phone registered at noon does not receive
+-- the morning's backlog — turning notifications on is not a request to be caught up, and
+-- the inbox already holds that — and a row older than an hour is left for the inbox too.
+-- An hour is long enough that a push service having a bad minute is retried, and short
+-- enough that enabling the feature on an install that has been running without it does not
+-- empty a week of assignments onto the lock screen.
+--
+-- Read and snoozed rows are excluded for the same reason the digest excludes them: the
+-- person has already dealt with the news, and the phone is the channel for when they have
+-- not.
+--
+-- name: ListNotificationsPendingPush :many
+SELECT n.id, n.user_id, n.type, n.count, n.payload,
+       coalesce(i.title, '')::text AS issue_title,
+       coalesce(i.number, 0)::bigint AS issue_number,
+       coalesce(t.key, '')::text AS team_key
+FROM notification n
+LEFT JOIN issue i ON i.id = n.issue_id
+LEFT JOIN team t ON t.id = i.team_id
+WHERE n.deleted_at IS NULL
+  AND n.read_at IS NULL
+  AND (n.snoozed_until IS NULL OR n.snoozed_until <= now())
+  AND n.created_at > now() - interval '1 hour'
+  AND EXISTS (
+    SELECT 1 FROM push_subscription s
+    WHERE s.user_id = n.user_id AND s.created_at <= n.created_at
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM notification_push p WHERE p.notification_id = n.id
+  )
+ORDER BY n.created_at
+LIMIT sqlc.arg(page_size);
+
+-- name: ClaimNotificationPush :execrows
+INSERT INTO notification_push (notification_id, pushed_at)
+VALUES (sqlc.arg(notification_id), now())
+ON CONFLICT DO NOTHING;
+
+-- name: ReleaseNotificationPush :exec
+DELETE FROM notification_push WHERE notification_id = sqlc.arg(notification_id);
+
 -- name: ListIssueSubscriptionsForUser :many
 SELECT id, workspace_id, issue_id, user_id, reason, unsubscribed, created_at, updated_at
 FROM issue_subscription

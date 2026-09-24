@@ -109,11 +109,19 @@ export function Inbox() {
 
         built.push({
           id,
-          // "Somebody" rather than a blank: the actor may be a user this client has not
-          // replicated, or the system, and a row with no subject reads as a bug.
-          actor: actor?.displayName ?? 'Somebody',
-          avatarName: actor?.displayName ?? 'Polaris',
-          event: describeEvent(notification.type, issue?.identifier ?? 'an issue'),
+          // A deadline has no person behind it. "Somebody" there reads as a missing
+          // name; the product is the one who noticed. A person this client has not
+          // replicated yet still falls back to "Somebody", because inventing "Polaris"
+          // for a human is the opposite mistake.
+          actor:
+            notification.actor.type === 'system' ? 'Polaris' : (actor?.displayName ?? 'Somebody'),
+          avatarName:
+            notification.actor.type === 'system' ? 'Polaris' : (actor?.displayName ?? 'Polaris'),
+          event: describeEvent(
+            notification.type,
+            issue?.identifier ?? 'an issue',
+            notification.payload,
+          ),
           tail: coalescedTail(notification.count),
           createdAt: notification.createdAt,
           unread: notification.readAt === undefined,

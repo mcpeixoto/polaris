@@ -125,7 +125,8 @@ export interface NotificationPrefs {
    */
   readonly emailDigest?: 'off' | 'hourly' | 'daily' | 'weekly';
   /**
-   * Types the user has switched off entirely, in either channel.
+   * Types the user has switched off entirely, in every channel — the inbox, email and the
+   * phone.
    *
    * An array, and the server decodes an array. It decoded an object for a while and the two
    * never met: unmarshalling `["comment"]` into a map fails, both decoders are lenient by
@@ -133,6 +134,16 @@ export interface NotificationPrefs {
    * reads this interface and fails when the two shapes part company again.
    */
   readonly muted?: readonly NotificationType[];
+  /**
+   * Types that also go to a phone, once a device is registered.
+   *
+   * Absent means the quiet default — assignment, mention, urgent, blocked, due dates —
+   * which is `defaultPushTypes` in services/internal/domain/notification_prefs.go and
+   * `DEFAULT_PUSH` beside the settings screen. An empty array means the phone stays
+   * silent. The two have to stay distinguishable: a client that has never seen this key
+   * is not somebody who turned the phone off.
+   */
+  readonly push?: readonly NotificationType[];
 }
 
 export type UserRole = 'owner' | 'admin' | 'member' | 'guest';

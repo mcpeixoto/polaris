@@ -16,9 +16,18 @@
  * explains why — so a key this build does not render survives being here.
  */
 
+import { useEffect, useState } from 'react';
+
 import { useEngine } from '~/app/context';
-import { Checkbox, EmptyState, Select } from '~/components';
+import { Button, Checkbox, EmptyState, Select } from '~/components';
 import { report, updateNotificationPrefs } from '~/features/inbox/mutations';
+import {
+  DEFAULT_PUSH,
+  disableThisDevice,
+  enableThisDevice,
+  pushAvailability,
+  thisDeviceEndpoint,
+} from '~/features/inbox/push';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
 import type { NotificationPrefs, NotificationType } from '~/store';
@@ -70,7 +79,11 @@ const TYPES: readonly {
     label: 'Priority raised',
     hint: 'Only when it goes up. A de-prioritised issue is not news.',
   },
-  { value: 'issue_due', label: 'Due dates', hint: 'An issue you follow is due or overdue.' },
+  {
+    value: 'issue_due',
+    label: 'Due dates',
+    hint: 'Assigned to you — or, with nobody assigned, an issue you follow. The morning it is due, and once the morning after.',
+  },
   {
     value: 'issue_blocked',
     label: 'Blocked',
@@ -112,12 +125,23 @@ export function NotificationSettings() {
 
   const muted = new Set(prefs.muted ?? []);
   const cadence = prefs.emailDigest ?? 'daily';
+  const phone: readonly NotificationType[] = prefs.push === undefined ? DEFAULT_PUSH : prefs.push;
 
   const setMuted = (type: NotificationType, isMuted: boolean) => {
     const next = new Set(muted);
     if (isMuted) next.add(type);
     else next.delete(type);
     write({ muted: [...next] });
+  };
+
+  // An explicit list, never "back to undefined". Undefined is the person who has never
+  // touched the phone, and a toggle is them touching it — including turning the last
+  // type off, which has to be stored as an empty array or the default would come back.
+  const setPhone = (type: NotificationType, on: boolean) => {
+    const next = new Set<NotificationType>(phone);
+    if (on) next.add(type);
+    else next.delete(type);
+    write({ push: [...next] });
   };
 
   return (
@@ -166,13 +190,15 @@ export function NotificationSettings() {
           </p>
         </section>
 
+        <PhoneSection muted={muted} phone={phone} onToggle={setPhone} />
+
         <section className={styles.section} aria-labelledby="types-heading">
           <h2 className={styles.sectionTitle} id="types-heading">
             What to notify me about
           </h2>
           <p className={styles.sectionNote}>
-            Switching one off stops it entirely — it will not reach your inbox here either, and it
-            cannot reach an email. You stay subscribed to the issue.
+            Switching one off stops it entirely — it will not reach your inbox here, an email, or
+            your phone. You stay subscribed to the issue.
           </p>
 
           <ul className={styles.types}>
@@ -190,5 +216,112 @@ export function NotificationSettings() {
         </section>
       </div>
     </div>
+  );
+}
+
+/**
+ * This device, as distinct from which types it should hear.
+ *
+ * The subscription is local state: the replica does not carry device credentials, so
+ * there is nothing in the store to read. Looking it up is a call to the browser, and
+ * it waits until after paint so a settings screen in a test never touches the network.
+ */
+function PhoneSection({
+  muted,
+  phone,
+  onToggle,
+}: {
+  muted: ReadonlySet<NotificationType>;
+  phone: readonly NotificationType[];
+  onToggle: (type: NotificationType, on: boolean) => void;
+}) {
+  const availability = pushAvailability();
+  const [endpoint, setEndpoint] = useState<string | null | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  const [deviceError, setDeviceError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    thisDeviceEndpoint()
+      .then((current) => {
+        if (!cancelled) setEndpoint(current);
+      })
+      .catch(() => {
+        if (!cancelled) setEndpoint(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const on = endpoint !== null && endpoint !== undefined;
+
+  const toggle = () => {
+    setBusy(true);
+    setDeviceError(null);
+    const action = on ? disableThisDevice().then(() => null) : enableThisDevice();
+    action
+      .then((next) => setEndpoint(next))
+      .catch((error: unknown) => {
+        setDeviceError(
+          error instanceof Error ? error.message : 'This device could not be registered.',
+        );
+      })
+      .finally(() => setBusy(false));
+  };
+
+  return (
+    <section className={styles.section} aria-labelledby="phone-heading">
+      <h2 className={styles.sectionTitle} id="phone-heading">
+        iPhone and browser
+      </h2>
+      <p className={styles.sectionNote}>
+        Quieter than the inbox. On an iPhone this only works after you add Polaris to the Home
+        Screen and open it from there, over HTTPS. A tap here is what asks the device for permission
+        — a tab in Safari cannot receive these.
+      </p>
+      {availability.needsHomeScreen ? (
+        <p className={styles.sectionNote}>
+          This iPhone is still in Safari. Add Polaris to the Home Screen, open it from the icon, and
+          come back to this page.
+        </p>
+      ) : null}
+      {availability.supported ? (
+        <Button
+          variant="secondary"
+          loading={busy}
+          disabled={endpoint === undefined || availability.needsHomeScreen}
+          onClick={toggle}
+        >
+          {on ? 'Turn off this device' : 'Turn on this device'}
+        </Button>
+      ) : (
+        <p className={styles.sectionNote}>This browser cannot receive notifications.</p>
+      )}
+      {deviceError === null ? null : (
+        <p className={styles.warning} role="alert">
+          {deviceError}
+        </p>
+      )}
+      <p className={styles.sectionNote}>
+        The ones that start on are what a phone hears until you change them. A type switched off
+        below never reaches the phone, even if it stays selected here.
+      </p>
+      <ul className={styles.types}>
+        {TYPES.map((type) => {
+          const isMuted = muted.has(type.value);
+          return (
+            <li key={type.value} className={styles.type}>
+              <Checkbox
+                checked={!isMuted && phone.includes(type.value)}
+                disabled={isMuted}
+                onChange={(event) => onToggle(type.value, event.target.checked)}
+                label={type.label}
+              />
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

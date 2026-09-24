@@ -119,6 +119,13 @@ type Querier interface {
 	// of 200 of each, while keeping the sequence gapless.
 	//
 	BumpWorkspaceVersionBy(ctx context.Context, arg BumpWorkspaceVersionByParams) (int64, error)
+	// ClaimDueNotice records that this person has been told about this deadline.
+	//
+	// ON CONFLICT DO NOTHING is the whole of "once". A second pass, an hour later or a year
+	// later, inserts nothing and returns no row, and the caller takes that as "already said".
+	// The due date is part of the key, so a deadline that moves is not the same claim.
+	//
+	ClaimDueNotice(ctx context.Context, arg ClaimDueNoticeParams) (ClaimDueNoticeRow, error)
 	// ClaimIdempotencyKey is the first statement of every mutation.
 	//
 	// ON CONFLICT DO NOTHING means a concurrent duplicate loses the race and returns no row;
@@ -127,6 +134,7 @@ type Querier interface {
 	// answer.
 	//
 	ClaimIdempotencyKey(ctx context.Context, arg ClaimIdempotencyKeyParams) (int64, error)
+	ClaimNotificationPush(ctx context.Context, notificationID uuid.UUID) (int64, error)
 	// ClaimNotificationsForEmail takes ownership of one person's pending notifications and
 	// returns them with what the message has to say about each.
 	//
@@ -181,6 +189,7 @@ type Querier interface {
 	// deleted issue does not inflate it.
 	//
 	CountIssuesWithLabel(ctx context.Context, labelID uuid.UUID) (int64, error)
+	CountPushSubscriptions(ctx context.Context, userID uuid.UUID) (int64, error)
 	// CountTeamsInWorkspace is the number a plan's team limit is measured against.
 	//
 	// Archived teams do not count, mirroring the seat rule in CountWorkspaceSeats: suspending
@@ -260,6 +269,13 @@ type Querier interface {
 	// second time to somebody who had already dismissed it.
 	//
 	DeleteNotification(ctx context.Context, arg DeleteNotificationParams) (Notification, error)
+	DeletePushSubscription(ctx context.Context, arg DeletePushSubscriptionParams) (int64, error)
+	// DeletePushSubscriptionByEndpoint is the push service saying the device is gone.
+	//
+	// Not scoped to a user, because the caller is the worker and the endpoint is the identity
+	// the push service handed back. A 410 names a subscription, not a person.
+	//
+	DeletePushSubscriptionByEndpoint(ctx context.Context, endpoint string) (int64, error)
 	EnsureChangeLogPartition(ctx context.Context, month pgtype.Date) error
 	// ---------------------------------------------------------------------------------------
 	// Subscriptions.
@@ -565,7 +581,37 @@ type Querier interface {
 	// change.
 	//
 	ListNotificationsForIssue(ctx context.Context, arg ListNotificationsForIssueParams) ([]Notification, error)
+	// ListNotificationsPendingPush is the inbox rows a registered phone has not yet been told
+	// about, and only those.
+	//
+	// The subscription's created_at is the line. A phone registered at noon does not receive
+	// the morning's backlog — turning notifications on is not a request to be caught up, and
+	// the inbox already holds that — and a row older than an hour is left for the inbox too.
+	// An hour is long enough that a push service having a bad minute is retried, and short
+	// enough that enabling the feature on an install that has been running without it does not
+	// empty a week of assignments onto the lock screen.
+	//
+	// Read and snoozed rows are excluded for the same reason the digest excludes them: the
+	// person has already dealt with the news, and the phone is the channel for when they have
+	// not.
+	//
+	ListNotificationsPendingPush(ctx context.Context, pageSize int32) ([]ListNotificationsPendingPushRow, error)
+	// ListOpenIssuesWithDueDates is one workspace's candidates.
+	//
+	// An overdue notice that has already been delivered to the assignee (or to anyone, when the
+	// issue has no assignee) is left out. Without that, a workspace whose old deadlines were
+	// all told months ago would fill the page with them and a deadline set this morning would
+	// wait behind rows the sweep is going to skip. "Due today" is not excluded: the same issue
+	// is still owed its overdue notice tomorrow, and the claim below is what stops today from
+	// being said twice.
+	//
+	// The page is a bound, not a guess at how many deadlines a team has. Whatever is past it
+	// stays a candidate and is the next pass's work, which is safe because a pass that committed
+	// has claimed what it told and the next one will not see those rows.
+	//
+	ListOpenIssuesWithDueDates(ctx context.Context, workspaceID uuid.UUID) ([]ListOpenIssuesWithDueDatesRow, error)
 	ListPendingInvites(ctx context.Context, workspaceID uuid.UUID) ([]Invite, error)
+	ListPushSubscriptionsForUser(ctx context.Context, userID uuid.UUID) ([]PushSubscription, error)
 	// ListReverseIssueRelations is the same links read from the far end: what blocks this
 	// issue, and what it is a duplicate of. Both listings are needed on the issue panel, which
 	// is why issue_relation carries an index on each side.
@@ -602,6 +648,20 @@ type Querier interface {
 	ListWorkflowStatesForTeam(ctx context.Context, teamID uuid.UUID) ([]WorkflowState, error)
 	ListWorkflowStatesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]WorkflowState, error)
 	ListWorkspacesForAccount(ctx context.Context, accountID *uuid.UUID) ([]ListWorkspacesForAccountRow, error)
+	// ---------------------------------------------------------------------------------------
+	// Due dates.
+	//
+	// A deadline is a calendar fact, not a mutation, so these queries are the sweep's whole
+	// view of the table. The fan-out never writes an issue_due row; see notify.Deliveries.
+	// ListWorkspacesWithDueIssues is which workspaces the sweep has to open.
+	//
+	// due_date <= CURRENT_DATE + 1 rather than <= today in the team's zone. The furthest-ahead
+	// zone is fourteen hours past UTC, so "today" there can be tomorrow's UTC date, and a
+	// stricter comparison would skip a deadline on the morning it is due. Anything further out
+	// is not due and not overdue, and the Go side still applies the team's zone and the morning
+	// hour — this predicate only keeps the query off the issues that cannot possibly qualify.
+	//
+	ListWorkspacesWithDueIssues(ctx context.Context) ([]uuid.UUID, error)
 	// ListWorkspacesWithPendingNotifications drives the fan-out job, which like the retention
 	// sweep has no principal and therefore no workspace of its own to start from.
 	//
@@ -696,6 +756,7 @@ type Querier interface {
 	// somebody else's delivery, sitting in the error path where it is least likely to be tested.
 	//
 	ReleaseNotificationEmailClaim(ctx context.Context, arg ReleaseNotificationEmailClaimParams) (int64, error)
+	ReleaseNotificationPush(ctx context.Context, notificationID uuid.UUID) error
 	// Returns the removed row because the caller knows the target, not the id the change
 	// stream needs.
 	//
@@ -994,6 +1055,21 @@ type Querier interface {
 	UpdateView(ctx context.Context, arg UpdateViewParams) (UpdateViewRow, error)
 	UpdateWorkflowState(ctx context.Context, arg UpdateWorkflowStateParams) (WorkflowState, error)
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (Workspace, error)
+	// UpsertDueNotification folds every deadline one person is hearing about this morning into
+	// one inbox row.
+	//
+	// The conflict target is the same (user_id, group_key) the fan-out uses, and the group key
+	// is the morning — kind and the team's local date — so three issues due today are one row
+	// carrying a count rather than three interruptions. count is added, not set, because a
+	// deadline created later the same morning has to join the row that already went out.
+	//
+	// There is no change_version guard, unlike UpsertNotification. The fan-out's guard exists
+	// because it replays versions; this statement is only reached for a claim that just
+	// succeeded, and a claim cannot succeed twice. A guard here would instead drop the second
+	// issue whenever the workspace version had not moved, which is the ordinary case for a
+	// sweep that runs while nobody is typing.
+	//
+	UpsertDueNotification(ctx context.Context, arg UpsertDueNotificationParams) (Notification, error)
 	// The inbox, and the subscriptions that decide who gets one.
 	//
 	// Every query that touches a notification is scoped by user_id as well as by id. The id
@@ -1019,6 +1095,13 @@ type Querier interface {
 	// gets pgx.ErrNoRows has learnt "already delivered" and emits no change.
 	//
 	UpsertNotification(ctx context.Context, arg UpsertNotificationParams) (Notification, error)
+	// ---------------------------------------------------------------------------------------
+	// Web Push.
+	//
+	// The subscription is a device. The claim is what makes a row push at most once: the push
+	// service has no unique key we can conflict on, and a second copy of the same banner is
+	// how a phone gets muted.
+	UpsertPushSubscription(ctx context.Context, arg UpsertPushSubscriptionParams) (PushSubscription, error)
 	// ---------------------------------------------------------------------------------------
 	// Display preferences for the built-in views.
 	// The id is only ever used when the row is created; the natural key is (user_id, view_key)

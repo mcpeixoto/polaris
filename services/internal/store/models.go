@@ -285,9 +285,31 @@ type NotificationCursor struct {
 	UpdatedAt   time.Time
 }
 
+type NotificationDue struct {
+	UserID    uuid.UUID
+	IssueID   uuid.UUID
+	Kind      string
+	DueDate   pgtype.Date
+	CreatedAt time.Time
+}
+
 type NotificationEmailCursor struct {
 	UserID     uuid.UUID
 	LastSentAt time.Time
+}
+
+type NotificationPush struct {
+	NotificationID uuid.UUID
+	PushedAt       time.Time
+}
+
+type PushSubscription struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	Endpoint  string
+	P256dh    string
+	Auth      string
+	CreatedAt time.Time
 }
 
 type Team struct {

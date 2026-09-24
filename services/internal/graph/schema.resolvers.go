@@ -1158,6 +1158,31 @@ func (r *mutationResolver) RevokeAPIKey(ctx context.Context, id uuid.UUID) (*gen
 	return &generated.DeletePayload{Version: int(version), ID: revoked}, nil
 }
 
+// RegisterPushSubscription is the resolver for the registerPushSubscription field.
+func (r *mutationResolver) RegisterPushSubscription(ctx context.Context, input generated.RegisterPushSubscriptionInput) (bool, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return false, PresentError(ctx, err)
+	}
+	if err := r.Svc.RegisterPushSubscription(ctx, p, input.Endpoint, input.P256dh, input.Auth); err != nil {
+		return false, PresentError(ctx, err)
+	}
+	return true, nil
+}
+
+// DeletePushSubscription is the resolver for the deletePushSubscription field.
+func (r *mutationResolver) DeletePushSubscription(ctx context.Context, endpoint string) (bool, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return false, PresentError(ctx, err)
+	}
+	deleted, err := r.Svc.DeletePushSubscription(ctx, p, endpoint)
+	if err != nil {
+		return false, PresentError(ctx, err)
+	}
+	return deleted, nil
+}
+
 // Viewer is the resolver for the viewer field.
 //
 // The one composite query in the schema: it is what the client asks for before it opens
@@ -1733,6 +1758,19 @@ func (r *queryResolver) Invites(ctx context.Context) ([]generated.Invite, error)
 	out, err := toInvites(invites)
 	if err != nil {
 		return nil, PresentError(ctx, err)
+	}
+	return out, nil
+}
+
+// PushConfig is the resolver for the pushConfig field.
+func (r *queryResolver) PushConfig(ctx context.Context) (*generated.PushConfig, error) {
+	if _, err := principalFrom(ctx); err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := &generated.PushConfig{}
+	if r.PushPublicKey != "" {
+		key := r.PushPublicKey
+		out.PublicKey = &key
 	}
 	return out, nil
 }

@@ -3,6 +3,7 @@
 package platform
 
 import (
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"time"
@@ -121,6 +122,19 @@ type Config struct {
 	MailFrom     string `envconfig:"POLARIS_MAIL_FROM" default:"polaris@localhost"`
 	MailFromName string `envconfig:"POLARIS_MAIL_FROM_NAME" default:"Polaris"`
 
+	// Web Push, and it is optional in the same way mail is.
+	//
+	// Both keys empty is a supported install: the product runs, the inbox works, and the
+	// worker says so once and never sends a push. Setting one without the other is not a
+	// supported install — a public key the browser can subscribe with and no private key to
+	// sign the send is a button that appears to work — so LoadConfig refuses to start.
+	//
+	// VAPIDSubject is the contact the push service is required to be able to reach. Absent,
+	// it is mailto: plus MailFrom, which is already the address this install sends as.
+	VAPIDPublicKey  string `envconfig:"POLARIS_VAPID_PUBLIC_KEY"`
+	VAPIDPrivateKey string `envconfig:"POLARIS_VAPID_PRIVATE_KEY"`
+	VAPIDSubject    string `envconfig:"POLARIS_VAPID_SUBJECT"`
+
 	// Per-caller rate limits, and the defaults are chosen so that nobody using the product
 	// ever meets one.
 	//
@@ -191,6 +205,12 @@ const (
 // normally and say so once, rather than failing a job every hour.
 func (c Config) MailEnabled() bool { return strings.TrimSpace(c.SMTPHost) != "" }
 
+// PushEnabled reports whether a VAPID key pair is configured. Like mail, absence is a
+// supported configuration and the process must start without it.
+func (c Config) PushEnabled() bool {
+	return strings.TrimSpace(c.VAPIDPublicKey) != "" && strings.TrimSpace(c.VAPIDPrivateKey) != ""
+}
+
 // OpenSignupAllowed reports whether anybody may create an account.
 //
 // Phrased as the permissive question so that the zero value of Config — and of anything
@@ -229,7 +249,57 @@ func LoadConfig() (Config, error) {
 	// whether it is willing to start.
 	c.DefaultPlan = strings.ToLower(strings.TrimSpace(c.DefaultPlan))
 
+	c.VAPIDPublicKey = strings.TrimSpace(c.VAPIDPublicKey)
+	c.VAPIDPrivateKey = strings.TrimSpace(c.VAPIDPrivateKey)
+	c.VAPIDSubject = strings.TrimSpace(c.VAPIDSubject)
+	if err := c.normalizePush(); err != nil {
+		return Config{}, err
+	}
+
 	return c, nil
+}
+
+// normalizePush rejects a half-configured push setup and fills the contact address.
+//
+// A browser subscribes with the public key alone. If that key is set and the private key
+// is not, every phone that taps "enable" succeeds and then never hears anything, which is
+// a worse failure than refusing to start: the operator believes it works because the button
+// did. Both empty is the ordinary self-hosted install and is left alone.
+func (c *Config) normalizePush() error {
+	pub, priv := c.VAPIDPublicKey != "", c.VAPIDPrivateKey != ""
+	if pub != priv {
+		return fmt.Errorf("POLARIS_VAPID_PUBLIC_KEY and POLARIS_VAPID_PRIVATE_KEY must both be set, or both left empty")
+	}
+	if !pub {
+		return nil
+	}
+	if err := checkVAPIDKey("POLARIS_VAPID_PUBLIC_KEY", c.VAPIDPublicKey, 65); err != nil {
+		return err
+	}
+	if err := checkVAPIDKey("POLARIS_VAPID_PRIVATE_KEY", c.VAPIDPrivateKey, 32); err != nil {
+		return err
+	}
+	if c.VAPIDSubject == "" {
+		c.VAPIDSubject = "mailto:" + c.MailFrom
+	}
+	if !strings.HasPrefix(c.VAPIDSubject, "mailto:") && !strings.HasPrefix(c.VAPIDSubject, "https:") {
+		return fmt.Errorf("POLARIS_VAPID_SUBJECT must be a mailto: or https: URL, not %q", c.VAPIDSubject)
+	}
+	return nil
+}
+
+// checkVAPIDKey decodes a URL-safe base64 key and checks it is the length an uncompressed
+// P-256 point (public, 65) or a scalar (private, 32) has. Anything else will be refused by
+// the push service on the first send, which is a long way from the env file that caused it.
+func checkVAPIDKey(name, value string, want int) error {
+	decoded, err := base64.RawURLEncoding.DecodeString(value)
+	if err != nil {
+		decoded, err = base64.URLEncoding.DecodeString(value)
+	}
+	if err != nil || len(decoded) != want {
+		return fmt.Errorf("%s must be a URL-safe base64 VAPID key (%d bytes decoded)", name, want)
+	}
+	return nil
 }
 
 func (c Config) IsProduction() bool  { return c.Env == "production" }

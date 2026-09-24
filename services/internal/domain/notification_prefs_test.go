@@ -113,6 +113,30 @@ func TestMutedTypesReadsTheClientsShape(t *testing.T) {
 	}
 }
 
+func TestWantsPush(t *testing.T) {
+	cases := []struct {
+		name string
+		bag  string
+		typ  string
+		want bool
+	}{
+		{"an absent list is the quiet default", `{}`, "issue_assigned", true},
+		{"status changes are not in that default", `{}`, "issue_status_changed", false},
+		{"comments are not in that default", `{}`, "comment", false},
+		{"an empty list is silence, not the default", `{"push":[]}`, "issue_assigned", false},
+		{"an explicit list is honoured", `{"push":["comment"]}`, "comment", true},
+		{"a muted type is not pushed even when listed", `{"push":["mention"],"muted":["mention"]}`, "mention", false},
+		{"due dates are in the default", ``, "issue_due", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := wantsPush(json.RawMessage(tc.bag), tc.typ); got != tc.want {
+				t.Fatalf("wantsPush(%s, %s) = %v, want %v", tc.bag, tc.typ, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestEmailPrefsDefaults(t *testing.T) {
 	cases := []struct {
 		name        string

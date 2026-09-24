@@ -569,7 +569,21 @@ type PurgePayload struct {
 
 func (PurgePayload) IsMutationResult() {}
 
+// Whether this install can push, and the public key a browser needs in order to subscribe.
+type PushConfig struct {
+	// URL-safe base64 VAPID public key. Null when push is not configured.
+	PublicKey *string `json:"publicKey,omitempty"`
+}
+
 type Query struct {
+}
+
+type RegisterPushSubscriptionInput struct {
+	Endpoint string `json:"endpoint"`
+	// The browser's p256dh key, URL-safe base64.
+	P256dh string `json:"p256dh"`
+	// The browser's auth secret, URL-safe base64.
+	Auth string `json:"auth"`
 }
 
 // What to search, and where.

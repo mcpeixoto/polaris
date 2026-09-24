@@ -15,6 +15,7 @@ import (
 	"github.com/peixotolabs/polaris/services/internal/domain"
 	"github.com/peixotolabs/polaris/services/internal/mailer"
 	"github.com/peixotolabs/polaris/services/internal/platform"
+	"github.com/peixotolabs/polaris/services/internal/push"
 	"github.com/peixotolabs/polaris/services/internal/store"
 )
 
@@ -47,6 +48,25 @@ func run() error {
 	defer db.Close()
 
 	svc := domain.NewService(db)
+
+	// Push is optional in the same way mail is. A nil sender is what DeliverPushes treats as
+	// "this install does not push", and the fan-out job below checks it on every tick rather
+	// than the job being registered conditionally — the fan-out has to run either way.
+	var pusher domain.PushTransport
+	if cfg.PushEnabled() {
+		sender, err := push.New(push.Config{
+			PublicKey:  cfg.VAPIDPublicKey,
+			PrivateKey: cfg.VAPIDPrivateKey,
+			Subject:    cfg.VAPIDSubject,
+		})
+		if err != nil {
+			return err
+		}
+		pusher = sender
+	} else {
+		log.Info("web push is not configured; phone notifications will not be sent",
+			"hint", "set POLARIS_VAPID_PUBLIC_KEY and POLARIS_VAPID_PRIVATE_KEY to enable them")
+	}
 
 	// Mail is optional, and this is the one line an install with no relay ever sees about it.
 	//
@@ -103,6 +123,22 @@ func run() error {
 				if err == nil && n > 0 {
 					log.Debug("delivered notifications", "rows", n)
 				}
+				// Push rides this tick rather than its own. The interval above is how long
+				// after an assignment the inbox hears about it, and the phone has to be in
+				// that same window — a separate hourly job would make "assigned to you"
+				// arrive an hour late on the one device where an hour is the whole point.
+				// A fan-out failure still tries: rows already written are the ones waiting,
+				// and holding them behind a workspace that failed to fan out would punish
+				// everybody else.
+				if pusher != nil {
+					sent, pushErr := svc.DeliverPushes(ctx, pusher)
+					if pushErr != nil && err == nil {
+						err = pushErr
+					}
+					if sent > 0 {
+						log.Debug("sent push notifications", "messages", sent)
+					}
+				}
 				return err
 			},
 			// Not critical. A single bad pass is retried five seconds later with the cursor
@@ -154,6 +190,28 @@ func run() error {
 				}
 				return err
 			},
+		},
+		{
+			// Hourly, and the hour is the resolution of "morning", not a cadence anyone chose.
+			//
+			// A notice is owed from 08:00 in the team's zone. A pass at 08:05 says it; a pass
+			// at 07:05 says nothing and the 08:05 pass still will, because the claim is the
+			// memory and the clock is read fresh each time. atBoot is on, unlike the digest:
+			// a process that restarts at 08:30 must not wait until 09:30 to say a deadline
+			// that was already due, and saying it twice is impossible — the claim conflicts.
+			name:   "sweep due dates",
+			every:  time.Hour,
+			atBoot: true,
+			run: func(ctx context.Context) error {
+				n, err := svc.SweepDueNotifications(ctx, time.Now())
+				if err == nil && n > 0 {
+					log.Info("wrote due-date notices", "rows", n)
+				}
+				return err
+			},
+			// Not critical, for the same reason the digest is not. A failed pass leaves the
+			// claims unwritten, and the next hour says what this one did not.
+			critical: false,
 		},
 		{
 			// The trash's retention sweep: issues soft-deleted longer ago than the restore

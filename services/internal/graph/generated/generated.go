@@ -330,11 +330,13 @@ type ComplexityRoot struct {
 		DeleteIssue              func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteIssueRelation      func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteNotification       func(childComplexity int, id uuid.UUID) int
+		DeletePushSubscription   func(childComplexity int, endpoint string) int
 		DeleteView               func(childComplexity int, id uuid.UUID) int
 		InviteToWorkspace        func(childComplexity int, input InviteInput) int
 		MarkAllNotificationsRead func(childComplexity int) int
 		MarkNotificationRead     func(childComplexity int, id uuid.UUID, read bool) int
 		PurgeDeletedIssues       func(childComplexity int, before *time.Time) int
+		RegisterPushSubscription func(childComplexity int, input RegisterPushSubscriptionInput) int
 		RemoveFavorite           func(childComplexity int, kind FavoriteKind, targetID uuid.UUID) int
 		RemoveIssueLabel         func(childComplexity int, issueID uuid.UUID, labelID uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		RemoveTeamMember         func(childComplexity int, teamID uuid.UUID, userID uuid.UUID) int
@@ -396,6 +398,10 @@ type ComplexityRoot struct {
 		Version   func(childComplexity int) int
 	}
 
+	PushConfig struct {
+		PublicKey func(childComplexity int) int
+	}
+
 	Query struct {
 		APIKeys                 func(childComplexity int) int
 		Comments                func(childComplexity int, issueID uuid.UUID) int
@@ -412,6 +418,7 @@ type ComplexityRoot struct {
 		Labels                  func(childComplexity int) int
 		MyIssues                func(childComplexity int, includeCompleted *bool) int
 		Notifications           func(childComplexity int, includeRead *bool, includeSnoozed *bool, first *int) int
+		PushConfig              func(childComplexity int) int
 		Search                  func(childComplexity int, input SearchInput) int
 		Team                    func(childComplexity int, id uuid.UUID) int
 		TeamByKey               func(childComplexity int, key string) int
@@ -651,6 +658,8 @@ type MutationResolver interface {
 	RevokeInvite(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
 	CreateAPIKey(ctx context.Context, input CreateAPIKeyInput) (*APIKeyPayload, error)
 	RevokeAPIKey(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
+	RegisterPushSubscription(ctx context.Context, input RegisterPushSubscriptionInput) (bool, error)
+	DeletePushSubscription(ctx context.Context, endpoint string) (bool, error)
 }
 type QueryResolver interface {
 	Viewer(ctx context.Context) (*Viewer, error)
@@ -680,6 +689,7 @@ type QueryResolver interface {
 	Search(ctx context.Context, input SearchInput) (*SearchResults, error)
 	APIKeys(ctx context.Context) ([]APIKey, error)
 	Invites(ctx context.Context) ([]Invite, error)
+	PushConfig(ctx context.Context) (*PushConfig, error)
 	DeletedIssues(ctx context.Context) ([]Issue, error)
 }
 
@@ -2081,6 +2091,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteNotification(childComplexity, args["id"].(uuid.UUID)), true
+	case "Mutation.deletePushSubscription":
+		if e.ComplexityRoot.Mutation.DeletePushSubscription == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deletePushSubscription_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeletePushSubscription(childComplexity, args["endpoint"].(string)), true
 	case "Mutation.deleteView":
 		if e.ComplexityRoot.Mutation.DeleteView == nil {
 			break
@@ -2131,6 +2152,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.PurgeDeletedIssues(childComplexity, args["before"].(*time.Time)), true
+	case "Mutation.registerPushSubscription":
+		if e.ComplexityRoot.Mutation.RegisterPushSubscription == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_registerPushSubscription_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RegisterPushSubscription(childComplexity, args["input"].(RegisterPushSubscriptionInput)), true
 	case "Mutation.removeFavorite":
 		if e.ComplexityRoot.Mutation.RemoveFavorite == nil {
 			break
@@ -2538,6 +2570,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.PurgePayload.Version(childComplexity), true
 
+	case "PushConfig.publicKey":
+		if e.ComplexityRoot.PushConfig.PublicKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PushConfig.PublicKey(childComplexity), true
+
 	case "Query.apiKeys":
 		if e.ComplexityRoot.Query.APIKeys == nil {
 			break
@@ -2679,6 +2718,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Notifications(childComplexity, args["includeRead"].(*bool), args["includeSnoozed"].(*bool), args["first"].(*int)), true
+	case "Query.pushConfig":
+		if e.ComplexityRoot.Query.PushConfig == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.PushConfig(childComplexity), true
 	case "Query.search":
 		if e.ComplexityRoot.Query.Search == nil {
 			break
@@ -3525,6 +3570,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateViewInput,
 		ec.unmarshalInputCreateWorkflowStateInput,
 		ec.unmarshalInputInviteInput,
+		ec.unmarshalInputRegisterPushSubscriptionInput,
 		ec.unmarshalInputSearchInput,
 		ec.unmarshalInputUpdateIssueInput,
 		ec.unmarshalInputUpdateIssueTemplateInput,
@@ -4701,6 +4747,16 @@ type Query {
   invites: [Invite!]!
 
   """
+  Web Push for this install.
+
+  ` + "`" + `publicKey` + "`" + ` is null when the server has no VAPID keys, which is a supported configuration:
+  the inbox still works and nothing is pushed. The key is public by definition — it is what
+  a browser uses to subscribe — and is still behind authentication because every other query
+  is.
+  """
+  pushConfig: PushConfig!
+
+  """
   Issues deleted within the restore window, so a mistaken delete is recoverable without a
   support ticket.
   """
@@ -4828,6 +4884,31 @@ type Mutation {
   """Returns the token exactly once. It is not recoverable afterwards."""
   createApiKey(input: CreateApiKeyInput!): ApiKeyPayload!
   revokeApiKey(id: UUID!): DeletePayload!
+
+  """
+  Registers this browser for Web Push.
+
+  The endpoint is the device. Registering the same endpoint again — a second tap, or the
+  browser rotating its keys — replaces the row rather than adding one, and moves it to the
+  caller if somebody else was signed in on that browser before.
+  """
+  registerPushSubscription(input: RegisterPushSubscriptionInput!): Boolean!
+  """Forgets one device. The endpoint has to be the caller's; another person's phone is not removable from here."""
+  deletePushSubscription(endpoint: String!): Boolean!
+}
+
+"""Whether this install can push, and the public key a browser needs in order to subscribe."""
+type PushConfig {
+  """URL-safe base64 VAPID public key. Null when push is not configured."""
+  publicKey: String
+}
+
+input RegisterPushSubscriptionInput {
+  endpoint: String!
+  """The browser's p256dh key, URL-safe base64."""
+  p256dh: String!
+  """The browser's auth secret, URL-safe base64."""
+  auth: String!
 }
 `, BuiltIn: false},
 }
@@ -5441,6 +5522,14 @@ func (ec *executionContext) childFields_PurgePayload(ctx context.Context, field 
 		return ec.fieldContext_PurgePayload_remaining(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type PurgePayload", field.Name)
+}
+
+func (ec *executionContext) childFields_PushConfig(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "publicKey":
+		return ec.fieldContext_PushConfig_publicKey(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PushConfig", field.Name)
 }
 
 func (ec *executionContext) childFields_SearchResults(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -6437,6 +6526,20 @@ func (ec *executionContext) field_Mutation_deleteNotification_args(ctx context.C
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_deletePushSubscription_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "endpoint",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["endpoint"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteView_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -6498,6 +6601,20 @@ func (ec *executionContext) field_Mutation_purgeDeletedIssues_args(ctx context.C
 		return nil, err
 	}
 	args["before"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_registerPushSubscription_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (RegisterPushSubscriptionInput, error) {
+			return ec.unmarshalNRegisterPushSubscriptionInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRegisterPushSubscriptionInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -14294,6 +14411,94 @@ func (ec *executionContext) fieldContext_Mutation_revokeApiKey(ctx context.Conte
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_registerPushSubscription(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_registerPushSubscription(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RegisterPushSubscription(ctx, fc.Args["input"].(RegisterPushSubscriptionInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_registerPushSubscription(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_registerPushSubscription_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deletePushSubscription(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deletePushSubscription(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeletePushSubscription(ctx, fc.Args["endpoint"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deletePushSubscription(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deletePushSubscription_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Notification_id(ctx context.Context, field graphql.CollectedField, obj *Notification) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -14857,6 +15062,29 @@ func (ec *executionContext) _PurgePayload_remaining(ctx context.Context, field g
 }
 func (ec *executionContext) fieldContext_PurgePayload_remaining(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("PurgePayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _PushConfig_publicKey(ctx context.Context, field graphql.CollectedField, obj *PushConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PushConfig_publicKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PublicKey, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PushConfig_publicKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PushConfig", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _Query_viewer(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -15901,6 +16129,38 @@ func (ec *executionContext) fieldContext_Query_invites(_ context.Context, field 
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Invite(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_pushConfig(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_pushConfig(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().PushConfig(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *PushConfig) graphql.Marshaler {
+			return ec.marshalNPushConfig2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐPushConfig(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_pushConfig(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PushConfig(ctx, field)
 		},
 	}
 	return fc, nil
@@ -20661,6 +20921,50 @@ func (ec *executionContext) unmarshalInputInviteInput(ctx context.Context, obj a
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputRegisterPushSubscriptionInput(ctx context.Context, obj any) (RegisterPushSubscriptionInput, error) {
+	var it RegisterPushSubscriptionInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"endpoint", "p256dh", "auth"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "endpoint":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("endpoint"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Endpoint = data
+		case "p256dh":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("p256dh"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.P256dh = data
+		case "auth":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("auth"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Auth = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputSearchInput(ctx context.Context, obj any) (SearchInput, error) {
 	var it SearchInput
 	if obj == nil {
@@ -23717,6 +24021,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "registerPushSubscription":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_registerPushSubscription(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deletePushSubscription":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deletePushSubscription(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -23962,6 +24280,44 @@ func (ec *executionContext) _PurgePayload(ctx context.Context, sel ast.Selection
 		case "remaining":
 			out.Values[i] = ec._PurgePayload_remaining(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var pushConfigImplementors = []string{"PushConfig"}
+
+func (ec *executionContext) _PushConfig(ctx context.Context, sel ast.SelectionSet, obj *PushConfig) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, pushConfigImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PushConfig")
+		case "publicKey":
+			out.Values[i] = ec._PushConfig_publicKey(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -24587,6 +24943,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_invites(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "pushConfig":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_pushConfig(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -26912,6 +27290,25 @@ func (ec *executionContext) marshalNPurgePayload2ᚖgithubᚗcomᚋpeixotolabs�
 		return graphql.Null
 	}
 	return ec._PurgePayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNPushConfig2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐPushConfig(ctx context.Context, sel ast.SelectionSet, v PushConfig) graphql.Marshaler {
+	return ec._PushConfig(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPushConfig2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐPushConfig(ctx context.Context, sel ast.SelectionSet, v *PushConfig) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PushConfig(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNRegisterPushSubscriptionInput2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRegisterPushSubscriptionInput(ctx context.Context, v any) (RegisterPushSubscriptionInput, error) {
+	res, err := ec.unmarshalInputRegisterPushSubscriptionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNRelationType2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐRelationType(ctx context.Context, v any) (RelationType, error) {

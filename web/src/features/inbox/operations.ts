@@ -159,3 +159,32 @@ export const UPDATE_NOTIFICATION_PREFS = /* GraphQL */ `
     }
   }
 `;
+
+/**
+ * Whether this install can push, and the public key a browser subscribes with.
+ *
+ * Asked for when somebody turns a device on, and not before. The settings screen is
+ * opened far more often than a phone is registered, and a query on every visit would
+ * be a request the tests — and a signed-out render — have no reason to make.
+ */
+export const PUSH_CONFIG = /* GraphQL */ `
+  query PushConfig {
+    pushConfig {
+      publicKey
+    }
+  }
+`;
+
+/** Stores this browser's push endpoint. The same endpoint registered again replaces the keys. */
+export const REGISTER_PUSH_SUBSCRIPTION = /* GraphQL */ `
+  mutation RegisterPushSubscription($input: RegisterPushSubscriptionInput!) {
+    registerPushSubscription(input: $input)
+  }
+`;
+
+/** Forgets this browser. Another person's endpoint is not deleted; the server checks. */
+export const DELETE_PUSH_SUBSCRIPTION = /* GraphQL */ `
+  mutation DeletePushSubscription($endpoint: String!) {
+    deletePushSubscription(endpoint: $endpoint)
+  }
+`;

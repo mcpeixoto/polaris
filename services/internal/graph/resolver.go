@@ -26,6 +26,10 @@ import (
 // API, not an invitation to reach past it.
 type Resolver struct {
 	Svc *domain.Service
+	// PushPublicKey is the VAPID public key, empty when this install has not configured
+	// push. It is deployment config, not a domain fact: a browser needs it to subscribe,
+	// and nothing in the domain layer signs or sends with it.
+	PushPublicKey string
 }
 
 // principalFrom returns the caller, or the error every resolver returns when there is not

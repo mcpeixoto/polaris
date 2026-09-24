@@ -196,7 +196,11 @@ function dayFormatter(timezone: string): Intl.DateTimeFormat {
  * An unrecognised type still says something. A newer server can deliver a type this build
  * has never heard of, and a blank row is indistinguishable from a rendering fault.
  */
-export function describeEvent(type: NotificationType, identifier: string): string {
+export function describeEvent(
+  type: NotificationType,
+  identifier: string,
+  payload?: unknown,
+): string {
   switch (type) {
     case 'issue_assigned':
       return `assigned ${identifier} to you`;
@@ -205,7 +209,10 @@ export function describeEvent(type: NotificationType, identifier: string): strin
     case 'issue_priority_raised':
       return `raised the priority of ${identifier}`;
     case 'issue_due':
-      return `${identifier} is due`;
+      // The sweep writes `kind`. A row from before that, or one whose payload did not
+      // parse, stays the older sentence rather than claiming "today" for something that
+      // might have been overdue.
+      return dueSentence(identifier, payload);
     case 'issue_blocked':
       return `blocked ${identifier}`;
     case 'comment':
@@ -217,6 +224,19 @@ export function describeEvent(type: NotificationType, identifier: string): strin
     default:
       return `updated ${identifier}`;
   }
+}
+
+function dueSentence(identifier: string, payload: unknown): string {
+  const kind = dueKind(payload);
+  if (kind === 'today') return `${identifier} is due today`;
+  if (kind === 'overdue') return `${identifier} is overdue`;
+  return `${identifier} is due`;
+}
+
+function dueKind(payload: unknown): string | undefined {
+  if (payload === null || typeof payload !== 'object') return undefined;
+  const kind = (payload as { kind?: unknown }).kind;
+  return typeof kind === 'string' ? kind : undefined;
 }
 
 /**

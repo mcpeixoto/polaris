@@ -33,6 +33,9 @@ type Documents = {
     "\n  \n  mutation SnoozeNotification($id: UUID!, $until: Time) {\n    snoozeNotification(id: $id, until: $until) {\n      version\n      notification {\n        ...NotificationFields\n      }\n    }\n  }\n": typeof types.SnoozeNotificationDocument,
     "\n  mutation DeleteNotification($id: UUID!) {\n    deleteNotification(id: $id) {\n      version\n      id\n    }\n  }\n": typeof types.DeleteNotificationDocument,
     "\n  \n  mutation UpdateNotificationPrefs($prefs: JSON!) {\n    updateNotificationPrefs(prefs: $prefs) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n": typeof types.UpdateNotificationPrefsDocument,
+    "\n  query PushConfig {\n    pushConfig {\n      publicKey\n    }\n  }\n": typeof types.PushConfigDocument,
+    "\n  mutation RegisterPushSubscription($input: RegisterPushSubscriptionInput!) {\n    registerPushSubscription(input: $input)\n  }\n": typeof types.RegisterPushSubscriptionDocument,
+    "\n  mutation DeletePushSubscription($endpoint: String!) {\n    deletePushSubscription(endpoint: $endpoint)\n  }\n": typeof types.DeletePushSubscriptionDocument,
     "\n  fragment SubIssueFields on Issue {\n    id\n    workspaceId\n    teamId\n    number\n    identifier\n    title\n    description\n    stateId\n    assigneeId\n    creatorId\n    priority\n    sortOrder\n    estimate\n    dueDate\n    dueDateSource\n    parentId\n    subIssueSortOrder\n    templateId\n    startedAt\n    completedAt\n    canceledAt\n    archivedAt\n    createdAt\n    updatedAt\n  }\n": typeof types.SubIssueFieldsFragmentDoc,
     "\n  fragment RelationFields on IssueRelation {\n    id\n    workspaceId\n    issueId\n    relatedIssueId\n    type\n    teamId\n    relatedTeamId\n    createdBy\n    createdAt\n  }\n": typeof types.RelationFieldsFragmentDoc,
     "\n  fragment SubscriptionFields on IssueSubscription {\n    id\n    workspaceId\n    issueId\n    userId\n    reason\n    unsubscribed\n    createdAt\n    updatedAt\n  }\n": typeof types.SubscriptionFieldsFragmentDoc,
@@ -104,6 +107,9 @@ const documents: Documents = {
     "\n  \n  mutation SnoozeNotification($id: UUID!, $until: Time) {\n    snoozeNotification(id: $id, until: $until) {\n      version\n      notification {\n        ...NotificationFields\n      }\n    }\n  }\n": types.SnoozeNotificationDocument,
     "\n  mutation DeleteNotification($id: UUID!) {\n    deleteNotification(id: $id) {\n      version\n      id\n    }\n  }\n": types.DeleteNotificationDocument,
     "\n  \n  mutation UpdateNotificationPrefs($prefs: JSON!) {\n    updateNotificationPrefs(prefs: $prefs) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n": types.UpdateNotificationPrefsDocument,
+    "\n  query PushConfig {\n    pushConfig {\n      publicKey\n    }\n  }\n": types.PushConfigDocument,
+    "\n  mutation RegisterPushSubscription($input: RegisterPushSubscriptionInput!) {\n    registerPushSubscription(input: $input)\n  }\n": types.RegisterPushSubscriptionDocument,
+    "\n  mutation DeletePushSubscription($endpoint: String!) {\n    deletePushSubscription(endpoint: $endpoint)\n  }\n": types.DeletePushSubscriptionDocument,
     "\n  fragment SubIssueFields on Issue {\n    id\n    workspaceId\n    teamId\n    number\n    identifier\n    title\n    description\n    stateId\n    assigneeId\n    creatorId\n    priority\n    sortOrder\n    estimate\n    dueDate\n    dueDateSource\n    parentId\n    subIssueSortOrder\n    templateId\n    startedAt\n    completedAt\n    canceledAt\n    archivedAt\n    createdAt\n    updatedAt\n  }\n": types.SubIssueFieldsFragmentDoc,
     "\n  fragment RelationFields on IssueRelation {\n    id\n    workspaceId\n    issueId\n    relatedIssueId\n    type\n    teamId\n    relatedTeamId\n    createdBy\n    createdAt\n  }\n": types.RelationFieldsFragmentDoc,
     "\n  fragment SubscriptionFields on IssueSubscription {\n    id\n    workspaceId\n    issueId\n    userId\n    reason\n    unsubscribed\n    createdAt\n    updatedAt\n  }\n": types.SubscriptionFieldsFragmentDoc,
@@ -246,6 +252,18 @@ export function graphql(source: "\n  mutation DeleteNotification($id: UUID!) {\n
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  \n  mutation UpdateNotificationPrefs($prefs: JSON!) {\n    updateNotificationPrefs(prefs: $prefs) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation UpdateNotificationPrefs($prefs: JSON!) {\n    updateNotificationPrefs(prefs: $prefs) {\n      version\n      user {\n        ...UserFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  query PushConfig {\n    pushConfig {\n      publicKey\n    }\n  }\n"): (typeof documents)["\n  query PushConfig {\n    pushConfig {\n      publicKey\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation RegisterPushSubscription($input: RegisterPushSubscriptionInput!) {\n    registerPushSubscription(input: $input)\n  }\n"): (typeof documents)["\n  mutation RegisterPushSubscription($input: RegisterPushSubscriptionInput!) {\n    registerPushSubscription(input: $input)\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation DeletePushSubscription($endpoint: String!) {\n    deletePushSubscription(endpoint: $endpoint)\n  }\n"): (typeof documents)["\n  mutation DeletePushSubscription($endpoint: String!) {\n    deletePushSubscription(endpoint: $endpoint)\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

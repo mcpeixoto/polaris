@@ -1089,6 +1089,16 @@ type Query {
   invites: [Invite!]!
 
   """
+  Web Push for this install.
+
+  `publicKey` is null when the server has no VAPID keys, which is a supported configuration:
+  the inbox still works and nothing is pushed. The key is public by definition — it is what
+  a browser uses to subscribe — and is still behind authentication because every other query
+  is.
+  """
+  pushConfig: PushConfig!
+
+  """
   Issues deleted within the restore window, so a mistaken delete is recoverable without a
   support ticket.
   """
@@ -1216,4 +1226,29 @@ type Mutation {
   """Returns the token exactly once. It is not recoverable afterwards."""
   createApiKey(input: CreateApiKeyInput!): ApiKeyPayload!
   revokeApiKey(id: UUID!): DeletePayload!
+
+  """
+  Registers this browser for Web Push.
+
+  The endpoint is the device. Registering the same endpoint again — a second tap, or the
+  browser rotating its keys — replaces the row rather than adding one, and moves it to the
+  caller if somebody else was signed in on that browser before.
+  """
+  registerPushSubscription(input: RegisterPushSubscriptionInput!): Boolean!
+  """Forgets one device. The endpoint has to be the caller's; another person's phone is not removable from here."""
+  deletePushSubscription(endpoint: String!): Boolean!
+}
+
+"""Whether this install can push, and the public key a browser needs in order to subscribe."""
+type PushConfig {
+  """URL-safe base64 VAPID public key. Null when push is not configured."""
+  publicKey: String
+}
+
+input RegisterPushSubscriptionInput {
+  endpoint: String!
+  """The browser's p256dh key, URL-safe base64."""
+  p256dh: String!
+  """The browser's auth secret, URL-safe base64."""
+  auth: String!
 }

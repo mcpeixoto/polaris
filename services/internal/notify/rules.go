@@ -195,7 +195,8 @@ type Delivery struct {
 // told twice, and the inbox is the one screen where that is unforgivable.
 //
 // issue_due is deliberately absent. A due date arriving is not something anybody did, so it
-// has no change row and never reaches this function; it comes from a scheduled sweep.
+// has no change row and never reaches this function. DueNotice decides whether this morning
+// is the one to say it, and the sweep in internal/domain writes the row.
 var precedence = []string{
 	model.NotifyMention,
 	model.NotifyIssueAssigned,

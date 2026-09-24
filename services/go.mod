@@ -4,6 +4,7 @@ go 1.26.0
 
 require (
 	github.com/99designs/gqlgen v0.17.94
+	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/coder/websocket v1.8.15
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/golang-migrate/migrate/v4 v4.19.1

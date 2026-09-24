@@ -23,7 +23,7 @@ that impossible.
 |---|---|---|---|
 | `api` | `:8088` | GraphQL, auth, the bootstrap snapshot | The app cannot load or mutate anything |
 | `sync` | `:8089` | The WebSocket delta hub | Clients keep working offline and stop seeing each other's changes |
-| `worker` | nothing | Partition creation, retention pruning, email digests | Silently, for weeks, and then all at once — see below |
+| `worker` | nothing | Partition creation, retention pruning, notification fan-out, due-date notices, email digests, phone push | Silently, for weeks, and then all at once — see below |
 | `polarisctl` | — | Migrations and maintenance, run to completion | — |
 
 Plus a static bundle: `web/` builds an SPA and serves it from nginx on `:8080`. It is the
@@ -169,6 +169,7 @@ which is not true of every system.
 | `POLARIS_SHUTDOWN_GRACE` | `20s` | How long in-flight requests get to finish on `SIGTERM`. Make your container runtime's stop timeout larger than this or the runtime will `SIGKILL` mid-drain |
 | `POLARIS_RATE_LIMIT_ENABLED` | `true` | See *Rate limits* |
 | `POLARIS_SMTP_*`, `POLARIS_MAIL_*` | see *Email* | Optional, and absence is supported |
+| `POLARIS_VAPID_*` | see *Phone notifications* | Optional, and absence is supported |
 
 **Connection pool arithmetic.** The default of 10 is low because it is a *per-process*
 number and the defaults assume a pooler in front. Three processes at 10 is 30 backends
@@ -508,6 +509,54 @@ cadence: each recipient's own preference decides whether they are due. And deliv
 NULL ... RETURNING` before the message is handed to the relay, so a process killed in between
 loses that digest rather than sending it twice. The news is not lost; it is still unread in
 the inbox.
+
+## Phone notifications
+
+**Web Push is optional and its absence is a supported configuration.** With
+`POLARIS_VAPID_PUBLIC_KEY` and `POLARIS_VAPID_PRIVATE_KEY` both empty, the api and the worker
+start normally. The worker logs one line —
+
+```
+web push is not configured; phone notifications will not be sent
+```
+
+— and the fan-out keeps writing the inbox. Nothing is sent to a phone. Setting exactly one of
+the two keys is not supported: that process refuses to start, because a browser can subscribe
+with the public key alone and would then never receive anything.
+
+The api and the worker have to share the same pair. The api hands the public key to the
+browser; the worker signs with the private key. Both containers already read the same
+`env_file`, so putting the pair in that file is the whole of the wiring. A subject is
+optional: `POLARIS_VAPID_SUBJECT` defaults to `mailto:` plus `POLARIS_MAIL_FROM`, and it has
+to be a `mailto:` or `https:` URL because that is what a push service requires as a contact.
+
+Generate a pair with:
+
+```
+npx web-push generate-vapid-keys
+```
+
+The public key is a URL-safe base64 encoding of a 65-byte uncompressed P-256 point, and the
+private key is 32 bytes in the same encoding. That is the shape the process checks at
+startup. Anything else fails there rather than on the first phone that tries to subscribe.
+
+What actually gets through. The inbox is still the record. A phone is a third channel, and
+it is quiet on purpose: assignment, mention, a priority raised to urgent, a blocked issue
+the person is assigned, and due dates. Due dates are said twice — the morning they are due,
+in the team's timezone, and once the morning after if the issue is still open — and several
+issues at the same moment are one notification. The other types stay in the inbox and the
+email digest unless that person turns them on. Switching a type off under "What to notify me
+about" silences it everywhere, including the phone.
+
+**An iPhone only receives these from a Home Screen icon.** Safari delivers Web Push from iOS
+16.4 onward, and only to a site that was added to the Home Screen, served over HTTPS, and
+only after the person taps "Turn on this device" inside that installed app. A tab cannot
+subscribe, and there is no native app to install instead. The manifest already asks for a
+standalone display; the page also sends `apple-mobile-web-app-capable`, which is what makes
+Add to Home Screen open Polaris as that app rather than as another Safari tab.
+
+A device the push service answers `404` or `410` for is forgotten. The person turns it on
+again from the settings screen after they reinstall.
 
 ## Backup and restore
 
