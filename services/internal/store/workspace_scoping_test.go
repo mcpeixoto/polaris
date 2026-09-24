@@ -39,6 +39,8 @@ var tablesWithoutWorkspaceID = map[string]string{
 
 	"notification_email_cursor": "keyed by user_id, which is itself workspace-scoped; the " +
 		"cursor is a delivery watermark rather than an entity anybody reads",
+	"notification_due": "a claim that this user was already told about this issue's deadline; " +
+		"both the user and the issue already carry workspace_id, and the row is not itself read",
 
 	"schema_migrations": "the migration tool's own bookkeeping",
 }
