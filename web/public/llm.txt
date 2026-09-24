@@ -1,0 +1,165 @@
+# Polaris MCP
+
+Polaris is an issue tracker. This file is how an agent connects to the hosted
+workspace at https://polaris.peixotolabs.com.
+
+The server is Streamable HTTP MCP (protocol versions 2025-06-18 and 2025-03-26).
+There is nothing to install and no client secret to create first. A client that
+can open a browser registers itself (OAuth 2.1 dynamic client registration,
+RFC 7591, PKCE S256) and sends you to a consent screen. You sign in, read what
+the application is asking for, and press Authorize. The connection then acts as
+you, in the workspace you are signed into, and can reach only what you can.
+
+## Endpoints
+
+Read and write:
+
+https://polaris.peixotolabs.com/mcp
+
+Read only (write tools are not offered, and write calls are rejected):
+
+https://polaris.peixotolabs.com/mcp/readonly
+
+Discovery, for clients that look it up themselves:
+
+https://polaris.peixotolabs.com/.well-known/oauth-protected-resource
+https://polaris.peixotolabs.com/.well-known/oauth-protected-resource/mcp
+https://polaris.peixotolabs.com/.well-known/oauth-authorization-server
+https://polaris.peixotolabs.com/.well-known/oauth-authorization-server/mcp
+
+Registration is POST https://polaris.peixotolabs.com/oauth/register
+A 401 from /mcp carries a WWW-Authenticate challenge pointing at that metadata.
+Send the access token as Authorization: Bearer.
+
+Issue identifiers such as ENG-123 work anywhere an id is accepted. A team, a
+workflow state, a label, or a person can be given by name rather than by UUID.
+
+## Cursor
+
+Add a remote MCP server. In Cursor: Settings, then MCP, then add a server. Or
+put this in ~/.cursor/mcp.json (all projects) or .cursor/mcp.json (one project):
+
+{
+  "mcpServers": {
+    "polaris": {
+      "url": "https://polaris.peixotolabs.com/mcp"
+    }
+  }
+}
+
+For a client that must not change anything, use the read-only URL instead:
+
+{
+  "mcpServers": {
+    "polaris": {
+      "url": "https://polaris.peixotolabs.com/mcp/readonly"
+    }
+  }
+}
+
+Save the file. Cursor opens a browser. Sign in to Polaris and press Authorize.
+The server is ready when that browser round trip finishes.
+
+## Claude Code
+
+Run:
+
+claude mcp add --transport http polaris https://polaris.peixotolabs.com/mcp
+
+Then, inside Claude Code, run /mcp and approve the connection.
+
+Read only:
+
+claude mcp add --transport http polaris-readonly https://polaris.peixotolabs.com/mcp/readonly
+
+## Claude Desktop and other URL clients
+
+Any client that speaks remote Streamable HTTP can use the same URL. In Claude
+Desktop the config is claude_desktop_config.json:
+
+{
+  "mcpServers": {
+    "polaris": {
+      "url": "https://polaris.peixotolabs.com/mcp"
+    }
+  }
+}
+
+Restart the app. Complete the browser sign-in when it appears.
+
+## Clients that cannot open a browser
+
+Create a personal API key at https://polaris.peixotolabs.com/settings/api-keys
+and send it as a bearer token. It acts as you and never reaches further than
+you can. Revoke it from that same page.
+
+Example (read-only tools, one call):
+
+curl -sS https://polaris.peixotolabs.com/mcp/readonly \
+  -H "Authorization: Bearer $POLARIS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+
+## Tools
+
+Reads, on both endpoints:
+
+- list_issues
+- get_issue
+- list_comments
+- list_teams
+- list_projects
+- get_viewer
+- list_users
+- list_workflow_states
+- list_labels
+- list_cycles
+- list_my_issues
+- get_project
+- list_milestones
+
+Writes, on /mcp only:
+
+- create_project
+- update_project
+- create_issue
+- update_issue
+- assign_issue
+- set_issue_state
+- set_issue_labels
+- set_issue_estimate
+- set_issue_due_date
+- create_sub_issue
+- link_issues
+- archive_issue
+- add_issue_to_project
+- create_comment
+- update_comment
+- delete_comment
+- add_reaction
+
+## Prompts
+
+The server also ships prompts so a client is not left with thirty tools and no
+order to use them. Each one says to show the structure before creating
+anything, and to say what is uncertain instead of inventing it.
+
+On /mcp:
+
+- roadmap_planning — turn a planning document into a project, milestones, and issues
+- standup_notes — match notes to existing issues and comment only on confident matches
+- bug_investigation — read an issue and post a likely cause, with the uncertainty stated
+- implementation_plan — draft an approach, wait for approval, then create the issues
+- cycle_summary — summarise the most recently completed cycle for a team
+- timeline — chronological history of the work around a topic, with gaps left as gaps
+
+On /mcp/readonly only cycle_summary and timeline are offered. The other four
+create or comment, and a read-only connection will not pretend it can.
+
+## Where this is in the product
+
+The same URLs and the Claude Code command are on the workspace settings page,
+under MCP: https://polaris.peixotolabs.com/settings/mcp
+Authorized applications for this workspace are listed under settings after you
+press Authorize.
