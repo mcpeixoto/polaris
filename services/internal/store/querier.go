@@ -534,6 +534,11 @@ type Querier interface {
 	// Pin the cursor at create time so turning a webhook on does not replay the workspace's
 	// entire change_log into a stranger's URL.
 	EnsureWebhookCursorAtLeast(ctx context.Context, arg EnsureWebhookCursorAtLeastParams) error
+	// Slides the expiry of the session the caller already holds. The token is not replaced:
+	// a refresh that minted a new secret and then lost the Set-Cookie (a slow network, an
+	// iOS home-screen reload after an app update, a desktop cookie the browser declined to
+	// store) revoked the only copy the device had and signed the person out.
+	ExtendSession(ctx context.Context, arg ExtendSessionParams) (AccountSession, error)
 	// FindGroupableHistoryEntry implements the folding rule: a run of same-kind changes by
 	// the same actor within a short window shows as one entry in the feed rather than five.
 	// Returning the existing row lets the writer update it instead of appending.

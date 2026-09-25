@@ -50,9 +50,10 @@ without also constraining the workspace is a cross-tenant read.
 - Passwords are Argon2id with the cost parameters stored per hash, verified in constant
   time, with the input length bounded so an unauthenticated endpoint cannot be used to
   exhaust the box.
-- Refresh tokens are opaque, stored only as SHA-256 digests, HttpOnly, and rotated on
-  every use — a stolen token is usable at most once, and the legitimate client's next
-  refresh fails loudly.
+- Refresh tokens are opaque, stored only as SHA-256 digests, and HttpOnly. A token stays
+  valid until logout, an explicit revoke, or 400 days without use; each successful refresh
+  restarts that window. The plaintext is never stored, so a database leak is not a pile of
+  live logins.
 - Access tokens pin HMAC-SHA256 in two places, so `alg: none` and algorithm-confusion
   forgeries are rejected rather than trusted.
 - "Not found" and "forbidden" are deliberately conflated where distinguishing them would

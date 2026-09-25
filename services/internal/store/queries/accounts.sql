@@ -33,6 +33,19 @@ SELECT id, account_id, token_hash, user_agent, ip, country, expires_at, revoked_
 FROM account_session
 WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > now();
 
+-- name: ExtendSession :one
+-- Slides the expiry of the session the caller already holds. The token is not replaced:
+-- a refresh that minted a new secret and then lost the Set-Cookie (a slow network, an
+-- iOS home-screen reload after an app update, a desktop cookie the browser declined to
+-- store) revoked the only copy the device had and signed the person out.
+UPDATE account_session
+SET expires_at = sqlc.arg(expires_at),
+    last_seen_at = now()
+WHERE token_hash = sqlc.arg(token_hash)
+  AND revoked_at IS NULL
+  AND expires_at > now()
+RETURNING id, account_id, token_hash, user_agent, ip, country, expires_at, revoked_at, last_seen_at, created_at, updated_at;
+
 -- name: TouchSession :exec
 UPDATE account_session SET last_seen_at = now() WHERE id = $1;
 
