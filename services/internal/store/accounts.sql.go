@@ -140,6 +140,44 @@ func (q *Queries) DeleteExpiredSessions(ctx context.Context) (int64, error) {
 	return result.RowsAffected(), nil
 }
 
+const extendSession = `-- name: ExtendSession :one
+UPDATE account_session
+SET expires_at = $1,
+    last_seen_at = now()
+WHERE token_hash = $2
+  AND revoked_at IS NULL
+  AND expires_at > now()
+RETURNING id, account_id, token_hash, user_agent, ip, country, expires_at, revoked_at, last_seen_at, created_at, updated_at
+`
+
+type ExtendSessionParams struct {
+	ExpiresAt time.Time
+	TokenHash []byte
+}
+
+// Slides the expiry of the session the caller already holds. The token is not replaced:
+// a refresh that minted a new secret and then lost the Set-Cookie (a slow network, an
+// iOS home-screen reload after an app update, a desktop cookie the browser declined to
+// store) revoked the only copy the device had and signed the person out.
+func (q *Queries) ExtendSession(ctx context.Context, arg ExtendSessionParams) (AccountSession, error) {
+	row := q.db.QueryRow(ctx, extendSession, arg.ExpiresAt, arg.TokenHash)
+	var i AccountSession
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.TokenHash,
+		&i.UserAgent,
+		&i.Ip,
+		&i.Country,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.LastSeenAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getAccount = `-- name: GetAccount :one
 SELECT id, email, password_hash, email_verified_at, deleted_at, last_login_at, created_at, updated_at
 FROM account

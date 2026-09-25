@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -147,7 +149,7 @@ func (h *authHandlers) login(w http.ResponseWriter, r *http.Request) {
 	h.completeLogin(w, r, accountID, session)
 }
 
-// refresh rotates the refresh token and mints a new access token.
+// refresh mints a new access token and extends the refresh cookie the caller already has.
 func (h *authHandlers) refresh(w http.ResponseWriter, r *http.Request) {
 	c, err := r.Cookie(refreshCookie)
 	if err != nil || c.Value == "" {
@@ -157,9 +159,12 @@ func (h *authHandlers) refresh(w http.ResponseWriter, r *http.Request) {
 
 	accountID, session, err := h.svc.RefreshSession(r.Context(), c.Value)
 	if err != nil {
-		// The old cookie is dead either way. Leaving it in place means the client retries
-		// forever against a token that will never work again.
-		h.clearRefreshCookie(w)
+		// Only a dead session loses the cookie. A database blip is not a sign-out: clearing
+		// here would turn a transient error into a login screen on every device that
+		// happened to refresh during it.
+		if platform.CodeOf(err) == platform.CodeUnauthorized {
+			h.clearRefreshCookie(w)
+		}
 		writeError(w, r, err)
 		return
 	}
@@ -289,18 +294,7 @@ func (h *authHandlers) completeLogin(w http.ResponseWriter, r *http.Request, acc
 		return
 	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     refreshCookie,
-		Value:    session.RefreshToken,
-		Path:     "/",
-		Expires:  session.ExpiresAt,
-		HttpOnly: true,
-		Secure:   h.secure,
-		// Lax, not Strict: the invitation flow arrives by following a link from an email
-		// client, and Strict would drop the cookie on exactly that navigation and log the
-		// person out at the moment they were being invited in.
-		SameSite: http.SameSiteLaxMode,
-	})
+	http.SetCookie(w, h.refreshCookie(r, session.RefreshToken, session.ExpiresAt))
 
 	workspaces, err := h.svc.ListWorkspacesForAccount(r.Context(), accountID)
 	if err != nil {
@@ -316,7 +310,59 @@ func (h *authHandlers) completeLogin(w http.ResponseWriter, r *http.Request, acc
 	})
 }
 
+// refreshCookie builds the session cookie.
+//
+// Max-Age is set as well as Expires. A cookie with only Expires is what some browsers
+// treat as a session cookie and drop when the app process dies — which, on an iPhone
+// home-screen app, is every update.
+//
+// SameSite=Lax for the web app, which is served from the same origin as the API. The
+// desktop app is a different site (polaris-app://app) talking to that API, and a Lax
+// cookie is neither stored nor sent on that cross-site request, so every launch asked
+// for a password. None + Secure + Partitioned is the form browsers still accept for a
+// credentialed cross-site request once third-party cookies are blocked. None without
+// Secure is ignored, so a plain-HTTP development server stays on Lax.
+func (h *authHandlers) refreshCookie(r *http.Request, token string, expires time.Time) *http.Cookie {
+	maxAge := int(time.Until(expires).Seconds())
+	if maxAge < 0 {
+		maxAge = 0
+	}
+	c := &http.Cookie{
+		Name:     refreshCookie,
+		Value:    token,
+		Path:     "/",
+		Expires:  expires.UTC(),
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   h.secure,
+		// Lax, not Strict: the invitation flow arrives by following a link from an email
+		// client, and Strict would drop the cookie on exactly that navigation and log the
+		// person out at the moment they were being invited in.
+		SameSite: http.SameSiteLaxMode,
+	}
+	if h.secure && crossSite(r) {
+		c.SameSite = http.SameSiteNoneMode
+		c.Secure = true
+		c.Partitioned = true
+	}
+	return c
+}
+
+func crossSite(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return false
+	}
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	return !strings.EqualFold(u.Host, r.Host)
+}
+
 func (h *authHandlers) clearRefreshCookie(w http.ResponseWriter) {
+	// Both shapes: a partitioned cookie is only deleted by a Set-Cookie that is itself
+	// partitioned, and the web app's cookie is not.
 	http.SetCookie(w, &http.Cookie{
 		Name:     refreshCookie,
 		Value:    "",
@@ -326,4 +372,16 @@ func (h *authHandlers) clearRefreshCookie(w http.ResponseWriter) {
 		Secure:   h.secure,
 		SameSite: http.SameSiteLaxMode,
 	})
+	if h.secure {
+		http.SetCookie(w, &http.Cookie{
+			Name:        refreshCookie,
+			Value:       "",
+			Path:        "/",
+			MaxAge:      -1,
+			HttpOnly:    true,
+			Secure:      true,
+			SameSite:    http.SameSiteNoneMode,
+			Partitioned: true,
+		})
+	}
 }

@@ -614,8 +614,12 @@ heartbeat is what keeps those alive, and it is why the heartbeat is not configur
 
 ### Cookies
 
-The refresh token is an `HttpOnly`, `SameSite=Lax` cookie. The `Secure` flag is set whenever
-`POLARIS_ENV` is anything other than `development`. Two consequences:
+The refresh token is an `HttpOnly` cookie that lasts 400 days and is extended each time the
+app refreshes it, so a new iPhone or desktop build does not ask for the password again.
+`SameSite=Lax` on the web app. The desktop app is a different site from the server it talks
+to, so its cookie is `SameSite=None; Secure; Partitioned` — a Lax cookie is not sent on that
+cross-site request, and every launch would otherwise be a login screen. The `Secure` flag is
+set whenever `POLARIS_ENV` is anything other than `development`. Two consequences:
 
 - Serving a production install over plain HTTP means the browser drops the cookie and sign-in
   appears to do nothing at all, with no error.

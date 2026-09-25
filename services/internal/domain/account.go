@@ -440,68 +440,36 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (uuid.UUID, Session,
 	return acct.ID, session, err
 }
 
-// RefreshSession exchanges a refresh token for a new one and extends the session.
+// RefreshSession extends the session the caller already holds and returns that same token.
 //
-// The old token is revoked in the same transaction (rotation). A stolen refresh token is
-// therefore usable at most once, and the legitimate client's next refresh fails loudly
-// instead of the theft going unnoticed.
+// The row stays the same session. Replacing it used to hand the Sessions screen a Revoke
+// button for an id that no longer existed. Replacing the token on that row had the other
+// failure: the new secret only lives in Set-Cookie, and that header is the one an iPhone
+// home-screen app drops when it reloads for an update, and the one the desktop app — a
+// different site from its server — often never stores. The device kept the old cookie, the
+// server had already forgotten it, and the next launch was a login screen.
+//
+// The plaintext returned here is the one the caller just presented, so a lost Set-Cookie
+// changes nothing. Each successful refresh pushes expiry out by SessionTTL. Logout and
+// revoke still end it immediately, and the session id stays stable so the Sessions screen
+// can point at a device and kill it.
 func (s *Service) RefreshSession(ctx context.Context, refreshToken string) (uuid.UUID, Session, error) {
-	hash := auth.HashToken(refreshToken)
-
-	var (
-		accountID uuid.UUID
-		session   Session
-	)
-	err := s.db.InTx(ctx, func(ctx context.Context, q *store.Queries) error {
-		existing, err := q.GetSessionByTokenHash(ctx, hash)
-		if err != nil {
-			if store.IsNotFound(err) {
-				return platform.Unauthorized("session expired, please sign in again")
-			}
-			return platform.Internal(err)
-		}
-		accountID = existing.AccountID
-
-		// Rotated in place rather than revoked and re-issued.
-		//
-		// A refresh has to change the token — a refresh token that survives its own use is a
-		// replay waiting to happen — but it must not change which session this is. It used to
-		// do both: the old row was revoked and a new one inserted, so every live device became
-		// a different session id every fifteen minutes. The Sessions screen draws a Revoke
-		// button per id, so pressing it on any device that had refreshed since the list loaded
-		// answered "session not found" and left that device signed in and refreshing happily —
-		// which is the whole of what that screen is for.
-		//
-		// Nothing is weakened by keeping the row: the previous digest is overwritten, so the
-		// old token authenticates nothing, exactly as revoking it did. What is gained is a
-		// stable identity for the login, and with it a truthful created_at, user_agent, ip and
-		// country instead of values that were re-derived (or lost) on every refresh.
-		plain, hash, err := auth.NewOpaqueToken()
-		if err != nil {
-			return err
-		}
-		row, err := q.RotateSessionToken(ctx, store.RotateSessionTokenParams{
-			ID:        existing.ID,
-			TokenHash: hash,
-			ExpiresAt: time.Now().Add(s.refreshTTL()),
-		})
-		if err != nil {
-			if store.IsNotFound(err) {
-				// Revoked between the lookup above and this update: somebody pressed Revoke on
-				// this very device a moment ago, and the answer they are owed is that it is gone.
-				return platform.Unauthorized("session expired, please sign in again")
-			}
-			return platform.Internal(err)
-		}
-		session = Session{
-			SessionID:    row.ID,
-			AccountID:    row.AccountID,
-			RefreshToken: plain,
-			ExpiresAt:    row.ExpiresAt,
-		}
-		return nil
+	row, err := s.db.Queries().ExtendSession(ctx, store.ExtendSessionParams{
+		ExpiresAt: time.Now().Add(s.refreshTTL()),
+		TokenHash: auth.HashToken(refreshToken),
 	})
-	return accountID, session, err
+	if err != nil {
+		if store.IsNotFound(err) {
+			return uuid.Nil, Session{}, platform.Unauthorized("session expired, please sign in again")
+		}
+		return uuid.Nil, Session{}, platform.Internal(err)
+	}
+	return row.AccountID, Session{
+		SessionID:    row.ID,
+		AccountID:    row.AccountID,
+		RefreshToken: refreshToken,
+		ExpiresAt:    row.ExpiresAt,
+	}, nil
 }
 
 func (s *Service) RevokeSession(ctx context.Context, refreshToken string) error {
@@ -568,9 +536,13 @@ func (s *Service) issueSession(
 	}, nil
 }
 
-// SessionTTL is how long a refresh token lives. Thirty days matches the longest plausible
-// "laptop in a drawer" gap without letting an abandoned session live indefinitely.
-const SessionTTL = 30 * 24 * time.Hour
+// SessionTTL is how long a refresh token lives past the last time it was used.
+//
+// Four hundred days is the longest a browser will keep a cookie (Chrome's cap). Each
+// refresh starts the window over, so a phone or laptop that gets opened keeps its login
+// across app updates. A device that is not opened for this long is signed out. Logout
+// still revokes the session immediately; this is only the idle limit.
+const SessionTTL = 400 * 24 * time.Hour
 
 func (s *Service) refreshTTL() time.Duration { return SessionTTL }
 

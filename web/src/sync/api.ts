@@ -476,8 +476,8 @@ export const auth = {
    * Exchanges the refresh cookie for a new access token.
    *
    * Concurrent callers share one in-flight request. Without that, a page load firing five
-   * queries at once sends five refreshes, and since the server rotates the refresh token
-   * on every use, four of them would be rejected and the user would be signed out on boot.
+   * queries at once sends five refreshes. The cookie is not rotated, so the extras would
+   * still succeed, but they would also stampede the session row on every boot.
    */
   async refresh(): Promise<Session | null> {
     const result = await auth.restore();

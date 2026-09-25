@@ -240,20 +240,23 @@ func TestRefreshSession_KeepsTheSessionIdentityStable(t *testing.T) {
 		t.Fatalf("refresh moved the session from %s to %s — the Revoke button on the sessions "+
 			"screen names the old id and would answer not-found", first.SessionID, rotated.SessionID)
 	}
-	if rotated.RefreshToken == first.RefreshToken {
-		t.Fatal("the refresh token must change on every use — one that survives its own use is a replay")
+	if rotated.RefreshToken != first.RefreshToken {
+		t.Fatal("refresh replaced the token — a lost Set-Cookie then signs the device out")
 	}
 
-	// The old token is dead, exactly as it was when rotation revoked the row.
-	if _, _, err := svc.RefreshSession(ctx, first.RefreshToken); err == nil {
-		t.Fatal("the previous refresh token still works after rotation")
+	// The cookie from before the refresh still works. That is the device that never saw
+	// the response: an iPhone reloading for an update, a desktop cookie the browser dropped.
+	if _, again, err := svc.RefreshSession(ctx, first.RefreshToken); err != nil {
+		t.Fatalf("the original token died on refresh: %v", err)
+	} else if again.SessionID != first.SessionID {
+		t.Fatalf("a second refresh moved the session from %s to %s", first.SessionID, again.SessionID)
 	}
 
 	// And the id the screen is holding still revokes.
 	if _, _, err := svc.RevokeAccountSession(ctx, f.Principal(), before.ID); err != nil {
 		t.Fatalf("revoking the id the listing showed: %v", err)
 	}
-	if _, _, err := svc.RefreshSession(ctx, rotated.RefreshToken); err == nil {
+	if _, _, err := svc.RefreshSession(ctx, first.RefreshToken); err == nil {
 		t.Fatal("the revoked device can still refresh — revoking it did nothing")
 	}
 }
