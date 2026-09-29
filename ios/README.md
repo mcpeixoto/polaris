@@ -146,8 +146,9 @@ parser. `DeepLink.parse` in `PolarisCore/Navigation/DeepLink.swift` is pure and 
 | `polaris://inbox`, `/inbox` | The inbox tab |
 | `polaris://my-issues`, `/my-issues` | The My Issues tab |
 | `polaris://search?q=…`, `/search?q=…` | The search tab, with the query in the field and run. It is parked on `DeepLinkRouter.pendingSearchQuery` and the screen takes it — once, so returning to the tab later does not re-run it |
-| `polaris://team/ENG`, `/team/ENG`, `/team/ENG/triage|cycles|projects` | The team, pushed on My Issues. The page is parsed but not yet routed — the hub opens on its issues |
-| `/projects` | The My Issues tab, where the team pills are; there is no projects list yet |
+| `polaris://team/ENG`, `/team/ENG` | The team hub, pushed on My Issues |
+| `/team/ENG/triage`, `/cycles`, `/projects` | That page of the team, pushed on top of the hub |
+| `polaris://projects`, `/projects` | The workspace project list, pushed on My Issues |
 | `/project/<id>` | The project's detail screen, pushed as a `Project` value — the destination `PolarisNavigation` declares for one |
 
 A link that arrives before sign-in is queued by `DeepLinkRouter` and applied when the shell
@@ -174,8 +175,13 @@ sheet. A tab that only opened a modal and showed nothing of its own would be a t
 could not go back to; this one *is* the composer.
 
 Screens are content only. `PolarisNavigation` owns the `NavigationStack` and declares the
-issue and team destinations, so the same view renders as a tab on a phone and as the detail
-column on an iPad without knowing which it is in.
+issue, team and project destinations, so the same view renders as a tab on a phone and as the
+detail column on an iPad without knowing which it is in.
+
+My Issues keeps Assigned / Created / Subscribed on the first line. Under it, a second row
+holds **Projects** (the workspace list) and a chip for each team. A team chip opens that
+team's hub — issues, triage, cycles and the team's projects. Those chips used to share the
+scope line, and on a phone they were squeezed off the screen.
 
 Every screen uses the system navigation bar with an inline title and plain toolbar glyphs. An
 issue row is one 44pt line — priority glyph, identifier, status glyph, title, then label dots,

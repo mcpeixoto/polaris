@@ -63,4 +63,25 @@ final class DeepLinkTests: XCTestCase {
         app.alerts.buttons["OK"].tap()
         XCTAssertTrue(app.staticTexts["My Issues"].waitForExistence(timeout: long))
     }
+
+    func testAProjectsLinkOpensTheWorkspaceList() {
+        let app = launch(["-polaris-open-url", "polaris://projects"])
+        XCTAssertTrue(
+            app.navigationBars["Projects"].waitForExistence(timeout: long),
+            "a projects link should push the workspace list onto My Issues"
+        )
+        XCTAssertTrue(
+            app.buttons["project.row.p1"].waitForExistence(timeout: long),
+            "Mobile parity is in the fixture workspace"
+        )
+    }
+
+    func testATeamProjectsLinkOpensThatPage() {
+        let app = launch(["-polaris-open-url", "polaris://team/ENG/projects"])
+        XCTAssertTrue(
+            app.navigationBars["Projects"].waitForExistence(timeout: long),
+            "a team projects link should push that page on top of the hub"
+        )
+        XCTAssertTrue(app.buttons["project.row.p1"].waitForExistence(timeout: long))
+    }
 }

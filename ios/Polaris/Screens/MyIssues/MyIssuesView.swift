@@ -40,14 +40,17 @@ struct MyIssuesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // One line under the bar: the scope tabs, the teams, then the count. One line
-            // rather than two on purpose — see `scopeTabs`.
-            HStack(spacing: Theme.Space.md) {
-                scopeTabs
-                teamsStrip
-                statusLine
+            // Scope stays on its own line. Teams used to share it, and on a phone the tabs
+            // plus the open count took the width, so the chips — the only way into a team,
+            // and from there into projects and cycles — were squeezed to nothing.
+            VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                HStack(spacing: Theme.Space.md) {
+                    scopeTabs
+                    statusLine
+                }
+                .padding(.horizontal, Theme.Space.lg)
+                workspaceStrip
             }
-            .padding(.horizontal, Theme.Space.lg)
             .padding(.vertical, Theme.Space.sm)
             .readableColumn()
             // A refused status change used to be a row that quietly snapped back, which reads
@@ -203,57 +206,37 @@ struct MyIssuesView: View {
         .accessibilityIdentifier("issues.filter")
     }
 
-    /// Teams, as a row of small pills into each team's own list.
+    /// Projects, then each team, on a line of their own.
     ///
-    /// `PolarisAPI.issues(teamId:)` was implemented on both clients and reachable from no
-    /// screen at all; the only list in the app was "assigned to me". The spec's Home tab is a
-    /// hierarchy over teams, and this is its first rung.
-    @ViewBuilder
-    private var teamsStrip: some View {
-        if let failure = model.workspaceData.failure(of: .teams) {
-            // Without this the strip is simply not drawn, and one refused `teams()` at
-            // sign-in takes every team screen in the app with it — silently, until somebody
-            // kills the process. The strip is the only route to them.
-            //
-            // A pill rather than a sentence: this row is one line shared with the scope tabs
-            // and the count, so the explanation goes in the accessibility label and on the
-            // screens with room for it.
-            Button {
-                Task { await model.workspaceData.reload(.teams) }
-            } label: {
-                HStack(spacing: Theme.Space.xs + 2) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text("Teams")
-                        .font(.system(.footnote).weight(.medium))
+    /// Projects are workspace-wide, so they are not a property of one team chip. A team chip
+    /// still opens that team's hub, which is where its cycles, triage and team-scoped
+    /// projects live.
+    private var workspaceStrip: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: Theme.Space.sm) {
+                NavigationLink(value: WorkspaceBrowse.projects) {
+                    stripChip(title: String(localized: "Projects"), symbol: "hexagon")
                 }
-                .foregroundStyle(Theme.accentBright)
-                .padding(.horizontal, Theme.Space.sm + 2)
-                .frame(minHeight: 28)
-                .background(Theme.raised)
-                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
-            }
-            .buttonStyle(PressableStyle())
-            .disabled(!failure.isRetryable)
-            .accessibilityLabel(Text("Couldn't load your teams. \(failure.displayMessage) Try again"))
-            .accessibilityIdentifier("teams.retry")
-        } else if let teams = model.workspaceData.teams.value, !teams.isEmpty {
-            ScrollView(.horizontal) {
-                HStack(spacing: Theme.Space.sm) {
+                .buttonStyle(PressableStyle())
+                .accessibilityIdentifier("workspace.projects")
+
+                if let failure = model.workspaceData.failure(of: .teams) {
+                    // Without this the teams are simply not drawn, and one refused `teams()`
+                    // at sign-in takes every team screen in the app with it — silently, until
+                    // somebody kills the process.
+                    Button {
+                        Task { await model.workspaceData.reload(.teams) }
+                    } label: {
+                        stripChip(title: String(localized: "Teams"), symbol: "arrow.clockwise", tint: Theme.accentBright)
+                    }
+                    .buttonStyle(PressableStyle())
+                    .disabled(!failure.isRetryable)
+                    .accessibilityLabel(Text("Couldn't load your teams. \(failure.displayMessage) Try again"))
+                    .accessibilityIdentifier("teams.retry")
+                } else if let teams = model.workspaceData.teams.value {
                     ForEach(teams) { team in
                         NavigationLink(value: team) {
-                            HStack(spacing: Theme.Space.xs + 2) {
-                                Circle()
-                                    .fill(Theme.hex(team.color))
-                                    .frame(width: 7, height: 7)
-                                Text(team.key)
-                                    .font(.system(.footnote).weight(.medium))
-                                    .foregroundStyle(Theme.textPrimary)
-                            }
-                            .padding(.horizontal, Theme.Space.sm + 2)
-                            .frame(minHeight: 28)
-                            .background(Theme.raised)
-                            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+                            stripChip(title: team.key, dot: Theme.hex(team.color))
                         }
                         .buttonStyle(PressableStyle())
                         .accessibilityLabel(Text("\(team.name) issues"))
@@ -261,8 +244,32 @@ struct MyIssuesView: View {
                     }
                 }
             }
-            .scrollIndicators(.hidden)
+            .padding(.horizontal, Theme.Space.lg)
         }
+        .scrollIndicators(.hidden)
+    }
+
+    private func stripChip(title: String, symbol: String? = nil, dot: Color? = nil, tint: Color = Theme.textPrimary) -> some View {
+        HStack(spacing: Theme.Space.xs + 2) {
+            if let symbol {
+                Image(systemName: symbol)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .accessibilityHidden(true)
+            }
+            if let dot {
+                Circle()
+                    .fill(dot)
+                    .frame(width: 7, height: 7)
+            }
+            Text(title)
+                .font(.system(.footnote).weight(.medium))
+                .foregroundStyle(tint)
+        }
+        .padding(.horizontal, Theme.Space.sm + 2)
+        .frame(minHeight: 28)
+        .background(Theme.raised)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
     }
 
     @ViewBuilder
