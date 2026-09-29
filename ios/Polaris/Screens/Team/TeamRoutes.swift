@@ -30,6 +30,15 @@ enum TeamListRoute: Hashable {
     case projects(Team)
 }
 
+/// Workspace places that are not under one team.
+///
+/// Projects span teams, so the list of them is not a `TeamListRoute`. A value, for the same
+/// reason the team routes are values: the shell pushes it, and `PolarisNavigation` is the one
+/// place that turns it into a screen.
+enum WorkspaceBrowse: Hashable {
+    case projects
+}
+
 /// One `TeamWorkStore` per team, shared by the hub and every screen under it.
 ///
 /// The hub's children are pushed by value through `PolarisNavigation`, so the hub cannot hand

@@ -204,8 +204,10 @@ struct SignedInShell: View {
     /// Selects the tab a link names and pushes what it points at.
     ///
     /// An issue is pushed onto the tab that is already up — the reader was somewhere, and a
-    /// back swipe should return them there. A team, the inbox and the search screen are
-    /// places of their own, so those select their tab and clear whatever was on it.
+    /// back swipe should return them there. A team, the project list, the inbox and the
+    /// search screen are places of their own, so those select their tab and clear whatever
+    /// was on it. A team link that names triage, cycles or projects pushes that page on top
+    /// of the hub, so back returns to the team.
     private func apply(_ link: DeepLink) async {
         switch link {
         case .inbox:
@@ -221,19 +223,26 @@ struct SignedInShell: View {
             } catch {
                 linkFailure = PolarisError.mapped(error)
             }
-        case .team(let key, _):
-            // The page — triage, cycles, projects — is dropped for now: the team hub is the
-            // destination `PolarisNavigation` declares, and it opens on its issues.
+        case .team(let key, let page):
             guard let team = await resolveTeam(key: key) else {
                 linkFailure = .notFound
                 return
             }
             select(.myIssues)
             push(team)
+            switch page {
+            case .issues:
+                break
+            case .triage:
+                push(TeamListRoute.triage(team))
+            case .cycles:
+                push(TeamListRoute.cycles(team))
+            case .projects:
+                push(TeamListRoute.projects(team))
+            }
         case .projects:
-            // No projects list on this client yet; the nearest place is the issue list, where
-            // the team pills are.
             select(.myIssues)
+            push(WorkspaceBrowse.projects)
         case .project(let id):
             do {
                 if let cached = model.workspaceData.projects.value?.first(where: { $0.id == id }) {
@@ -362,6 +371,11 @@ struct PolarisNavigation<Content: View>: View {
                     case .triage(let team): TriageView(team: team)
                     case .cycles(let team): CyclesView(team: team)
                     case .projects(let team): ProjectsView(team: team)
+                    }
+                }
+                .navigationDestination(for: WorkspaceBrowse.self) { route in
+                    switch route {
+                    case .projects: ProjectsView(team: nil)
                     }
                 }
         }
