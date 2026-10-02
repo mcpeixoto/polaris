@@ -75,6 +75,18 @@ func (q *Queries) CreateInvite(ctx context.Context, arg CreateInviteParams) (Inv
 	return i, err
 }
 
+const deleteInvitesForEmail = `-- name: DeleteInvitesForEmail :exec
+DELETE FROM invite WHERE lower(email) = lower($1::text)
+`
+
+// The address itself, not a pending flag. Account deletion has to drop every copy of the
+// email, including invitations that were already accepted or revoked — those rows are how
+// the address would otherwise outlive the account.
+func (q *Queries) DeleteInvitesForEmail(ctx context.Context, email string) error {
+	_, err := q.db.Exec(ctx, deleteInvitesForEmail, email)
+	return err
+}
+
 const getInviteByTokenHash = `-- name: GetInviteByTokenHash :one
 SELECT id, workspace_id, email, role, token_hash, invited_by, team_ids,
        accepted_at, accepted_by, revoked_at, expires_at, created_at, updated_at

@@ -180,6 +180,12 @@ public protocol PolarisAPI: Sendable {
     /// A link card. URL-idempotent server-side: the same URL twice is one card.
     func createAttachment(issueId: String, url: String, title: String?, opId: String) async throws -> Attachment
     func updateProfile(_ change: ProfileChange) async throws -> User
+    /// Deletes the signed-in account. The server refuses when this person is the last
+    /// owner of a workspace that still has other people.
+    func deleteAccount() async throws
+    /// Sends a StoreKit 2 signed transaction. The server checks Apple's signature and,
+    /// when the workspace is not already on a paid plan, moves it to Cloud Pro.
+    func applyAppStoreTransaction(signedTransaction: String) async throws
     func updateNotificationPrefs(_ prefs: NotificationPrefs) async throws -> NotificationPrefs
     /// Registers this install for APNs inbox push. Idempotent on the token.
     func registerPushDevice(token: String, platform: String, appBundle: String, environment: String) async throws
@@ -328,6 +334,12 @@ public extension PolarisAPI {
     }
     func updateProfile(_ change: ProfileChange) async throws -> User {
         throw PolarisError.unsupported("profile edits")
+    }
+    func deleteAccount() async throws {
+        throw PolarisError.unsupported("account deletion")
+    }
+    func applyAppStoreTransaction(signedTransaction: String) async throws {
+        throw PolarisError.unsupported("App Store purchases")
     }
     func updateNotificationPrefs(_ prefs: NotificationPrefs) async throws -> NotificationPrefs {
         throw PolarisError.unsupported("notification preferences")

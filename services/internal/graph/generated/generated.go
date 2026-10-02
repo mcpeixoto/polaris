@@ -974,6 +974,7 @@ type ComplexityRoot struct {
 		AddReaction                    func(childComplexity int, commentID uuid.UUID, emoji string, clientID *uuid.UUID, opID *uuid.UUID) int
 		AddTeamMember                  func(childComplexity int, teamID uuid.UUID, userID uuid.UUID, role *TeamRole) int
 		ApplyAgentProposal             func(childComplexity int, messageID uuid.UUID) int
+		ApplyAppStoreTransaction       func(childComplexity int, signedTransaction string) int
 		ArchiveAskForm                 func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
 		ArchiveCustomer                func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
 		ArchiveCycle                   func(childComplexity int, id uuid.UUID, archived bool, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -1038,6 +1039,7 @@ type ComplexityRoot struct {
 		CreateWebhook                  func(childComplexity int, input CreateWebhookInput) int
 		CreateWorkflowState            func(childComplexity int, input CreateWorkflowStateInput, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeclineTriageIssue             func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		DeleteAccount                  func(childComplexity int) int
 		DeleteAgentSession             func(childComplexity int, id uuid.UUID) int
 		DeleteAskForm                  func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
 		DeleteAttachment               func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
@@ -2111,6 +2113,8 @@ type MutationResolver interface {
 	SuspendUser(ctx context.Context, userID uuid.UUID, suspended bool) (*UserPayload, error)
 	RemoveUser(ctx context.Context, userID uuid.UUID) (*DeletePayload, error)
 	LeaveWorkspace(ctx context.Context) (*DeletePayload, error)
+	DeleteAccount(ctx context.Context) (*DeletePayload, error)
+	ApplyAppStoreTransaction(ctx context.Context, signedTransaction string) (*WorkspacePayload, error)
 	UpdateNotificationPrefs(ctx context.Context, prefs json.RawMessage) (*UserPayload, error)
 	RegisterPushDevice(ctx context.Context, input RegisterPushDeviceInput) (*DeletePayload, error)
 	UnregisterPushDevice(ctx context.Context, token string) (*DeletePayload, error)
@@ -6366,6 +6370,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ApplyAgentProposal(childComplexity, args["messageId"].(uuid.UUID)), true
+	case "Mutation.applyAppStoreTransaction":
+		if e.ComplexityRoot.Mutation.ApplyAppStoreTransaction == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_applyAppStoreTransaction_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ApplyAppStoreTransaction(childComplexity, args["signedTransaction"].(string)), true
 	case "Mutation.archiveAskForm":
 		if e.ComplexityRoot.Mutation.ArchiveAskForm == nil {
 			break
@@ -7070,6 +7085,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeclineTriageIssue(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.deleteAccount":
+		if e.ComplexityRoot.Mutation.DeleteAccount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteAccount(childComplexity), true
 	case "Mutation.deleteAgentSession":
 		if e.ComplexityRoot.Mutation.DeleteAgentSession == nil {
 			break
@@ -16598,6 +16619,26 @@ type Mutation {
   change a role, or manage billing. Work stays attributed. Returns the caller's user id.
   """
   leaveWorkspace: DeletePayload!
+  """
+  Permanently deletes the signed-in account.
+
+  The login, its sessions and its saved sign-in methods are removed. Each workspace
+  membership is archived and the name on it becomes "Deleted user", so issues and
+  comments stay attributed. The last owner of a workspace that still has other people
+  cannot: somebody has to remain who can administer it. A workspace whose only person
+  is this account is left with that archived row.
+  """
+  deleteAccount: DeletePayload!
+  """
+  Grants Cloud Pro on this workspace from a StoreKit 2 signed transaction.
+
+  Administrators only. The signature is checked against Apple's certificate chain
+  before the plan moves, so the mutation cannot be used to set a plan by asserting
+  one. A self-hosted install refuses. A workspace already paying through Stripe is
+  left on Stripe: one row cannot describe two processors, and replacing it would
+  keep charging the card.
+  """
+  applyAppStoreTransaction(signedTransaction: String!): WorkspacePayload!
   updateNotificationPrefs(prefs: JSON!): UserPayload!
 
   """
@@ -20714,6 +20755,20 @@ func (ec *executionContext) field_Mutation_applyAgentProposal_args(ctx context.C
 		return nil, err
 	}
 	args["messageId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_applyAppStoreTransaction_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "signedTransaction",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["signedTransaction"] = arg0
 	return args, nil
 }
 
@@ -46350,6 +46405,82 @@ func (ec *executionContext) fieldContext_Mutation_leaveWorkspace(_ context.Conte
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_DeletePayload(ctx, field)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteAccount(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteAccount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().DeleteAccount(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *DeletePayload) graphql.Marshaler {
+			return ec.marshalNDeletePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐDeletePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteAccount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeletePayload(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_applyAppStoreTransaction(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_applyAppStoreTransaction(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ApplyAppStoreTransaction(ctx, fc.Args["signedTransaction"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *WorkspacePayload) graphql.Marshaler {
+			return ec.marshalNWorkspacePayload2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐWorkspacePayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_applyAppStoreTransaction(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_WorkspacePayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_applyAppStoreTransaction_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -84445,6 +84576,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "leaveWorkspace":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_leaveWorkspace(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteAccount":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteAccount(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "applyAppStoreTransaction":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_applyAppStoreTransaction(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

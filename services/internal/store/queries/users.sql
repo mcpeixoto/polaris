@@ -110,3 +110,37 @@ WHERE workspace_id = $1
   AND role IN ('owner', 'admin')
   AND status = 'active'
   AND archived_at IS NULL;
+
+-- Other people still using the workspace, not counting the row about to be erased.
+--
+-- An app user is not one of them: it cannot sign in and cannot be made an admin, so it
+-- cannot be the person the last-owner rule is keeping the workspace for.
+-- name: CountOtherActiveHumans :one
+SELECT count(*) FROM "user"
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND id <> sqlc.arg(user_id)
+  AND kind = 'human'
+  AND status = 'active'
+  AND archived_at IS NULL;
+
+-- EraseUser is account deletion's mark on a membership.
+--
+-- The row stays, for the same reason RemoveUserFromWorkspace's does: issue, comment and
+-- history foreign keys are ON DELETE SET NULL, so deleting it would unattribute the work
+-- rather than delete it. What changes is the identity. account_id goes, because the login
+-- it pointed at is about to be deleted and a dangling pointer is not an erasure. The name
+-- goes, because a display name is personal data. archived_at and status are the same pair
+-- a removal uses, so the directory, the seat count and the next request all agree that
+-- this person is gone.
+-- name: EraseUser :one
+UPDATE "user"
+SET account_id   = NULL,
+    name         = 'Deleted',
+    display_name = 'Deleted user',
+    avatar_url   = NULL,
+    status       = 'suspended',
+    archived_at  = COALESCE(archived_at, now())
+WHERE id = $1
+RETURNING id, workspace_id, account_id, name, display_name, avatar_url, timezone,
+          role, status, kind, last_seen_at,
+          archived_at, created_at, updated_at, notification_prefs;

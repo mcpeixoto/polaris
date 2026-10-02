@@ -21,6 +21,9 @@ WHERE token = sqlc.arg(token) AND user_id = sqlc.arg(user_id);
 -- name: DeletePushDeviceByID :execrows
 DELETE FROM push_device WHERE id = sqlc.arg(id);
 
+-- name: DeletePushDevicesForUser :exec
+DELETE FROM push_device WHERE user_id = sqlc.arg(user_id);
+
 -- name: ListPushDevicesForUser :many
 SELECT id, user_id, workspace_id, token, platform, app_bundle, environment,
        created_at, last_seen_at

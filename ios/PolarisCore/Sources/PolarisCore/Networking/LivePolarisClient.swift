@@ -944,6 +944,18 @@ public actor LivePolarisClient: PolarisAPI {
         return try decode(Payload.self, from: data).user
     }
 
+    public func deleteAccount() async throws {
+        _ = try await graphQL(GraphQLDocuments.deleteAccount, field: "deleteAccount")
+    }
+
+    public func applyAppStoreTransaction(signedTransaction: String) async throws {
+        _ = try await graphQL(
+            GraphQLDocuments.applyAppStoreTransaction,
+            variables: ["signedTransaction": .string(signedTransaction)],
+            field: "applyAppStoreTransaction"
+        )
+    }
+
     public func updateNotificationPrefs(_ prefs: NotificationPrefs) async throws -> NotificationPrefs {
         struct Payload: Decodable { let user: User }
         let data = try await graphQL(

@@ -1773,6 +1773,36 @@ func (r *mutationResolver) LeaveWorkspace(ctx context.Context) (*generated.Delet
 	return &generated.DeletePayload{Version: int(version), ID: id}, nil
 }
 
+// DeleteAccount is the resolver for the deleteAccount field.
+func (r *mutationResolver) DeleteAccount(ctx context.Context) (*generated.DeletePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	id, version, err := r.Svc.DeleteAccount(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.DeletePayload{Version: int(version), ID: id}, nil
+}
+
+// ApplyAppStoreTransaction is the resolver for the applyAppStoreTransaction field.
+func (r *mutationResolver) ApplyAppStoreTransaction(ctx context.Context, signedTransaction string) (*generated.WorkspacePayload, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	ws, version, err := r.Svc.ApplyAppStoreTransaction(ctx, p, signedTransaction)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out, err := r.hydrateWorkspace(ctx, p, selectionFor(ctx, "WorkspacePayload").childOrNone("workspace", "Workspace"), ws)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return &generated.WorkspacePayload{Version: int(version), Workspace: &out}, nil
+}
+
 // UpdateNotificationPrefs is the resolver for the updateNotificationPrefs field.
 func (r *mutationResolver) UpdateNotificationPrefs(ctx context.Context, prefs json.RawMessage) (*generated.UserPayload, error) {
 	p, err := principalFrom(ctx)

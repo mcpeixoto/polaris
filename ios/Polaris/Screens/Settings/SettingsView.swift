@@ -60,6 +60,22 @@ struct SettingsView: View {
                 row("Name", viewer.workspace.name)
                 row("Address", viewer.workspace.urlKey)
                 planRow
+                if viewer.workspace.plan != "self_hosted" {
+                    NavigationLink {
+                        CloudProView()
+                    } label: {
+                        HStack {
+                            Text("Cloud Pro")
+                                .font(PolarisText.body)
+                                .foregroundStyle(Theme.textPrimary)
+                            Spacer()
+                            Text(isPaid ? "Subscribed" : "Subscribe")
+                                .font(PolarisText.body)
+                                .foregroundStyle(Theme.textSecondary)
+                        }
+                    }
+                    .accessibilityIdentifier("settings.cloudPro")
+                }
                 if viewer.workspaces.count > 1 {
                     workspaceSwitcher
                 }
@@ -121,6 +137,14 @@ struct SettingsView: View {
             }
 
             Section {
+                NavigationLink {
+                    DeleteAccountView()
+                } label: {
+                    Text("Delete account")
+                        .font(PolarisText.body)
+                        .foregroundStyle(Theme.danger)
+                }
+                .accessibilityIdentifier("settings.deleteAccount")
                 Button {
                     isConfirmingSignOut = true
                 } label: {

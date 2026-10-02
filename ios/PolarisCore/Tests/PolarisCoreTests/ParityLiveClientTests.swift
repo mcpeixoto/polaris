@@ -437,6 +437,19 @@ struct ParityLiveClientTests {
         #expect(try await api.notificationPrefs().desktop == true)
     }
 
+    @Test("account deletion and an App Store transaction are their own mutations")
+    func accountDeletionAndAppStore() async throws {
+        let api = client()
+        OperationStubURLProtocol.answer("DeleteAccount", body: data("deleteAccount", #"{"version":4,"id":"u1"}"#))
+        OperationStubURLProtocol.answer("ApplyAppStoreTransaction", body: data("applyAppStoreTransaction", """
+        {"version":5,"workspace":{"id":"w1","name":"W","urlKey":"w","plan":"pro"}}
+        """))
+        try await api.deleteAccount()
+        #expect(OperationStubURLProtocol.bodies(for: "DeleteAccount").isEmpty == false)
+        try await api.applyAppStoreTransaction(signedTransaction: "jws")
+        #expect(OperationStubURLProtocol.variables(for: "ApplyAppStoreTransaction")?["signedTransaction"] as? String == "jws")
+    }
+
     @Test("the socket gets a token that is valid now, and the URL beside the API")
     func socketCredentials() async throws {
         let api = client()

@@ -122,6 +122,15 @@ func (q *Queries) DeletePushDeviceByToken(ctx context.Context, arg DeletePushDev
 	return result.RowsAffected(), nil
 }
 
+const deletePushDevicesForUser = `-- name: DeletePushDevicesForUser :exec
+DELETE FROM push_device WHERE user_id = $1
+`
+
+func (q *Queries) DeletePushDevicesForUser(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePushDevicesForUser, userID)
+	return err
+}
+
 const listPushDevicesForUser = `-- name: ListPushDevicesForUser :many
 SELECT id, user_id, workspace_id, token, platform, app_bundle, environment,
        created_at, last_seen_at

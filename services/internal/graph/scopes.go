@@ -81,22 +81,27 @@ func EnforceOauthScopes(ctx context.Context, next graphql.Resolver) (any, error)
 // what the entry was written to refuse.
 var adminMutations = map[string]bool{
 	// Workspace administration.
-	"updateWorkspace":      true,
-	"inviteToWorkspace":    true,
-	"revokeInvite":         true,
-	"removeUser":           true,
-	"setUserRole":          true,
-	"suspendUser":          true,
-	"createTeam":           true,
-	"addTeamMember":        true,
-	"removeTeamMember":     true,
-	"purgeDeletedIssues":   true,
-	"createProjectStatus":  true,
-	"updateProjectStatus":  true,
-	"archiveProjectStatus": true,
-	"createSlaRule":        true,
-	"updateSlaRule":        true,
-	"deleteSlaRule":        true,
+	"updateWorkspace":   true,
+	"inviteToWorkspace": true,
+	"revokeInvite":      true,
+	"removeUser":        true,
+	"setUserRole":       true,
+	// The login itself, and the subscription that pays for the workspace. A Write key
+	// that could delete the account it acts as, or move the workspace onto a paid plan,
+	// is not a narrowed key.
+	"deleteAccount":            true,
+	"applyAppStoreTransaction": true,
+	"suspendUser":              true,
+	"createTeam":               true,
+	"addTeamMember":            true,
+	"removeTeamMember":         true,
+	"purgeDeletedIssues":       true,
+	"createProjectStatus":      true,
+	"updateProjectStatus":      true,
+	"archiveProjectStatus":     true,
+	"createSlaRule":            true,
+	"updateSlaRule":            true,
+	"deleteSlaRule":            true,
 
 	// Credentials.
 	"createApiKey":             true,

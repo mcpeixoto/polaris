@@ -278,6 +278,11 @@ type Querier interface {
 	// completed ones still do until they are archived.
 	//
 	CountNonArchivedIssuesForTeam(ctx context.Context, teamID uuid.UUID) (int64, error)
+	// Other people still using the workspace, not counting the row about to be erased.
+	//
+	// An app user is not one of them: it cannot sign in and cannot be made an admin, so it
+	// cannot be the person the last-owner rule is keeping the workspace for.
+	CountOtherActiveHumans(ctx context.Context, arg CountOtherActiveHumansParams) (int64, error)
 	CountPendingWebhookDeliveries(ctx context.Context, webhookID uuid.UUID) (int64, error)
 	CountProjectTeams(ctx context.Context, projectID uuid.UUID) (int64, error)
 	CountProjectsFromTemplate(ctx context.Context, projectTemplateID *uuid.UUID) (int64, error)
@@ -464,6 +469,7 @@ type Querier interface {
 	CreateWebhook(ctx context.Context, arg CreateWebhookParams) (CreateWebhookRow, error)
 	CreateWorkflowState(ctx context.Context, arg CreateWorkflowStateParams) (WorkflowState, error)
 	CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) (Workspace, error)
+	DeleteAccount(ctx context.Context, id uuid.UUID) error
 	DeleteAgentSession(ctx context.Context, arg DeleteAgentSessionParams) (uuid.UUID, error)
 	DeleteAttachment(ctx context.Context, id uuid.UUID) error
 	DeleteCustomerDomains(ctx context.Context, customerID uuid.UUID) error
@@ -490,6 +496,10 @@ type Querier interface {
 	DeleteInitiativeProject(ctx context.Context, id uuid.UUID) (InitiativeProject, error)
 	DeleteInitiativeRelation(ctx context.Context, id uuid.UUID) (InitiativeRelation, error)
 	DeleteInitiativeSubscription(ctx context.Context, id uuid.UUID) error
+	// The address itself, not a pending flag. Account deletion has to drop every copy of the
+	// email, including invitations that were already accepted or revoked — those rows are how
+	// the address would otherwise outlive the account.
+	DeleteInvitesForEmail(ctx context.Context, email string) error
 	// The remainder after RetargetIssueLabels: issues that already carried the survivor, so
 	// the source application is dropped rather than doubled.
 	//
@@ -509,6 +519,7 @@ type Querier interface {
 	DeletePulseFeed(ctx context.Context, id uuid.UUID) error
 	DeletePushDeviceByID(ctx context.Context, id uuid.UUID) (int64, error)
 	DeletePushDeviceByToken(ctx context.Context, arg DeletePushDeviceByTokenParams) (int64, error)
+	DeletePushDevicesForUser(ctx context.Context, userID uuid.UUID) error
 	DeleteSentryConnection(ctx context.Context, workspaceID uuid.UUID) error
 	DeleteSlaRule(ctx context.Context, id uuid.UUID) error
 	DeleteSlackConnection(ctx context.Context, workspaceID uuid.UUID) error
@@ -534,6 +545,16 @@ type Querier interface {
 	// Pin the cursor at create time so turning a webhook on does not replay the workspace's
 	// entire change_log into a stranger's URL.
 	EnsureWebhookCursorAtLeast(ctx context.Context, arg EnsureWebhookCursorAtLeastParams) error
+	// EraseUser is account deletion's mark on a membership.
+	//
+	// The row stays, for the same reason RemoveUserFromWorkspace's does: issue, comment and
+	// history foreign keys are ON DELETE SET NULL, so deleting it would unattribute the work
+	// rather than delete it. What changes is the identity. account_id goes, because the login
+	// it pointed at is about to be deleted and a dangling pointer is not an erasure. The name
+	// goes, because a display name is personal data. archived_at and status are the same pair
+	// a removal uses, so the directory, the seat count and the next request all agree that
+	// this person is gone.
+	EraseUser(ctx context.Context, id uuid.UUID) (User, error)
 	// Slides the expiry of the session the caller already holds. The token is not replaced:
 	// a refresh that minted a new secret and then lost the Set-Cookie (a slow network, an
 	// iOS home-screen reload after an app update, a desktop cookie the browser declined to
@@ -914,6 +935,10 @@ type Querier interface {
 	ListDraftsForUser(ctx context.Context, arg ListDraftsForUserParams) ([]Draft, error)
 	ListDueWebhookDeliveries(ctx context.Context, arg ListDueWebhookDeliveriesParams) ([]ListDueWebhookDeliveriesRow, error)
 	ListEnabledWebhooks(ctx context.Context, workspaceID uuid.UUID) ([]ListEnabledWebhooksRow, error)
+	// Apple subscriptions have no webhook in this process. The period end on the signed
+	// transaction is the only clock, so the lapse sweep reads it directly. Stripe rows are
+	// not in here: those move through past_due, which ListSubscriptionsPastDueBeyondGrace owns.
+	ListExpiredAppleSubscriptions(ctx context.Context, now time.Time) ([]Subscription, error)
 	ListFavorites(ctx context.Context, arg ListFavoritesParams) ([]Favorite, error)
 	// ListFavoritesForTarget is everybody's favourites pointing at one thing.
 	//

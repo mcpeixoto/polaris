@@ -36,6 +36,18 @@ SELECT id, workspace_id, provider, provider_customer_id, provider_subscription_i
 FROM subscription
 WHERE workspace_id = $1;
 
+-- Apple subscriptions have no webhook in this process. The period end on the signed
+-- transaction is the only clock, so the lapse sweep reads it directly. Stripe rows are
+-- not in here: those move through past_due, which ListSubscriptionsPastDueBeyondGrace owns.
+-- name: ListExpiredAppleSubscriptions :many
+SELECT id, workspace_id, provider, provider_customer_id, provider_subscription_id,
+       status, current_period_end, seats_paid, created_at, updated_at
+FROM subscription
+WHERE provider = 'apple'
+  AND status IN ('active', 'trialing')
+  AND current_period_end IS NOT NULL
+  AND current_period_end < sqlc.arg(now)::timestamptz;
+
 -- ListSubscriptionsPastDueBeyondGrace names the workspaces whose plan should now be marked
 -- lapsed, and its predicate is the exact negation of the recovery query below — a workspace
 -- that satisfied both would flap between lapsed and not on every tick.
