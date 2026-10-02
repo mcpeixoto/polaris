@@ -3813,6 +3813,26 @@ type Mutation {
   change a role, or manage billing. Work stays attributed. Returns the caller's user id.
   """
   leaveWorkspace: DeletePayload!
+  """
+  Permanently deletes the signed-in account.
+
+  The login, its sessions and its saved sign-in methods are removed. Each workspace
+  membership is archived and the name on it becomes "Deleted user", so issues and
+  comments stay attributed. The last owner of a workspace that still has other people
+  cannot: somebody has to remain who can administer it. A workspace whose only person
+  is this account is left with that archived row.
+  """
+  deleteAccount: DeletePayload!
+  """
+  Grants Cloud Pro on this workspace from a StoreKit 2 signed transaction.
+
+  Administrators only. The signature is checked against Apple's certificate chain
+  before the plan moves, so the mutation cannot be used to set a plan by asserting
+  one. A self-hosted install refuses. A workspace already paying through Stripe is
+  left on Stripe: one row cannot describe two processors, and replacing it would
+  keep charging the card.
+  """
+  applyAppStoreTransaction(signedTransaction: String!): WorkspacePayload!
   updateNotificationPrefs(prefs: JSON!): UserPayload!
 
   """

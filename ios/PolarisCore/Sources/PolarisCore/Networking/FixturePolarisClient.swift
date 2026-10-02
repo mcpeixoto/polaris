@@ -645,6 +645,19 @@ public actor FixturePolarisClient: PolarisAPI {
         return updated
     }
 
+    public var didDeleteAccount = false
+    public var redeemedTransactions: [String] = []
+
+    public func deleteAccount() async throws {
+        try consumeFailure()
+        didDeleteAccount = true
+    }
+
+    public func applyAppStoreTransaction(signedTransaction: String) async throws {
+        try consumeFailure()
+        redeemedTransactions.append(signedTransaction)
+    }
+
     public func updateNotificationPrefs(_ prefs: NotificationPrefs) async throws -> NotificationPrefs {
         try consumeFailure()
         storedPrefs = prefs

@@ -38,6 +38,7 @@ type Documents = {
     "\n  \n  query AuthorisedOauthApps {\n    authorisedOauthApps {\n      ...AuthorisedOauthAppFields\n    }\n  }\n": typeof types.AuthorisedOauthAppsDocument,
     "\n  mutation RevokeAuthorisedOauthApp($id: UUID!) {\n    revokeAuthorisedOauthApp(id: $id) {\n      version\n      id\n    }\n  }\n": typeof types.RevokeAuthorisedOauthAppDocument,
     "\n  mutation LeaveWorkspace {\n    leaveWorkspace {\n      version\n      id\n    }\n  }\n": typeof types.LeaveWorkspaceDocument,
+    "\n  mutation DeleteAccount {\n    deleteAccount {\n      version\n      id\n    }\n  }\n": typeof types.DeleteAccountDocument,
     "\n  fragment CustomerFields on Customer {\n    id\n    workspaceId\n    name\n    domains\n    revenue\n    size\n    tier\n    status\n    ownerId\n    logoUrl\n    creatorId\n    sortOrder\n    archivedAt\n    deletedAt\n    deletedBy\n    createdAt\n    updatedAt\n  }\n": typeof types.CustomerFieldsFragmentDoc,
     "\n  fragment CustomerRequestFields on CustomerRequest {\n    id\n    workspaceId\n    customerId\n    issueId\n    projectId\n    body\n    important\n    creatorId\n    createdAt\n    updatedAt\n  }\n": typeof types.CustomerRequestFieldsFragmentDoc,
     "\n  \n  mutation CreateCustomer($input: CreateCustomerInput!, $clientId: UUID!, $opId: UUID!) {\n    createCustomer(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      customer {\n        ...CustomerFields\n      }\n    }\n  }\n": typeof types.CreateCustomerDocument,
@@ -353,6 +354,7 @@ const documents: Documents = {
     "\n  \n  query AuthorisedOauthApps {\n    authorisedOauthApps {\n      ...AuthorisedOauthAppFields\n    }\n  }\n": types.AuthorisedOauthAppsDocument,
     "\n  mutation RevokeAuthorisedOauthApp($id: UUID!) {\n    revokeAuthorisedOauthApp(id: $id) {\n      version\n      id\n    }\n  }\n": types.RevokeAuthorisedOauthAppDocument,
     "\n  mutation LeaveWorkspace {\n    leaveWorkspace {\n      version\n      id\n    }\n  }\n": types.LeaveWorkspaceDocument,
+    "\n  mutation DeleteAccount {\n    deleteAccount {\n      version\n      id\n    }\n  }\n": types.DeleteAccountDocument,
     "\n  fragment CustomerFields on Customer {\n    id\n    workspaceId\n    name\n    domains\n    revenue\n    size\n    tier\n    status\n    ownerId\n    logoUrl\n    creatorId\n    sortOrder\n    archivedAt\n    deletedAt\n    deletedBy\n    createdAt\n    updatedAt\n  }\n": types.CustomerFieldsFragmentDoc,
     "\n  fragment CustomerRequestFields on CustomerRequest {\n    id\n    workspaceId\n    customerId\n    issueId\n    projectId\n    body\n    important\n    creatorId\n    createdAt\n    updatedAt\n  }\n": types.CustomerRequestFieldsFragmentDoc,
     "\n  \n  mutation CreateCustomer($input: CreateCustomerInput!, $clientId: UUID!, $opId: UUID!) {\n    createCustomer(input: $input, clientId: $clientId, opId: $opId) {\n      version\n      customer {\n        ...CustomerFields\n      }\n    }\n  }\n": types.CreateCustomerDocument,
@@ -754,6 +756,10 @@ export function graphql(source: "\n  mutation RevokeAuthorisedOauthApp($id: UUID
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  mutation LeaveWorkspace {\n    leaveWorkspace {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation LeaveWorkspace {\n    leaveWorkspace {\n      version\n      id\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation DeleteAccount {\n    deleteAccount {\n      version\n      id\n    }\n  }\n"): (typeof documents)["\n  mutation DeleteAccount {\n    deleteAccount {\n      version\n      id\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

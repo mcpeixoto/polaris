@@ -40,7 +40,7 @@ import {
 } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { SettingsRow } from '~/components/SettingsSection';
-import { leaveWorkspace } from '~/features/authorisedOauth/mutations';
+import { deleteAccount, leaveWorkspace } from '~/features/authorisedOauth/mutations';
 import { report } from '~/features/issue/mutations';
 import { listTimezones } from '~/features/locale';
 import { updateProfile } from '~/features/profile/mutations';
@@ -62,6 +62,8 @@ export function ProfileSettings() {
   const [problem, setProblem] = useState<{ field: NameField; message: string } | null>(null);
   const [leaving, setLeaving] = useState(false);
   const [leaveError, setLeaveError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const workspace = useLiveQuery(
@@ -121,6 +123,26 @@ export function ProfileSettings() {
     } catch (failure) {
       setLeaveError(
         failure instanceof ApiError ? failure.message : 'You could not leave this workspace.',
+      );
+      setBusy(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (busy) return;
+    setBusy(true);
+    setDeleteError(null);
+    try {
+      await deleteAccount();
+      try {
+        localStorage.removeItem('polaris.workspace');
+      } catch {
+        /* private mode */
+      }
+      window.location.assign('/');
+    } catch (failure) {
+      setDeleteError(
+        failure instanceof ApiError ? failure.message : 'Your account could not be deleted.',
       );
       setBusy(false);
     }
@@ -216,6 +238,18 @@ export function ProfileSettings() {
         />
       </DangerZone>
 
+      <DangerZone title="Account" error={deleteError ?? undefined}>
+        <DangerZoneRow
+          title="Delete account"
+          consequence="This deletes your login and signs you out everywhere. Your name comes off every workspace you belong to. Issues and comments stay, under Deleted user. If you are the last owner of a workspace that still has other people, make somebody else an admin first."
+          actionLabel="Delete account"
+          onAction={() => {
+            setDeleteError(null);
+            setDeleting(true);
+          }}
+        />
+      </DangerZone>
+
       <ConfirmDialog
         open={leaving}
         title={`Leave ${workspaceName}?`}
@@ -226,6 +260,17 @@ export function ProfileSettings() {
         error={leaveError ?? undefined}
         onConfirm={() => void confirmLeave()}
         onClose={() => setLeaving(false)}
+      />
+      <ConfirmDialog
+        open={deleting}
+        title="Delete your account?"
+        consequence="Your login is deleted. This cannot be undone."
+        confirmLabel="Delete account"
+        destructive
+        busy={busy}
+        error={deleteError ?? undefined}
+        onConfirm={() => void confirmDelete()}
+        onClose={() => setDeleting(false)}
       />
     </SettingsPage>
   );

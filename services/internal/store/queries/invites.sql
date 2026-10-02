@@ -49,3 +49,9 @@ UPDATE invite SET revoked_at = now()
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND lower(email) = lower(sqlc.arg(email)::text)
   AND accepted_at IS NULL AND revoked_at IS NULL;
+
+-- The address itself, not a pending flag. Account deletion has to drop every copy of the
+-- email, including invitations that were already accepted or revoked — those rows are how
+-- the address would otherwise outlive the account.
+-- name: DeleteInvitesForEmail :exec
+DELETE FROM invite WHERE lower(email) = lower(sqlc.arg(email)::text);

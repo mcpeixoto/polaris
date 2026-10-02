@@ -43,3 +43,12 @@ export const LEAVE_WORKSPACE = /* GraphQL */ `
     }
   }
 `;
+
+export const DELETE_ACCOUNT = /* GraphQL */ `
+  mutation DeleteAccount {
+    deleteAccount {
+      version
+      id
+    }
+  }
+`;

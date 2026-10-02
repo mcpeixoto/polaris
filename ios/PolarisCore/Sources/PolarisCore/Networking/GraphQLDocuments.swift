@@ -460,6 +460,21 @@ enum GraphQLDocuments {
     }
     """
 
+    static let deleteAccount = """
+    mutation DeleteAccount {
+      deleteAccount { version id }
+    }
+    """
+
+    static let applyAppStoreTransaction = """
+    mutation ApplyAppStoreTransaction($signedTransaction: String!) {
+      applyAppStoreTransaction(signedTransaction: $signedTransaction) {
+        version
+        workspace { id name urlKey plan }
+      }
+    }
+    """
+
     static let updateNotificationPrefs = """
     mutation UpdateNotificationPrefs($prefs: JSON!) {
       updateNotificationPrefs(prefs: $prefs) {

@@ -1,6 +1,6 @@
 import type { UUID } from '~/store';
 import { gql } from '~/sync/api';
-import { LEAVE_WORKSPACE, REVOKE_AUTHORISED_OAUTH_APP } from './operations';
+import { DELETE_ACCOUNT, LEAVE_WORKSPACE, REVOKE_AUTHORISED_OAUTH_APP } from './operations';
 
 export interface AuthorisedOauthAppSummary {
   readonly id: UUID;
@@ -23,4 +23,8 @@ export async function revokeAuthorisedOauthApp(id: UUID): Promise<void> {
 
 export async function leaveWorkspace(): Promise<void> {
   await gql(LEAVE_WORKSPACE);
+}
+
+export async function deleteAccount(): Promise<void> {
+  await gql(DELETE_ACCOUNT);
 }

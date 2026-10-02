@@ -111,3 +111,6 @@ RETURNING id, account_id, kind, external_id, label, data, last_used_at, created_
 
 -- name: TouchAccountCredential :exec
 UPDATE account_credential SET last_used_at = now() WHERE id = $1;
+
+-- name: DeleteAccount :exec
+DELETE FROM account WHERE id = $1;

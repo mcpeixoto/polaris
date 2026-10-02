@@ -355,6 +355,18 @@ public final class AppModel {
         signOutWarning = nil
     }
 
+    /// Re-reads the viewer. A Cloud Pro purchase changes the plan, which this screen is
+    /// holding from the sign-in response and would otherwise keep showing as Free.
+    public func reloadViewer() async -> PolarisError? {
+        do {
+            let viewer = try await api.viewer()
+            phase = .ready(viewer)
+            return nil
+        } catch {
+            return PolarisError.mapped(error)
+        }
+    }
+
     /// Switches workspace and reloads everything scoped to one.
     ///
     /// Settings knew there was more than one workspace and offered no way to reach it — it

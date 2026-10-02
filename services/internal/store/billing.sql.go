@@ -154,6 +154,50 @@ func (q *Queries) GetSubscription(ctx context.Context, workspaceID uuid.UUID) (S
 	return i, err
 }
 
+const listExpiredAppleSubscriptions = `-- name: ListExpiredAppleSubscriptions :many
+SELECT id, workspace_id, provider, provider_customer_id, provider_subscription_id,
+       status, current_period_end, seats_paid, created_at, updated_at
+FROM subscription
+WHERE provider = 'apple'
+  AND status IN ('active', 'trialing')
+  AND current_period_end IS NOT NULL
+  AND current_period_end < $1::timestamptz
+`
+
+// Apple subscriptions have no webhook in this process. The period end on the signed
+// transaction is the only clock, so the lapse sweep reads it directly. Stripe rows are
+// not in here: those move through past_due, which ListSubscriptionsPastDueBeyondGrace owns.
+func (q *Queries) ListExpiredAppleSubscriptions(ctx context.Context, now time.Time) ([]Subscription, error) {
+	rows, err := q.db.Query(ctx, listExpiredAppleSubscriptions, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Subscription{}
+	for rows.Next() {
+		var i Subscription
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Provider,
+			&i.ProviderCustomerID,
+			&i.ProviderSubscriptionID,
+			&i.Status,
+			&i.CurrentPeriodEnd,
+			&i.SeatsPaid,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSubscriptionsPastDueBeyondGrace = `-- name: ListSubscriptionsPastDueBeyondGrace :many
 SELECT s.workspace_id
 FROM subscription s

@@ -21,13 +21,11 @@ import (
 // any of them outside a test fixture — the lapse rule was implemented, tested, wired into
 // every gated write, and unreachable, because no code ever set the column that triggers it.
 //
-// Neither entry point here takes an *authz.Principal, and that is the design rather than an
-// omission. Every other mutation in this package takes one because a request caused it;
-// these two are caused by a payment provider and a clock. A plan is a fact about a
-// subscription, not something a request may set, which is why nothing in the GraphQL schema
-// leads here and no mutation input carries a `plan` field. If one ever does, this comment is
-// the thing it contradicts: a workspace that can upgrade itself by sending a mutation is a
-// paywall with a public bypass.
+// ApplySubscription and SweepLapsedPlans take no *authz.Principal. A plan is a fact about
+// a subscription, not something a request may set, and no mutation input carries a `plan`
+// field. ApplyAppStoreTransaction is the one request that reaches this file, and it does
+// so only after Apple's signature on the transaction has been checked — a caller who can
+// name a plan without that signature is the paywall bypass this split exists to prevent.
 
 // PlanLapseGrace is how long a subscription may sit past due before the workspace's gated
 // writes narrow to the free tier.
@@ -253,6 +251,10 @@ func (s *Service) SweepLapsedPlans(ctx context.Context, now time.Time) (int, err
 	if err != nil {
 		return 0, platform.Internal(err)
 	}
+	expiredApple, err := s.db.Queries().ListExpiredAppleSubscriptions(ctx, now)
+	if err != nil {
+		return 0, platform.Internal(err)
+	}
 
 	changed := 0
 	for _, workspaceID := range lapse {
@@ -276,6 +278,23 @@ func (s *Service) SweepLapsedPlans(ctx context.Context, now time.Time) (int, err
 		if ok {
 			changed++
 		}
+	}
+	for _, row := range expiredApple {
+		// The signed transaction's period end has passed and nothing else will say so:
+		// there is no App Store notification handler. Leaving the row active would keep
+		// the workspace on Pro after the subscription stopped.
+		if _, _, err := s.ApplySubscription(ctx, SubscriptionState{
+			WorkspaceID:      row.WorkspaceID,
+			Provider:         row.Provider,
+			CustomerID:       row.ProviderCustomerID,
+			SubscriptionID:   row.ProviderSubscriptionID,
+			Status:           SubscriptionCanceled,
+			CurrentPeriodEnd: row.CurrentPeriodEnd,
+			Plan:             entitlement.PlanFree,
+		}); err != nil {
+			return changed, fmt.Errorf("expire apple subscription %s: %w", row.WorkspaceID, err)
+		}
+		changed++
 	}
 	return changed, nil
 }

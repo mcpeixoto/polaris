@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/peixotolabs/polaris/services/internal/files"
+	"github.com/peixotolabs/polaris/services/internal/integrations/apple"
 	"github.com/peixotolabs/polaris/services/internal/store"
 )
 
@@ -47,6 +48,11 @@ type Service struct {
 	// audit log in a build that has no code for it, which is the runtime flag ee/README.md
 	// rejects.
 	audit auditRecorder
+
+	// parseApple verifies a StoreKit signed transaction. Nil uses apple.Parse, which
+	// checks Apple's root. Tests set it so they can hand the domain a transaction
+	// without minting a certificate chain.
+	parseApple func(string) (apple.Transaction, error)
 
 	// now is the clock the filter grammar's relative tokens resolve against.
 	//
