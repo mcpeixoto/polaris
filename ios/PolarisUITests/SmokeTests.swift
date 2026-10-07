@@ -29,4 +29,23 @@ final class SmokeTests: XCTestCase {
         XCTAssertTrue(app.buttons["Create an account"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["I already have an account"].exists)
     }
+
+    func testWelcomeLinksPrivacyAndTerms() {
+        let app = launch(["-polaris-hosted"])
+        XCTAssertTrue(app.buttons["Create an account"].waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier == %@", "legal.privacy"))
+                .firstMatch
+                .waitForExistence(timeout: 5),
+            "the first screen must link the privacy policy"
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier == %@", "legal.terms"))
+                .firstMatch
+                .exists,
+            "the first screen must link the terms of use"
+        )
+    }
 }

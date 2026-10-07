@@ -132,12 +132,15 @@ struct SignUpView: View {
                 }
             }
         } footer: {
-            PrimaryButton(
-                title: "Create account",
-                isBusy: isSubmitting,
-                isEnabled: blockingProblem == nil,
-                action: submit
-            )
+            VStack(spacing: 12) {
+                PrimaryButton(
+                    title: "Create account",
+                    isBusy: isSubmitting,
+                    isEnabled: blockingProblem == nil,
+                    action: submit
+                )
+                LegalLinkCaption()
+            }
         }
         .onAppear { focused = .name }
         .onChange(of: focused) { previous, _ in

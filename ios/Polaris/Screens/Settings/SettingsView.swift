@@ -120,6 +120,12 @@ struct SettingsView: View {
             }
 
             Section {
+                LegalLinkRows()
+            } header: {
+                header("Legal")
+            }
+
+            Section {
                 row("Server", model.displayHost)
                 Button {
                     isConfirmingChangeServer = true

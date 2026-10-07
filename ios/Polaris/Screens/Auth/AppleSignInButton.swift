@@ -23,6 +23,9 @@ struct AppleSignInButton: View {
     /// Reported to the screen so the failure lands beside the form, not in a global phase.
     let onFailure: (PolarisError) -> Void
     let onStart: () -> Void
+    /// Sheet dismissed without an assertion. The sign-in screen sets a busy flag on
+    /// `onStart`; without this it stays busy after a cancel and looks wedged to Review.
+    var onCancel: () -> Void = {}
 
     /// The nonce this attempt is bound to.
     ///
@@ -49,7 +52,9 @@ struct AppleSignInButton: View {
                 // Cancelling is not a failure worth showing. `ASAuthorizationError.canceled`
                 // is somebody changing their mind, and an alert about it makes an ordinary
                 // gesture look like a fault.
-                if (error as? ASAuthorizationError)?.code != .canceled {
+                if (error as? ASAuthorizationError)?.code == .canceled {
+                    onCancel()
+                } else {
                     onFailure(.unauthorized("that sign-in could not be completed"))
                 }
             }

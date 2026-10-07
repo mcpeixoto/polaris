@@ -63,7 +63,8 @@ struct SignInView: View {
                     onStart: {
                         error = nil
                         isSubmitting = true
-                    }
+                    },
+                    onCancel: { isSubmitting = false }
                 )
 
                 // Only when the server has said it offers Google. Apple's button above needs
@@ -84,6 +85,8 @@ struct SignInView: View {
                         onCancel: { isSubmitting = false }
                     )
                 }
+
+                LegalLinkCaption()
             }
         }
         .onAppear { focused = .email }
