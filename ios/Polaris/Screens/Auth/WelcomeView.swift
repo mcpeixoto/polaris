@@ -103,6 +103,7 @@ struct WelcomeView: View {
         VStack(spacing: Theme.Space.sm) {
             PrimaryButton(title: "Create an account") { route = .signUp }
             SecondaryButton(title: "I already have an account") { route = .signIn }
+            LegalLinkCaption()
         }
         .padding(.top, Theme.Space.sm)
     }

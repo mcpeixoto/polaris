@@ -21,7 +21,14 @@ struct PolarisApp: App {
                     RootView()
                         .environment(model)
                         .environment(session)
-                        .task(id: ObjectIdentifier(model)) { await model.start() }
+                        .task(id: ObjectIdentifier(model)) {
+                            await model.start()
+                            // Fixtures have no StoreKit session; listening would hang a UI
+                            // test on Transaction.updates, which never completes.
+                            if !LaunchOptions.usesFixtures {
+                                await StoreKitEntitlementSync.listen(model: model)
+                            }
+                        }
                 } else {
                     ConnectServerView { origin in
                         session.connect(to: origin)

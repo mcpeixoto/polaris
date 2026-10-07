@@ -32,6 +32,11 @@ describe('privacy policy', () => {
     expect(html).toContain('We do not sell personal data');
   });
 
+  it('covers App Store billing and in-app account deletion', () => {
+    expect(html).toContain('In-App Purchase');
+    expect(html).toContain('Settings → Delete account');
+  });
+
   it('keeps a third-party product name out of the store-facing page', () => {
     expect(html.toLowerCase()).not.toContain('linear');
   });

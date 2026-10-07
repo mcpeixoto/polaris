@@ -22,6 +22,20 @@ final class PrivacyManifestTests: XCTestCase {
         XCTAssertEqual(plist["NSPrivacyTracking"] as? Bool, false)
     }
 
+    func testManifestDeclaresPurchaseHistory() throws {
+        let url = try XCTUnwrap(Bundle.main.url(forResource: "PrivacyInfo", withExtension: "xcprivacy"))
+        let data = try Data(contentsOf: url)
+        let plist = try XCTUnwrap(
+            PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        )
+        let collected = try XCTUnwrap(plist["NSPrivacyCollectedDataTypes"] as? [[String: Any]])
+        let types = collected.compactMap { $0["NSPrivacyCollectedDataType"] as? String }
+        XCTAssertTrue(
+            types.contains("NSPrivacyCollectedDataTypePurchaseHistory"),
+            "Cloud Pro posts StoreKit transactions to the server"
+        )
+    }
+
     func testURLSchemeIsRegistered() throws {
         let types = try XCTUnwrap(Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]])
         let schemes = types.flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }

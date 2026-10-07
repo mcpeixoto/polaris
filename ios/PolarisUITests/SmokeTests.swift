@@ -29,4 +29,19 @@ final class SmokeTests: XCTestCase {
         XCTAssertTrue(app.buttons["Create an account"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["I already have an account"].exists)
     }
+
+    func testWelcomeLinksPrivacyAndTerms() {
+        // Fixtures signed out, not `-polaris-hosted`: the hosted path waits on a real
+        // restoreSession round-trip and the smoke job's 10s budget is not enough for it.
+        let app = launch(["-polaris-fixtures", "-polaris-signed-out"])
+        XCTAssertTrue(app.buttons["Create an account"].waitForExistence(timeout: 10))
+        let privacy = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier == %@ OR label == %@", "legal.privacy", "Privacy Policy")
+        ).firstMatch
+        let terms = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier == %@ OR label == %@", "legal.terms", "Terms of Use")
+        ).firstMatch
+        XCTAssertTrue(privacy.waitForExistence(timeout: 5), "the first screen must link the privacy policy")
+        XCTAssertTrue(terms.exists, "the first screen must link the terms of use")
+    }
 }

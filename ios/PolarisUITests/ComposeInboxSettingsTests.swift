@@ -298,4 +298,35 @@ final class ComposeInboxSettingsTests: XCTestCase {
         XCTAssertFalse(app.buttons["profile.save"].isEnabled, "nothing changed yet, so nothing to save")
         snap(app, "settings-profile")
     }
+
+    /// Guideline 3.1.2 / 5.1.1: Privacy Policy, Terms of Use and Restore Purchases have to
+    /// exist in the binary, not only in App Store Connect. Fixtures never talk to StoreKit,
+    /// so this asserts the controls are on the screen rather than that a purchase completes.
+    func testSettingsLegalLinksAndCloudProRestore() {
+        let app = launch(["-qa-plan", "free"])
+        tapWhenReady(app.buttons["Settings"].firstMatch)
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: long))
+
+        let privacy = control(app, "legal.privacy")
+        XCTAssertTrue(privacy.waitForExistence(timeout: long), "Settings must link the privacy policy")
+        let terms = control(app, "legal.terms")
+        XCTAssertTrue(terms.waitForExistence(timeout: long), "Settings must link the terms of use")
+
+        let cloudPro = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == %@", "settings.cloudPro"))
+            .firstMatch
+        XCTAssertTrue(cloudPro.waitForExistence(timeout: long), "a Free workspace offers Cloud Pro")
+        if !cloudPro.isHittable {
+            app.swipeUp()
+        }
+        cloudPro.tap()
+        XCTAssertTrue(app.staticTexts["Cloud Pro"].waitForExistence(timeout: long))
+        XCTAssertTrue(
+            control(app, "cloudPro.restore").waitForExistence(timeout: long),
+            "the paywall must offer Restore Purchases"
+        )
+        XCTAssertTrue(control(app, "legal.privacy").waitForExistence(timeout: 5))
+        XCTAssertTrue(control(app, "legal.terms").waitForExistence(timeout: 5))
+        snap(app, "settings-cloud-pro")
+    }
 }
