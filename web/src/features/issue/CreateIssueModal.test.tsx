@@ -36,6 +36,13 @@ vi.mock('./mutations', async (importOriginal) => {
  * than driven through storage because `currentWorkspace()` is null in a test, so the real
  * module is a no-op and would agree with every hypothesis.
  */
+const viewer = vi.hoisted(() => ({ id: null as string | null }));
+
+vi.mock('~/hooks/useViewer', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('~/hooks/useViewer')>();
+  return { ...actual, useViewerId: () => viewer.id };
+});
+
 vi.mock('~/features/drafts/local', async (importOriginal) => {
   const actual = await importOriginal<typeof import('~/features/drafts/local')>();
   return {
@@ -214,7 +221,10 @@ function label(id: string, name: string): Entity {
   } as Entity;
 }
 
+const VIEWER = '01900000-0000-7000-8000-0000000000aa';
+
 beforeEach(() => {
+  viewer.id = null;
   filed.mockClear();
   wroteLocalDraft.mockClear();
 });
@@ -444,6 +454,39 @@ describe('CreateIssueModal', () => {
     await user.type(screen.getByLabelText('Title'), ' and then some');
 
     expect(wroteLocalDraft).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A blank composer — no URL seed, no restored draft, preferences never written — assigns
+   * the person filing it. A stored `autoAssignOnCreate: false` still wins; this case is the
+   * one that never touched the checkbox.
+   */
+  it('assigns the current viewer when nothing is seeded and preferences are the defaults', async () => {
+    viewer.id = VIEWER;
+    renderVariant({
+      rows: [
+        [
+          'user',
+          {
+            id: VIEWER,
+            workspaceId: WORKSPACE,
+            name: 'ada',
+            displayName: 'Ada Lovelace',
+            timezone: 'Europe/Lisbon',
+            role: 'member',
+            status: 'active',
+            kind: 'human',
+            createdAt: AT,
+            updatedAt: AT,
+          } as Entity,
+        ],
+      ],
+    });
+
+    const pill = await screen.findByRole('button', { name: 'Ada Lovelace' });
+    expect(
+      document.getElementById(pill.getAttribute('aria-describedby') ?? '')?.textContent,
+    ).toBe('Assignee');
   });
 
   it('still keeps the local draft slot for a blank composer', async () => {

@@ -25,6 +25,7 @@ const TEAM = '01900000-0000-7000-8000-000000000002';
 const TODO = '01900000-0000-7000-8000-000000000003';
 const ISSUE = '01900000-0000-7000-8000-000000000004' as UUID;
 const VIEWER = '01900000-0000-7000-8000-000000000005' as UUID;
+const PROJECT = '01900000-0000-7000-8000-000000000006' as UUID;
 const AT = '2026-01-01T00:00:00.000Z';
 
 vi.mock('~/hooks/useViewer', () => ({
@@ -50,7 +51,7 @@ afterEach(() => {
   copyText.mockClear();
 });
 
-function seeded(): Store {
+function seeded(project?: { id: UUID; name: string }): Store {
   const store = new Store(WORKSPACE);
   const rows: [string, Entity][] = [
     [
@@ -110,10 +111,31 @@ function seeded(): Store {
         creatorId: VIEWER,
         dueDateSource: 'manual',
         sortOrder: 'a',
+        ...(project === undefined ? {} : { projectId: project.id }),
         createdAt: AT,
         updatedAt: AT,
       } as unknown as Entity,
     ],
+    ...(project === undefined
+      ? []
+      : [
+          [
+            'project',
+            {
+              id: project.id,
+              workspaceId: WORKSPACE,
+              name: project.name,
+              description: '',
+              color: '#5e6ad2',
+              statusId: '01900000-0000-7000-8000-000000000007',
+              priority: 0,
+              sortOrder: 'a',
+              updateSchedule: 'never',
+              createdAt: AT,
+              updatedAt: AT,
+            } as unknown as Entity,
+          ] as [string, Entity],
+        ]),
   ];
   store.applyChanges(
     rows.map(([type, payload], index) => ({
@@ -128,8 +150,8 @@ function seeded(): Store {
   return store;
 }
 
-function mount() {
-  const store = seeded();
+function mount(project?: { id: UUID; name: string }) {
+  const store = seeded(project);
   const mutate = vi.fn(async (input: { optimistic?: OptimisticPatch }) => {
     if (input.optimistic !== undefined) store.applyOptimistic(input.optimistic);
     return {};
@@ -167,6 +189,15 @@ describe('the issue header', () => {
 
     await user.click(screen.getByRole('button', { name: 'Copy issue identifier' }));
     expect(copyText).toHaveBeenLastCalledWith('ENG-7');
+  });
+
+  it('names the project in the first crumb when the issue belongs to one', () => {
+    mount({ id: PROJECT, name: 'Importer' });
+
+    const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    const link = within(crumbs).getByRole('link', { name: 'Importer' });
+    expect(link.getAttribute('href')).toBe(`/project/${PROJECT}/issues`);
+    expect(within(crumbs).queryByRole('link', { name: 'Engineering' })).toBeNull();
   });
 
   it('keeps delete as a button and moves the rest behind the menu', async () => {

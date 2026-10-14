@@ -943,8 +943,15 @@ export function IssueDetail() {
           {/* A link and not a button: it goes somewhere, so it should be announced as a
               link, open in a new tab on a middle click, and be copyable from a context
               menu. */}
-          <Link className={styles.crumb} to={`/team/${issue.teamKey}`}>
-            {issue.teamName}
+          <Link
+            className={styles.crumb}
+            to={
+              issue.projectId === null
+                ? `/team/${issue.teamKey}`
+                : `/project/${issue.projectId}/issues`
+            }
+          >
+            {issue.projectId === null ? issue.teamName : issue.projectName}
           </Link>
           <ChevronGlyph className={styles.crumbChevron} />
           <span className={styles.crumbCurrent} aria-current="page">

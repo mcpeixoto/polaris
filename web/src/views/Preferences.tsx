@@ -169,7 +169,7 @@ export function Preferences() {
 
       <SettingsSection
         title="Automations"
-        description="There is no workspace-wide default assignee. These two habits cover the cases people actually ask for."
+        description='New issues are assigned to the person who creates them. Uncheck "Assign issues I create to myself" to turn that off.'
       >
         <SettingsRow label="Assign issues I create to myself">
           <Checkbox

@@ -37,7 +37,7 @@ describe('preferences', () => {
     expect(prefs.fullNames).toBe(true);
     expect(prefs.convertEmoticons).toBe(false);
     expect(prefs.commentSubmit).toBe('mod-enter');
-    expect(prefs.autoAssignOnCreate).toBe(false);
+    expect(prefs.autoAssignOnCreate).toBe(true);
   });
 
   it('writes a patch without dropping keys it did not mention', () => {

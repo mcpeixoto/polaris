@@ -43,7 +43,7 @@ const DEFAULTS: Omit<Preferences, 'theme'> = {
   fontSize: 'default',
   pointerCursor: true,
   underlineLinks: false,
-  autoAssignOnCreate: false,
+  autoAssignOnCreate: true,
   autoAssignOnStart: false,
 };
 
