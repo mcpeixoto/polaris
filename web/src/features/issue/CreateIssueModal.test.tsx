@@ -484,9 +484,9 @@ describe('CreateIssueModal', () => {
     });
 
     const pill = await screen.findByRole('button', { name: 'Ada Lovelace' });
-    expect(
-      document.getElementById(pill.getAttribute('aria-describedby') ?? '')?.textContent,
-    ).toBe('Assignee');
+    expect(document.getElementById(pill.getAttribute('aria-describedby') ?? '')?.textContent).toBe(
+      'Assignee',
+    );
   });
 
   it('still keeps the local draft slot for a blank composer', async () => {
