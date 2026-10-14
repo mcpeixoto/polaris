@@ -3088,6 +3088,13 @@ function describeSync(status: EngineStatus): SyncReport | null {
     };
   }
   if (status.phase !== 'ready') return null;
+  // Ahead of the unsent count. The collision happens while the write is in flight, and
+  // that count does not include in-flight ops — so this is the only line on the badge
+  // during the window it describes. One sentence, reused, so a burst of edits does not
+  // stack.
+  if (status.notice !== undefined) {
+    return { text: status.notice, title: status.notice, tone: styles.statusWarn };
+  }
   if (status.pending > 0) {
     return {
       text: `Syncing ${status.pending}`,

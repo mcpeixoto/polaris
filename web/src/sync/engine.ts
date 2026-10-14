@@ -13,13 +13,16 @@ import {
   CLIENT_SCHEMA as STORE_SCHEMA,
   dropDatabase,
   dropStaleDatabases,
+  isEntityType,
   Outbox,
   PolarisDB,
   reconciliations,
+  sameResult,
   Store,
   uuidv7,
   type Change as StoreChange,
   type Entity,
+  type EntityPatch,
   type EntityRow,
   type EntityType,
   type OptimisticPatch,
@@ -80,6 +83,12 @@ export type EngineStatus =
       pending: number;
       /** Absent while everything works. See `EngineDegradation`. */
       degraded?: EngineDegradation;
+      /**
+       * Set while a remote delta changed a field this client still has in flight.
+       *
+       * One sentence, not a stack: a burst of keystrokes is one fact.
+       */
+      notice?: string;
     }
   | {
       phase: 'failed';
@@ -135,6 +144,25 @@ const RETRY_MAX_MS = 60_000;
  */
 const BOOTSTRAP_BACKPRESSURE_PAGES = 8;
 
+/**
+ * What the sync badge says when another device wrote a field this one still has in flight.
+ *
+ * The doc of record asks for the collision to be visible. Last write wins, so there is
+ * nothing to merge — the line exists so the screen does not change under a pending edit
+ * in silence.
+ */
+const REMOTE_EDIT_NOTICE = 'Updated elsewhere';
+
+/**
+ * Stamped onto the optimistic row so a list sorts the edit to the top.
+ *
+ * The server writes its own and will never send this one back. Counting it as a pending
+ * field means our own delta never looks echoed — `updatedAt` differs — and every later
+ * delta is then overwritten by the stale value until the HTTP response drops the op,
+ * which is the race this rebase exists to close.
+ */
+const SERVER_CLOCK_FIELDS = new Set(['updatedAt']);
+
 /** `mutation CreateComment(...)` → `CreateComment`, so a thrown error names the call site. */
 function operationName(document: string): string {
   return /\bmutation\s+([A-Za-z0-9_]+)/.exec(document)?.[1] ?? 'a mutation';
@@ -184,6 +212,21 @@ export class SyncEngine {
   private bootstrapAbort: AbortController | null = null;
   private degraded: EngineDegradation | undefined;
   private stopped = false;
+  /**
+   * Pending rows a remote delta has already changed, so the badge can say so once.
+   *
+   * Cleared when that row's own write echoes, or when the op leaves the queue. A second
+   * delta for the same row does not push another notice.
+   */
+  private conflicts: { opId: UUID; type: EntityType; id: UUID }[] = [];
+  /**
+   * Values a rebase covered, keyed by op and row, so a rejection can put them back.
+   *
+   * The overlay keeps our pending fields on top of someone else's delta. Undoing the
+   * whole optimistic snapshot on a refusal would also undo their fields; restoring just
+   * what we covered puts their delta back and drops the write the server refused.
+   */
+  private covered = new Map<string, Map<string, unknown>>();
 
   constructor(workspaceId: UUID, options: EngineOptions = {}) {
     this.workspaceId = workspaceId;
@@ -387,8 +430,7 @@ export class SyncEngine {
       // A real rejection. Undo the optimistic patch so the user is not left looking at a
       // state the server refused.
       this.outbox.release(opId);
-      const patch = await this.outbox.rollback(opId);
-      if (patch) this.store.revertOptimistic(patch);
+      await this.undoQueued(opId);
       this.publishStatus();
       throw err;
     } finally {
@@ -469,6 +511,8 @@ export class SyncEngine {
   ): Promise<void> {
     if (reconciliations(spec).length > 0) await this.store.whenPersisted();
     await this.outbox.resolve(opId);
+    this.forgetCover(opId);
+    this.clearConflicts(opId);
   }
 
   /**
@@ -513,8 +557,7 @@ export class SyncEngine {
           // across however many sessions. Dropping it loses the edit, which is bad — but
           // retrying it forever blocks every op behind it, which is worse, and silently.
           // The rollback at least makes the loss visible.
-          const patch = await this.outbox.rollback(record.opId);
-          if (patch) this.store.revertOptimistic(patch);
+          await this.undoQueued(record.opId);
           console.error('[sync] dropping a mutation after repeated failures', record.opId);
           continue;
         }
@@ -559,8 +602,7 @@ export class SyncEngine {
             break;
           }
 
-          const patch = await this.outbox.rollback(record.opId);
-          if (patch) this.store.revertOptimistic(patch);
+          await this.undoQueued(record.opId);
         }
       }
     } finally {
@@ -590,6 +632,10 @@ export class SyncEngine {
     // The store advances its own version from the batch and schedules the durable write;
     // the socket only needs to know where to resume from.
     this.store.applyChanges(changes as unknown as StoreChange[]);
+    // The payload is the whole row. An edit this client has not been answered for yet is
+    // only a few fields of it, and painting the payload over those fields is how the other
+    // computer's priority wins the screen while this computer's status is still in flight.
+    this.rebasePending(changes);
     // A row in this batch may be the one a stand-in is standing in for. The socket pushes it
     // the moment the mutation commits, which on a loaded machine is well before the response
     // gets back here — and until something retires the stand-in the user is looking at their
@@ -597,6 +643,162 @@ export class SyncEngine {
     // duplicate last a frame instead of a round trip, or forever when the response is lost.
     this.remember(adopt(this.store, this.outbox, changes));
     this.socket.setVersion(this.store.version);
+  }
+
+  /**
+   * Puts unacknowledged optimistic fields back on top of a delta that does not yet
+   * contain them.
+   *
+   * `applyChanges` has already written the payload, which is the whole entity. The
+   * pending patch is also a whole entity, copied from the replica at the click, so
+   * replaying it would wipe the other computer's fields. Only the keys that differ
+   * between that patch's `before` and `after` are ours. When every one of them already
+   * equals `after`, this delta is our write coming back — it stands, and a later delta
+   * must not be rebased for that row. The server remains the judge.
+   */
+  private rebasePending(changes: Change[]): void {
+    const applied = new Map<string, { type: EntityType; id: UUID; payload: Entity }>();
+    for (const change of changes) {
+      const row = upsertPayload(change);
+      if (row === null) continue;
+      applied.set(`${row.type}:${row.id}`, row);
+    }
+    if (applied.size === 0) return;
+
+    const beforeNotice = this.conflictNotice();
+    for (const { type, id, payload } of applied.values()) {
+      for (const { opId, patch } of this.outbox.optimisticPatches()) {
+        if (patch.type !== type || patch.id !== id) continue;
+        const before = patch.before;
+        const after = patch.after;
+        // A delete has no fields to keep, and a create has no previous row to diff.
+        // Both stay on the path `applyChanges` just took.
+        if (before === null || after === null) continue;
+        const fields = pendingFields(before, after);
+        if (fields.length === 0) continue;
+
+        const echoed = fields.every((key) =>
+          sameResult(readField(payload, key), readField(after, key)),
+        );
+        if (echoed) {
+          this.outbox.markEchoed(opId, type, id);
+          this.covered.delete(coverKey(opId, type, id));
+          this.clearConflict(opId, type, id);
+          continue;
+        }
+
+        for (const key of fields) {
+          const incoming = readField(payload, key);
+          if (
+            !sameResult(incoming, readField(before, key)) &&
+            !sameResult(incoming, readField(after, key))
+          ) {
+            this.noteConflict(opId, type, id);
+            break;
+          }
+        }
+
+        const current = this.store.get(type, id);
+        if (current === undefined) continue;
+        this.rememberCover(opId, type, id, current, fields);
+        const next = overlayFields(current, after, fields);
+        if (sameResult(current, next)) continue;
+        this.store.applyOptimistic([{ type, id, before: current, after: next }]);
+      }
+    }
+    if (this.conflictNotice() !== beforeNotice) this.publishStatus();
+  }
+
+  /**
+   * Drops an op the server rejected, and puts back any remote fields a rebase had covered.
+   *
+   * `revertOptimistic` restores the snapshot only when the row still is that snapshot. A
+   * delta that landed first means it is not, and the covered values are the remote row's
+   * — restoring those, and only where the screen still shows our pending value, is what
+   * makes the refusal visible without erasing the other computer's edit.
+   */
+  private async undoQueued(opId: UUID): Promise<void> {
+    const patch = await this.outbox.rollback(opId);
+    if (patch) this.store.revertOptimistic(patch);
+    this.restoreCovered(opId, patch);
+    this.clearConflicts(opId);
+  }
+
+  private noteConflict(opId: UUID, type: EntityType, id: UUID): void {
+    if (this.conflicts.some((row) => row.opId === opId && row.type === type && row.id === id)) {
+      return;
+    }
+    this.conflicts.push({ opId, type, id });
+  }
+
+  private clearConflict(opId: UUID, type: EntityType, id: UUID): void {
+    this.conflicts = this.conflicts.filter(
+      (row) => row.opId !== opId || row.type !== type || row.id !== id,
+    );
+  }
+
+  private clearConflicts(opId: UUID): void {
+    this.conflicts = this.conflicts.filter((row) => row.opId !== opId);
+  }
+
+  /** The notice, or nothing once every colliding op has echoed or left the queue. */
+  private conflictNotice(): string | undefined {
+    this.conflicts = this.conflicts.filter((row) => this.outbox.get(row.opId) !== undefined);
+    return this.conflicts.length > 0 ? REMOTE_EDIT_NOTICE : undefined;
+  }
+
+  private rememberCover(
+    opId: UUID,
+    type: EntityType,
+    id: UUID,
+    current: Entity,
+    fields: readonly string[],
+  ): void {
+    // The row in the store is the delta just applied (plus any earlier pending op in this
+    // batch). Saving it again on the next delta replaces the cover with the newer remote
+    // value, which is the one a refusal should restore.
+    const saved = new Map<string, unknown>();
+    for (const field of fields) saved.set(field, readField(current, field));
+    this.covered.set(coverKey(opId, type, id), saved);
+  }
+
+  private restoreCovered(opId: UUID, patch: OptimisticPatch | null): void {
+    if (patch !== null) {
+      for (const entry of patch) this.restoreEntry(opId, entry);
+    }
+    this.forgetCover(opId);
+  }
+
+  private restoreEntry(opId: UUID, entry: EntityPatch): void {
+    const saved = this.covered.get(coverKey(opId, entry.type, entry.id));
+    this.covered.delete(coverKey(opId, entry.type, entry.id));
+    if (saved === undefined || entry.after === null) return;
+    const current = this.store.get(entry.type, entry.id);
+    if (current === undefined) return;
+
+    const next: Record<string, unknown> = { ...current };
+    let changed = false;
+    for (const [field, serverValue] of saved) {
+      // Already moved off our pending value — a later write owns it, and putting the
+      // covered value back would resurrect one.
+      if (!sameResult(readField(current, field), readField(entry.after, field))) continue;
+      if (serverValue === undefined) delete next[field];
+      else next[field] = serverValue;
+      changed = true;
+    }
+    if (!changed) return;
+    const entity = next as unknown as Entity;
+    if (sameResult(current, entity)) return;
+    this.store.applyOptimistic([
+      { type: entry.type, id: entry.id, before: current, after: entity },
+    ]);
+  }
+
+  private forgetCover(opId: UUID): void {
+    const prefix = `${opId}:`;
+    for (const key of this.covered.keys()) {
+      if (key.startsWith(prefix)) this.covered.delete(key);
+    }
   }
 
   private onResync(reason: string, retryAfterMs: number): void {
@@ -792,6 +994,7 @@ export class SyncEngine {
       // Spread rather than assigned so a healthy engine publishes no key at all under
       // `exactOptionalPropertyTypes`.
       ...(this.degraded === undefined ? null : { degraded: this.degraded }),
+      ...(this.conflictNotice() === undefined ? null : { notice: REMOTE_EDIT_NOTICE }),
     };
   }
 
@@ -802,6 +1005,44 @@ export class SyncEngine {
     }
     this.setStatus(this.readyStatus());
   }
+}
+
+function upsertPayload(change: Change): { type: EntityType; id: UUID; payload: Entity } | null {
+  if (change.op !== 'upsert' || change.payload === undefined || change.payload === null)
+    return null;
+  if (typeof change.payload !== 'object') return null;
+  if (!isEntityType(change.type)) return null;
+  return { type: change.type, id: change.id as UUID, payload: change.payload as Entity };
+}
+
+function readField(entity: object, key: string): unknown {
+  return (entity as unknown as Record<string, unknown>)[key];
+}
+
+/** Keys the optimistic write actually changed. `updatedAt` is excluded; see `SERVER_CLOCK_FIELDS`. */
+function pendingFields(before: Entity, after: Entity): string[] {
+  const left = before as unknown as Record<string, unknown>;
+  const right = after as unknown as Record<string, unknown>;
+  const fields: string[] = [];
+  for (const key of new Set([...Object.keys(left), ...Object.keys(right)])) {
+    if (SERVER_CLOCK_FIELDS.has(key)) continue;
+    if (!sameResult(left[key], right[key])) fields.push(key);
+  }
+  return fields;
+}
+
+function overlayFields(current: Entity, after: Entity, fields: readonly string[]): Entity {
+  const next: Record<string, unknown> = { ...(current as unknown as Record<string, unknown>) };
+  const source = after as unknown as Record<string, unknown>;
+  for (const field of fields) {
+    if (source[field] === undefined) delete next[field];
+    else next[field] = source[field];
+  }
+  return next as unknown as Entity;
+}
+
+function coverKey(opId: UUID, type: EntityType, id: UUID): string {
+  return `${opId}:${type}:${id}`;
 }
 
 const CLIENT_ID_KEY = 'polaris.clientId';

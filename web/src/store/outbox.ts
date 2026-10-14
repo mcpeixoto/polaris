@@ -233,6 +233,14 @@ export class Outbox {
    */
   private readonly inFlight = new Set<UUID>();
   /**
+   * Rows whose optimistic write has already been seen on the delta stream.
+   *
+   * Not persisted and not sent. Clearing the queue only when the response arrives is too
+   * late: a newer remote delta can land while the op is still queued, and rebasing the
+   * old value over it would discard a write the server has already ordered after ours.
+   */
+  private readonly echoed = new Set<string>();
+  /**
    * The stand-in ids the queue is currently holding a pairing for.
    *
    * Derived from `records`, kept rather than recomputed because `SyncEngine.isProvisional`
@@ -279,6 +287,17 @@ export class Outbox {
     return outbox;
   }
 
+  private echoKey(opId: UUID, type: EntityType, id: UUID): string {
+    return `${opId}:${type}:${id}`;
+  }
+
+  /** Drops the echo marks for one op. The record is gone, so the marks would only leak. */
+  private forgetEchoed(record: OutboxRecord): void {
+    for (const patch of record.optimisticPatch) {
+      this.echoed.delete(this.echoKey(record.opId, patch.type, patch.id));
+    }
+  }
+
   /** Rebuilds the derived views of the queue. Cheap, and only on a change to `records`. */
   private reindex(): void {
     this.provisional.clear();
@@ -320,6 +339,41 @@ export class Outbox {
   /** Everything queued that is not already on the wire, oldest first. */
   pending(): readonly OutboxRecord[] {
     return this.list().filter((record) => !this.inFlight.has(record.opId));
+  }
+
+  /**
+   * Optimistic rows the server has not answered yet, oldest first, including ones already
+   * on the wire.
+   *
+   * `pending()` is the wrong list for a delta that arrives mid-flight: the op is claimed
+   * the moment it is sent, and that is the window in which the other computer's write
+   * lands. A row whose own write has already come back on the stream is left out —
+   * `markEchoed` — so a later delta is not overwritten by a value the server has moved
+   * past. The record itself stays queued: replay still sends it, and the idempotency
+   * table still answers with the original result.
+   */
+  optimisticPatches(): readonly { readonly opId: UUID; readonly patch: EntityPatch }[] {
+    const patches: { opId: UUID; patch: EntityPatch }[] = [];
+    for (const record of this.records.values()) {
+      for (const patch of record.optimisticPatch) {
+        if (this.echoed.has(this.echoKey(record.opId, patch.type, patch.id))) continue;
+        patches.push({ opId: record.opId, patch });
+      }
+    }
+    return patches;
+  }
+
+  /**
+   * The delta stream has already delivered this row's write.
+   *
+   * In memory only, like `inFlight`: a reload has not seen the stream, and the queued
+   * mutation still has to be replayed. Remembering it here is what stops the next delta
+   * from painting the stale value back over a newer one while the HTTP response is still
+   * outstanding.
+   */
+  markEchoed(opId: UUID, type: EntityType, id: UUID): void {
+    if (!this.records.has(opId)) return;
+    this.echoed.add(this.echoKey(opId, type, id));
   }
 
   get(opId: UUID): OutboxRecord | undefined {
@@ -409,6 +463,7 @@ export class Outbox {
     await this.db?.deleteOutbox(opId);
     this.records.delete(opId);
     this.inFlight.delete(opId);
+    this.forgetEchoed(record);
     // Rebuilt rather than subtracted: two queued ops may name the same stand-in, and
     // removing the id because one of them resolved would report the other's row as real.
     if (reconciliations(record.reconcile).length > 0) this.reindex();
@@ -431,6 +486,7 @@ export class Outbox {
     await this.db?.clearOutbox();
     this.records.clear();
     this.inFlight.clear();
+    this.echoed.clear();
     this.provisional.clear();
     this.matchable = null;
   }
