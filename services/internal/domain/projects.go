@@ -34,7 +34,9 @@ var defaultProjectStatuses = []struct {
 }{
 	{"Backlog", model.ProjectCategoryBacklog, "#bec2c8", true},
 	{"Planned", model.ProjectCategoryPlanned, "#e2e2e2", false},
-	{"In Progress", model.ProjectCategoryStarted, "#f2c94c", false},
+	// Same light blue as an issue's In Progress. The two draw the same pie, and a
+	// project and an issue of that name on one screen should not be two hues.
+	{"In Progress", model.ProjectCategoryStarted, "#56b6d8", false},
 	{"Completed", model.ProjectCategoryCompleted, "#188a55", false},
 	{"Canceled", model.ProjectCategoryCanceled, "#95a2b3", false},
 }

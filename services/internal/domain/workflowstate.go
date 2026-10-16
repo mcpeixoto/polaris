@@ -51,7 +51,14 @@ var defaultStates = []struct {
 }{
 	{"Backlog", CategoryBacklog, "#bec2c8", true},
 	{"Todo", CategoryUnstarted, "#e2e2e2", false},
-	{"In Progress", CategoryStarted, "#f2c94c", false},
+	// Light blue, not the amber the source product uses. In Progress and In Review are
+	// both started, so the category token cannot tell them apart — the row's own colour
+	// is what the menu paints. Blue-400 is the light stop of the only blue in the
+	// palette. Migration 000093 moves rows still wearing the old amber.
+	{"In Progress", CategoryStarted, "#56b6d8", false},
+	// The amber In Progress used to wear. A review is the started state that should
+	// read as a warning, and a second pie in the same blue as the one above it does not.
+	{"In Review", CategoryStarted, "#f2c94c", false},
 	// Green, not the accent: done is the state the eye should find without reading, and
 	// an accent-coloured disc is indistinguishable from every other accent-coloured thing
 	// on the row. Migration 000088 moves the workspaces that were seeded with the old value.

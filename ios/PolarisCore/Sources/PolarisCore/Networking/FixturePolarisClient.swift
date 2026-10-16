@@ -730,14 +730,17 @@ public enum FixtureData {
 
     /// The four original states keep their indices — fixtures address them by position — and
     /// the two the parity screens need come after: Triage sorts first by position and
-    /// Canceled last, which is where a picker ordered by position puts them.
+    /// Canceled last, which is where a picker ordered by position puts them. In Review is
+    /// appended so those indices stay put; its position `c1` sorts it between In Progress
+    /// and Done.
     public static let states: [WorkflowState] = decoded("""
     [{"id":"s1","name":"Backlog","color":"#9AA0A6","category":"BACKLOG","position":"a"},
      {"id":"s2","name":"Todo","color":"#9AA0A6","category":"UNSTARTED","position":"b"},
-     {"id":"s3","name":"In Progress","color":"#F5B700","category":"STARTED","position":"c"},
+     {"id":"s3","name":"In Progress","color":"#56B6D8","category":"STARTED","position":"c"},
      {"id":"s4","name":"Done","color":"#3FB950","category":"COMPLETED","position":"d"},
      {"id":"s5","name":"Triage","color":"#B65BEF","category":"TRIAGE","position":"0"},
-     {"id":"s6","name":"Canceled","color":"#8A8F98","category":"CANCELED","position":"e"}]
+     {"id":"s6","name":"Canceled","color":"#8A8F98","category":"CANCELED","position":"e"},
+     {"id":"s7","name":"In Review","color":"#F2C94C","category":"STARTED","position":"c1"}]
     """)
 
     public static let users: [User] = decoded("""
@@ -764,7 +767,7 @@ public enum FixtureData {
     public static let projectStatuses: [ProjectStatus] = decoded("""
     [{"id":"ps1","name":"Backlog","color":"#9AA0A6","category":"BACKLOG"},
      {"id":"ps2","name":"Planned","color":"#5B8DEF","category":"PLANNED"},
-     {"id":"ps3","name":"In Progress","color":"#F5B700","category":"STARTED"},
+     {"id":"ps3","name":"In Progress","color":"#56B6D8","category":"STARTED"},
      {"id":"ps4","name":"Completed","color":"#3FB950","category":"COMPLETED"},
      {"id":"ps5","name":"Canceled","color":"#8A8F98","category":"CANCELED"}]
     """)
@@ -773,7 +776,7 @@ public enum FixtureData {
     [{"id":"p1","name":"Mobile parity","summary":"Everything the phone can do that the web can.",
       "description":"","icon":"iphone","color":"#5B8DEF","priority":2,"leadId":"u1",
       "startDate":"2026-08-01","targetDate":"2026-10-15",
-      "status":{"id":"ps3","name":"In Progress","color":"#F5B700","category":"STARTED"},
+      "status":{"id":"ps3","name":"In Progress","color":"#56B6D8","category":"STARTED"},
       "lead":{"id":"u1","name":"miguel","displayName":"Miguel Peixoto","avatarUrl":null,"email":"dev@polaris.local"},
       "teams":[{"team":{"id":"t1","key":"ENG","name":"Engineering","icon":null,"color":"#5B8DEF","triageEnabled":true,"cyclesEnabled":true}}],
       "milestones":[{"id":"m1","name":"Issue detail","targetDate":"2026-09-20"},
