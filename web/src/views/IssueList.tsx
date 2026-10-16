@@ -34,6 +34,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -83,6 +84,7 @@ import { copyRich, titleAsLink } from '~/features/issue/copy';
 import { useOptionalCreateIssue } from '~/features/issue/create-context';
 import { RelationFlag } from '~/features/issue/RelationFlag';
 import { blockedBy, blockedTitle } from '~/features/issue/relationLinks';
+import { groupMenuItems, readGroupStatusOffer } from '~/features/issue/groupMenu';
 import { issueRowMenuItems, type IssuePropertyKind } from '~/features/issue/rowMenu';
 import {
   applyIssueMenuValue,
@@ -93,7 +95,7 @@ import {
 } from '~/features/issue/rowMenuActions';
 import { useIssueRowMenuOptions } from '~/features/issue/rowMenuOptions';
 import { MilestonePicker } from '~/features/project-milestones/MilestonePicker';
-import { contextMenuPoint, contextMenuPointOn } from '~/hooks/useContextMenu';
+import { contextMenuPoint, contextMenuPointOn, useContextMenu } from '~/hooks/useContextMenu';
 import { useContextMenuHandoff } from '~/hooks/useContextMenuHandoff';
 import { RESTORE_WINDOW_DAYS, restoreIssue } from '~/features/trash/mutations';
 import { offerUndo } from '~/features/undo/UndoToast';
@@ -1020,6 +1022,13 @@ export function IssueList({
    */
   const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null);
   const [contextOpen, setContextOpen] = useState(false);
+  /**
+   * Right-click on a group heading, as opposed to a row.
+   *
+   * A heading means the issues under it. The row menu stays about the cursor; this one
+   * lists statuses as its own rows so moving the group is the click after the right-click.
+   */
+  const groupMenu = useContextMenu<string>({ returnFocusTo: scrollRef });
   /** The row the menu is about, and where it is, so a hand-off can move the cursor to it. */
   const [contextRow, setContextRow] = useState<{ id: UUID; rowIndex: number } | null>(null);
   const contextHandoff = useContextMenuHandoff();
@@ -2234,14 +2243,40 @@ export function IssueList({
    * clicking one of six selected rows means "these six", which is the rule the toolbar and
    * the drag already follow.
    */
+  const closeGroupMenu = groupMenu.close;
+  const openGroupMenu = groupMenu.openFromEvent;
   const onRowContextMenu = useCallback(
     (id: UUID, rowIndex: number, x: number, y: number) => {
+      closeGroupMenu();
       onFocusRow(id, rowIndex);
       setContextRow({ id, rowIndex });
       setPointer({ x, y });
       setContextOpen(true);
     },
-    [onFocusRow],
+    [onFocusRow, closeGroupMenu],
+  );
+
+  /**
+   * Right-click on a heading. The row menu closes so two menus are never open at once —
+   * the one under the pointer is the one that is about what was clicked.
+   */
+  const onGroupContextMenu = useCallback(
+    (
+      event: {
+        button: number;
+        buttons: number;
+        clientX: number;
+        clientY: number;
+        currentTarget: EventTarget | null;
+        preventDefault(): void;
+      },
+      groupKey: string,
+    ) => {
+      setContextOpen(false);
+      setPointer(null);
+      openGroupMenu(event, groupKey);
+    },
+    [openGroupMenu],
   );
 
   /**
@@ -2305,6 +2340,53 @@ export function IssueList({
       openFrom(kind, contextRow.id, contextRow.rowIndex, contextAnchor.current);
     },
     [contextRow, openFrom, contextHandoff],
+  );
+
+  const groupForMenu =
+    groupMenu.id === null ? undefined : groups.find((group) => group.key === groupMenu.id);
+  const groupOffer = useLiveQuery(
+    (store) => readGroupStatusOffer(store, groupForMenu?.ids ?? []),
+    ['issue', 'workflowState'],
+    [groupMenu.id ?? '', groupForMenu?.ids.join(',') ?? ''],
+  );
+
+  /**
+   * Ids a collapsed heading asked to select, applied once the rows exist.
+   *
+   * Selecting them first would reconcile them straight back out: a collapsed group is not
+   * in the list's order, and the selection refuses ids the list does not hold. Unfolding
+   * and then selecting, in that order, is what makes "select all" on a shut heading select
+   * the issues the heading was naming.
+   */
+  const pendingGroupSelect = useRef<readonly UUID[] | null>(null);
+  const selectIssueIds = selection.selectIds;
+  const selectGroup = useCallback(
+    (groupKey: string) => {
+      const group = groups.find((candidate) => candidate.key === groupKey);
+      if (group === undefined || group.ids.length === 0) return;
+      if (collapsed.has(groupKey)) {
+        pendingGroupSelect.current = group.ids;
+        toggleGroup(groupKey);
+        return;
+      }
+      selectIssueIds(group.ids);
+    },
+    [groups, collapsed, toggleGroup, selectIssueIds],
+  );
+  useLayoutEffect(() => {
+    const pending = pendingGroupSelect.current;
+    if (pending === null) return;
+    pendingGroupSelect.current = null;
+    selectIssueIds(pending);
+  }, [rows, selectIssueIds]);
+
+  const setGroupStatus = useCallback(
+    (groupKey: string, stateId: UUID) => {
+      const group = groups.find((candidate) => candidate.key === groupKey);
+      if (group === undefined || group.ids.length === 0) return;
+      updateIssues(engine, [...new Set(group.ids)], { stateId }, viewerId).catch(report);
+    },
+    [groups, engine, viewerId],
   );
 
   if (scope.heading === null) {
@@ -3070,6 +3152,24 @@ export function IssueList({
           rowMenuOptions,
         )}
       />
+      {groupMenu.at === null ? null : <div {...groupMenu.anchorProps} />}
+      <Menu
+        open={groupMenu.at !== null && groupForMenu !== undefined}
+        onClose={groupMenu.close}
+        trigger={groupMenu.anchorRef}
+        label={groupForMenu === undefined ? 'Group' : groupForMenu.label || 'All issues'}
+        density="compact"
+        items={
+          groupForMenu === undefined
+            ? []
+            : groupMenuItems({
+                count: groupForMenu.ids.length,
+                offer: groupOffer,
+                onSelectAll: () => selectGroup(groupForMenu.key),
+                onSetStatus: (stateId) => setGroupStatus(groupForMenu.key, stateId),
+              })
+        }
+      />
 
       <ConfirmDialog
         open={pendingArchive !== null}
@@ -3222,6 +3322,8 @@ export function IssueList({
             openProperty={origin}
             onCreateInColumn={openCreateFromUrl}
             onRegisterScrollTo={registerBoardScroll}
+            onSelectGroup={selectGroup}
+            onSetGroupStatus={setGroupStatus}
             reorder={groupReorder}
           />
         ) : (
@@ -3232,6 +3334,7 @@ export function IssueList({
                   row={pinned}
                   onToggle={onToggleGroup}
                   onCreate={onCreateInGroup}
+                  onContextMenu={onGroupContextMenu}
                   reorder={groupReorder}
                 />
               </div>
@@ -3273,6 +3376,7 @@ export function IssueList({
                           row={row}
                           onToggle={onToggleGroup}
                           onCreate={onCreateInGroup}
+                          onContextMenu={onGroupContextMenu}
                           reorder={groupReorder}
                         />
                       ) : (
@@ -3487,12 +3591,27 @@ function GroupHeader({
   row,
   onToggle,
   onCreate,
+  onContextMenu,
   reorder,
 }: {
   row: HeaderRow;
   onToggle: (key: string) => void;
   /** Files a new issue into this group. Absent where the group is not something to file into. */
   onCreate?: ((row: HeaderRow) => void) | undefined;
+  /** Right-click: the heading's own menu, about every issue in the group. */
+  onContextMenu?:
+    | ((
+        event: {
+          button: number;
+          buttons: number;
+          clientX: number;
+          clientY: number;
+          currentTarget: EventTarget | null;
+          preventDefault(): void;
+        },
+        groupKey: string,
+      ) => void)
+    | undefined;
   /** Absent where the view's groups cannot be arranged — see `canReorderGroups`. */
   reorder?: GroupReorder | undefined;
 }) {
@@ -3536,6 +3655,10 @@ function GroupHeader({
         reorder.onStart(row.groupKey);
       }}
       onDragEnd={() => reorder?.onEnd()}
+      onContextMenu={(event) => {
+        event.stopPropagation();
+        onContextMenu?.(event, row.groupKey);
+      }}
       onDragOver={(event) => {
         if (reorder === undefined || reorder.draggingKey === null) return;
         // Without this the browser refuses the drop, which is the single most common way an

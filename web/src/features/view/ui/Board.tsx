@@ -34,6 +34,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -60,6 +61,7 @@ import { estimatesEnabled, issueEstimateLabel } from '~/features/estimate';
 import { EstimateGlyph } from '~/features/issue/glyphs';
 import { EntityIcon } from '~/features/icon/EntityIcon';
 import { createUrlForGroup } from '~/features/issue/create-url';
+import { groupMenuItems, readGroupStatusOffer } from '~/features/issue/groupMenu';
 import { reorderIssue, report, updateIssues, type IssueFields } from '~/features/issue/mutations';
 import type { IssuePropertyKind } from '~/features/issue/rowMenu';
 import { LabelList } from '~/features/labels/LabelList';
@@ -127,6 +129,13 @@ export interface BoardProps {
    * every one of them a routing error. The screen has a navigator; the board has a column.
    */
   onCreateInColumn?: ((url: string) => void) | undefined;
+  /**
+   * Select every issue in a column. The selection belongs to the screen, which is why a
+   * column reports the gesture instead of holding a selection of its own.
+   */
+  onSelectGroup?: ((groupKey: string) => void) | undefined;
+  /** Move every issue in a column to one status. Same write the list's heading menu runs. */
+  onSetGroupStatus?: ((groupKey: string, stateId: UUID) => void) | undefined;
   /**
    * Hands the screen a way to scroll one card into view, for as long as the board is mounted.
    *
@@ -245,6 +254,8 @@ export function Board({
   collapsed = NOTHING_FOLDED,
   onOpen,
   onCreateInColumn,
+  onSelectGroup,
+  onSetGroupStatus,
   onFocus,
   onToggle,
   onExtend,
@@ -579,6 +590,8 @@ export function Board({
             over={over === group.key}
             collapsed={collapsed.has(group.key)}
             onCreateInColumn={onCreateInColumn}
+            onSelectGroup={onSelectGroup}
+            onSetGroupStatus={onSetGroupStatus}
             describedBy={blocked === null ? undefined : noticeId}
             onOpen={onOpen}
             onFocus={onFocus}
@@ -630,6 +643,8 @@ interface BoardColumnProps {
     ((kind: IssuePropertyKind, id: UUID, index: number, element: HTMLElement) => void) | undefined;
   openProperty: { readonly kind: IssuePropertyKind; readonly id: UUID } | null;
   onCreateInColumn: ((url: string) => void) | undefined;
+  onSelectGroup: ((groupKey: string) => void) | undefined;
+  onSetGroupStatus: ((groupKey: string, stateId: UUID) => void) | undefined;
   onDragOverColumn(key: string): void;
   onDropCard(group: ViewGroup, id: UUID, at: number | undefined): void;
   reorder?: GroupReorder | undefined;
@@ -669,6 +684,8 @@ function BoardColumn({
   onProperty,
   openProperty,
   onCreateInColumn,
+  onSelectGroup,
+  onSetGroupStatus,
   onDragStartCard,
   onDragEndCard,
   onDragOverColumn,
@@ -679,6 +696,33 @@ function BoardColumn({
   last,
 }: BoardColumnProps) {
   const menu = useMenuTrigger();
+  /**
+   * Where a right-click on the heading asked the menu to open.
+   *
+   * The ⋯ button is the other way in, and it hangs the menu off itself. A right-click has
+   * no button: the anchor is a one-pixel box at the pointer, measured after it commits,
+   * which is why this is an effect rather than `showFrom` in the event.
+   */
+  const pointerAnchor = useRef<HTMLDivElement>(null);
+  const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null);
+  const showMenuFrom = menu.showFrom;
+  useLayoutEffect(() => {
+    if (pointer === null || pointerAnchor.current === null) return;
+    showMenuFrom(pointerAnchor.current);
+  }, [pointer, showMenuFrom]);
+  const offer = useLiveQuery(
+    (store) => readGroupStatusOffer(store, group.ids),
+    ['issue', 'workflowState'],
+    [group.ids.join(',')],
+  );
+  const groupActions = groupMenuItems({
+    count: group.ids.length,
+    offer,
+    ...(onSelectGroup === undefined ? {} : { onSelectAll: () => onSelectGroup(group.key) }),
+    ...(onSetGroupStatus === undefined
+      ? {}
+      : { onSetStatus: (stateId: string) => onSetGroupStatus(group.key, stateId) }),
+  });
   /**
    * Which gap a drop would land in, or null while nothing is over this column.
    *
@@ -817,6 +861,11 @@ function BoardColumn({
       <header
         className={styles.header}
         draggable={reorder !== undefined}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setPointer(contextMenuPoint(event));
+        }}
         onDragStart={(event) => {
           if (reorder === undefined) return;
           event.dataTransfer.setData(GROUP_DRAG, group.key);
@@ -870,13 +919,38 @@ function BoardColumn({
           variant="ghost"
           aria-label={`Options for ${title}`}
           icon={<MoreGlyph />}
+          onClick={() => {
+            // A menu opened from the pointer hangs off that anchor. The button is the
+            // other trigger, and leaving the anchor up would keep the next open pinned
+            // to the last right-click.
+            setPointer(null);
+            menu.toggle();
+          }}
         />
+        {pointer === null ? null : (
+          <div
+            ref={pointerAnchor}
+            style={{
+              position: 'fixed',
+              top: pointer.y,
+              left: pointer.x,
+              width: 1,
+              height: 1,
+              pointerEvents: 'none',
+            }}
+          />
+        )}
         <Menu
           open={menu.open}
-          onClose={menu.hide}
+          onClose={() => {
+            menu.hide();
+            setPointer(null);
+          }}
           trigger={menu.ref}
           label={`${title} column`}
           items={[
+            ...groupActions,
+            ...(groupActions.length > 0 ? [{ kind: 'separator' as const }] : []),
             {
               id: 'hide',
               label: collapsed ? 'Show column' : 'Hide column',
