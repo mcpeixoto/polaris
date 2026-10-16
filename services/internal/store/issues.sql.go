@@ -22,6 +22,113 @@ func (q *Queries) ArchiveIssue(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const archiveLiveProjectIssues = `-- name: ArchiveLiveProjectIssues :many
+UPDATE issue SET archived_at = (SELECT project.archived_at FROM project WHERE project.id = $1)
+WHERE issue.project_id = $1
+  AND issue.archived_at IS NULL
+  AND issue.deleted_at IS NULL
+  AND (SELECT project.archived_at FROM project WHERE project.id = $1) IS NOT NULL
+RETURNING id, workspace_id, team_id, number, title, description, state_id,
+          assignee_id, creator_id, priority, sort_order,
+          started_at, completed_at, canceled_at,
+          archived_at, deleted_at, created_at, updated_at,
+          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id
+`
+
+type ArchiveLiveProjectIssuesRow struct {
+	ID                 uuid.UUID
+	WorkspaceID        uuid.UUID
+	TeamID             uuid.UUID
+	Number             int64
+	Title              string
+	Description        string
+	StateID            uuid.UUID
+	AssigneeID         *uuid.UUID
+	CreatorID          *uuid.UUID
+	Priority           int16
+	SortOrder          string
+	StartedAt          *time.Time
+	CompletedAt        *time.Time
+	CanceledAt         *time.Time
+	ArchivedAt         *time.Time
+	DeletedAt          *time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Estimate           *int16
+	DueDate            pgtype.Date
+	DueDateSource      string
+	ParentID           *uuid.UUID
+	SubIssueSortOrder  *string
+	TemplateID         *uuid.UUID
+	FormTemplateID     *uuid.UUID
+	DeletedBy          *uuid.UUID
+	ProjectID          *uuid.UUID
+	ProjectMilestoneID *uuid.UUID
+	CycleID            *uuid.UUID
+	SnoozedUntil       *time.Time
+	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
+}
+
+// ArchiveLiveProjectIssues stamps every live issue with the project's archived_at.
+//
+// The stamp is a subquery, for the reason ListIssuesArchivedWithProject gives: the
+// two writes have to be the same instant, and the only clock that can promise that
+// is Postgres. A project that is not archived archives nothing here.
+func (q *Queries) ArchiveLiveProjectIssues(ctx context.Context, id uuid.UUID) ([]ArchiveLiveProjectIssuesRow, error) {
+	rows, err := q.db.Query(ctx, archiveLiveProjectIssues, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ArchiveLiveProjectIssuesRow{}
+	for rows.Next() {
+		var i ArchiveLiveProjectIssuesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.TeamID,
+			&i.Number,
+			&i.Title,
+			&i.Description,
+			&i.StateID,
+			&i.AssigneeID,
+			&i.CreatorID,
+			&i.Priority,
+			&i.SortOrder,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.CanceledAt,
+			&i.ArchivedAt,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Estimate,
+			&i.DueDate,
+			&i.DueDateSource,
+			&i.ParentID,
+			&i.SubIssueSortOrder,
+			&i.TemplateID,
+			&i.FormTemplateID,
+			&i.DeletedBy,
+			&i.ProjectID,
+			&i.ProjectMilestoneID,
+			&i.CycleID,
+			&i.SnoozedUntil,
+			&i.AutoClosedAt,
+			&i.RecurringIssueID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const bulkUpdateIssues = `-- name: BulkUpdateIssues :many
 UPDATE issue
 SET state_id     = COALESCE($1, state_id),
@@ -1303,6 +1410,116 @@ func (q *Queries) ListDeletedIssues(ctx context.Context, arg ListDeletedIssuesPa
 	items := []ListDeletedIssuesRow{}
 	for rows.Next() {
 		var i ListDeletedIssuesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.TeamID,
+			&i.Number,
+			&i.Title,
+			&i.Description,
+			&i.StateID,
+			&i.AssigneeID,
+			&i.CreatorID,
+			&i.Priority,
+			&i.SortOrder,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.CanceledAt,
+			&i.ArchivedAt,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Estimate,
+			&i.DueDate,
+			&i.DueDateSource,
+			&i.ParentID,
+			&i.SubIssueSortOrder,
+			&i.TemplateID,
+			&i.FormTemplateID,
+			&i.DeletedBy,
+			&i.ProjectID,
+			&i.ProjectMilestoneID,
+			&i.CycleID,
+			&i.SnoozedUntil,
+			&i.AutoClosedAt,
+			&i.RecurringIssueID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listIssuesArchivedWithProject = `-- name: ListIssuesArchivedWithProject :many
+SELECT i.id, i.workspace_id, i.team_id, i.number, i.title, i.description, i.state_id,
+       i.assignee_id, i.creator_id, i.priority, i.sort_order,
+       i.started_at, i.completed_at, i.canceled_at,
+       i.archived_at, i.deleted_at, i.created_at, i.updated_at,
+       i.estimate, i.due_date, i.due_date_source, i.parent_id, i.sub_issue_sort_order, i.template_id, i.form_template_id, i.deleted_by,
+          i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at, i.recurring_issue_id
+FROM issue i
+JOIN project p ON p.id = i.project_id
+WHERE i.project_id = $1
+  AND i.deleted_at IS NULL
+  AND p.archived_at IS NOT NULL
+  AND i.archived_at = p.archived_at
+ORDER BY i.id
+`
+
+type ListIssuesArchivedWithProjectRow struct {
+	ID                 uuid.UUID
+	WorkspaceID        uuid.UUID
+	TeamID             uuid.UUID
+	Number             int64
+	Title              string
+	Description        string
+	StateID            uuid.UUID
+	AssigneeID         *uuid.UUID
+	CreatorID          *uuid.UUID
+	Priority           int16
+	SortOrder          string
+	StartedAt          *time.Time
+	CompletedAt        *time.Time
+	CanceledAt         *time.Time
+	ArchivedAt         *time.Time
+	DeletedAt          *time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Estimate           *int16
+	DueDate            pgtype.Date
+	DueDateSource      string
+	ParentID           *uuid.UUID
+	SubIssueSortOrder  *string
+	TemplateID         *uuid.UUID
+	FormTemplateID     *uuid.UUID
+	DeletedBy          *uuid.UUID
+	ProjectID          *uuid.UUID
+	ProjectMilestoneID *uuid.UUID
+	CycleID            *uuid.UUID
+	SnoozedUntil       *time.Time
+	AutoClosedAt       *time.Time
+	RecurringIssueID   *uuid.UUID
+}
+
+// Issues that left with the project.
+//
+// The comparison is the project's own archived_at, not a timestamp passed in from Go.
+// A value read out and written back can lose a microsecond, and then a restore would
+// not recognise the rows it had just archived. An issue archived on its own has a
+// different instant and stays archived when the project comes back.
+func (q *Queries) ListIssuesArchivedWithProject(ctx context.Context, projectID *uuid.UUID) ([]ListIssuesArchivedWithProjectRow, error) {
+	rows, err := q.db.Query(ctx, listIssuesArchivedWithProject, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListIssuesArchivedWithProjectRow{}
+	for rows.Next() {
+		var i ListIssuesArchivedWithProjectRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,

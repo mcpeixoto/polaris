@@ -10,6 +10,7 @@ import (
 	"github.com/peixotolabs/polaris/services/internal/authz"
 	"github.com/peixotolabs/polaris/services/internal/domain"
 	"github.com/peixotolabs/polaris/services/internal/domain/model"
+	"github.com/peixotolabs/polaris/services/internal/platform"
 	"github.com/peixotolabs/polaris/services/internal/testutil"
 )
 
@@ -468,6 +469,114 @@ func TestFamilyClose_ChildrenCloseWhenParentIsDone(t *testing.T) {
 	}
 	if got.StateID != f.Done {
 		t.Fatal("child stayed open after its parent was done")
+	}
+}
+
+func TestArchiveProject_TakesItsIssuesAndRestoresOnlyThose(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	p := f.Principal()
+
+	project, _, err := svc.CreateProject(ctx, p, domain.CreateProjectInput{
+		Name: "Apollo", TeamIDs: []uuid.UUID{f.TeamID},
+	})
+	if err != nil {
+		t.Fatalf("project: %v", err)
+	}
+	open, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{
+		TeamID: f.TeamID, Title: "Still open", ProjectID: &project.ID,
+	})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	done, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{
+		TeamID: f.TeamID, Title: "Done", ProjectID: &project.ID,
+	})
+	if err != nil {
+		t.Fatalf("done: %v", err)
+	}
+	if _, _, err := svc.UpdateIssue(ctx, p, domain.UpdateIssueInput{ID: done.ID, StateID: &f.Done}); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	earlier, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{
+		TeamID: f.TeamID, Title: "Already archived", ProjectID: &project.ID,
+	})
+	if err != nil {
+		t.Fatalf("earlier: %v", err)
+	}
+	if _, err := svc.ArchiveIssue(ctx, p, earlier.ID, true); err != nil {
+		t.Fatalf("archive earlier: %v", err)
+	}
+	outside, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{
+		TeamID: f.TeamID, Title: "Not on the project",
+	})
+	if err != nil {
+		t.Fatalf("outside: %v", err)
+	}
+	deleted, _, err := svc.CreateIssue(ctx, p, domain.CreateIssueInput{
+		TeamID: f.TeamID, Title: "In the trash", ProjectID: &project.ID,
+	})
+	if err != nil {
+		t.Fatalf("deleted: %v", err)
+	}
+	if _, err := svc.DeleteIssue(ctx, p, deleted.ID); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+
+	if _, err := svc.ArchiveProject(ctx, p, project.ID, true); err != nil {
+		t.Fatalf("archive project: %v", err)
+	}
+
+	for _, id := range []uuid.UUID{open.ID, done.ID} {
+		got, err := svc.GetIssue(ctx, p, id)
+		if err != nil {
+			t.Fatalf("get %s: %v", id, err)
+		}
+		if got.ArchivedAt == nil {
+			t.Fatalf("issue %s was left live", got.Title)
+		}
+	}
+	gotProject, err := svc.GetProject(ctx, p, project.ID)
+	if err != nil {
+		t.Fatalf("get project: %v", err)
+	}
+	if gotProject.ArchivedAt == nil {
+		t.Fatal("the project was left live")
+	}
+	still, err := svc.GetIssue(ctx, p, outside.ID)
+	if err != nil {
+		t.Fatalf("get outside: %v", err)
+	}
+	if still.ArchivedAt != nil {
+		t.Fatal("an issue on no project was archived with it")
+	}
+	if _, err := svc.GetIssue(ctx, p, deleted.ID); platform.CodeOf(err) != platform.CodeNotFound {
+		t.Fatalf("deleted issue: %v, want not found", err)
+	}
+
+	if _, err := svc.ArchiveProject(ctx, p, project.ID, false); err != nil {
+		t.Fatalf("unarchive project: %v", err)
+	}
+	for _, id := range []uuid.UUID{open.ID, done.ID} {
+		got, err := svc.GetIssue(ctx, p, id)
+		if err != nil {
+			t.Fatalf("get restored %s: %v", id, err)
+		}
+		if got.ArchivedAt != nil {
+			t.Fatalf("issue %s stayed archived after the project came back", got.Title)
+		}
+	}
+	kept, err := svc.GetIssue(ctx, p, earlier.ID)
+	if err != nil {
+		t.Fatalf("get earlier: %v", err)
+	}
+	if kept.ArchivedAt == nil {
+		t.Fatal("an issue archived on its own came back with the project")
+	}
+	if _, err := svc.GetIssue(ctx, p, deleted.ID); platform.CodeOf(err) != platform.CodeNotFound {
+		t.Fatalf("deleted issue after restore: %v, want not found", err)
 	}
 }
 

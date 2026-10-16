@@ -169,7 +169,7 @@ Issues archive only after being completed/canceled/auto-closed **and** inactive 
 - sub-issues (including those in other projects) aren't all closed
 - the issue's project isn't yet archivable
 
-Projects archive only when: status is in a completed/canceled category, no updates/edits recently, and **all** their issues are archivable. Issues archive at the same time as their project — so closed issues in an open project never archive on their own (this preserves project graph integrity).
+Projects archive only when: status is in a completed/canceled category, no updates/edits recently, and **all** their issues are archivable. Issues archive at the same time as their project — so closed issues in an open project never archive on their own (this preserves project graph integrity). Archiving a project by hand takes every issue still on it, open ones included; restoring the project brings those back, and an issue archived on its own stays archived.
 
 The auto-archive setting also governs cycle and project archival.
 

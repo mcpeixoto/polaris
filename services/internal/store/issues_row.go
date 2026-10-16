@@ -10,7 +10,8 @@ func AsIssueRow[
 	T CreateIssueRow | UpdateIssueRow | GetIssueRow | GetIssueForUpdateRow |
 		GetIssueByTeamAndNumberRow |
 		ListStaleOpenIssuesRow | ListStaleClosedIssuesRow |
-		ListIssuesForProjectRow | ListChildIssuesRow |
+		ListIssuesForProjectRow | ListIssuesArchivedWithProjectRow |
+		ArchiveLiveProjectIssuesRow | ListChildIssuesRow |
 		ListArchivedIssuesForTeamRow | ListIssuesForTeamRow |
 		ListIssuesByIDsRow | ListMyIssuesRow | ListDeletedIssuesRow |
 		ListChildIssuesForParentsRow |

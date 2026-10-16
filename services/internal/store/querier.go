@@ -114,6 +114,13 @@ type Querier interface {
 	//
 	ArchiveIssueTemplate(ctx context.Context, id uuid.UUID) (ArchiveIssueTemplateRow, error)
 	ArchiveLabel(ctx context.Context, id uuid.UUID) (ArchiveLabelRow, error)
+	// ArchiveLiveProjectIssues stamps every live issue with the project's archived_at.
+	//
+	// The stamp is a subquery, for the reason ListIssuesArchivedWithProject gives: the
+	// two writes have to be the same instant, and the only clock that can promise that
+	// is Postgres. A project that is not archived archives nothing here.
+	//
+	ArchiveLiveProjectIssues(ctx context.Context, id uuid.UUID) ([]ArchiveLiveProjectIssuesRow, error)
 	ArchiveOauthApplication(ctx context.Context, arg ArchiveOauthApplicationParams) (uuid.UUID, error)
 	ArchiveProject(ctx context.Context, id uuid.UUID) error
 	ArchiveProjectLabel(ctx context.Context, id uuid.UUID) (ArchiveProjectLabelRow, error)
@@ -1038,6 +1045,14 @@ type Querier interface {
 	//
 	ListIssueTemplatesForTeam(ctx context.Context, arg ListIssueTemplatesForTeamParams) ([]ListIssueTemplatesForTeamRow, error)
 	ListIssueTemplatesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]ListIssueTemplatesInWorkspaceRow, error)
+	// Issues that left with the project.
+	//
+	// The comparison is the project's own archived_at, not a timestamp passed in from Go.
+	// A value read out and written back can lose a microsecond, and then a restore would
+	// not recognise the rows it had just archived. An issue archived on its own has a
+	// different instant and stays archived when the project comes back.
+	//
+	ListIssuesArchivedWithProject(ctx context.Context, projectID *uuid.UUID) ([]ListIssuesArchivedWithProjectRow, error)
 	// ListIssuesByIDs reads a scattered set of issues in one round trip, filtered to the teams
 	// the caller can see.
 	//

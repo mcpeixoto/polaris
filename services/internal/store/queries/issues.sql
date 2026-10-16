@@ -469,6 +469,47 @@ FROM issue
 WHERE project_id = $1 AND archived_at IS NULL AND deleted_at IS NULL
 ORDER BY sort_order;
 
+-- Issues that left with the project.
+--
+-- The comparison is the project's own archived_at, not a timestamp passed in from Go.
+-- A value read out and written back can lose a microsecond, and then a restore would
+-- not recognise the rows it had just archived. An issue archived on its own has a
+-- different instant and stays archived when the project comes back.
+--
+-- name: ListIssuesArchivedWithProject :many
+SELECT i.id, i.workspace_id, i.team_id, i.number, i.title, i.description, i.state_id,
+       i.assignee_id, i.creator_id, i.priority, i.sort_order,
+       i.started_at, i.completed_at, i.canceled_at,
+       i.archived_at, i.deleted_at, i.created_at, i.updated_at,
+       i.estimate, i.due_date, i.due_date_source, i.parent_id, i.sub_issue_sort_order, i.template_id, i.form_template_id, i.deleted_by,
+          i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at, i.recurring_issue_id
+FROM issue i
+JOIN project p ON p.id = i.project_id
+WHERE i.project_id = $1
+  AND i.deleted_at IS NULL
+  AND p.archived_at IS NOT NULL
+  AND i.archived_at = p.archived_at
+ORDER BY i.id;
+
+-- ArchiveLiveProjectIssues stamps every live issue with the project's archived_at.
+--
+-- The stamp is a subquery, for the reason ListIssuesArchivedWithProject gives: the
+-- two writes have to be the same instant, and the only clock that can promise that
+-- is Postgres. A project that is not archived archives nothing here.
+--
+-- name: ArchiveLiveProjectIssues :many
+UPDATE issue SET archived_at = (SELECT project.archived_at FROM project WHERE project.id = $1)
+WHERE issue.project_id = $1
+  AND issue.archived_at IS NULL
+  AND issue.deleted_at IS NULL
+  AND (SELECT project.archived_at FROM project WHERE project.id = $1) IS NOT NULL
+RETURNING id, workspace_id, team_id, number, title, description, state_id,
+          assignee_id, creator_id, priority, sort_order,
+          started_at, completed_at, canceled_at,
+          archived_at, deleted_at, created_at, updated_at,
+          estimate, due_date, due_date_source, parent_id, sub_issue_sort_order, template_id, form_template_id, deleted_by,
+          project_id, project_milestone_id, cycle_id, snoozed_until, auto_closed_at, recurring_issue_id;
+
 -- name: SetIssueSnooze :one
 UPDATE issue SET snoozed_until = sqlc.narg(snoozed_until)
 WHERE id = sqlc.arg(id) AND deleted_at IS NULL
