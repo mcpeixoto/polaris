@@ -134,6 +134,38 @@ export function selectAll(selection: Selection, order: readonly UUID[]): Selecti
   return { ids, anchor: first, lead: last, base: ids };
 }
 
+/**
+ * Exactly these ids, in list order, and nothing else.
+ *
+ * Ids the list does not currently hold are dropped rather than kept for later. A group
+ * heading's "select all" is about the rows on screen; an id that a collapse or a filter
+ * has taken out of `order` is not one of them, and leaving it selected would let a bulk
+ * action reach an issue the heading no longer shows.
+ */
+export function selectIds(
+  selection: Selection,
+  order: readonly UUID[],
+  ids: readonly UUID[],
+): Selection {
+  if (ids.length === 0) return clear(selection);
+  const wanted = new Set(ids);
+  const chosen: UUID[] = [];
+  const seen = new Set<UUID>();
+  for (const id of order) {
+    if (!wanted.has(id) || seen.has(id)) continue;
+    seen.add(id);
+    chosen.push(id);
+  }
+  if (chosen.length === 0) return clear(selection);
+  const next: ReadonlySet<UUID> = new Set(chosen);
+  return {
+    ids: next,
+    anchor: chosen[0] ?? null,
+    lead: chosen[chosen.length - 1] ?? null,
+    base: next,
+  };
+}
+
 /** Returns the same value when it is already empty, so a redundant Escape is not a render. */
 export function clear(selection: Selection): Selection {
   return selection.ids.size === 0 && selection.anchor === null ? selection : EMPTY_SELECTION;
@@ -200,6 +232,8 @@ export interface SelectionApi {
   toggle(id: UUID): void;
   extendTo(to: UUID, from?: UUID | null): void;
   selectAll(): void;
+  /** Replaces the selection with these ids, ignoring any the list does not hold. */
+  selectIds(ids: readonly UUID[]): void;
   clear(): void;
 }
 
@@ -248,6 +282,10 @@ export function useSelection(order: readonly UUID[]): SelectionApi {
       [update],
     ),
     selectAll: useCallback(() => update((current, order) => selectAll(current, order)), [update]),
+    selectIds: useCallback(
+      (ids: readonly UUID[]) => update((current, order) => selectIds(current, order, ids)),
+      [update],
+    ),
     clear: useCallback(() => update(clear), [update]),
   };
 }

@@ -257,4 +257,15 @@ describe('useSelection', () => {
     act(() => result.current.clear());
     expect(result.current.size).toBe(0);
   });
+
+  it('replaces the selection with the ids a group asked for, in list order', () => {
+    const { result } = renderHook(() => useSelection(LIST));
+
+    act(() => result.current.toggle('a'));
+    act(() => result.current.selectIds(['e', 'c', 'missing']));
+
+    expect(result.current.ordered).toEqual(['c', 'e']);
+    expect(result.current.anchor).toBe('c');
+    expect(result.current.lead).toBe('e');
+  });
 });
