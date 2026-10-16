@@ -1272,7 +1272,7 @@ export function Projects() {
       <ConfirmDialog
         open={archiving !== null}
         title={archiving === null ? 'Archive project?' : `Archive ${archiving.name}?`}
-        consequence="Archived projects leave the list and every view that filters on them. Nothing is deleted, and an admin can restore it from Archives."
+        consequence="Archived projects leave the list and every view that filters on them, and their issues are archived with them. Nothing is deleted, and an admin can restore them from Archives."
         confirmLabel="Archive project"
         destructive
         busy={archiveBusy}

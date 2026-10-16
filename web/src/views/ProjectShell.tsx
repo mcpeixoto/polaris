@@ -497,7 +497,7 @@ export function ProjectShell() {
               consequence={
                 confirming === 'delete'
                   ? `${project.name} leaves every list, board and initiative it is on, for everybody. Its issues keep their history but stop belonging to a project.`
-                  : `${project.name} leaves the project list and the sidebar. Its issues stay where they are, and it can be restored from the team's archives.`
+                  : `${project.name} leaves the project list and the sidebar, and its issues are archived with it. Both can be restored from the team's archives.`
               }
               confirmLabel={confirming === 'delete' ? 'Delete project' : 'Archive project'}
               destructive

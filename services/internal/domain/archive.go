@@ -529,7 +529,12 @@ func (s *Service) archiveIssueLocked(
 	} else if err := q.UnarchiveIssue(ctx, before.ID); err != nil {
 		return platform.Internal(err)
 	}
+	return s.emitIssueArchived(ctx, q, team, before, actor, archived)
+}
 
+func (s *Service) emitIssueArchived(
+	ctx context.Context, q *store.Queries, team store.Team, before store.GetIssueRow, actor authz.Actor, archived bool,
+) error {
 	change := Change{
 		EntityType: "issue", EntityID: before.ID, TeamID: &before.TeamID,
 		Scope:         authz.TeamScope(before.TeamID, team.Private),
@@ -553,6 +558,68 @@ func (s *Service) archiveIssueLocked(
 	return s.em.History(ctx, q, team.WorkspaceID, actor, before.CreatedAt, HistoryEntry{
 		IssueID: before.ID, Kind: kind,
 	})
+}
+
+// archiveProjectIssues takes the project's issues with it, and brings back only those.
+//
+// Open issues go too. Archiving a project is a decision that the work is done with,
+// and leaving its open issues on the board is how a project disappears while its
+// work does not. An issue archived earlier keeps its own timestamp and stays
+// archived when the project returns. A deleted issue is not an archived one and
+// is left in the trash.
+func (s *Service) archiveProjectIssues(
+	ctx context.Context, q *store.Queries, project store.Project, actor authz.Actor, archived bool,
+) error {
+	if project.ArchivedAt == nil {
+		return nil
+	}
+	teams := map[uuid.UUID]store.Team{}
+	teamFor := func(teamID uuid.UUID) (store.Team, error) {
+		if team, ok := teams[teamID]; ok {
+			return team, nil
+		}
+		team, err := q.GetTeam(ctx, teamID)
+		if err != nil {
+			return store.Team{}, platform.Internal(err)
+		}
+		teams[teamID] = team
+		return team, nil
+	}
+
+	if archived {
+		issues, err := q.ArchiveLiveProjectIssues(ctx, project.ID)
+		if err != nil {
+			return platform.Internal(err)
+		}
+		for _, issue := range issues {
+			team, err := teamFor(issue.TeamID)
+			if err != nil {
+				return err
+			}
+			if err := s.emitIssueArchived(ctx, q, team, store.AsIssueRow(issue), actor, true); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	issues, err := q.ListIssuesArchivedWithProject(ctx, &project.ID)
+	if err != nil {
+		return platform.Internal(err)
+	}
+	for _, issue := range issues {
+		if err := q.UnarchiveIssue(ctx, issue.ID); err != nil {
+			return platform.Internal(err)
+		}
+		team, err := teamFor(issue.TeamID)
+		if err != nil {
+			return err
+		}
+		if err := s.emitIssueArchived(ctx, q, team, store.AsIssueRow(issue), actor, false); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Service) ArchiveCycle(ctx context.Context, p *authz.Principal, id uuid.UUID, archived bool) (int64, error) {
@@ -623,13 +690,32 @@ func (s *Service) archiveProjectLocked(
 		return 0, err
 	}
 	if archived {
-		if err := q.ArchiveProject(ctx, project.ID); err != nil {
-			return 0, platform.Internal(err)
+		// A project that is already archived keeps the instant it left. Issues archived
+		// with it are stamped with that same instant, which is how a later restore tells
+		// them from issues somebody archived on their own.
+		if project.ArchivedAt == nil {
+			if err := q.ArchiveProject(ctx, project.ID); err != nil {
+				return 0, platform.Internal(err)
+			}
+			fresh, err := q.GetProject(ctx, project.ID)
+			if err != nil {
+				if store.IsNotFound(err) {
+					return 0, platform.NotFound("project")
+				}
+				return 0, platform.Internal(err)
+			}
+			project = fresh
+		}
+		if err := s.archiveProjectIssues(ctx, q, project, actor, true); err != nil {
+			return 0, err
 		}
 		if err := emitProjectSubscriptionDeletes(ctx, s.em, q, project.WorkspaceID, project.ID); err != nil {
 			return 0, err
 		}
 	} else {
+		if err := s.archiveProjectIssues(ctx, q, project, actor, false); err != nil {
+			return 0, err
+		}
 		row, err := q.UnarchiveProject(ctx, project.ID)
 		if err != nil {
 			return 0, platform.Internal(err)

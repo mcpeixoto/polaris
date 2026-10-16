@@ -11,6 +11,7 @@ A project is a unit of work with a clear outcome or completion date. It can span
 - Only **name** is required; Linear recommends also setting a lead and icon.
 - Edit properties from the overview page, the details sidebar (`Cmd/Ctrl+I`), or by right-clicking a project in any view → Edit project.
 - Delete: ⋯ → Delete (or command menu). Goes to the team archive's *Recently deleted projects* for **30 days**.
+- Archive: ⋯ → Archive. The project and every issue still on it leave the live lists together, including open issues. Restoring the project brings those issues back. An issue archived on its own stays archived, and a deleted issue stays in the trash.
 - Auto-archive: when the status is in a Completed/Canceled category, no unarchived issues remain, and the inactivity period has elapsed. Renaming or otherwise touching the project resets the clock.
 
 ## Properties
