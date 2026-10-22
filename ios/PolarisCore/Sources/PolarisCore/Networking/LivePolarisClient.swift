@@ -799,6 +799,33 @@ public actor LivePolarisClient: PolarisAPI {
         )
     }
 
+    public func bulkUpdateIssues(_ change: BulkIssueChange) async throws -> BulkIssueResult {
+        struct Payload: Decodable {
+            let issues: [Issue]
+            let skipped: [BulkSkip]
+        }
+        let input = JSONValue.object(compacting: [
+            "ids": .array(change.ids.map(JSONValue.string)),
+            "stateId": change.stateId.map(JSONValue.string),
+            "assigneeId": change.assigneeId.map(JSONValue.string),
+            "clearAssignee": change.clearAssignee ? .bool(true) : nil,
+            "priority": change.priority.map { JSONValue.int($0.rawValue) },
+            "estimate": change.estimate.map(JSONValue.int),
+            "clearEstimate": change.clearEstimate ? .bool(true) : nil,
+            "dueDate": change.dueDate.map(JSONValue.string),
+            "clearDueDate": change.clearDueDate ? .bool(true) : nil,
+            "addLabelIds": change.addLabelIds.isEmpty ? nil : .array(change.addLabelIds.map(JSONValue.string)),
+            "removeLabelIds": change.removeLabelIds.isEmpty ? nil : .array(change.removeLabelIds.map(JSONValue.string)),
+        ])
+        let data = try await graphQL(
+            GraphQLDocuments.bulkUpdateIssues,
+            variables: idempotent(["input": input], opId: change.opId),
+            field: "bulkUpdateIssues"
+        )
+        let payload = try decode(Payload.self, from: data)
+        return BulkIssueResult(issues: payload.issues, skipped: payload.skipped)
+    }
+
     public func acceptTriageIssue(id: String, opId: String) async throws -> Issue {
         let data = try await graphQL(
             GraphQLDocuments.acceptTriageIssue,

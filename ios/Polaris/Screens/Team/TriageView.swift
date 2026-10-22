@@ -16,11 +16,27 @@ struct TriageView: View {
     @State private var pendingIDs: Set<String> = []
     @State private var error: PolarisError?
     @State private var decisions = 0
+    /// Selection mode, what is picked, and what the last batch did. The triage queue is the
+    /// list this feature exists for — ten rows that each want the same status — so it gets
+    /// the same bar the other two lists have, over its own `List` rather than
+    /// `IssueListView`'s: the queue's rows swipe to accept and decline, not to change status.
+    @State private var isSelecting = false
+    @State private var selection: Set<String> = []
+    @State private var bulkResult: BulkIssueResult?
 
     var body: some View {
         VStack(spacing: 0) {
             if let store {
                 content(store: store)
+                if isSelecting {
+                    BulkActionBar(
+                        selection: selection,
+                        issues: store.triage,
+                        statesFor: { model.workspaceData.states(forTeam: $0.team.id) },
+                        people: model.workspaceData.users.value ?? [],
+                        apply: { applyBulk($0, store: store) }
+                    )
+                }
             } else {
                 VStack {
                     SkeletonIssueList()
@@ -32,6 +48,11 @@ struct TriageView: View {
         .background(Theme.background.ignoresSafeArea())
         .navigationTitle(Text("Triage"))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                SelectModeButton(isSelecting: $isSelecting, selection: $selection, identifier: "triage.select")
+            }
+        }
         .sensoryFeedback(.impact(weight: .light), trigger: decisions)
         .task {
             if store == nil { store = TeamWorkStores.shared.store(for: team, model: model) }
@@ -89,6 +110,11 @@ struct TriageView: View {
                             .padding(.horizontal, Theme.Space.lg)
                             .padding(.bottom, Theme.Space.sm)
                     }
+                    if let bulkResult {
+                        BulkResultLabel(result: bulkResult, identify: { identifier(of: $0, store: store) })
+                            .padding(.horizontal, Theme.Space.lg)
+                            .padding(.bottom, Theme.Space.sm)
+                    }
                     HairlineDivider()
                     list(queue, store: store)
                 }
@@ -98,10 +124,13 @@ struct TriageView: View {
     }
 
     private func list(_ queue: [Issue], store: TeamWorkStore) -> some View {
-        List {
+        List(selection: isSelecting ? $selection : nil) {
             ForEach(queue) { issue in
                 IssueRow(issue: issue, isPending: pendingIDs.contains(issue.id))
-                    .background(NavigationLink(value: issue) { EmptyView() }.opacity(0))
+                    // No link at all while selecting, for the reason spelled out in
+                    // `IssueListView.rowLink`: in edit mode the circle takes the tap but the
+                    // link is still activatable, and a push loses the selection being built.
+                    .background(rowLink(issue))
                     .listRowBackground(Color.clear)
                     .listRowSeparatorTint(Theme.hairline)
                     .listRowInsets(EdgeInsets(
@@ -148,8 +177,31 @@ struct TriageView: View {
         .scrollContentBackground(.hidden)
         .scrollIndicators(.hidden)
         .environment(\.defaultMinListRowHeight, Theme.rowHeight)
+        .environment(\.editMode, .constant(isSelecting ? .active : .inactive))
         .animation(Theme.easing(0.3), value: queue.map(\.id))
         .refreshable { await store.load() }
+    }
+
+    @ViewBuilder
+    private func rowLink(_ issue: Issue) -> some View {
+        if isSelecting {
+            EmptyView()
+        } else {
+            NavigationLink(value: issue) { EmptyView() }.opacity(0)
+        }
+    }
+
+    private func identifier(of id: String, store: TeamWorkStore) -> String {
+        store.all.first { $0.id == id }?.identifier ?? id
+    }
+
+    private func applyBulk(_ edit: BulkIssueEdit, store: TeamWorkStore) {
+        Task {
+            let result = await store.bulkApply(edit)
+            isSelecting = false
+            selection = []
+            bulkResult = result
+        }
     }
 
     /// The row stays, with a spinner, until the server answers. It leaves the queue by

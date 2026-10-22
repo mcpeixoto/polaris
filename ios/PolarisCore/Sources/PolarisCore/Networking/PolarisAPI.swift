@@ -179,6 +179,15 @@ public protocol PolarisAPI: Sendable {
     func deleteIssueRelation(id: String, opId: String) async throws
     /// A link card. URL-idempotent server-side: the same URL twice is one card.
     func createAttachment(issueId: String, url: String, title: String?, opId: String) async throws -> Attachment
+    /// One change applied to many issues, in one transaction and one version block.
+    ///
+    /// Separate from `updateIssue` rather than a loop over it, for the reason the schema
+    /// gives: a bulk edit sets one property across a selection and never reorders, which is
+    /// what lets the server do it as one statement and one notification per subscriber
+    /// instead of N. A phone sending N updates would also be N round trips on a cellular
+    /// connection, which is the whole reason triaging ten rows one sheet at a time is the
+    /// most tedious thing in this app.
+    func bulkUpdateIssues(_ change: BulkIssueChange) async throws -> BulkIssueResult
     func updateProfile(_ change: ProfileChange) async throws -> User
     /// Deletes the signed-in account. The server refuses when this person is the last
     /// owner of a workspace that still has other people.
@@ -331,6 +340,9 @@ public extension PolarisAPI {
     }
     func createAttachment(issueId: String, url: String, title: String?, opId: String) async throws -> Attachment {
         throw PolarisError.unsupported("links")
+    }
+    func bulkUpdateIssues(_ change: BulkIssueChange) async throws -> BulkIssueResult {
+        throw PolarisError.unsupported("bulk edits")
     }
     func updateProfile(_ change: ProfileChange) async throws -> User {
         throw PolarisError.unsupported("profile edits")
@@ -494,6 +506,137 @@ public struct IssueChange: Sendable, Hashable {
         self.clearProject = clearProject
         self.cycleId = cycleId
         self.clearCycle = clearCycle
+    }
+}
+
+/// One change, for many issues.
+///
+/// Mirrors `BulkUpdateIssuesInput`, and keeps `IssueChange`'s `clear…`-flag discipline for
+/// the same reason: nil in a partial update means "leave alone", so removing an assignee, an
+/// estimate or a due date needs a boolean of its own. There are four such flags here rather
+/// than six — the server's bulk input has no parent, project or cycle, because moving a
+/// selection between parents is not one change applied N times.
+///
+/// Labels are `addLabelIds` / `removeLabelIds` rather than a set, which is the schema's
+/// choice and the right one: a selection spanning two teams has no common label set to state,
+/// and "these are the labels now" across ten issues would silently strip the nine labels
+/// nobody mentioned.
+///
+/// `ids` is capped at `PageSize.bulkSelection` by the caller rather than here — a truncating
+/// initialiser would change a selection the reader made without telling them.
+public struct BulkIssueChange: Sendable, Hashable {
+    public let ids: [String]
+    public let opId: String
+    public var stateId: String?
+    public var assigneeId: String?
+    public var clearAssignee: Bool
+    public var priority: Priority?
+    public var estimate: Int?
+    public var clearEstimate: Bool
+    public var dueDate: String?
+    public var clearDueDate: Bool
+    public var addLabelIds: [String]
+    public var removeLabelIds: [String]
+
+    public init(
+        ids: [String],
+        opId: String = UUIDv7.string(),
+        stateId: String? = nil,
+        assigneeId: String? = nil,
+        clearAssignee: Bool = false,
+        priority: Priority? = nil,
+        estimate: Int? = nil,
+        clearEstimate: Bool = false,
+        dueDate: String? = nil,
+        clearDueDate: Bool = false,
+        addLabelIds: [String] = [],
+        removeLabelIds: [String] = []
+    ) {
+        self.ids = ids
+        self.opId = opId
+        self.stateId = stateId
+        self.assigneeId = assigneeId
+        self.clearAssignee = clearAssignee
+        self.priority = priority
+        self.estimate = estimate
+        self.clearEstimate = clearEstimate
+        self.dueDate = dueDate
+        self.clearDueDate = clearDueDate
+        self.addLabelIds = addLabelIds
+        self.removeLabelIds = removeLabelIds
+    }
+}
+
+/// An id the caller asked for that the server did not change, and why.
+public struct BulkSkip: Codable, Sendable, Hashable, Identifiable {
+    public let id: String
+    public let reason: String
+
+    public init(id: String, reason: String) {
+        self.id = id
+        self.reason = reason
+    }
+}
+
+/// What a bulk edit landed.
+///
+/// `skipped` is carried rather than dropped because the schema's own comment says what it is
+/// for — "a partial success the caller can act on rather than a silent one". A client that
+/// reads only `issues` turns "seven of your nine moved" into a list where two rows quietly
+/// did not, which is indistinguishable from a bug in the list.
+public struct BulkIssueResult: Sendable, Hashable {
+    public let issues: [Issue]
+    public let skipped: [BulkSkip]
+
+    public init(issues: [Issue], skipped: [BulkSkip] = []) {
+        self.issues = issues
+        self.skipped = skipped
+    }
+}
+
+/// A bulk change with the objects a row needs to draw it before the server answers.
+///
+/// The wire change carries ids; a row renders a status glyph and a face, so a list cannot be
+/// optimistic about `stateId` alone. Resolving them is the screen's job — it is the only
+/// layer that knows which team's reference data is held — and the store then applies this to
+/// every row it holds without having to look anything up.
+public struct BulkIssueEdit: Sendable, Hashable {
+    public let change: BulkIssueChange
+    /// The state `change.stateId` names, when the edit sets one.
+    public let state: WorkflowState?
+    /// The person `change.assigneeId` names. Nil with `clearAssignee` set means "nobody",
+    /// which is a different statement from "not part of this edit".
+    public let assignee: User?
+
+    public init(change: BulkIssueChange, state: WorkflowState? = nil, assignee: User? = nil) {
+        self.change = change
+        self.state = state
+        self.assignee = assignee
+    }
+
+    /// Applies what this edit can be optimistic about.
+    ///
+    /// Deliberately not every field: `addLabelIds` is left to the server, because the row
+    /// cannot know whether a label group already covers the issue and a dot that appears and
+    /// then vanishes is worse than one that appears a moment late.
+    public func apply(to issue: inout Issue) {
+        if let state { issue.state = state }
+        if let priority = change.priority { issue.priority = priority }
+        if change.clearAssignee {
+            issue.assignee = nil
+        } else if change.assigneeId != nil {
+            issue.assignee = assignee
+        }
+        if change.clearEstimate {
+            issue.estimate = nil
+        } else if let estimate = change.estimate {
+            issue.estimate = estimate
+        }
+        if change.clearDueDate {
+            issue.dueDate = nil
+        } else if let dueDate = change.dueDate {
+            issue.dueDate = dueDate
+        }
     }
 }
 

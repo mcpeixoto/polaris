@@ -31,6 +31,13 @@ struct IssueListView: View {
     /// reference data never arrived is a list with no way to change a status at all.
     var ensureStates: (Issue) async -> Void = { _ in }
     let setState: (Issue, WorkflowState) -> Void
+    /// Which rows are picked, while the list is in selection mode. Owned by the caller,
+    /// because the bar that acts on it and the toolbar item that turns it on both live there.
+    var selection: Binding<Set<String>> = .constant([])
+    /// Whether the list is selecting. A flag rather than an inference from `selection`, so
+    /// the mode survives the moment when nothing is picked yet — which is every time it is
+    /// turned on.
+    var isSelecting = false
 
     /// Bumped whenever a status change is applied, which is what drives the haptic. A trigger
     /// on the issue array itself would fire on every refresh, tapping the wrist for something
@@ -39,7 +46,10 @@ struct IssueListView: View {
     @Environment(\.issueTransitionNamespace) private var transitionNamespace
 
     var body: some View {
-        List {
+        // The selection binding is handed over only while selecting. A `List` given one
+        // permanently draws nothing differently, but it does start treating a tap as a
+        // selection on an iPad, where a plain list is still selectable outside edit mode.
+        List(selection: isSelecting ? selection : nil) {
             ForEach(sections) { section in
                 if case .none = section.key {
                     // Ungrouped stays a bare run of rows rather than one `Section` with no
@@ -68,6 +78,10 @@ struct IssueListView: View {
         .scrollContentBackground(.hidden)
         .scrollIndicators(.hidden)
         .environment(\.defaultMinListRowHeight, Theme.rowHeight)
+        // Edit mode is what draws the selection circles and what makes a tap pick a row
+        // rather than activate it. Driven from `isSelecting` rather than from the system's
+        // Edit button, because the button that turns it on is this screen's own toolbar item.
+        .environment(\.editMode, .constant(isSelecting ? .active : .inactive))
         // The store re-sorts on every merge, create and status change. Without this the row
         // teleports: change an issue from Todo to Done and its row snaps to the bottom of the
         // list with no motion tying the two positions together.
@@ -109,7 +123,7 @@ struct IssueListView: View {
             // the disclosure chevron — Linear's rows have none, and forty chevrons down the
             // right edge are forty marks saying nothing. A tap on the cell still activates
             // it; the row itself says it is a button so VoiceOver and XCUITest agree.
-            .background(NavigationLink(value: issue) { EmptyView() }.opacity(0))
+            .background(rowLink(issue))
         .listRowBackground(Color.clear)
         .listRowSeparatorTint(Theme.hairline)
         .listRowInsets(EdgeInsets(
@@ -168,6 +182,23 @@ struct IssueListView: View {
             }
         }
         .accessibilityIdentifier("issue.row.\(issue.identifier)")
+    }
+
+    /// The link behind the row — and nothing at all while selecting.
+    ///
+    /// A `NavigationLink` in edit mode is still a live link. The selection circle takes an
+    /// ordinary tap, but the link remains activatable: a VoiceOver activation, a hardware
+    /// keyboard, or a tap that lands a few points off the circle pushes the detail screen and
+    /// the half-built selection is gone with the list. Disabling it is not enough either —
+    /// `.disabled` on a link inside a selectable row greys the row's own content. So in
+    /// selection mode there is no link in the hierarchy to fire.
+    @ViewBuilder
+    private func rowLink(_ issue: Issue) -> some View {
+        if isSelecting {
+            EmptyView()
+        } else {
+            NavigationLink(value: issue) { EmptyView() }.opacity(0)
+        }
     }
 
     private func apply(_ issue: Issue, _ state: WorkflowState) {

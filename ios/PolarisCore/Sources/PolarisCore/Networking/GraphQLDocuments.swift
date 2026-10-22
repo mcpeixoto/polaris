@@ -311,6 +311,24 @@ enum GraphQLDocuments {
     \(issueFields)
     """
 
+    /// One change across a selection. `skipped` is selected deliberately: the payload field
+    /// exists so a partial success is visible, and a document that leaves it out makes
+    /// "two of your nine did not move" unobservable by construction.
+    ///
+    /// `issues` is a list with no pagination argument on it, so the scorer charges it the
+    /// default page — see `PageSize.bulkSelection`, which is why the selection is capped at
+    /// the same number rather than at whatever a reader can tap.
+    static let bulkUpdateIssues = """
+    mutation BulkUpdateIssues($input: BulkUpdateIssuesInput!, $clientId: UUID, $opId: UUID) {
+      bulkUpdateIssues(input: $input, clientId: $clientId, opId: $opId) {
+        version
+        issues { ...IssueFields }
+        skipped { id reason }
+      }
+    }
+    \(issueFields)
+    """
+
     static let acceptTriageIssue = """
     mutation AcceptTriageIssue($id: UUID!, $clientId: UUID, $opId: UUID) {
       acceptTriageIssue(id: $id, clientId: $clientId, opId: $opId) {

@@ -23,4 +23,18 @@ public enum PageSize {
     /// scorer never sees it and charges the default 50 instead — on the server and in the gate
     /// alike, which is why the two still agree. 4,702 points either way.
     public static let search = 40
+
+    /// The largest selection one bulk edit may send, and deliberately the same 50 the scorer
+    /// charges a list the caller did not bound.
+    ///
+    /// `bulkUpdateIssues` takes no pagination argument, so there is no `first:` to tune — but
+    /// `BulkIssuePayload.issues` is a list with `IssueFields` under it, and an unbounded list
+    /// is priced at `DefaultPageSize`. Asking the server to change two hundred issues returns
+    /// two hundred of them through a selection CI has only ever scored at fifty, which is the
+    /// `Query.projects` mistake with the numbers moved around.
+    ///
+    /// Raising it is not free in the way it looks: the gate scores *every* document at the
+    /// largest number in this file, so a cap of 100 here would re-price the inbox at `first:
+    /// 100` — the 17,700-point request that caused the outage this file exists for.
+    public static let bulkSelection = 50
 }

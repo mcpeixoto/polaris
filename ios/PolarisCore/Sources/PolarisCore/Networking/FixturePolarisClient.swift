@@ -33,6 +33,13 @@ public actor FixturePolarisClient: PolarisAPI {
     private var commentsByOpId: [String: Comment] = [:]
     /// Same rule for issues: a retried `createIssue` with the same `opId` is the same issue.
     private var issuesByOpId: [String: Issue] = [:]
+    /// And for a bulk edit, where it matters most: the op touches many rows, so a retry that
+    /// applied a second time would move a selection twice.
+    private var bulkByOpId: [String: BulkIssueResult] = [:]
+    /// How many bulk edits actually reached the store behind this double. A retry served from
+    /// `bulkByOpId` does not increment it, which is the only way a test can tell "replayed"
+    /// from "applied again with the same outcome".
+    public private(set) var bulkWritesApplied = 0
     private var people: [User]
     private let allTeams: [Team]
     private let states: [WorkflowState]
@@ -417,6 +424,61 @@ public actor FixturePolarisClient: PolarisAPI {
                 updated.cycle = storedCycles.first { $0.id == cycleId }?.ref
             }
         }
+    }
+
+    /// Idempotent on `opId`, like the server, and checked before the armed failure for the
+    /// same reason `createIssue` is: a replay of an op that already landed is not a write.
+    ///
+    /// An id this double does not hold comes back in `skipped` rather than throwing. That is
+    /// what the server does — the whole batch does not fail because one row was deleted out
+    /// from under the selection — and it is the only way the partial-success path has
+    /// anything to be tested against.
+    public func bulkUpdateIssues(_ change: BulkIssueChange) async throws -> BulkIssueResult {
+        if let existing = bulkByOpId[change.opId] { return existing }
+        try consumeFailure()
+        bulkWritesApplied += 1
+
+        var changed: [Issue] = []
+        var skipped: [BulkSkip] = []
+        for id in change.ids {
+            do {
+                changed.append(try mutateIssue(id: id) { updated in
+                    if let stateId = change.stateId, let next = states.first(where: { $0.id == stateId }) {
+                        updated.state = next
+                    }
+                    if let priority = change.priority { updated.priority = priority }
+                    if change.clearAssignee {
+                        updated.assignee = nil
+                    } else if let assigneeId = change.assigneeId {
+                        updated.assignee = people.first { $0.id == assigneeId }
+                    }
+                    if change.clearEstimate {
+                        updated.estimate = nil
+                    } else if let estimate = change.estimate {
+                        updated.estimate = estimate
+                    }
+                    if change.clearDueDate {
+                        updated.dueDate = nil
+                    } else if let dueDate = change.dueDate {
+                        updated.dueDate = dueDate
+                    }
+                    if !change.removeLabelIds.isEmpty {
+                        updated.labels.removeAll { change.removeLabelIds.contains($0.id) }
+                    }
+                    for labelId in change.addLabelIds where !updated.labels.contains(where: { $0.id == labelId }) {
+                        if let label = storedLabels.first(where: { $0.id == labelId }) {
+                            updated.labels.append(label)
+                        }
+                    }
+                })
+            } catch {
+                skipped.append(BulkSkip(id: id, reason: "no longer in this workspace"))
+            }
+        }
+
+        let result = BulkIssueResult(issues: changed, skipped: skipped)
+        bulkByOpId[change.opId] = result
+        return result
     }
 
     /// Applies an edit to an issue wherever it is held and hands back the result.
