@@ -162,6 +162,18 @@ export async function archiveCustomer(engine: SyncEngine, id: UUID): Promise<voi
 }
 
 /**
+ * Puts an archived customer back.
+ *
+ * The inverse of `archiveCustomer`, which is the whole of it: `archived` is a boolean the server
+ * takes either way. No optimistic patch, for the reason `features/archive/mutations.ts` gives
+ * about restore — the row left the replica when it was archived, so there is no `before` to
+ * hold and the next delta is what brings it back.
+ */
+export async function unarchiveCustomer(engine: SyncEngine, id: UUID): Promise<void> {
+  await engine.mutate({ mutation: ARCHIVE_CUSTOMER, variables: { id: id, archived: false } });
+}
+
+/**
  * Fold one customer into another. The source is archived; domains and requests move.
  *
  * Not optimistic: the server rewrites every request and the domain uniqueness table, and

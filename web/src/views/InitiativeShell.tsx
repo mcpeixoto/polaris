@@ -51,8 +51,13 @@ import {
   INITIATIVE_RAIL_KEY,
   type InitiativeOutletContext,
 } from '~/features/initiatives/outlet';
-import { archiveInitiative, updateInitiative } from '~/features/initiatives/mutations';
+import {
+  archiveInitiative,
+  unarchiveInitiative,
+  updateInitiative,
+} from '~/features/initiatives/mutations';
 import { report } from '~/features/issue/mutations';
+import { offerUndo } from '~/features/undo/UndoToast';
 import { setInitiativeSubscription } from '~/features/subscriptions/mutations';
 import { SubscribeBell } from '~/features/subscriptions/SubscribeBell';
 import { readCollapsed, writeCollapsed } from '~/features/view/collapse';
@@ -180,10 +185,15 @@ export function InitiativeShell() {
   const confirmArchive = () => {
     setArchiveBusy(true);
     setArchiveError(null);
-    archiveInitiative(engine, initiative.id)
+    // Read before the write: archiving takes the row out of the replica, so by the time the
+    // offer is made there is no name left to put in it.
+    const name = initiative.name === '' ? 'that initiative' : initiative.name;
+    const id = initiative.id;
+    archiveInitiative(engine, id)
       .then(() => {
         setArchiveBusy(false);
         setArchiving(false);
+        offerUndo({ label: `Archived ${name}`, undo: () => unarchiveInitiative(engine, id) });
         void navigate('/initiatives');
       })
       .catch((failure: unknown) => {
@@ -401,7 +411,7 @@ export function InitiativeShell() {
       <ConfirmDialog
         open={archiving}
         title={`Archive ${initiative.name}?`}
-        consequence="It leaves the Initiatives list. Linked projects stay where they are. There is no archives page for initiatives yet, so bringing it back is an API call."
+        consequence="It leaves the Initiatives list. Linked projects stay where they are. Undo puts it back for a few seconds; after that there is no archives page for initiatives yet, so it is an API call."
         confirmLabel="Archive"
         destructive
         busy={archiveBusy}

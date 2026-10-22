@@ -14,6 +14,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 
 import { useEngine } from '~/app/context';
 import { Badge, Button, IconButton, Input, Select, StateIcon } from '~/components';
+import { offerUndo, type UndoOffer } from '~/features/undo/UndoToast';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { byOrderKey } from '~/store';
 import type { ProjectStatus, ProjectStatusCategory, StateCategory, Store } from '~/store';
@@ -21,7 +22,12 @@ import { ApiError } from '~/sync/api';
 import styles from '~/views/TeamSettings.module.css';
 import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 
-import { archiveProjectStatus, createProjectStatus, updateProjectStatus } from './mutations';
+import {
+  archiveProjectStatus,
+  createProjectStatus,
+  unarchiveProjectStatus,
+  updateProjectStatus,
+} from './mutations';
 
 const CATEGORIES: readonly ProjectStatusCategory[] = [
   'backlog',
@@ -82,11 +88,18 @@ export function ProjectStatusSettings() {
     return groups;
   }, [statuses]);
 
-  const run = (work: Promise<unknown>) => {
+  // The offer is made here rather than at the call site because `run` is what knows the
+  // write landed: `archiveProjectStatus` is not optimistic and the server refuses the
+  // workspace default, so an offer made regardless would sit beside that refusal.
+  const run = (work: Promise<unknown>, offer?: UndoOffer) => {
     setError(null);
-    work.catch((failure: unknown) => {
-      setError(failure instanceof ApiError ? failure.message : 'That change could not be saved.');
-    });
+    work
+      .then(() => {
+        if (offer !== undefined) offerUndo(offer);
+      })
+      .catch((failure: unknown) => {
+        setError(failure instanceof ApiError ? failure.message : 'That change could not be saved.');
+      });
   };
 
   return (
@@ -127,7 +140,14 @@ export function ProjectStatusSettings() {
                       onMakeDefault={() =>
                         run(updateProjectStatus(engine, status.id, { makeDefault: true }))
                       }
-                      onArchive={() => run(archiveProjectStatus(engine, status.id))}
+                      onArchive={() =>
+                        run(archiveProjectStatus(engine, status.id), {
+                          // Read before the write: archiving takes the row out of the
+                          // replica, so there is nothing left to name it from afterwards.
+                          label: `Archived ${status.name.trim() === '' ? 'an untitled status' : status.name}`,
+                          undo: () => unarchiveProjectStatus(engine, status.id),
+                        })
+                      }
                     />
                   ))}
                 </ul>

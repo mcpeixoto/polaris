@@ -25,8 +25,10 @@ import {
   createFormTemplateField,
   deleteFormTemplateField,
   fieldsForFormTemplate,
+  unarchiveFormTemplate,
   updateFormTemplate,
 } from '~/features/form-templates/mutations';
+import { offerUndo } from '~/features/undo/UndoToast';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
 import type {
@@ -189,11 +191,18 @@ export function FormTemplatesPanel() {
 
   const confirmArchive = () => {
     if (archiving === null) return;
+    // Captured before the write: archiving takes the row out of the replica, and the dialog
+    // is dismissed in the same turn, so neither can name it afterwards.
+    const { id, name } = archiving;
     setArchiveBusy(true);
-    archiveFormTemplate(engine, archiving.id)
+    archiveFormTemplate(engine, id)
       .then(() => {
         setArchiving(null);
         setArchiveError(null);
+        offerUndo({
+          label: `Archived ${name.trim() === '' ? 'an untitled form template' : name}`,
+          undo: () => unarchiveFormTemplate(engine, id),
+        });
       })
       .catch((failure: unknown) => {
         setArchiveError(

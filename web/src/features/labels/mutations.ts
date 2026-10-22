@@ -202,12 +202,25 @@ export async function archiveLabel(engine: SyncEngine, labelId: UUID): Promise<v
   // resolver ran, with a message about the shape of the document rather than about labels.
   //
   // The same defect existed on archiveWorkflowState and archiveIssueTemplate; all three were
-  // written the same way and all three were wrong. `true` rather than a parameter because no
-  // screen offers un-archiving yet — the server takes a boolean and would restore happily.
+  // written the same way and all three were wrong. `true` rather than a parameter because the
+  // way back is its own function: see `unarchiveLabel` below, which is what the undo offer on
+  // the settings panel runs.
   await engine.mutate({
     mutation: ARCHIVE_LABEL,
     variables: { id: labelId, archived: true },
   });
+}
+
+/**
+ * Puts an archived label back.
+ *
+ * The inverse of `archiveLabel`, which is the whole of it: `archived` is a boolean the server
+ * takes either way. No optimistic patch, for the reason `features/archive/mutations.ts` gives
+ * about restore — the row left the replica when it was archived, so there is no `before` to
+ * hold and the next delta is what brings it back.
+ */
+export async function unarchiveLabel(engine: SyncEngine, labelId: UUID): Promise<void> {
+  await engine.mutate({ mutation: ARCHIVE_LABEL, variables: { id: labelId, archived: false } });
 }
 
 /**

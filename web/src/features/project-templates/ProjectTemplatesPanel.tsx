@@ -16,8 +16,10 @@ import {
   deleteProjectTemplateMilestone,
   issuesForTemplate,
   milestonesForTemplate,
+  unarchiveProjectTemplate,
   updateProjectTemplate,
 } from '~/features/project-templates/mutations';
+import { offerUndo } from '~/features/undo/UndoToast';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
 import { byOrderKey } from '~/store';
@@ -117,11 +119,18 @@ export function ProjectTemplatesPanel() {
 
   const confirmArchive = () => {
     if (archiving === null) return;
+    // Captured before the write: archiving takes the row out of the replica, and the dialog
+    // is dismissed in the same turn, so neither can name it afterwards.
+    const { id, name } = archiving;
     setArchiveBusy(true);
-    archiveProjectTemplate(engine, archiving.id)
+    archiveProjectTemplate(engine, id)
       .then(() => {
         setArchiving(null);
         setArchiveError(null);
+        offerUndo({
+          label: `Archived ${name.trim() === '' ? 'an untitled project template' : name}`,
+          undo: () => unarchiveProjectTemplate(engine, id),
+        });
       })
       .catch((failure: unknown) => {
         setArchiveError(

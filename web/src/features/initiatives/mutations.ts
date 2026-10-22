@@ -244,6 +244,18 @@ export async function archiveInitiative(engine: SyncEngine, id: UUID): Promise<v
 }
 
 /**
+ * Puts an archived initiative back.
+ *
+ * The inverse of `archiveInitiative`, which is the whole of it: `archived` is a boolean the server
+ * takes either way. No optimistic patch, for the reason `features/archive/mutations.ts` gives
+ * about restore — the row left the replica when it was archived, so there is no `before` to
+ * hold and the next delta is what brings it back.
+ */
+export async function unarchiveInitiative(engine: SyncEngine, id: UUID): Promise<void> {
+  await engine.mutate({ mutation: ARCHIVE_INITIATIVE, variables: { id: id, archived: false } });
+}
+
+/**
  * Which state glyph an initiative status wears.
  *
  * An initiative's five statuses are the project status categories under different names,
