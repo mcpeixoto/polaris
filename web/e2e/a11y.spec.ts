@@ -27,10 +27,12 @@
  * actually commits to.
  *
  * The threshold is the thing not to negotiate with. The first run of this file failed on
- * three real violations, and the screen list below is short by exactly the two screens that
- * carry them — named below SCREENS — rather than the threshold being lowered to let them through: a
+ * three real violations, and the screen list below is short by exactly the screens that carry
+ * them — named below SCREENS — rather than the threshold being lowered to let them through: a
  * suite that passes at `critical`-only, or with half the rules off, reports a floor the
- * product does not have.
+ * product does not have. One of those three is fixed and the issue detail is back in the
+ * walk; the other two are both the issue list, and the comment below SCREENS says what axe
+ * reports on it and why no arrangement of wrappers answers it.
  */
 
 import AxeBuilder from '@axe-core/playwright';
@@ -41,45 +43,50 @@ import { test, expect, signIn, createIssueViaApi, openTeamList } from './fixture
 
 /**
  * The screens, in the style of keymap.spec.ts: `/ENG` is substituted for the fixture's team
- * key.
+ * key and `/ISSUE` for the probe issue's identifier.
  *
  * These are assembled surfaces rather than every route: the screen whose chrome is its own
  * (inbox), the two entity lists that each own a different empty state, and a settings page,
  * which is the one surface that swaps the shell's sidebar for its own nav. A fresh workspace
  * reaches `/projects` and `/dashboards` as empty states, which is the shape every screen in
  * the product is in on its first day and the shape an `EmptyState` bug hides in.
+ *
+ * The issue detail is here because the one violation it carried is fixed: the visually-hidden
+ * `<input type="file">` behind "Upload image" is named and out of the tab order.
  */
 const SCREENS: [name: string, path: string][] = [
   ['inbox', '/inbox'],
   ['projects', '/projects'],
   ['dashboards', '/dashboards'],
   ['profile settings', '/settings/profile'],
+  ['issue detail', '/issue/ISSUE'],
 ];
 
 /*
- * The two screens this walk does not visit yet, and why — recorded here rather than in a
- * commit message, because the next person to add a screen needs to know that these two were
- * audited and found wanting rather than overlooked.
+ * The one screen this walk does not visit yet, and why — recorded here rather than in a
+ * commit message, because the next person to add a screen needs to know it was audited and
+ * found wanting rather than overlooked.
  *
- * `/team/ENG` — the issue list:
- *   - `aria-required-children` (critical) on `.scroller`: the `role="listbox"` owns the
- *     virtualiser's sizer and slot divs, which are `role="presentation"`, and axe does not
- *     accept a presentational wrapper between a listbox and its options. Fixing it means
- *     either flattening the virtualiser's DOM or claiming the rows with `aria-owns`, which
- *     is a change to the list's scrolling, not a tidy-up.
- *   - `nested-interactive` (serious) on an issue row: a `role="option"` containing its own
- *     controls — the select checkbox and the row-hover `⋯` pills, which are under active
- *     iteration elsewhere.
+ * `/team/ENG` — the issue list. Both of its violations are the same fact about the markup,
+ * and axe's wording is worth reading rather than the one in the first draft of this comment,
+ * which blamed the virtualiser's wrappers: axe walks straight through a `role="presentation"`
+ * div, and the wrappers are not the problem.
  *
- * `/issue/ISSUE` — the issue detail:
- *   - `label` (critical) on `.fileInput` in `features/attachments/Links.tsx`: the
- *     visually-hidden `<input type="file">` behind the attach affordance has no accessible
- *     name, and being hidden rather than removed from the tab order it is also a focus stop
- *     that announces nothing.
+ *   - `aria-required-children` (critical) on `.scroller`: "Element has children which are not
+ *     allowed: button, button[aria-label]" — the group headings. A heading owns the control
+ *     that folds its group away and the "+" that files an issue into it, and a listbox may
+ *     own options and groups, not buttons.
+ *   - `nested-interactive` (serious) on an issue row: a `role="option"` owning the select
+ *     checkbox, the `⋯` menu and the property pills. `tabIndex={-1}` does not help, and axe
+ *     says why — a negative tabindex still leaves the element focusable to assistive
+ *     technology.
  *
- * Each is one line in SCREENS away from being covered again, once its screen is clean:
- * `['team list', '/team/ENG']` and `['issue detail', '/issue/ISSUE']`, with `ISSUE`
- * substituted for the probe issue's identifier the way keymap.spec.ts does it.
+ * So no arrangement of wrappers fixes it: a listbox subtree may not contain controls at all,
+ * and this list is full of them. The fix is the `role="grid"` idiom the sibling `Trash` and
+ * `Archives` views already use for the same shape — rows and gridcells, which do own
+ * controls — and that renames the roles a dozen pre-existing specs select the list by
+ * (`getByRole('listbox', { name: /issues/i })`, `getByRole('option')`). It is one line in
+ * SCREENS away from being covered once that lands: `['team list', '/team/ENG']`.
  */
 
 const TAGS = ['wcag2a', 'wcag2aa'];
@@ -131,7 +138,9 @@ test('every assembled screen clears the accessibility floor', async ({ page, wor
 
   const failures: string[] = [];
   for (const [name, path] of SCREENS) {
-    await page.goto(path.replace('/ENG', `/${workspace.teamKey}`));
+    await page.goto(
+      path.replace('/ENG', `/${workspace.teamKey}`).replace('/ISSUE', `/${probe.identifier}`),
+    );
     // Every one of these routes is lazy, so the chrome is up under Suspense several frames
     // before the screen itself is. Scanning between the two would audit a spinner and pass,
     // which is the quiet way an assertion like this becomes decorative.
