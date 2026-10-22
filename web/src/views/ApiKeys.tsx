@@ -64,6 +64,7 @@ import {
 } from '~/features/apikeys/mutations';
 import { API_KEYS_QUERY } from '~/features/apikeys/operations';
 import { exact, when } from '~/features/time';
+import { useDiscardGuard } from '~/hooks/useDiscardGuard';
 import type { UUID } from '~/store';
 import { ApiError, gql } from '~/sync/api';
 import styles from './ApiKeys.module.css';
@@ -432,6 +433,14 @@ function CreateKeyDialog({ onClose, onCreated }: CreateKeyDialogProps) {
     onClose();
   };
 
+  /**
+   * The name only. Scopes are checkboxes and an expiry comes from a picker — neither is
+   * typing nobody else has a copy of, and asking about them would put a question in front
+   * of the common case of opening this dialog and changing your mind.
+   */
+  const dirty = name.trim() !== '';
+  const { requestClose, confirming, keep, discard } = useDiscardGuard(dirty, close);
+
   const toggleScope = (scope: ApiKeyScope) => {
     setScopes((current) =>
       current.includes(scope) ? current.filter((held) => held !== scope) : [...current, scope],
@@ -529,80 +538,94 @@ function CreateKeyDialog({ onClose, onCreated }: CreateKeyDialogProps) {
   }
 
   return (
-    <Modal
-      open
-      onClose={close}
-      title="New API key"
-      description="You will see the token once, on the next screen."
-      size="md"
-      initialFocus={nameRef}
-      footer={
-        <>
-          <Button onClick={close}>Cancel</Button>
-          {/* Associated with the form by id rather than nested in it, so that Enter in the
+    <>
+      <Modal
+        open
+        onClose={requestClose}
+        title="New API key"
+        description="You will see the token once, on the next screen."
+        size="md"
+        initialFocus={nameRef}
+        footer={
+          <>
+            <Button onClick={requestClose}>Cancel</Button>
+            {/* Associated with the form by id rather than nested in it, so that Enter in the
               name field submits the dialog the way Enter submits every other form. */}
-          <Button type="submit" form={formId} variant="primary" loading={saving}>
-            Create key
-          </Button>
-        </>
-      }
-    >
-      <form id={formId} className={styles.form} onSubmit={onSubmit}>
-        <Input
-          ref={nameRef}
-          label="Name"
-          value={name}
-          error={nameError ?? undefined}
-          hint="What is holding it, not what it does: “CI — deploy bot (staging)”."
-          placeholder="CI — deploy bot"
-          autoComplete="off"
-          onChange={(event) => {
-            setName(event.target.value);
-            if (nameError !== null) setNameError(null);
-          }}
+            <Button type="submit" form={formId} variant="primary" loading={saving}>
+              Create key
+            </Button>
+          </>
+        }
+      >
+        <form id={formId} className={styles.form} onSubmit={onSubmit}>
+          <Input
+            ref={nameRef}
+            label="Name"
+            value={name}
+            error={nameError ?? undefined}
+            hint="What is holding it, not what it does: “CI — deploy bot (staging)”."
+            placeholder="CI — deploy bot"
+            autoComplete="off"
+            onChange={(event) => {
+              setName(event.target.value);
+              if (nameError !== null) setNameError(null);
+            }}
+          />
+
+          <fieldset className={styles.scopeSet}>
+            <legend className={styles.legend}>Scopes</legend>
+            <p className={styles.hint}>
+              Optional, and narrowing only — a scope can never grant a key something you cannot do
+              yourself. Leave them all unchecked and the key can do everything you can, which is the
+              right answer for a key you are about to hand to a script you wrote and the wrong one
+              for a key you are pasting into somebody else's tool.
+            </p>
+            {API_KEY_SCOPES.map((scope) => (
+              <Checkbox
+                key={scope.value}
+                label={
+                  <>
+                    {scope.label} <span className={styles.scopeDetail}>— {scope.detail}</span>
+                  </>
+                }
+                checked={scopes.includes(scope.value)}
+                onChange={() => toggleScope(scope.value)}
+              />
+            ))}
+          </fieldset>
+
+          <Input
+            label="Expires"
+            type="date"
+            value={expiry}
+            error={expiryError ?? undefined}
+            hint="Optional. Empty means the key never expires, which is right for an unattended integration and a slow leak for anything else."
+            onChange={(event) => {
+              setExpiry(event.target.value);
+              if (expiryError !== null) setExpiryError(null);
+            }}
+          />
+
+          {failure === null ? null : (
+            <p className={styles.error} role="alert">
+              {failure}
+            </p>
+          )}
+        </form>
+      </Modal>
+
+      {confirming ? (
+        <ConfirmDialog
+          open
+          title="Discard this key?"
+          consequence="The name you have typed is thrown away, and no key has been created — nothing here is saved until you press Create key."
+          confirmLabel="Discard"
+          destructive
+          onConfirm={discard}
+          onClose={keep}
         />
-
-        <fieldset className={styles.scopeSet}>
-          <legend className={styles.legend}>Scopes</legend>
-          <p className={styles.hint}>
-            Optional, and narrowing only — a scope can never grant a key something you cannot do
-            yourself. Leave them all unchecked and the key can do everything you can, which is the
-            right answer for a key you are about to hand to a script you wrote and the wrong one for
-            a key you are pasting into somebody else's tool.
-          </p>
-          {API_KEY_SCOPES.map((scope) => (
-            <Checkbox
-              key={scope.value}
-              label={
-                <>
-                  {scope.label} <span className={styles.scopeDetail}>— {scope.detail}</span>
-                </>
-              }
-              checked={scopes.includes(scope.value)}
-              onChange={() => toggleScope(scope.value)}
-            />
-          ))}
-        </fieldset>
-
-        <Input
-          label="Expires"
-          type="date"
-          value={expiry}
-          error={expiryError ?? undefined}
-          hint="Optional. Empty means the key never expires, which is right for an unattended integration and a slow leak for anything else."
-          onChange={(event) => {
-            setExpiry(event.target.value);
-            if (expiryError !== null) setExpiryError(null);
-          }}
-        />
-
-        {failure === null ? null : (
-          <p className={styles.error} role="alert">
-            {failure}
-          </p>
-        )}
-      </form>
-    </Modal>
+      ) : null}
+    </>
   );
 }
 

@@ -35,8 +35,15 @@ import {
   type OauthScope,
 } from '~/features/oauth/mutations';
 import { OAUTH_CLIENTS_QUERY } from '~/features/oauth/operations';
+import { useDiscardGuard } from '~/hooks/useDiscardGuard';
 import { ApiError, gql } from '~/sync/api';
 import styles from './OAuthApps.module.css';
+
+/**
+ * What the create dialog's redirect box starts with. Named because the discard guard has to
+ * ask whether it still says this, and a literal in two places drifts.
+ */
+const DEFAULT_REDIRECT_URI = 'http://localhost:3000/callback';
 
 export function OAuthApps() {
   const [apps, setApps] = useState<readonly OauthClientSummary[] | null>(null);
@@ -272,7 +279,7 @@ function CreateAppDialog({ onClose, onCreated }: { onClose: () => void; onCreate
   const nameRef = useRef<HTMLInputElement>(null);
   const formId = useId();
   const [name, setName] = useState('');
-  const [redirects, setRedirects] = useState('http://localhost:3000/callback');
+  const [redirects, setRedirects] = useState(DEFAULT_REDIRECT_URI);
   const [scopes, setScopes] = useState<readonly OauthScope[]>(['read', 'write']);
   const [developer, setDeveloper] = useState('');
   const [publicEnabled, setPublicEnabled] = useState(false);
@@ -288,6 +295,14 @@ function CreateAppDialog({ onClose, onCreated }: { onClose: () => void; onCreate
     setCreated(null);
     onClose();
   };
+
+  /**
+   * The three text boxes, and the redirect one only once it no longer says what the dialog
+   * put there. Scopes and the two switches open with defaults nobody chose.
+   */
+  const dirty =
+    name.trim() !== '' || developer.trim() !== '' || redirects.trim() !== DEFAULT_REDIRECT_URI;
+  const { requestClose, confirming, keep, discard } = useDiscardGuard(dirty, close);
 
   const toggleScope = (scope: OauthScope) => {
     if (scope === 'read') return;
@@ -368,41 +383,55 @@ function CreateAppDialog({ onClose, onCreated }: { onClose: () => void; onCreate
   }
 
   return (
-    <Modal
-      open
-      onClose={close}
-      title="New OAuth application"
-      description="You will see the client secret once, on the next screen."
-      size="lg"
-      initialFocus={nameRef}
-      footer={
-        <>
-          <Button onClick={close}>Cancel</Button>
-          <Button type="submit" form={formId} variant="primary" loading={saving}>
-            Create application
-          </Button>
-        </>
-      }
-    >
-      <AppForm
-        formId={formId}
-        nameRef={nameRef}
-        name={name}
-        redirects={redirects}
-        scopes={scopes}
-        developer={developer}
-        publicEnabled={publicEnabled}
-        clientCredentials={clientCredentials}
-        failure={failure}
-        onSubmit={onSubmit}
-        onName={setName}
-        onRedirects={setRedirects}
-        onToggleScope={toggleScope}
-        onDeveloper={setDeveloper}
-        onPublic={setPublicEnabled}
-        onClientCredentials={setClientCredentials}
-      />
-    </Modal>
+    <>
+      <Modal
+        open
+        onClose={requestClose}
+        title="New OAuth application"
+        description="You will see the client secret once, on the next screen."
+        size="lg"
+        initialFocus={nameRef}
+        footer={
+          <>
+            <Button onClick={requestClose}>Cancel</Button>
+            <Button type="submit" form={formId} variant="primary" loading={saving}>
+              Create application
+            </Button>
+          </>
+        }
+      >
+        <AppForm
+          formId={formId}
+          nameRef={nameRef}
+          name={name}
+          redirects={redirects}
+          scopes={scopes}
+          developer={developer}
+          publicEnabled={publicEnabled}
+          clientCredentials={clientCredentials}
+          failure={failure}
+          onSubmit={onSubmit}
+          onName={setName}
+          onRedirects={setRedirects}
+          onToggleScope={toggleScope}
+          onDeveloper={setDeveloper}
+          onPublic={setPublicEnabled}
+          onClientCredentials={setClientCredentials}
+        />
+      </Modal>
+
+      {confirming ? (
+        <ConfirmDialog
+          open
+          title="Discard this application?"
+          consequence="The name and redirect URIs you have typed are thrown away, and no application has been registered — nothing exists until you press Create application."
+          confirmLabel="Discard"
+          destructive
+          onConfirm={discard}
+          onClose={keep}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -429,6 +458,16 @@ function EditAppDialog({
   const [nudged, setNudged] = useState(false);
 
   useKeyContext('modal');
+
+  /**
+   * Edited, not merely filled in: every box here opened holding the application's current
+   * values, so the question is whether any of them has been changed away from what it said.
+   */
+  const dirty =
+    name !== app.name ||
+    redirects !== app.redirectUris.join('\n') ||
+    developer !== (app.developer ?? '');
+  const { requestClose, confirming, keep, discard } = useDiscardGuard(dirty, onClose);
 
   const toggleScope = (scope: OauthScope) => {
     if (scope === 'read') return;
@@ -506,48 +545,62 @@ function EditAppDialog({
   }
 
   return (
-    <Modal
-      open
-      onClose={onClose}
-      title={`Edit ${app.name}`}
-      description={`Client ID ${app.clientId}`}
-      size="lg"
-      initialFocus={nameRef}
-      footer={
-        <>
-          <Button onClick={() => void rotate()} disabled={saving}>
-            Rotate secret
-          </Button>
-          <div className={styles.spacer} />
-          <Button onClick={onClose}>Cancel</Button>
-          <Button type="submit" form={formId} variant="primary" loading={saving}>
-            Save
-          </Button>
-        </>
-      }
-    >
-      <AppForm
-        formId={formId}
-        nameRef={nameRef}
-        name={name}
-        redirects={redirects}
-        scopes={scopes}
-        developer={developer}
-        publicEnabled={publicEnabled}
-        clientCredentials={clientCredentials}
-        failure={failure}
-        onSubmit={(event) => {
-          event.preventDefault();
-          void save();
-        }}
-        onName={setName}
-        onRedirects={setRedirects}
-        onToggleScope={toggleScope}
-        onDeveloper={setDeveloper}
-        onPublic={setPublicEnabled}
-        onClientCredentials={setClientCredentials}
-      />
-    </Modal>
+    <>
+      <Modal
+        open
+        onClose={requestClose}
+        title={`Edit ${app.name}`}
+        description={`Client ID ${app.clientId}`}
+        size="lg"
+        initialFocus={nameRef}
+        footer={
+          <>
+            <Button onClick={() => void rotate()} disabled={saving}>
+              Rotate secret
+            </Button>
+            <div className={styles.spacer} />
+            <Button onClick={requestClose}>Cancel</Button>
+            <Button type="submit" form={formId} variant="primary" loading={saving}>
+              Save
+            </Button>
+          </>
+        }
+      >
+        <AppForm
+          formId={formId}
+          nameRef={nameRef}
+          name={name}
+          redirects={redirects}
+          scopes={scopes}
+          developer={developer}
+          publicEnabled={publicEnabled}
+          clientCredentials={clientCredentials}
+          failure={failure}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void save();
+          }}
+          onName={setName}
+          onRedirects={setRedirects}
+          onToggleScope={toggleScope}
+          onDeveloper={setDeveloper}
+          onPublic={setPublicEnabled}
+          onClientCredentials={setClientCredentials}
+        />
+      </Modal>
+
+      {confirming ? (
+        <ConfirmDialog
+          open
+          title="Discard these changes?"
+          consequence="The application keeps the name, redirect URIs and developer it had before — the edits you have made here are not saved until you press Save."
+          confirmLabel="Discard"
+          destructive
+          onConfirm={discard}
+          onClose={keep}
+        />
+      ) : null}
+    </>
   );
 }
 

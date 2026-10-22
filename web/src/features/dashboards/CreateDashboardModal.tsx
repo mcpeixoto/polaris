@@ -12,8 +12,9 @@ import { useNavigate } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Button, Input, Modal, Switch } from '~/components';
+import { Button, ConfirmDialog, Input, Modal, Switch } from '~/components';
 import { useDialogSubmit } from '~/hooks/useDialogSubmit';
+import { useDiscardGuard } from '~/hooks/useDiscardGuard';
 import { useViewerId } from '~/hooks/useViewer';
 
 import { createDashboard } from './mutations';
@@ -47,6 +48,17 @@ export function CreateDashboardModal({ open = true, onClose }: CreateDashboardMo
   const [personal, setPersonal] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const { saving, error, submit, submitRef } = useDialogSubmit('Could not create the dashboard');
+
+  /**
+   * The name, and the switch once it has been moved off the default this dialog opened it
+   * on. Both are things somebody decided; neither is this dialog's own suggestion. What
+   * must not count is anything still sitting where it was put, because a question asked
+   * over a dialog that was opened and immediately dismissed teaches people to dismiss it
+   * without reading it — which is the same line `CreateTeamDialog` draws around its own
+   * private toggle.
+   */
+  const dirty = name.trim() !== '' || personal;
+  const { requestClose, confirming, keep, discard } = useDiscardGuard(dirty, onClose);
 
   const save = async () => {
     const trimmed = name.trim();
@@ -92,49 +104,66 @@ export function CreateDashboardModal({ open = true, onClose }: CreateDashboardMo
   );
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="New dashboard"
-      size="md"
-      initialFocus={nameRef}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button form={formId} type="submit" variant="primary" loading={saving}>
-            Create dashboard
-          </Button>
-        </>
-      }
-    >
-      <form
-        id={formId}
-        className={styles.form}
-        onSubmit={(event: FormEvent) => {
-          event.preventDefault();
-          void save();
-        }}
+    <>
+      <Modal
+        open={open}
+        onClose={requestClose}
+        title="New dashboard"
+        size="md"
+        initialFocus={nameRef}
+        footer={
+          <>
+            <Button variant="ghost" onClick={requestClose}>
+              Cancel
+            </Button>
+            <Button form={formId} type="submit" variant="primary" loading={saving}>
+              Create dashboard
+            </Button>
+          </>
+        }
       >
-        <Input
-          ref={nameRef}
-          label="Name"
-          value={name}
-          onChange={(event) => {
-            setName(event.target.value);
-            setNameError(null);
+        <form
+          id={formId}
+          className={styles.form}
+          onSubmit={(event: FormEvent) => {
+            event.preventDefault();
+            void save();
           }}
-          error={nameError ?? undefined}
-          placeholder="Delivery"
+        >
+          <Input
+            ref={nameRef}
+            label="Name"
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value);
+              setNameError(null);
+            }}
+            error={nameError ?? undefined}
+            placeholder="Delivery"
+          />
+          <Switch
+            label="Personal — only visible to you"
+            checked={personal}
+            onChange={setPersonal}
+          />
+          {error !== null && (
+            <p className={styles.error} role="alert">
+              {error}
+            </p>
+          )}
+        </form>
+      </Modal>
+      {confirming ? (
+        <ConfirmDialog
+          open
+          title="Discard this dashboard?"
+          consequence="The dashboard has not been created, and the name you typed is not saved anywhere else."
+          confirmLabel="Discard"
+          destructive
+          onConfirm={discard}
+          onClose={keep}
         />
-        <Switch label="Personal — only visible to you" checked={personal} onChange={setPersonal} />
-        {error !== null && (
-          <p className={styles.error} role="alert">
-            {error}
-          </p>
-        )}
-      </form>
-    </Modal>
+      ) : null}
+    </>
   );
 }

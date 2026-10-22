@@ -23,8 +23,9 @@ import { useLocation, useNavigate } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Button, Input, Menu, Modal, PropertyPill } from '~/components';
+import { Button, ConfirmDialog, Input, Menu, Modal, PropertyPill } from '~/components';
 import { useDialogSubmit } from '~/hooks/useDialogSubmit';
+import { useDiscardGuard } from '~/hooks/useDiscardGuard';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import type { Store, UUID } from '~/store';
@@ -103,6 +104,13 @@ export function CreateDocumentModal({ open = true, onClose }: CreateDocumentModa
 
   const seed = useMemo(() => seedFromPath(engine.store, pathname), [engine.store, pathname]);
 
+  // What the pills read when the dialog opens: the team the path is on, or the first one
+  // alphabetically when the path says nothing. Named rather than inlined because `dirty`
+  // below has to compare against exactly this, and a second copy of the expression would
+  // drift from the one the effect uses.
+  const defaultTeamId = seed.teamId ?? teams[0]?.id ?? null;
+  const defaultProjectId = seed.projectId ?? null;
+
   // Seeded each time it opens rather than once at mount: the shell keeps this component for
   // the life of the session, so a dialog that read the path only on mount would offer the
   // first screen of the session forever.
@@ -110,12 +118,23 @@ export function CreateDocumentModal({ open = true, onClose }: CreateDocumentModa
     if (!open) return;
     setTitle('');
     setTitleError(null);
-    setTeamId(seed.teamId ?? teams[0]?.id ?? null);
-    setProjectId(seed.projectId ?? null);
-  }, [open, seed.teamId, seed.projectId, teams]);
+    setTeamId(defaultTeamId);
+    setProjectId(defaultProjectId);
+  }, [open, defaultTeamId, defaultProjectId]);
 
   const team = teams.find((candidate) => candidate.id === teamId) ?? null;
   const project = projects.find((candidate) => candidate.id === projectId) ?? null;
+
+  /**
+   * Whether this dialog holds anything that only exists here.
+   *
+   * The title is typing and counts. The team and project are the route the dialog was opened
+   * on, so they only count once they differ from what that route seeded — otherwise opening
+   * the dialog on a team's documents and pressing Escape would ask a question about work
+   * nobody did.
+   */
+  const dirty = title.trim() !== '' || teamId !== defaultTeamId || projectId !== defaultProjectId;
+  const { requestClose, confirming, keep, discard } = useDiscardGuard(dirty, onClose);
 
   const save = async () => {
     const trimmed = title.trim();
@@ -164,113 +183,127 @@ export function CreateDocumentModal({ open = true, onClose }: CreateDocumentModa
   );
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="New document"
-      size="sm"
-      initialFocus={titleRef}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button form={formId} type="submit" variant="primary" loading={saving}>
-            Create document
-          </Button>
-        </>
-      }
-    >
-      <form
-        id={formId}
-        className={styles.form}
-        onSubmit={(event: FormEvent) => {
-          event.preventDefault();
-          void save();
-        }}
+    <>
+      <Modal
+        open={open}
+        onClose={requestClose}
+        title="New document"
+        size="sm"
+        initialFocus={titleRef}
+        footer={
+          <>
+            <Button variant="ghost" onClick={requestClose}>
+              Cancel
+            </Button>
+            <Button form={formId} type="submit" variant="primary" loading={saving}>
+              Create document
+            </Button>
+          </>
+        }
       >
-        <Input
-          ref={titleRef}
-          label="Title"
-          value={title}
-          onChange={(event) => {
-            setTitle(event.target.value);
-            setTitleError(null);
+        <form
+          id={formId}
+          className={styles.form}
+          onSubmit={(event: FormEvent) => {
+            event.preventDefault();
+            void save();
           }}
-          error={titleError ?? undefined}
-          placeholder="Runbook"
-        />
-
-        <div className={styles.pills}>
-          <PropertyPill
-            {...teamPill.props}
-            name="Team"
-            describe={`${formId}-team`}
-            empty={team === null ? 'No team' : undefined}
-          >
-            {team?.name ?? 'Team'}
-          </PropertyPill>
-          <Menu
-            open={teamPill.open}
-            onClose={teamPill.hide}
-            trigger={teamPill.ref}
-            label="Team"
-            filterable={teams.length > 8}
-            filterPlaceholder="Filter teams"
-            emptyLabel="No teams"
-            items={teams.map((candidate) => ({
-              id: candidate.id,
-              label: candidate.name,
-              selected: candidate.id === teamId,
-              onSelect: () => {
-                setTeamId(candidate.id);
-                // A project belongs to a team; changing the team leaves the old one
-                // pointing at a project this document could not be filed under.
-                if (candidate.id !== teamId) setProjectId(null);
-              },
-            }))}
+        >
+          <Input
+            ref={titleRef}
+            label="Title"
+            value={title}
+            onChange={(event) => {
+              setTitle(event.target.value);
+              setTitleError(null);
+            }}
+            error={titleError ?? undefined}
+            placeholder="Runbook"
           />
 
-          <PropertyPill
-            {...projectPill.props}
-            name="Project"
-            describe={`${formId}-project`}
-            empty={project === null ? 'No project' : undefined}
-          >
-            {project?.name ?? 'Project'}
-          </PropertyPill>
-          <Menu
-            open={projectPill.open}
-            onClose={projectPill.hide}
-            trigger={projectPill.ref}
-            label="Project"
-            filterable={projects.length > 8}
-            filterPlaceholder="Filter projects"
-            emptyLabel="No projects on this team"
-            items={[
-              {
-                id: 'none',
-                label: 'No project',
-                selected: projectId === null,
-                onSelect: () => setProjectId(null),
-              },
-              ...projects.map((candidate) => ({
+          <div className={styles.pills}>
+            <PropertyPill
+              {...teamPill.props}
+              name="Team"
+              describe={`${formId}-team`}
+              empty={team === null ? 'No team' : undefined}
+            >
+              {team?.name ?? 'Team'}
+            </PropertyPill>
+            <Menu
+              open={teamPill.open}
+              onClose={teamPill.hide}
+              trigger={teamPill.ref}
+              label="Team"
+              filterable={teams.length > 8}
+              filterPlaceholder="Filter teams"
+              emptyLabel="No teams"
+              items={teams.map((candidate) => ({
                 id: candidate.id,
                 label: candidate.name,
-                selected: candidate.id === projectId,
-                onSelect: () => setProjectId(candidate.id),
-              })),
-            ]}
-          />
-        </div>
+                selected: candidate.id === teamId,
+                onSelect: () => {
+                  setTeamId(candidate.id);
+                  // A project belongs to a team; changing the team leaves the old one
+                  // pointing at a project this document could not be filed under.
+                  if (candidate.id !== teamId) setProjectId(null);
+                },
+              }))}
+            />
 
-        {error !== null && (
-          <p className={styles.error} role="alert">
-            {error}
-          </p>
-        )}
-      </form>
-    </Modal>
+            <PropertyPill
+              {...projectPill.props}
+              name="Project"
+              describe={`${formId}-project`}
+              empty={project === null ? 'No project' : undefined}
+            >
+              {project?.name ?? 'Project'}
+            </PropertyPill>
+            <Menu
+              open={projectPill.open}
+              onClose={projectPill.hide}
+              trigger={projectPill.ref}
+              label="Project"
+              filterable={projects.length > 8}
+              filterPlaceholder="Filter projects"
+              emptyLabel="No projects on this team"
+              items={[
+                {
+                  id: 'none',
+                  label: 'No project',
+                  selected: projectId === null,
+                  onSelect: () => setProjectId(null),
+                },
+                ...projects.map((candidate) => ({
+                  id: candidate.id,
+                  label: candidate.name,
+                  selected: candidate.id === projectId,
+                  onSelect: () => setProjectId(candidate.id),
+                })),
+              ]}
+            />
+          </div>
+
+          {error !== null && (
+            <p className={styles.error} role="alert">
+              {error}
+            </p>
+          )}
+        </form>
+      </Modal>
+
+      {confirming ? (
+        <ConfirmDialog
+          open
+          title="Discard this document?"
+          consequence="This document has not been created yet, so closing the dialog throws away its title and there is nothing left to recover it from."
+          confirmLabel="Discard"
+          destructive
+          onConfirm={discard}
+          onClose={keep}
+        />
+      ) : null}
+    </>
   );
 }
 

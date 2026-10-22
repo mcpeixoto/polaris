@@ -24,6 +24,7 @@ import { report } from '~/features/issue/mutations';
 import { SaveViewModal } from '~/features/view/SaveViewModal';
 import { deleteView, isFavorite, toggleFavorite, updateView } from '~/features/view/mutations';
 import { EMPTY_FILTER } from '~/filter';
+import { useDiscardGuard } from '~/hooks/useDiscardGuard';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
 import { byOrderKeyThen } from '~/store';
@@ -156,6 +157,23 @@ export function ProjectViewTabs({ projectId, base }: ProjectViewTabsProps) {
     setRenaming(true);
   }, [closeMenu, menuView]);
 
+  const closeRename = useCallback(() => {
+    setRenaming(false);
+  }, []);
+
+  /**
+   * The box opened holding the view's current name, so the only thing worth asking about is
+   * whether that name has been changed away from it. "Non-empty" would put a confirmation in
+   * front of every Escape out of a rename somebody opened and thought better of.
+   */
+  const renameDirty = menuView !== null && renameName !== menuView.name;
+  const {
+    requestClose: requestRenameClose,
+    confirming: confirmingRename,
+    keep: keepRename,
+    discard: discardRename,
+  } = useDiscardGuard(renameDirty, closeRename);
+
   const submitRename = useCallback(async () => {
     if (menuView === null) return;
     const next = renameName.trim();
@@ -229,13 +247,13 @@ export function ProjectViewTabs({ projectId, base }: ProjectViewTabsProps) {
 
       <Modal
         open={renaming}
-        onClose={() => setRenaming(false)}
+        onClose={requestRenameClose}
         title="Rename view"
         description="Everyone with access to this project sees the new name."
         initialFocus={renameRef}
         footer={
           <>
-            <Button variant="ghost" onClick={() => setRenaming(false)}>
+            <Button variant="ghost" onClick={requestRenameClose}>
               Cancel
             </Button>
             <Button
@@ -262,6 +280,18 @@ export function ProjectViewTabs({ projectId, base }: ProjectViewTabsProps) {
           />
         </form>
       </Modal>
+
+      {confirmingRename ? (
+        <ConfirmDialog
+          open
+          title="Discard these changes?"
+          consequence="The view keeps the name it has now — a rename is only written when you press Rename view."
+          confirmLabel="Discard"
+          destructive
+          onConfirm={discardRename}
+          onClose={keepRename}
+        />
+      ) : null}
 
       <ConfirmDialog
         open={removing}

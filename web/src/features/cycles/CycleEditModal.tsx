@@ -23,8 +23,17 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Button, DatePicker, Input, Modal, PropertyPill, Textarea } from '~/components';
+import {
+  Button,
+  ConfirmDialog,
+  DatePicker,
+  Input,
+  Modal,
+  PropertyPill,
+  Textarea,
+} from '~/components';
 import { whenDay } from '~/features/time';
+import { useDiscardGuard } from '~/hooks/useDiscardGuard';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import type { Cycle } from '~/store';
 import { ApiError } from '~/sync/api';
@@ -93,6 +102,28 @@ export function CycleEditModal({
   const canEditStart = cycle !== null && !datesLocked && phase === 'Upcoming';
   const canEditEnd =
     cycle !== null && !datesLocked && (phase === 'Current' || phase === 'Upcoming');
+
+  /**
+   * Whether anything here differs from the cycle as it was loaded.
+   *
+   * This is an edit dialog, so "dirty" is a comparison against the stored cycle and not
+   * against empty — a cycle opened and dismissed untouched has to close in silence, or the
+   * question appears on every Escape and becomes something people click through without
+   * reading.
+   *
+   * The dates are compared as the day strings the inputs hold, through the same `dayIn`
+   * conversion the state was seeded with and the same one `save` uses to decide whether to
+   * send a date at all. Comparing the instants instead would call a dialog dirty whenever
+   * the team's zone put the stored time-of-day on a different UTC day, which is precisely
+   * the case this feature keeps getting wrong.
+   */
+  const dirty =
+    cycle !== null &&
+    (name !== cycle.name ||
+      description !== (cycle.description ?? '') ||
+      (canEditStart && startDate !== dayIn(cycle.startsAt, timezone)) ||
+      (canEditEnd && endDate !== dayIn(cycle.endsAt, timezone)));
+  const { requestClose, confirming, keep, discard } = useDiscardGuard(dirty, onClose);
 
   const save = () => {
     if (cycle === null) return;
@@ -180,133 +211,147 @@ export function CycleEditModal({
   if (cycle === null) return null;
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={`Edit ${cycle.name}`}
-      description={
-        datesLocked
-          ? "This sub-team inherits its parent's cycle dates. Rename the window here; change the schedule on the parent team."
-          : phase === 'Current'
-            ? 'The current cycle can only move its end date. Shortening it creates a pause before the next cycle.'
-            : phase === 'Upcoming'
-              ? 'Upcoming cycles can move both start and end.'
-              : 'Past cycles keep their dates; only the name and description can change here.'
-      }
-      size="md"
-      initialFocus={nameRef}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          {/* Primary, because it is the one thing this dialog is for and the command
+    <>
+      <Modal
+        open={open}
+        onClose={requestClose}
+        title={`Edit ${cycle.name}`}
+        description={
+          datesLocked
+            ? "This sub-team inherits its parent's cycle dates. Rename the window here; change the schedule on the parent team."
+            : phase === 'Current'
+              ? 'The current cycle can only move its end date. Shortening it creates a pause before the next cycle.'
+              : phase === 'Upcoming'
+                ? 'Upcoming cycles can move both start and end.'
+                : 'Past cycles keep their dates; only the name and description can change here.'
+        }
+        size="md"
+        initialFocus={nameRef}
+        footer={
+          <>
+            <Button variant="ghost" onClick={requestClose}>
+              Cancel
+            </Button>
+            {/* Primary, because it is the one thing this dialog is for and the command
               Enter runs. Two neutral buttons beside each other is a dialog declining to
               say what happens when you press return. */}
-          <Button form={formId} type="submit" variant="primary" loading={busy}>
-            Save
-          </Button>
-        </>
-      }
-    >
-      <form
-        id={formId}
-        className={styles.form}
-        onSubmit={(event: FormEvent) => {
-          event.preventDefault();
-          // The picker panels are portalled out of this form's DOM but stay inside its React
-          // tree, so the little form each of them uses to commit a typed value bubbles its
-          // submit through here. Only this form's own submit is a save; without the check,
-          // setting a date filed the edit as a side effect of choosing one.
-          if (event.target !== event.currentTarget) return;
-          save();
-        }}
+            <Button form={formId} type="submit" variant="primary" loading={busy}>
+              Save
+            </Button>
+          </>
+        }
       >
-        <Input
-          ref={nameRef}
-          label="Name"
-          value={name}
-          error={nameError ?? undefined}
-          onChange={(event) => {
-            setName(event.target.value);
-            setNameError(null);
+        <form
+          id={formId}
+          className={styles.form}
+          onSubmit={(event: FormEvent) => {
+            event.preventDefault();
+            // The picker panels are portalled out of this form's DOM but stay inside its React
+            // tree, so the little form each of them uses to commit a typed value bubbles its
+            // submit through here. Only this form's own submit is a save; without the check,
+            // setting a date filed the edit as a side effect of choosing one.
+            if (event.target !== event.currentTarget) return;
+            save();
           }}
-        />
-        {/* A cycle's description is the paragraph explaining what this fortnight is for. A
+        >
+          <Input
+            ref={nameRef}
+            label="Name"
+            value={name}
+            error={nameError ?? undefined}
+            onChange={(event) => {
+              setName(event.target.value);
+              setNameError(null);
+            }}
+          />
+          {/* A cycle's description is the paragraph explaining what this fortnight is for. A
             single-line box for it was a field arguing with its own content. */}
-        <Textarea
-          label="Description"
-          value={description}
-          onChange={(event) => setDescription(event.target.value)}
-          minRows={3}
+          <Textarea
+            label="Description"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            minRows={3}
+          />
+          {canEditStart || canEditEnd ? (
+            <div className={styles.dates}>
+              {canEditStart ? (
+                <>
+                  <PropertyPill {...startTrigger.props} name="Starts" describe={`${formId}-starts`}>
+                    {whenDay(startDate, timezone)}
+                  </PropertyPill>
+                  <DatePicker
+                    open={startTrigger.open}
+                    onClose={startTrigger.hide}
+                    trigger={startTrigger.ref}
+                    value={startDate}
+                    timezone={timezone}
+                    label="Starts"
+                    // Distinct from the end picker's, because both are mounted at once and the
+                    // registry refuses a duplicate action id rather than letting one Escape
+                    // quietly shadow the other.
+                    actionId="cycle.closeStartDate"
+                    actionGroup="Cycles"
+                    // A cycle always has a window, so there is no day to clear to. The row is
+                    // the panel's own and cannot be taken away; choosing it is ignored.
+                    clearLabel="Keep this date"
+                    onSelect={(day) => {
+                      if (day === null) return;
+                      setStartDate(day);
+                      setDateError(null);
+                    }}
+                  />
+                </>
+              ) : null}
+              {canEditEnd ? (
+                <>
+                  <PropertyPill {...endTrigger.props} name="Ends" describe={`${formId}-ends`}>
+                    {whenDay(endDate, timezone)}
+                  </PropertyPill>
+                  <DatePicker
+                    open={endTrigger.open}
+                    onClose={endTrigger.hide}
+                    trigger={endTrigger.ref}
+                    value={endDate}
+                    timezone={timezone}
+                    label="Ends"
+                    actionId="cycle.closeEndDate"
+                    actionGroup="Cycles"
+                    clearLabel="Keep this date"
+                    onSelect={(day) => {
+                      if (day === null) return;
+                      setEndDate(day);
+                      setDateError(null);
+                    }}
+                  />
+                </>
+              ) : null}
+            </div>
+          ) : null}
+          {dateError === null ? null : (
+            <p className={styles.error} role="alert">
+              {dateError}
+            </p>
+          )}
+          {error === null ? null : (
+            <p className={styles.error} role="alert">
+              {error}
+            </p>
+          )}
+        </form>
+      </Modal>
+
+      {confirming ? (
+        <ConfirmDialog
+          open
+          title="Discard these changes?"
+          consequence="The edits you made here have not been saved, and closing the dialog leaves the cycle exactly as it was."
+          confirmLabel="Discard"
+          destructive
+          onConfirm={discard}
+          onClose={keep}
         />
-        {canEditStart || canEditEnd ? (
-          <div className={styles.dates}>
-            {canEditStart ? (
-              <>
-                <PropertyPill {...startTrigger.props} name="Starts" describe={`${formId}-starts`}>
-                  {whenDay(startDate, timezone)}
-                </PropertyPill>
-                <DatePicker
-                  open={startTrigger.open}
-                  onClose={startTrigger.hide}
-                  trigger={startTrigger.ref}
-                  value={startDate}
-                  timezone={timezone}
-                  label="Starts"
-                  // Distinct from the end picker's, because both are mounted at once and the
-                  // registry refuses a duplicate action id rather than letting one Escape
-                  // quietly shadow the other.
-                  actionId="cycle.closeStartDate"
-                  actionGroup="Cycles"
-                  // A cycle always has a window, so there is no day to clear to. The row is
-                  // the panel's own and cannot be taken away; choosing it is ignored.
-                  clearLabel="Keep this date"
-                  onSelect={(day) => {
-                    if (day === null) return;
-                    setStartDate(day);
-                    setDateError(null);
-                  }}
-                />
-              </>
-            ) : null}
-            {canEditEnd ? (
-              <>
-                <PropertyPill {...endTrigger.props} name="Ends" describe={`${formId}-ends`}>
-                  {whenDay(endDate, timezone)}
-                </PropertyPill>
-                <DatePicker
-                  open={endTrigger.open}
-                  onClose={endTrigger.hide}
-                  trigger={endTrigger.ref}
-                  value={endDate}
-                  timezone={timezone}
-                  label="Ends"
-                  actionId="cycle.closeEndDate"
-                  actionGroup="Cycles"
-                  clearLabel="Keep this date"
-                  onSelect={(day) => {
-                    if (day === null) return;
-                    setEndDate(day);
-                    setDateError(null);
-                  }}
-                />
-              </>
-            ) : null}
-          </div>
-        ) : null}
-        {dateError === null ? null : (
-          <p className={styles.error} role="alert">
-            {dateError}
-          </p>
-        )}
-        {error === null ? null : (
-          <p className={styles.error} role="alert">
-            {error}
-          </p>
-        )}
-      </form>
-    </Modal>
+      ) : null}
+    </>
   );
 }
 

@@ -14,9 +14,10 @@ import { useNavigate } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Avatar, Button, Input, Modal, PropertyPill } from '~/components';
+import { Avatar, Button, ConfirmDialog, Input, Modal, PropertyPill } from '~/components';
 import { UserPicker } from '~/features/members/UserPicker';
 import { useDialogSubmit } from '~/hooks/useDialogSubmit';
+import { useDiscardGuard } from '~/hooks/useDiscardGuard';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewerId } from '~/hooks/useViewer';
@@ -71,6 +72,18 @@ export function CreateCustomerModal({ open = true, onClose }: CreateCustomerModa
     [ownerId ?? ''],
   );
 
+  /**
+   * Whether this dialog holds anything nobody else has a copy of.
+   *
+   * The two typed fields, and an owner only once it is somebody other than the viewer: the
+   * pill is pre-filled with whoever opened the dialog, so a default standing where it was
+   * put is not a decision anybody made, and asking "are you sure" over a dialog that was
+   * opened and immediately dismissed teaches people to dismiss the question without reading
+   * it.
+   */
+  const dirty = name.trim() !== '' || domains.trim() !== '' || ownerId !== viewerId;
+  const { requestClose, confirming, keep, discard } = useDiscardGuard(dirty, onClose);
+
   const save = async () => {
     const trimmed = name.trim();
     if (trimmed === '') {
@@ -119,89 +132,102 @@ export function CreateCustomerModal({ open = true, onClose }: CreateCustomerModa
   );
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="New customer"
-      size="md"
-      initialFocus={nameRef}
-      footer={
-        <>
-          {/* Ghost, not the default secondary — the same argument `SaveViewModal` makes: a
+    <>
+      <Modal
+        open={open}
+        onClose={requestClose}
+        title="New customer"
+        size="md"
+        initialFocus={nameRef}
+        footer={
+          <>
+            {/* Ghost, not the default secondary — the same argument `SaveViewModal` makes: a
               footer says what Enter does with exactly one primary, and a bordered Cancel
               beside it is a second control making the same visual claim. */}
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button form={formId} type="submit" variant="primary" loading={saving}>
-            Create customer
-          </Button>
-        </>
-      }
-    >
-      <form
-        id={formId}
-        className={styles.form}
-        onSubmit={(event: FormEvent) => {
-          event.preventDefault();
-          void save();
-        }}
+            <Button variant="ghost" onClick={requestClose}>
+              Cancel
+            </Button>
+            <Button form={formId} type="submit" variant="primary" loading={saving}>
+              Create customer
+            </Button>
+          </>
+        }
       >
-        <Input
-          ref={nameRef}
-          label="Name"
-          value={name}
-          onChange={(event) => {
-            setName(event.target.value);
-            setNameError(null);
+        <form
+          id={formId}
+          className={styles.form}
+          onSubmit={(event: FormEvent) => {
+            event.preventDefault();
+            void save();
           }}
-          error={nameError ?? undefined}
-          placeholder="Acme"
-        />
-        <Input
-          label="Domains"
-          value={domains}
-          onChange={(event) => setDomains(event.target.value)}
-          hint="Comma-separated, unique in this workspace"
-          placeholder="acme.com"
-        />
-        <div className={styles.pills}>
-          <PropertyPill
-            {...ownerMenu.props}
-            name="Owner"
-            describe={`${formId}-owner`}
-            empty={owner === null ? 'No owner' : undefined}
-            icon={
-              owner === null ? null : (
-                <Avatar
-                  name={owner.displayName}
-                  src={owner.avatarUrl ?? null}
-                  size="xs"
-                  colorKey={owner.id}
-                  decorative
-                />
-              )
-            }
-          >
-            {owner?.displayName ?? 'Owner'}
-          </PropertyPill>
-          <UserPicker
-            open={ownerMenu.open}
-            onClose={ownerMenu.hide}
-            trigger={ownerMenu.ref}
-            label="Owner"
-            noneLabel="No owner"
-            filterPlaceholder="Owned by…"
-            value={ownerId}
-            onSelect={setOwnerId}
+        >
+          <Input
+            ref={nameRef}
+            label="Name"
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value);
+              setNameError(null);
+            }}
+            error={nameError ?? undefined}
+            placeholder="Acme"
           />
-        </div>
-        {error !== null && (
-          <p className={styles.error} role="alert">
-            {error}
-          </p>
-        )}
-      </form>
-    </Modal>
+          <Input
+            label="Domains"
+            value={domains}
+            onChange={(event) => setDomains(event.target.value)}
+            hint="Comma-separated, unique in this workspace"
+            placeholder="acme.com"
+          />
+          <div className={styles.pills}>
+            <PropertyPill
+              {...ownerMenu.props}
+              name="Owner"
+              describe={`${formId}-owner`}
+              empty={owner === null ? 'No owner' : undefined}
+              icon={
+                owner === null ? null : (
+                  <Avatar
+                    name={owner.displayName}
+                    src={owner.avatarUrl ?? null}
+                    size="xs"
+                    colorKey={owner.id}
+                    decorative
+                  />
+                )
+              }
+            >
+              {owner?.displayName ?? 'Owner'}
+            </PropertyPill>
+            <UserPicker
+              open={ownerMenu.open}
+              onClose={ownerMenu.hide}
+              trigger={ownerMenu.ref}
+              label="Owner"
+              noneLabel="No owner"
+              filterPlaceholder="Owned by…"
+              value={ownerId}
+              onSelect={setOwnerId}
+            />
+          </div>
+          {error !== null && (
+            <p className={styles.error} role="alert">
+              {error}
+            </p>
+          )}
+        </form>
+      </Modal>
+      {confirming ? (
+        <ConfirmDialog
+          open
+          title="Discard this customer?"
+          consequence="The customer has not been created, and what you typed here is not saved anywhere else."
+          confirmLabel="Discard"
+          destructive
+          onConfirm={discard}
+          onClose={keep}
+        />
+      ) : null}
+    </>
   );
 }

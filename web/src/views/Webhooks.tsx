@@ -32,6 +32,7 @@ import {
   type WebhookSummary,
 } from '~/features/webhooks/mutations';
 import { WEBHOOKS_QUERY } from '~/features/webhooks/operations';
+import { useDiscardGuard } from '~/hooks/useDiscardGuard';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { UUID } from '~/store';
 import { ApiError, gql } from '~/sync/api';
@@ -310,6 +311,13 @@ function CreateWebhookDialog({
     onClose();
   };
 
+  /**
+   * The URL only. The scope and the resource types open pre-selected — all public teams and
+   * `Issue` — so they are this dialog's own defaults rather than work somebody did.
+   */
+  const dirty = url.trim() !== '';
+  const { requestClose, confirming, keep, discard } = useDiscardGuard(dirty, close);
+
   const toggleType = (type: string) => {
     setTypes((current) =>
       current.includes(type) ? current.filter((held) => held !== type) : [...current, type],
@@ -360,106 +368,120 @@ function CreateWebhookDialog({
   );
 
   return (
-    <Modal
-      open
-      title={created ? 'Copy the signing secret' : 'New webhook'}
-      description={
-        created
-          ? 'This is the only time the secret is shown. HMAC-SHA256 the raw body with it.'
-          : 'HTTPS only. Private addresses are refused.'
-      }
-      initialFocus={urlRef}
-      onClose={() => {
-        if (created !== null) {
-          setNudged(true);
-          return;
+    <>
+      <Modal
+        open
+        title={created ? 'Copy the signing secret' : 'New webhook'}
+        description={
+          created
+            ? 'This is the only time the secret is shown. HMAC-SHA256 the raw body with it.'
+            : 'HTTPS only. Private addresses are refused.'
         }
-        close();
-      }}
-      footer={
-        created ? (
-          <Button ref={copiedRef} variant="primary" onClick={close}>
-            I have copied the secret
-          </Button>
-        ) : (
-          <>
-            <Button onClick={close}>Cancel</Button>
-            <Button type="submit" form={formId} variant="primary" loading={saving}>
-              Create webhook
+        initialFocus={urlRef}
+        onClose={() => {
+          if (created !== null) {
+            setNudged(true);
+            return;
+          }
+          requestClose();
+        }}
+        footer={
+          created ? (
+            <Button ref={copiedRef} variant="primary" onClick={close}>
+              I have copied the secret
             </Button>
-          </>
-        )
-      }
-    >
-      {created ? (
-        <>
-          <SecretField
-            label="Signing secret"
-            value={created.secret}
-            consequence="It cannot be shown again. A lost secret means a new webhook."
-          />
-          {nudged ? (
-            <p className={styles.nudge} role="status">
-              The secret is still on this screen. Copy it before leaving.
-            </p>
-          ) : null}
-        </>
-      ) : (
-        <form id={formId} className={styles.form} onSubmit={onSubmit}>
-          <Input
-            ref={urlRef}
-            label="URL"
-            value={url}
-            onChange={(event) => setUrl(event.target.value)}
-            placeholder="https://example.com/webhooks/polaris"
-            autoComplete="off"
-          />
-          <fieldset className={styles.scopeSet}>
-            <legend className={styles.legend}>Scope</legend>
-            <Checkbox
-              label="All public teams"
-              checked={allPublic}
-              onChange={(event) => setAllPublic(event.target.checked)}
+          ) : (
+            <>
+              <Button onClick={requestClose}>Cancel</Button>
+              <Button type="submit" form={formId} variant="primary" loading={saving}>
+                Create webhook
+              </Button>
+            </>
+          )
+        }
+      >
+        {created ? (
+          <>
+            <SecretField
+              label="Signing secret"
+              value={created.secret}
+              consequence="It cannot be shown again. A lost secret means a new webhook."
             />
-            {allPublic ? (
-              <p className={styles.hint}>
-                Private-team issues are never sent on this subscription.
+            {nudged ? (
+              <p className={styles.nudge} role="status">
+                The secret is still on this screen. Copy it before leaving.
               </p>
-            ) : (
-              <label className={styles.hint}>
-                Team
-                <select
-                  value={teamId}
-                  onChange={(event) => setTeamId(event.target.value as UUID | '')}
-                >
-                  <option value="">Select a team</option>
-                  {teamOptions.map((team) => (
-                    <option key={team.id} value={team.id}>
-                      {team.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-          </fieldset>
-          <fieldset className={styles.scopeSet}>
-            <legend className={styles.legend}>Resource types</legend>
-            {WEBHOOK_RESOURCE_TYPES.map((type) => (
+            ) : null}
+          </>
+        ) : (
+          <form id={formId} className={styles.form} onSubmit={onSubmit}>
+            <Input
+              ref={urlRef}
+              label="URL"
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
+              placeholder="https://example.com/webhooks/polaris"
+              autoComplete="off"
+            />
+            <fieldset className={styles.scopeSet}>
+              <legend className={styles.legend}>Scope</legend>
               <Checkbox
-                key={type}
-                label={type}
-                checked={types.includes(type)}
-                onChange={() => toggleType(type)}
+                label="All public teams"
+                checked={allPublic}
+                onChange={(event) => setAllPublic(event.target.checked)}
               />
-            ))}
-          </fieldset>
-          {failure ? (
-            <p className={styles.error} role="alert">
-              {failure}
-            </p>
-          ) : null}
-        </form>
-      )}
-    </Modal>
+              {allPublic ? (
+                <p className={styles.hint}>
+                  Private-team issues are never sent on this subscription.
+                </p>
+              ) : (
+                <label className={styles.hint}>
+                  Team
+                  <select
+                    value={teamId}
+                    onChange={(event) => setTeamId(event.target.value as UUID | '')}
+                  >
+                    <option value="">Select a team</option>
+                    {teamOptions.map((team) => (
+                      <option key={team.id} value={team.id}>
+                        {team.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </fieldset>
+            <fieldset className={styles.scopeSet}>
+              <legend className={styles.legend}>Resource types</legend>
+              {WEBHOOK_RESOURCE_TYPES.map((type) => (
+                <Checkbox
+                  key={type}
+                  label={type}
+                  checked={types.includes(type)}
+                  onChange={() => toggleType(type)}
+                />
+              ))}
+            </fieldset>
+            {failure ? (
+              <p className={styles.error} role="alert">
+                {failure}
+              </p>
+            ) : null}
+          </form>
+        )}
+      </Modal>
+
+      {confirming ? (
+        <ConfirmDialog
+          open
+          title="Discard this webhook?"
+          consequence="The URL you have typed is thrown away, and no webhook has been created — nothing is sent anywhere until you press Create webhook."
+          confirmLabel="Discard"
+          destructive
+          onConfirm={discard}
+          onClose={keep}
+        />
+      ) : null}
+    </>
   );
 }
