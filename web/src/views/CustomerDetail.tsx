@@ -21,6 +21,7 @@ import {
   formatCustomerStatus,
   mergeCustomers,
   toggleCustomerRequestImportant,
+  unarchiveCustomer,
   updateCustomer,
 } from '~/features/customers/mutations';
 import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
@@ -33,6 +34,7 @@ import { setCustomerSubscription } from '~/features/subscriptions/mutations';
 import { SubscribeBell } from '~/features/subscriptions/SubscribeBell';
 import { useContextMenu } from '~/hooks/useContextMenu';
 import { offerSuccess } from '~/features/toast/ToastHost';
+import { offerUndo } from '~/features/undo/UndoToast';
 import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -188,10 +190,15 @@ export function CustomerDetail() {
   const confirmArchive = () => {
     setArchiveBusy(true);
     setArchiveError(null);
-    archiveCustomer(engine, customer.id)
+    // Read before the write: archiving takes the row out of the replica, so by the time the
+    // offer is made there is no name left to put in it.
+    const name = customer.name === '' ? 'that customer' : customer.name;
+    const id = customer.id;
+    archiveCustomer(engine, id)
       .then(() => {
         setArchiveBusy(false);
         setArchiving(false);
+        offerUndo({ label: `Archived ${name}`, undo: () => unarchiveCustomer(engine, id) });
         void navigate('/customers');
       })
       .catch((failure: unknown) => {
@@ -647,7 +654,7 @@ export function CustomerDetail() {
       <ConfirmDialog
         open={archiving}
         title={`Archive ${customer.name}?`}
-        consequence="It leaves the Customers list. Requests already attached to issues stay there. There is no archives page for customers yet, so bringing it back is an API call."
+        consequence="It leaves the Customers list. Requests already attached to issues stay there. Undo puts it back for a few seconds; after that there is no archives page for customers yet, so it is an API call."
         confirmLabel="Archive"
         destructive
         busy={archiveBusy}

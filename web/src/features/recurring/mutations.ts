@@ -347,3 +347,18 @@ export async function archiveRecurringIssue(engine: SyncEngine, id: UUID): Promi
     optimistic: before === undefined ? [] : [{ type: 'recurringIssue', id, before, after: null }],
   });
 }
+
+/**
+ * Puts an archived cadence back.
+ *
+ * The inverse of `archiveRecurringIssue`, which is the whole of it: `archived` is a boolean the server
+ * takes either way. No optimistic patch, for the reason `features/archive/mutations.ts` gives
+ * about restore — the row left the replica when it was archived, so there is no `before` to
+ * hold and the next delta is what brings it back.
+ */
+export async function unarchiveRecurringIssue(engine: SyncEngine, id: UUID): Promise<void> {
+  await engine.mutate({
+    mutation: ARCHIVE_RECURRING_ISSUE,
+    variables: { id: id, archived: false },
+  });
+}

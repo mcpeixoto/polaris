@@ -241,6 +241,21 @@ export async function archiveTemplate(engine: SyncEngine, templateId: UUID): Pro
 }
 
 /**
+ * Puts an archived issue template back.
+ *
+ * The inverse of `archiveTemplate`, which is the whole of it: `archived` is a boolean the server
+ * takes either way. No optimistic patch, for the reason `features/archive/mutations.ts` gives
+ * about restore — the row left the replica when it was archived, so there is no `before` to
+ * hold and the next delta is what brings it back.
+ */
+export async function unarchiveTemplate(engine: SyncEngine, templateId: UUID): Promise<void> {
+  await engine.mutate({
+    mutation: ARCHIVE_ISSUE_TEMPLATE,
+    variables: { id: templateId, archived: false },
+  });
+}
+
+/**
  * What a template should actually prefill on an issue in this team.
  *
  * This is the part of the feature that is not obvious, and the reason is worth stating

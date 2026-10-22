@@ -123,6 +123,21 @@ export async function archiveProjectLabel(engine: SyncEngine, labelId: UUID): Pr
   });
 }
 
+/**
+ * Puts an archived project label back.
+ *
+ * The inverse of `archiveProjectLabel`, which is the whole of it: `archived` is a boolean the server
+ * takes either way. No optimistic patch, for the reason `features/archive/mutations.ts` gives
+ * about restore — the row left the replica when it was archived, so there is no `before` to
+ * hold and the next delta is what brings it back.
+ */
+export async function unarchiveProjectLabel(engine: SyncEngine, labelId: UUID): Promise<void> {
+  await engine.mutate({
+    mutation: ARCHIVE_PROJECT_LABEL,
+    variables: { id: labelId, archived: false },
+  });
+}
+
 export async function addProjectLabel(
   engine: SyncEngine,
   projectId: UUID,

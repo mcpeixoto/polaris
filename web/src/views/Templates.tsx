@@ -72,7 +72,13 @@ import { createRecurringIssue } from '~/features/recurring/mutations';
 import { estimateLabel, estimateOptions, estimatesEnabled } from '~/features/estimate';
 import { buildCreateURL } from '~/features/issue/create-url';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
-import { archiveTemplate, createTemplate, updateTemplate } from '~/features/templates/mutations';
+import {
+  archiveTemplate,
+  createTemplate,
+  unarchiveTemplate,
+  updateTemplate,
+} from '~/features/templates/mutations';
+import { offerUndo } from '~/features/undo/UndoToast';
 import { togglePlaceholder } from '~/features/templates/placeholder';
 import { updateIssueTemplateEmailIntake } from '~/features/email/mutations';
 import { useContextMenu } from '~/hooks/useContextMenu';
@@ -263,10 +269,13 @@ export function Templates() {
     if (archiving === null) return;
     setArchiveBusy(true);
     setArchiveError(null);
-    archiveTemplate(engine, archiving.id)
+    const id = archiving.id;
+    const name = archiving.name === '' ? 'that template' : archiving.name;
+    archiveTemplate(engine, id)
       .then(() => {
         setArchiveBusy(false);
         setArchiving(null);
+        offerUndo({ label: `Archived ${name}`, undo: () => unarchiveTemplate(engine, id) });
       })
       .catch((failure: unknown) => {
         setArchiveBusy(false);

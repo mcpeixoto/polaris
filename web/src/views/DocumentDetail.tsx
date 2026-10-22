@@ -55,6 +55,7 @@ import { report } from '~/features/subscriptions/mutations';
 import { isFavorite, toggleFavorite } from '~/features/view/mutations';
 import { useContextMenu } from '~/hooks/useContextMenu';
 import { offerSuccess } from '~/features/toast/ToastHost';
+import { offerUndo } from '~/features/undo/UndoToast';
 import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -302,9 +303,18 @@ export function DocumentDetail() {
       ? archiveDocument(engine, document.id, true)
       : deleteDocument(engine, document.id);
     const name = document.title === '' ? 'the document' : document.title;
+    const id = document.id;
     void work
       .then(() => {
         setConfirming(null);
+        // Only the archive. The delete has no server-side restore, so there is nothing for an
+        // undo to run — it gets the success toast below instead.
+        if (archiving) {
+          offerUndo({
+            label: `Archived ${name}`,
+            undo: () => archiveDocument(engine, id, false),
+          });
+        }
         // Only the delete. An archived document is restorable and will say so through the
         // undo offer; a deleted one is gone, nothing on the list this navigates to records
         // that it ever existed, and silence is the same screen a refusal would leave.

@@ -297,12 +297,27 @@ export async function archiveStatus(engine: SyncEngine, stateId: UUID): Promise<
   // the shape of the document rather than about statuses — which is indistinguishable from
   // the refusal this function is written to expect, and that is why nobody noticed.
   //
-  // Passed as `true` rather than taken as a parameter because there is no un-archive on any
-  // screen yet. The server takes a boolean and would restore a status happily; when
-  // something offers that, this signature is where it goes.
+  // Passed as `true` rather than taken as a parameter because the way back is its own
+  // function rather than a flag on this one: see `unarchiveStatus` below, which is what the
+  // undo offer on team settings runs.
   await engine.mutate({
     mutation: ARCHIVE_WORKFLOW_STATE,
     variables: { id: stateId, archived: true },
+  });
+}
+
+/**
+ * Puts an archived workflow state back.
+ *
+ * The inverse of `archiveStatus`, which is the whole of it: `archived` is a boolean the server
+ * takes either way. No optimistic patch, for the reason `features/archive/mutations.ts` gives
+ * about restore — the row left the replica when it was archived, so there is no `before` to
+ * hold and the next delta is what brings it back.
+ */
+export async function unarchiveStatus(engine: SyncEngine, stateId: UUID): Promise<void> {
+  await engine.mutate({
+    mutation: ARCHIVE_WORKFLOW_STATE,
+    variables: { id: stateId, archived: false },
   });
 }
 

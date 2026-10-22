@@ -39,6 +39,7 @@ import {
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
 import { DotsGlyph } from '~/features/issue/glyphs';
+import { offerUndo, type UndoOffer } from '~/features/undo/UndoToast';
 import { useContextMenu } from '~/hooks/useContextMenu';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Store, UUID } from '~/store';
@@ -49,6 +50,7 @@ import {
   createLabel,
   DEFAULT_LABEL_COLOR,
   mergeLabels,
+  unarchiveLabel,
   updateLabel,
 } from './mutations';
 import styles from './LabelSettings.module.css';
@@ -156,13 +158,26 @@ export function LabelSettings() {
 
   const grouped = useMemo(() => groupByScope(labels, scopes), [labels, scopes]);
 
-  const run = (work: Promise<unknown>) => {
+  /**
+   * Performs a write, reports its failure, and offers the way back if it succeeded.
+   *
+   * The offer goes through here rather than beside each call because `run` is the only thing
+   * that knows the write landed, and on this screen that distinction is the whole point:
+   * `archiveLabel` is deliberately not optimistic and the server refuses it while any issue
+   * still carries the label, so a refusal is the common case. An offer made at the call site
+   * would put "Archived Needs design" and "still carries this label" on screen together.
+   */
+  const run = (work: Promise<unknown>, offer?: UndoOffer) => {
     setError(null);
-    work.catch((failure: unknown) => {
-      // A duplicate name in one scope and a still-in-use archive are both things the user
-      // can act on, so the server's own words are better than anything invented here.
-      setError(failure instanceof ApiError ? failure.message : 'That change could not be saved.');
-    });
+    work
+      .then(() => {
+        if (offer !== undefined) offerUndo(offer);
+      })
+      .catch((failure: unknown) => {
+        // A duplicate name in one scope and a still-in-use archive are both things the user
+        // can act on, so the server's own words are better than anything invented here.
+        setError(failure instanceof ApiError ? failure.message : 'That change could not be saved.');
+      });
   };
 
   return (
@@ -216,7 +231,12 @@ export function LabelSettings() {
                           : scope.roots.filter((other) => !other.isGroup && other.id !== row.id)
                       }
                       onEdit={(fields) => run(updateLabel(engine, row.id, fields))}
-                      onArchive={() => run(archiveLabel(engine, row.id))}
+                      onArchive={() =>
+                        run(archiveLabel(engine, row.id), {
+                          label: archivedLabel(row.name),
+                          undo: () => unarchiveLabel(engine, row.id),
+                        })
+                      }
                       onMerge={(intoId) => run(mergeLabels(engine, row.id, intoId))}
                       onFocusRow={setFocusedId}
                       registerMenu={registerMenu}
@@ -231,7 +251,12 @@ export function LabelSettings() {
                                 (other) => other.id !== child.id,
                               )}
                               onEdit={(fields) => run(updateLabel(engine, child.id, fields))}
-                              onArchive={() => run(archiveLabel(engine, child.id))}
+                              onArchive={() =>
+                                run(archiveLabel(engine, child.id), {
+                                  label: archivedLabel(child.name),
+                                  undo: () => unarchiveLabel(engine, child.id),
+                                })
+                              }
                               onMerge={(intoId) => run(mergeLabels(engine, child.id, intoId))}
                               onUngroup={() =>
                                 run(updateLabel(engine, child.id, { parentId: null }))
@@ -345,6 +370,18 @@ function CreateLabel({ scope, groups, onCreate }: CreateLabelProps) {
       </div>
     </form>
   );
+}
+
+/**
+ * What the undo toast says, in the user's words.
+ *
+ * The name is read from the row before the write, because an archived label leaves the
+ * replica and there is nothing to read it from afterwards. Blank is guarded rather than
+ * assumed impossible: the toast is the only record of what was archived, and "Archived "
+ * is not one.
+ */
+function archivedLabel(name: string): string {
+  return `Archived ${name.trim() === '' ? 'an untitled label' : name}`;
 }
 
 /** "Fourteen issues" / "One issue", as prose rather than as a machine's output. */

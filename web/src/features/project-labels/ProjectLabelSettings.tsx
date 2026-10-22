@@ -3,13 +3,19 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { useEngine } from '~/app/context';
 import { Button, Checkbox, EmptyState, Input, Select } from '~/components';
 import { DEFAULT_LABEL_COLOR } from '~/features/labels/mutations';
+import { offerUndo, type UndoOffer } from '~/features/undo/UndoToast';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { byOrderKey } from '~/store';
 import type { Store, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
 import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 
-import { archiveProjectLabel, createProjectLabel, updateProjectLabel } from './mutations';
+import {
+  archiveProjectLabel,
+  createProjectLabel,
+  unarchiveProjectLabel,
+  updateProjectLabel,
+} from './mutations';
 import styles from '../labels/LabelSettings.module.css';
 
 interface LabelView {
@@ -50,11 +56,18 @@ export function ProjectLabelSettings() {
 
   const grouped = useMemo(() => groupLabels(labels), [labels]);
 
-  const run = (work: Promise<unknown>) => {
+  // The offer is made here rather than at the call site because `run` is what knows the
+  // write landed, and archiving a label in use is refused by the server often enough that
+  // offering the way back regardless would contradict the error beside it.
+  const run = (work: Promise<unknown>, offer?: UndoOffer) => {
     setError(null);
-    work.catch((failure: unknown) => {
-      setError(failure instanceof ApiError ? failure.message : 'That change could not be saved.');
-    });
+    work
+      .then(() => {
+        if (offer !== undefined) offerUndo(offer);
+      })
+      .catch((failure: unknown) => {
+        setError(failure instanceof ApiError ? failure.message : 'That change could not be saved.');
+      });
   };
 
   return (
@@ -93,7 +106,12 @@ export function ProjectLabelSettings() {
                   <LabelRow
                     row={row}
                     onEdit={(fields) => run(updateProjectLabel(engine, row.id, fields))}
-                    onArchive={() => run(archiveProjectLabel(engine, row.id))}
+                    onArchive={() =>
+                      run(archiveProjectLabel(engine, row.id), {
+                        label: archivedLabel(row.name),
+                        undo: () => unarchiveProjectLabel(engine, row.id),
+                      })
+                    }
                   />
                   {!row.isGroup ? null : (
                     <ul className={styles.children}>
@@ -102,7 +120,12 @@ export function ProjectLabelSettings() {
                           <LabelRow
                             row={child}
                             onEdit={(fields) => run(updateProjectLabel(engine, child.id, fields))}
-                            onArchive={() => run(archiveProjectLabel(engine, child.id))}
+                            onArchive={() =>
+                              run(archiveProjectLabel(engine, child.id), {
+                                label: archivedLabel(child.name),
+                                undo: () => unarchiveProjectLabel(engine, child.id),
+                              })
+                            }
                             onUngroup={() =>
                               run(updateProjectLabel(engine, child.id, { parentId: null }))
                             }
@@ -267,6 +290,14 @@ function LabelRow({
       </span>
     </div>
   );
+}
+
+/**
+ * What the undo toast says. The name is captured before the write, since an archived label
+ * leaves the replica; blank is guarded because "Archived " records nothing.
+ */
+function archivedLabel(name: string): string {
+  return `Archived ${name.trim() === '' ? 'an untitled label' : name}`;
 }
 
 function groupLabels(labels: readonly LabelView[]) {

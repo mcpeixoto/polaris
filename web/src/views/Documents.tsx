@@ -43,6 +43,7 @@ import { EntityLoading, useStoreSettled } from '~/features/entity-gate/EntityGat
 import { DotsGlyph } from '~/features/issue/glyphs';
 import { report } from '~/features/issue/mutations';
 import { exact, when } from '~/features/time';
+import { offerUndo } from '~/features/undo/UndoToast';
 import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
 import { useContextMenu } from '~/hooks/useContextMenu';
 import { useDocumentTitle } from '~/hooks/useDocumentTitle';
@@ -236,8 +237,19 @@ export function Documents() {
     const work = archiving
       ? archiveDocument(engine, confirming.id, true)
       : deleteDocument(engine, confirming.id);
+    const id = confirming.id;
+    const name = confirming.title === '' ? 'that document' : confirming.title;
     void work
-      .then(() => setConfirming(null))
+      .then(() => {
+        setConfirming(null);
+        // Only the archive: a deleted document has no server-side restore for an undo to run.
+        if (archiving) {
+          offerUndo({
+            label: `Archived ${name}`,
+            undo: () => archiveDocument(engine, id, false),
+          });
+        }
+      })
       .catch((error: unknown) =>
         setFailure(
           error instanceof ApiError && error.message !== ''

@@ -66,6 +66,7 @@ import {
   archiveRecurringIssue,
   CADENCE_LABELS,
   createRecurringIssue,
+  unarchiveRecurringIssue,
   updateTeamTemplates,
 } from '~/features/recurring/mutations';
 import { RecurringFields } from '~/features/recurring/RecurringFields';
@@ -75,12 +76,14 @@ import {
   archiveStatus,
   createStatus,
   moveStatus,
+  unarchiveStatus,
   updateStatus,
   updateTeam,
 } from '~/features/team/mutations';
 import { addTeamMember, removeTeamMember } from '~/features/team/create';
 import { deleteTeam, retireTeam, unretireTeam } from '~/features/team-lifecycle/mutations';
 import { moveTeam } from '~/features/team-lifecycle/move';
+import { offerUndo } from '~/features/undo/UndoToast';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import {
@@ -351,7 +354,18 @@ export function TeamSettings() {
               }),
             )
           }
-          onArchive={(id) => run(archiveRecurringIssue(engine, id))}
+          onArchive={(id) => {
+            // Named from the row as it stands now: the schedule leaves `team.recurring` the
+            // moment it is archived, and the offer outlives that.
+            const row = team.recurring.find((candidate) => candidate.id === id);
+            const title = row === undefined || row.title === '' ? 'that schedule' : row.title;
+            run(archiveRecurringIssue(engine, id), () =>
+              offerUndo({
+                label: `Archived ${title}`,
+                undo: () => unarchiveRecurringIssue(engine, id),
+              }),
+            );
+          }}
         />
 
         <TeamSection
@@ -378,7 +392,15 @@ export function TeamSettings() {
                         run(updateStatus(engine, status.id, { makeDefault: true }))
                       }
                       onMove={(delta) => run(moveStatus(engine, siblings, status.id, delta))}
-                      onArchive={() => run(archiveStatus(engine, status.id))}
+                      onArchive={() => {
+                        const name = status.name === '' ? 'that status' : status.name;
+                        run(archiveStatus(engine, status.id), () =>
+                          offerUndo({
+                            label: `Archived ${name}`,
+                            undo: () => unarchiveStatus(engine, status.id),
+                          }),
+                        );
+                      }}
                     />
                   ))}
                 </ul>

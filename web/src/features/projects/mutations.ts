@@ -590,6 +590,21 @@ export async function archiveProjectStatus(engine: SyncEngine, statusId: UUID): 
   });
 }
 
+/**
+ * Puts an archived project status back.
+ *
+ * The inverse of `archiveProjectStatus`, which is the whole of it: `archived` is a boolean the server
+ * takes either way. No optimistic patch, for the reason `features/archive/mutations.ts` gives
+ * about restore — the row left the replica when it was archived, so there is no `before` to
+ * hold and the next delta is what brings it back.
+ */
+export async function unarchiveProjectStatus(engine: SyncEngine, statusId: UUID): Promise<void> {
+  await engine.mutate({
+    mutation: ARCHIVE_PROJECT_STATUS,
+    variables: { id: statusId, archived: false },
+  });
+}
+
 function defaultProjectStatusId(store: Store): UUID | undefined {
   const statuses = [...store.projectStatuses.values()].filter((s) => s.archivedAt === undefined);
   return statuses.find((s) => s.isDefault)?.id ?? statuses[0]?.id;
