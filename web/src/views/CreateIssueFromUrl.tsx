@@ -19,6 +19,7 @@ import { useEngine } from '~/app/context';
 import { Button, EmptyState, SkeletonRows } from '~/components';
 import { useCreateIssue } from '~/features/issue/create-context';
 import { parseCreateURL, resolveCreateURL } from '~/features/issue/create-url';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
 import styles from './CreateIssueFromUrl.module.css';
@@ -60,6 +61,8 @@ export function CreateIssueFromUrl() {
     const timer = window.setTimeout(() => setPhase('timedOut'), WAIT_MS);
     return () => window.clearTimeout(timer);
   }, [attempt, ready]);
+
+  useDocumentTitle(['New issue']);
 
   const retry = () => {
     opened.current = false;

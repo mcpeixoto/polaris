@@ -145,6 +145,7 @@ import { copyText, gitBranchNameFor } from '~/features/github/copy';
 import { clearCommentDraft, readCommentDrafts, writeCommentDraft } from '~/features/drafts/local';
 import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
 import { useContextMenu } from '~/hooks/useContextMenu';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewer, useViewerId, useViewerRole } from '~/hooks/useViewer';
@@ -411,6 +412,10 @@ export function IssueDetail() {
   const [requestOpen, setRequestOpen] = useState(false);
 
   useKeyContext('detail');
+
+  // Both parts, in the order the heading states them inverted: the title is what a tab strip
+  // has room to show and the identifier is what disambiguates two issues named alike.
+  useDocumentTitle(issue === null ? [] : [issue.title, issue.identifier]);
 
   useActions(
     [

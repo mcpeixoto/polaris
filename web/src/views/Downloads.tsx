@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { Logo } from '~/components';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { isSignedIn } from '~/sync/api';
 import { DOWNLOADS, fetchRelease, RELEASES_URL, type Release } from '~/features/downloads/releases';
 import styles from './Downloads.module.css';
@@ -30,6 +31,9 @@ export function Downloads() {
       window.clearTimeout(timeout);
     };
   }, []);
+
+  // Not the <h1>, which is marketing copy — a tab strip needs the noun, not the pitch.
+  useDocumentTitle(['Download']);
 
   return (
     <div className={styles.page}>

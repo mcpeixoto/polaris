@@ -134,6 +134,7 @@ import {
   type FilterNode,
 } from '~/filter';
 import { useContextMenu } from '~/hooks/useContextMenu';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useListCursor, listRowDomId } from '~/hooks/useListCursor';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
@@ -389,6 +390,8 @@ export function Projects() {
   ];
 
   const heading = team === null ? 'Projects' : `${team.name} projects`;
+
+  useDocumentTitle([heading]);
 
   const groups = useMemo(
     () => groupRows(rows, display.grouping, display.ordering, display.direction),

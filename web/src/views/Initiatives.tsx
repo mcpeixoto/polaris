@@ -104,6 +104,7 @@ import { isFavorite, toggleFavorite } from '~/features/view/mutations';
 import { readCollapsed, writeCollapsed } from '~/features/view/collapse';
 import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
 import { contextMenuPoint, useContextMenu } from '~/hooks/useContextMenu';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useListCursor, listRowDomId, type ListRowProps } from '~/hooks/useListCursor';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
@@ -519,6 +520,8 @@ export function Initiatives() {
   // An empty replica is not an empty workspace. Until the first sync settles, "No initiatives
   // yet" is a claim the client cannot make — and it came with an invitation to create one.
   const settled = useStoreSettled();
+
+  useDocumentTitle(['Initiatives']);
 
   return (
     <div className={styles.screen}>

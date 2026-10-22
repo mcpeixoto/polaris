@@ -19,6 +19,7 @@ import { byOrderKey } from '~/store';
 import type { ProjectStatus, ProjectStatusCategory, StateCategory, Store } from '~/store';
 import { ApiError } from '~/sync/api';
 import styles from '~/views/TeamSettings.module.css';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 
 import { archiveProjectStatus, createProjectStatus, updateProjectStatus } from './mutations';
 
@@ -59,6 +60,8 @@ const ICON_CATEGORY: Readonly<Record<ProjectStatusCategory, StateCategory>> = {
 const DEFAULT_STATUS_COLOR = '#6b7280';
 
 export function ProjectStatusSettings() {
+  useDocumentTitle(['Project statuses']);
+
   const engine = useEngine();
   const [error, setError] = useState<string | null>(null);
 

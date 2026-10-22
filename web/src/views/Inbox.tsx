@@ -111,6 +111,7 @@ import {
 } from '~/features/inbox/mutations';
 import { ReminderPicker } from '~/features/inbox/ReminderPicker';
 import { offerUndo } from '~/features/undo/UndoToast';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useSelection } from '~/hooks/useSelection';
@@ -583,6 +584,8 @@ export function Inbox() {
     },
     [engine, selection],
   );
+
+  useDocumentTitle(['Inbox']);
 
   // The inbox is a list screen, and its shortcuts belong to the list context rather than to
   // the whole application.

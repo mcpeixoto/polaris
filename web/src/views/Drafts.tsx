@@ -66,6 +66,7 @@ import { useCreateIssue } from '~/features/issue/create-context';
 import { DotsGlyph } from '~/features/issue/glyphs';
 import { exact, when } from '~/features/time';
 import { useContextMenu } from '~/hooks/useContextMenu';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useListCursor, listRowDomId } from '~/hooks/useListCursor';
 import type { UUID } from '~/store';
 import { ApiError } from '~/sync/api';
@@ -325,6 +326,8 @@ export function Drafts() {
     ],
     [create],
   );
+
+  useDocumentTitle(['Drafts']);
 
   const activeIn = (rowIds: readonly string[]): string | undefined =>
     cursor.cursorId !== null && rowIds.includes(cursor.cursorId)

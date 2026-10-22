@@ -64,6 +64,7 @@ import {
   restoreIssue,
 } from '~/features/trash/mutations';
 import { useContextMenu } from '~/hooks/useContextMenu';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { listRowDomId, useListCursor } from '~/hooks/useListCursor';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { UUID } from '~/store';
@@ -239,6 +240,8 @@ export function Trash() {
     ],
     [],
   );
+
+  useDocumentTitle(['Trash']);
 
   const closeMenus = () => {
     setRowMenuOpen(false);

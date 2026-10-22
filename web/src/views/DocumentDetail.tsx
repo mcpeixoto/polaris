@@ -54,6 +54,7 @@ import { Markdown } from '~/features/markdown/Markdown';
 import { report } from '~/features/subscriptions/mutations';
 import { isFavorite, toggleFavorite } from '~/features/view/mutations';
 import { useContextMenu } from '~/hooks/useContextMenu';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewerId } from '~/hooks/useViewer';
@@ -87,6 +88,13 @@ export function DocumentDetail() {
     (store) => viewerId !== null && isFavorite(store, viewerId, 'document', documentId),
     ['favorite'],
     [documentId, viewerId],
+  );
+
+  // An untitled document is a real state here — the title field accepts empty and the
+  // sidebar and project overview both already call that document "Untitled". A tab reading
+  // only "Polaris" would say the document had not loaded, which is a different thing.
+  useDocumentTitle(
+    document === null ? [] : [document.title === '' ? 'Untitled document' : document.title],
   );
 
   // Seeded from the replica rather than from an empty string. Filling it a frame later is a

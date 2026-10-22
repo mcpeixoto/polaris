@@ -32,6 +32,7 @@ import { PencilGlyph, TrashGlyph } from '~/features/project-updates/glyphs';
 import { setCustomerSubscription } from '~/features/subscriptions/mutations';
 import { SubscribeBell } from '~/features/subscriptions/SubscribeBell';
 import { useContextMenu } from '~/hooks/useContextMenu';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewer, useViewerRole } from '~/hooks/useViewer';
@@ -123,6 +124,8 @@ export function CustomerDetail() {
   );
 
   const customerState = useEntityState(customer);
+
+  useDocumentTitle(customer === null ? [] : [customer.name]);
 
   useKeyContext('detail');
   useActions(

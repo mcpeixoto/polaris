@@ -51,6 +51,7 @@ import { DotsGlyph } from '~/features/issue/glyphs';
 import { report } from '~/features/issue/mutations';
 import { UserPicker } from '~/features/members/UserPicker';
 import { useContextMenu } from '~/hooks/useContextMenu';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { listRowDomId, useListCursor } from '~/hooks/useListCursor';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -229,6 +230,8 @@ export function Customers() {
     ],
     [],
   );
+
+  useDocumentTitle(['Customers']);
 
   // A guest sees nothing customer-shaped, the sidebar link included — so the URL typed in
   // by hand has to say so too. The role comes from the session because a guest's replica

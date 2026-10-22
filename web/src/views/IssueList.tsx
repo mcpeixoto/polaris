@@ -97,6 +97,7 @@ import { useIssueRowMenuOptions } from '~/features/issue/rowMenuOptions';
 import { MilestonePicker } from '~/features/project-milestones/MilestonePicker';
 import { contextMenuPoint, contextMenuPointOn, useContextMenu } from '~/hooks/useContextMenu';
 import { useContextMenuHandoff } from '~/hooks/useContextMenuHandoff';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { RESTORE_WINDOW_DAYS, restoreIssue } from '~/features/trash/mutations';
 import { offerUndo } from '~/features/undo/UndoToast';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
@@ -592,6 +593,11 @@ export function IssueList({
     ['team', 'view', 'cycle', 'label', 'user'],
     [sourceKey, heading],
   );
+
+  // This one view is eight routes — a team, My Issues, triage, a cycle, a saved view, a
+  // label, a person, an ad-hoc set — and `scope.heading` is already the string that tells
+  // them apart, so the tab gets it rather than a ninth spelling of the same decision.
+  useDocumentTitle(scope.heading === null ? [] : [scope.heading]);
 
   const watch = useLiveQuery(
     (store) => {

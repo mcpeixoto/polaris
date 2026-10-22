@@ -42,6 +42,7 @@ import { DotsGlyph } from '~/features/issue/glyphs';
 import { when } from '~/features/time';
 import { fetchDeletedIssues, restoreIssue, type DeletedIssue } from '~/features/trash/mutations';
 import { useContextMenu } from '~/hooks/useContextMenu';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Cycle, Issue, Project, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
@@ -341,6 +342,8 @@ export function Archives() {
   }, [selected]);
 
   const teamState = useEntityState(team);
+
+  useDocumentTitle(['Archives']);
 
   if (team === null) {
     return (
