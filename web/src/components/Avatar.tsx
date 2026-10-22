@@ -109,6 +109,12 @@ export function Avatar({
   const initials = initialsOf(name);
   const hue = avatarHue(colorKey ?? name);
 
+  // A person whose display name is blank still has to be announced as somebody. Without
+  // this the wrapper is a `role="img"` carrying an empty `aria-label`, which is a nameless
+  // image to a screen reader — the "?" in the circle is `aria-hidden`, so there is nothing
+  // else for it to read. The visible placeholder stays "?"; this is only the spoken form.
+  const label = name.trim() === '' ? 'Unnamed person' : name;
+
   // At 16 pixels two glyphs collide into an unreadable smudge, so the smallest size drops
   // to a single initial. It stays a recognition cue rather than becoming decoration.
   const shown = size === 'xs' ? initials.slice(0, 1) : initials;
@@ -119,7 +125,7 @@ export function Avatar({
         .filter(Boolean)
         .join(' ')}
       role={decorative ? undefined : 'img'}
-      aria-label={decorative ? undefined : name}
+      aria-label={decorative ? undefined : label}
       aria-hidden={decorative ? true : undefined}
     >
       {usable ? (

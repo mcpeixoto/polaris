@@ -17,6 +17,8 @@ export type {
 } from './types';
 export { CONTEXTS } from './types';
 
+export { ariaKeyShortcuts } from './aria';
+
 export {
   chordFromEvent,
   chordId,
