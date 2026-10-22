@@ -1527,7 +1527,9 @@
   min-height: var(--space-12);
   padding: var(--space-3);
   background-color: var(--bg-secondary);
-  color: var(--text-tertiary);
+  /* Secondary, not tertiary: tertiary ink is measured against the page and reads at 4.42:1
+     on this surface in dark, under the 4.5:1 these words owe as body text. */
+  color: var(--text-secondary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   letter-spacing: 0.02em;

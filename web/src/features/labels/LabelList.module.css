@@ -97,7 +97,10 @@
   padding-inline: var(--space-1);
   border-radius: var(--radius-full);
   background-color: var(--bg-tertiary);
-  color: var(--text-tertiary);
+  /* Secondary, not tertiary. Tertiary ink is measured against the page and fails on every
+     raised surface — 3.63:1 on this one in light, 3.67:1 in dark — and this chip is the one
+     place in a label list that says how many labels are not being shown. */
+  color: var(--text-secondary);
   font-family: var(--font-sans);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);

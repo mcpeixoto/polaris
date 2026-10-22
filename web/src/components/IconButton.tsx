@@ -1,5 +1,7 @@
 import type { ButtonHTMLAttributes, MouseEvent, ReactNode, Ref } from 'react';
 
+import { ariaKeyShortcuts } from '../keys';
+
 import { Tooltip, type TooltipPlacement } from './Tooltip';
 import styles from './IconButton.module.css';
 
@@ -99,6 +101,13 @@ export function IconButton({
         .join(' ')}
       onClick={handleClick}
       aria-disabled={disabled ? true : undefined}
+      /*
+        The chord is already here for the tooltip, so the accessibility tree may as well
+        have it too: a screen-reader user otherwise has no way to learn that the archive
+        button has a key, since the tooltip is drawn and not announced. `undefined` for a
+        sequence — see ariaKeyShortcuts — which React renders as no attribute at all.
+      */
+      aria-keyshortcuts={keys === undefined ? undefined : ariaKeyShortcuts(keys)}
     >
       <span className={styles.icon} aria-hidden="true">
         {icon}
