@@ -28,13 +28,6 @@
   line-height: var(--line-height-normal);
 }
 
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: var(--space-4);
-  color: var(--text-tertiary);
-}
-
 /*
  * The table takes the card's edge as its own: hairlines above each row rather than below,
  * so the last row meets the card's bottom edge without drawing a second line on it. The

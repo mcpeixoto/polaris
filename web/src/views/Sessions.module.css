@@ -28,13 +28,6 @@
   line-height: var(--line-height-normal);
 }
 
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: var(--space-6) 0;
-  color: var(--text-tertiary);
-}
-
 /* The card clips its corners, so a table wider than it scrolls inside its own box rather
    than losing its last column under the edge. */
 .scroll {

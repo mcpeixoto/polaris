@@ -21,13 +21,6 @@
   text-underline-offset: 2px;
 }
 
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: var(--space-4);
-  color: var(--text-tertiary);
-}
-
 /*
  * The restore confirmation. A live region, so it stays in the document whether or not it
  * says anything — never `display: none`, which would take it out of the accessibility tree

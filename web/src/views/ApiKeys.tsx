@@ -43,7 +43,7 @@ import {
   Modal,
   SettingsPage,
   SettingsSection,
-  Spinner,
+  LoadingRows,
   Tooltip,
 } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
@@ -229,9 +229,7 @@ export function ApiKeys() {
 
         {loading ? (
           <SettingsRow>
-            <div className={styles.loading}>
-              <Spinner label="Loading your API keys" />
-            </div>
+            <LoadingRows label="Loading your API keys" count={3} />
           </SettingsRow>
         ) : null}
 

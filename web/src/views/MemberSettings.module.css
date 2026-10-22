@@ -86,19 +86,6 @@
   margin: 0;
 }
 
-/*
- * The one place on this screen that waits.
- *
- * Everything above it renders from the replica and is on screen before the first frame;
- * invitations are not replicated and have to be asked for, so this section alone has a state
- * where the honest answer is "not yet".
- */
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: var(--space-4) 0;
-}
-
 /* --- the member table ------------------------------------------------------ */
 
 /*

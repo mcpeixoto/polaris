@@ -17,7 +17,7 @@ import {
   Modal,
   SettingsPage,
   SettingsSection,
-  Spinner,
+  LoadingRows,
   Textarea,
 } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
@@ -127,9 +127,7 @@ export function OAuthApps() {
 
         {loading ? (
           <SettingsRow>
-            <div className={styles.loading}>
-              <Spinner label="Loading OAuth applications" />
-            </div>
+            <LoadingRows label="Loading OAuth applications" count={2} />
           </SettingsRow>
         ) : null}
 

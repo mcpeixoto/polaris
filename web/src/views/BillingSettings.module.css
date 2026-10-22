@@ -11,13 +11,6 @@
   line-height: var(--line-height-normal);
 }
 
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: var(--space-4);
-  color: var(--text-tertiary);
-}
-
 /*
  * A fact this screen cannot change — the plan's name, the seat count, the renewal date —
  * drawn as a value in the control slot rather than as a field somebody forgot to enable.

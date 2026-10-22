@@ -14,7 +14,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { Button, SettingsPage, SettingsSection, Spinner } from '~/components';
+import { Button, SettingsPage, SettingsSection, LoadingRows } from '~/components';
 import { SettingsRow } from '~/components/SettingsSection';
 import { formatEur, PRO_MONTHLY_CENTS, annualMonthlyCents } from '~/features/pricing/plans';
 import { exact } from '~/features/time';
@@ -111,9 +111,7 @@ export function BillingSettings() {
       <SettingsPage title="Billing">
         <SettingsSection>
           <SettingsRow>
-            <div className={styles.loading}>
-              <Spinner />
-            </div>
+            <LoadingRows label="Loading your billing details" count={4} />
           </SettingsRow>
         </SettingsSection>
       </SettingsPage>
