@@ -49,6 +49,9 @@ struct MyIssuesView: View {
                     statusLine
                 }
                 .padding(.horizontal, Theme.Space.lg)
+                // Above the strip rather than below it: the strip is how somebody browses to
+                // a team, and a favourite is something they already chose to keep at hand.
+                FavoritesSection()
                 workspaceStrip
             }
             .padding(.vertical, Theme.Space.sm)

@@ -36,6 +36,16 @@ struct ProjectDetailView: View {
         .background(Theme.background.ignoresSafeArea())
         .navigationTitle(seed.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                FavoriteButton(
+                    kind: .project,
+                    targetId: seed.id,
+                    name: seed.name,
+                    identifier: "project.favorite"
+                )
+            }
+        }
         .task {
             if store == nil {
                 let created = ProjectStore(api: model.api, project: seed)

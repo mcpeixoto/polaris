@@ -42,8 +42,15 @@ final class IssueListQATests: XCTestCase {
 
     /// The row order as XCUITest sees it. Rows carry the combined label built in
     /// `IssueRow.accessibilityDescription`, which starts with the identifier.
+    ///
+    /// Both conditions are load bearing. The label alone counted rows this test is not
+    /// about: `IssueRow` is drawn in more than one place now — the favourites section on
+    /// Home renders one — and every one of them carries "Status:". The identifier alone
+    /// double-counted, because the one `IssueListView` stamps on a row is inherited by the
+    /// status button inside it, which has no label of its own.
     private func rowLabels(_ app: XCUIApplication) -> [String] {
         app.buttons.allElementsBoundByIndex
+            .filter { $0.identifier.hasPrefix("issue.row.") }
             .map { element in element.label }
             .filter { $0.contains("Status:") }
     }
