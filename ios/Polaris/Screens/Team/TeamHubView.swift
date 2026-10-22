@@ -13,6 +13,8 @@ struct TeamHubView: View {
     let team: Team
     @Environment(AppModel.self) private var model
     @State private var store: TeamWorkStore?
+    /// The schema's defaults, which is the grouped-by-status list the hub has always shown.
+    @State private var display = ListDisplay()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,6 +30,11 @@ struct TeamHubView: View {
         .background(Theme.background.ignoresSafeArea())
         .navigationTitle(team.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                DisplayOptionsMenu(display: $display, identifier: "team.hub.display")
+            }
+        }
         .task {
             if store == nil { store = TeamWorkStores.shared.store(for: team, model: model) }
             await store?.load()
@@ -268,7 +275,7 @@ struct TeamHubView: View {
                 }
                 IssueListView(
                     issues: issues,
-                    grouping: .status,
+                    display: display,
                     statesFor: { model.workspaceData.states(forTeam: $0.team.id) },
                     ensureStates: { await model.workspaceData.ensureStates(forTeam: $0.team.id) },
                     setState: { issue, state in

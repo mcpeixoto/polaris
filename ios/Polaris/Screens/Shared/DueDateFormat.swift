@@ -1,4 +1,5 @@
 import Foundation
+import PolarisCore
 
 /// How a due date is said on a row: short, and red once it has passed.
 ///
@@ -29,18 +30,12 @@ enum DueDateFormat {
     }
 
     /// `2026-09-30` as midnight of that day in the given calendar.
+    ///
+    /// The implementation moved to `CalendarDay` in Core when the due-date *buckets* needed it:
+    /// a row that calls something overdue and a heading that files it under "This week" have to
+    /// be parsing the same way, and two copies of this would eventually disagree about
+    /// `2026-02-30`.
     static func day(_ value: String, calendar: Calendar) -> Date? {
-        let parts = value.split(separator: "-", omittingEmptySubsequences: false)
-        guard parts.count == 3,
-              let year = Int(parts[0]), let month = Int(parts[1]), let day = Int(parts[2]),
-              (1...12).contains(month), (1...31).contains(day)
-        else { return nil }
-        var components = DateComponents()
-        components.calendar = calendar
-        components.year = year
-        components.month = month
-        components.day = day
-        guard let date = components.date, components.isValidDate(in: calendar) else { return nil }
-        return calendar.startOfDay(for: date)
+        CalendarDay.parse(value, calendar: calendar)
     }
 }

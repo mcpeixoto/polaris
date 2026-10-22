@@ -13,6 +13,8 @@ struct ProjectDetailView: View {
     @State private var store: ProjectStore?
     @State private var writeError: PolarisError?
     @State private var pendingIDs: Set<String> = []
+    /// The schema's defaults: a project's issues have always been grouped by status.
+    @State private var display = ListDisplay()
 
     private let seed: Project
     /// How many milestones the header shows before it says "and N more".
@@ -37,7 +39,8 @@ struct ProjectDetailView: View {
         .navigationTitle(seed.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                DisplayOptionsMenu(display: $display, identifier: "project.display")
                 FavoriteButton(
                     kind: .project,
                     targetId: seed.id,
@@ -244,7 +247,7 @@ struct ProjectDetailView: View {
             IssueListView(
                 issues: issues,
                 pendingIDs: pendingIDs,
-                grouping: .status,
+                display: display,
                 statesFor: { model.workspaceData.states(forTeam: $0.team.id) },
                 ensureStates: { await model.workspaceData.ensureStates(forTeam: $0.team.id) },
                 setState: { issue, state in

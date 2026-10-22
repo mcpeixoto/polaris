@@ -27,8 +27,14 @@ final class ComposeInboxSettingsTests: XCTestCase {
 
     /// The row order as XCUITest sees it. Rows carry the combined label built in
     /// `IssueRow.accessibilityDescription`, which starts with the identifier.
+    /// Both conditions are load bearing, and the same pair `IssueListQATests` needs. The
+    /// label alone counts rows this suite is not about: `IssueRow` is drawn in more than one
+    /// place now — the favourites section on Home renders one — and every one of them carries
+    /// "Status:". The identifier alone double-counts, because the one `IssueListView` stamps
+    /// on a row is inherited by the status button inside it, which has no label of its own.
     private func rowLabels(_ app: XCUIApplication) -> [String] {
         app.buttons.allElementsBoundByIndex
+            .filter { $0.identifier.hasPrefix("issue.row.") }
             .map { $0.label }
             .filter { $0.contains("Status:") }
     }

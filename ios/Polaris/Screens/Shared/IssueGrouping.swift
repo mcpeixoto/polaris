@@ -7,6 +7,12 @@ import PolarisCore
 /// has not started, then the backlog, then everything closed — and within a category by the
 /// workspace's own order of its states. An empty group is not a group; it is not emitted.
 /// The order of issues inside a group is whatever the caller passed, which is `IssueOrder`.
+///
+/// Now a forwarder onto `IssueSectioning`, which does the same job for all nine of the display
+/// schema's groupings. Kept — name, shape and all — rather than deleted, because the five tests
+/// in `ListPresentationTests` that address it are the only assertion that the general
+/// implementation preserves the status-only semantics this view shipped with. They pass through
+/// here unchanged, which is the point: a conformance suite, not legacy.
 enum IssueGrouping {
     struct Group: Identifiable {
         let state: WorkflowState
@@ -14,44 +20,26 @@ enum IssueGrouping {
         var id: String { state.id }
     }
 
-    /// Where a category sits in the list. Triage is at the top because it is the work
-    /// nobody has decided about yet, and started is above unstarted because it is the work
-    /// somebody is doing right now.
     static func rank(_ category: StateCategory) -> Int {
-        switch category {
-        case .triage: 0
-        case .started: 1
-        case .unstarted: 2
-        case .backlog: 3
-        case .completed: 4
-        case .canceled: 5
-        case .duplicate: 6
-        }
+        IssueSectioning.rank(category)
     }
 
     static func byStatus(_ issues: [Issue], statesFor: (Issue) -> [WorkflowState]) -> [Group] {
-        var order: [String] = []
-        var members: [String: [Issue]] = [:]
-        var states: [String: WorkflowState] = [:]
-        var positions: [String: Int] = [:]
-        for issue in issues {
-            let state = issue.state
-            if members[state.id] == nil {
-                order.append(state.id)
-                states[state.id] = state
-                positions[state.id] = statesFor(issue).firstIndex { $0.id == state.id } ?? Int.max
+        // `withoutActuallyEscaping` rather than marking the parameter `@escaping`: `Context`
+        // stores its resolver, but this signature is the one five tests and every call site
+        // already use, and sectioning is over before this function returns.
+        withoutActuallyEscaping(statesFor) { resolve in
+            // `manual` is "the order the caller passed", which is exactly what this function
+            // has always promised about the rows inside a group.
+            IssueSectioning.sections(
+                issues,
+                display: ListDisplay(groupBy: .state, orderBy: .manual),
+                context: IssueSectioning.Context(statesFor: resolve)
+            )
+            .compactMap { section in
+                guard case .state(let state) = section.key else { return nil }
+                return Group(state: state, issues: section.issues)
             }
-            members[state.id, default: []].append(issue)
         }
-        return order
-            .sorted { left, right in
-                let leftState = states[left]!, rightState = states[right]!
-                let leftRank = rank(leftState.category), rightRank = rank(rightState.category)
-                if leftRank != rightRank { return leftRank < rightRank }
-                let leftPosition = positions[left]!, rightPosition = positions[right]!
-                if leftPosition != rightPosition { return leftPosition < rightPosition }
-                return leftState.name < rightState.name
-            }
-            .map { Group(state: states[$0]!, issues: members[$0] ?? []) }
     }
 }
