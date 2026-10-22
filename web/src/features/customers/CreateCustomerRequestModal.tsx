@@ -17,9 +17,19 @@ import { useId, useRef, useState, type FormEvent } from 'react';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Button, Menu, Modal, PropertyPill, Switch, Textarea, type MenuNode } from '~/components';
+import {
+  Button,
+  ConfirmDialog,
+  Menu,
+  Modal,
+  PropertyPill,
+  Switch,
+  Textarea,
+  type MenuNode,
+} from '~/components';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { useDialogSubmit } from '~/hooks/useDialogSubmit';
+import { useDiscardGuard } from '~/hooks/useDiscardGuard';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import type { UUID } from '~/store';
@@ -98,6 +108,23 @@ export function CreateCustomerRequestModal({
   const needsTarget = issueId === undefined && projectId === undefined;
   const customer = customers.find((row) => row.id === customerId) ?? null;
   const issue = issues.find((row) => row.id === chosenIssue) ?? null;
+
+  /**
+   * Whether there is anything in here nobody else has a copy of.
+   *
+   * Measured against the seed rather than against empty: this dialog is usually opened from
+   * an issue or a customer page, so the customer, issue and project it arrives holding are
+   * the context it was opened in and not work somebody did. Asking "are you sure" over a
+   * dialog that was opened and immediately dismissed is how people learn to dismiss the
+   * question unread.
+   */
+  const dirty =
+    body.trim() !== '' ||
+    important ||
+    customerId !== (seededCustomerId ?? null) ||
+    chosenIssue !== (issueId ?? null) ||
+    chosenProject !== (projectId ?? null);
+  const { requestClose, confirming, keep, discard } = useDiscardGuard(dirty, onClose);
 
   const customerItems: MenuNode[] = [
     {
@@ -178,113 +205,127 @@ export function CreateCustomerRequestModal({
   );
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="New customer request"
-      size="md"
-      initialFocus={bodyRef}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button form={formId} type="submit" variant="primary" loading={saving}>
-            Add request
-          </Button>
-        </>
-      }
-    >
-      <form
-        id={formId}
-        className={styles.form}
-        onSubmit={(event: FormEvent) => {
-          event.preventDefault();
-          void save();
-        }}
+    <>
+      <Modal
+        open={open}
+        onClose={requestClose}
+        title="New customer request"
+        size="md"
+        initialFocus={bodyRef}
+        footer={
+          <>
+            <Button variant="ghost" onClick={requestClose}>
+              Cancel
+            </Button>
+            <Button form={formId} type="submit" variant="primary" loading={saving}>
+              Add request
+            </Button>
+          </>
+        }
       >
-        <Textarea
-          ref={bodyRef}
-          label="Request"
-          value={body}
-          onChange={(event) => setBody(event.target.value)}
-          placeholder="What did they ask for?"
-          minRows={4}
+        <form
+          id={formId}
+          className={styles.form}
+          onSubmit={(event: FormEvent) => {
+            event.preventDefault();
+            void save();
+          }}
+        >
+          <Textarea
+            ref={bodyRef}
+            label="Request"
+            value={body}
+            onChange={(event) => setBody(event.target.value)}
+            placeholder="What did they ask for?"
+            minRows={4}
+          />
+
+          <div className={styles.pills}>
+            {seededCustomerId === undefined && (
+              <>
+                <PropertyPill
+                  {...customerMenu.props}
+                  name="Customer"
+                  describe={`${formId}-customer`}
+                  empty={customer === null ? 'No customer' : undefined}
+                >
+                  {customer?.name ?? 'Customer'}
+                </PropertyPill>
+                <Menu
+                  open={customerMenu.open}
+                  onClose={customerMenu.hide}
+                  trigger={customerMenu.ref}
+                  items={customerItems}
+                  label="Customer"
+                  filterable
+                  filterPlaceholder="Asked for by…"
+                  emptyLabel="No customer by that name"
+                />
+              </>
+            )}
+
+            {needsTarget && (
+              <>
+                <PropertyPill
+                  {...issueMenu.props}
+                  name="Issue"
+                  describe={`${formId}-issue`}
+                  empty={issue === null ? 'No issue' : undefined}
+                >
+                  {issue === null ? 'Issue' : issue.identifier}
+                </PropertyPill>
+                <Menu
+                  open={issueMenu.open}
+                  onClose={issueMenu.hide}
+                  trigger={issueMenu.ref}
+                  items={issueItems}
+                  label="Issue"
+                  filterable
+                  filterPlaceholder="Attach to an issue…"
+                  emptyLabel="No issue under that name"
+                />
+
+                <PropertyPill
+                  {...projectMenu.props}
+                  name="Project"
+                  describe={`${formId}-project`}
+                  empty={chosenProject === null ? 'No project' : undefined}
+                >
+                  <ProjectPillLabel projectId={chosenProject} />
+                </PropertyPill>
+                <ProjectPicker
+                  open={projectMenu.open}
+                  onClose={projectMenu.hide}
+                  trigger={projectMenu.ref}
+                  value={chosenProject}
+                  onSelect={setChosenProject}
+                />
+              </>
+            )}
+          </div>
+
+          <Switch label="Mark as important" checked={important} onChange={setImportant} />
+
+          {error !== null && (
+            <p className={styles.error} role="alert">
+              {error}
+            </p>
+          )}
+        </form>
+      </Modal>
+
+      {confirming ? (
+        <ConfirmDialog
+          open
+          title="Discard this request?"
+          consequence="Nothing about this request has been saved yet, and closing the dialog throws away what you wrote."
+          confirmLabel="Discard"
+          destructive
+          onConfirm={discard}
+          onClose={keep}
         />
-
-        <div className={styles.pills}>
-          {seededCustomerId === undefined && (
-            <>
-              <PropertyPill
-                {...customerMenu.props}
-                name="Customer"
-                describe={`${formId}-customer`}
-                empty={customer === null ? 'No customer' : undefined}
-              >
-                {customer?.name ?? 'Customer'}
-              </PropertyPill>
-              <Menu
-                open={customerMenu.open}
-                onClose={customerMenu.hide}
-                trigger={customerMenu.ref}
-                items={customerItems}
-                label="Customer"
-                filterable
-                filterPlaceholder="Asked for by…"
-                emptyLabel="No customer by that name"
-              />
-            </>
-          )}
-
-          {needsTarget && (
-            <>
-              <PropertyPill
-                {...issueMenu.props}
-                name="Issue"
-                describe={`${formId}-issue`}
-                empty={issue === null ? 'No issue' : undefined}
-              >
-                {issue === null ? 'Issue' : issue.identifier}
-              </PropertyPill>
-              <Menu
-                open={issueMenu.open}
-                onClose={issueMenu.hide}
-                trigger={issueMenu.ref}
-                items={issueItems}
-                label="Issue"
-                filterable
-                filterPlaceholder="Attach to an issue…"
-                emptyLabel="No issue under that name"
-              />
-
-              <PropertyPill
-                {...projectMenu.props}
-                name="Project"
-                describe={`${formId}-project`}
-                empty={chosenProject === null ? 'No project' : undefined}
-              >
-                <ProjectPillLabel projectId={chosenProject} />
-              </PropertyPill>
-              <ProjectPicker
-                open={projectMenu.open}
-                onClose={projectMenu.hide}
-                trigger={projectMenu.ref}
-                value={chosenProject}
-                onSelect={setChosenProject}
-              />
-            </>
-          )}
-        </div>
-
-        <Switch label="Mark as important" checked={important} onChange={setImportant} />
-
-        {error !== null && (
-          <p className={styles.error} role="alert">
-            {error}
-          </p>
-        )}
-      </form>
-    </Modal>
+      ) : null}
+    </>
   );
 }
 

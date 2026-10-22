@@ -11,7 +11,7 @@ import { Link, Navigate, useNavigate } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Button, Checkbox, EmptyState, Input, Modal } from '~/components';
+import { Button, Checkbox, ConfirmDialog, EmptyState, Input, Modal } from '~/components';
 import { EntityLoading, useStoreSettled } from '~/features/entity-gate/EntityGate';
 import { dayKeyOf } from '~/features/inbox/inbox';
 import { browserTimezone } from '~/features/locale';
@@ -19,6 +19,7 @@ import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadg
 import { createPulseFeed, deletePulseFeed, updatePulseFeed } from '~/features/pulse/mutations';
 import { feedIdOf, listPulse, listPulseFeeds, type PulseTab } from '~/features/pulse/pulse';
 import { when } from '~/features/time';
+import { useDiscardGuard } from '~/hooks/useDiscardGuard';
 import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId, useViewerRole } from '~/hooks/useViewer';
@@ -285,6 +286,15 @@ function PulseFeedEditor({
 
   useKeyContext('modal');
 
+  /**
+   * The name, measured against the name the dialog opened with — empty for a new feed, the
+   * feed's own for an edit, so re-opening one and pressing Escape asks nothing. The project
+   * checkboxes are a selection, not typing, and the same reasoning as everywhere else
+   * leaves them out.
+   */
+  const dirty = name !== (feed?.name ?? '');
+  const { requestClose, confirming, keep, discard } = useDiscardGuard(dirty, onClose);
+
   const toggle = (id: UUID) => {
     setSelected((current) => {
       const next = new Set(current);
@@ -337,80 +347,98 @@ function PulseFeedEditor({
   };
 
   return (
-    <Modal
-      open
-      onClose={onClose}
-      title={feed === null ? 'New feed' : 'Edit feed'}
-      description="A personal subset of project status updates. Only you see it."
-      size="md"
-      initialFocus={nameRef}
-      footer={
-        // Three buttons of one weight is three claims about what Enter does. The footer rule
-        // is one primary, at most one secondary, and cancel demoted to ghost — so the only
-        // bordered control left beside the primary is the destructive one, which is also the
-        // one that most needs to look unlike the button next to it.
-        <>
-          {feed !== null && (
-            <Button variant="danger" onClick={() => void remove()} disabled={saving}>
-              Delete
+    <>
+      <Modal
+        open
+        onClose={requestClose}
+        title={feed === null ? 'New feed' : 'Edit feed'}
+        description="A personal subset of project status updates. Only you see it."
+        size="md"
+        initialFocus={nameRef}
+        footer={
+          // Three buttons of one weight is three claims about what Enter does. The footer rule
+          // is one primary, at most one secondary, and cancel demoted to ghost — so the only
+          // bordered control left beside the primary is the destructive one, which is also the
+          // one that most needs to look unlike the button next to it.
+          <>
+            {feed !== null && (
+              <Button variant="danger" onClick={() => void remove()} disabled={saving}>
+                Delete
+              </Button>
+            )}
+            <Button variant="ghost" onClick={requestClose}>
+              Cancel
             </Button>
-          )}
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button form={formId} type="submit" variant="primary" loading={saving}>
-            {feed === null ? 'Create feed' : 'Save feed'}
-          </Button>
-        </>
-      }
-    >
-      <form
-        id={formId}
-        className={styles.form}
-        onSubmit={(event: FormEvent) => {
-          event.preventDefault();
-          void save();
-        }}
+            <Button form={formId} type="submit" variant="primary" loading={saving}>
+              {feed === null ? 'Create feed' : 'Save feed'}
+            </Button>
+          </>
+        }
       >
-        <Input
-          ref={nameRef}
-          label="Name"
-          value={name}
-          onChange={(event) => {
-            setName(event.target.value);
-            setNameError(null);
+        <form
+          id={formId}
+          className={styles.form}
+          onSubmit={(event: FormEvent) => {
+            event.preventDefault();
+            void save();
           }}
-          error={nameError ?? undefined}
-          placeholder="Shipping"
-          maxLength={64}
-        />
-        <fieldset className={styles.projects}>
-          <legend className={styles.projectsLegend}>Projects</legend>
-          {projects.length === 0 ? (
-            <p className={styles.hint}>Create a project first, then a feed can follow it.</p>
-          ) : (
-            projects.map((project) => (
-              <Checkbox
-                key={project.id}
-                label={project.name}
-                checked={selected.has(project.id)}
-                onChange={() => toggle(project.id)}
-              />
-            ))
-          )}
-          {projectsError !== null && (
+        >
+          <Input
+            ref={nameRef}
+            label="Name"
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value);
+              setNameError(null);
+            }}
+            error={nameError ?? undefined}
+            placeholder="Shipping"
+            maxLength={64}
+          />
+          <fieldset className={styles.projects}>
+            <legend className={styles.projectsLegend}>Projects</legend>
+            {projects.length === 0 ? (
+              <p className={styles.hint}>Create a project first, then a feed can follow it.</p>
+            ) : (
+              projects.map((project) => (
+                <Checkbox
+                  key={project.id}
+                  label={project.name}
+                  checked={selected.has(project.id)}
+                  onChange={() => toggle(project.id)}
+                />
+              ))
+            )}
+            {projectsError !== null && (
+              <p className={styles.error} role="alert">
+                {projectsError}
+              </p>
+            )}
+          </fieldset>
+          {saveError !== null && (
             <p className={styles.error} role="alert">
-              {projectsError}
+              {saveError}
             </p>
           )}
-        </fieldset>
-        {saveError !== null && (
-          <p className={styles.error} role="alert">
-            {saveError}
-          </p>
-        )}
-      </form>
-    </Modal>
+        </form>
+      </Modal>
+
+      {confirming ? (
+        <ConfirmDialog
+          open
+          title={feed === null ? 'Discard this feed?' : 'Discard these changes?'}
+          consequence={
+            feed === null
+              ? 'The name you have typed is thrown away and no feed is created — a feed exists only once you press Create feed.'
+              : 'The feed keeps the name it had before, because nothing is written until you press Save feed.'
+          }
+          confirmLabel="Discard"
+          destructive
+          onConfirm={discard}
+          onClose={keep}
+        />
+      ) : null}
+    </>
   );
 }
 

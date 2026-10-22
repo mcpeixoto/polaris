@@ -26,9 +26,10 @@ import { useNavigate } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Button, Input, Modal, Switch } from '~/components';
+import { Button, ConfirmDialog, Input, Modal, Switch } from '~/components';
 import type { DisplayOptions, FilterNode } from '~/filter';
 import { useDialogSubmit } from '~/hooks/useDialogSubmit';
+import { useDiscardGuard } from '~/hooks/useDiscardGuard';
 import { useViewer, useViewerId } from '~/hooks/useViewer';
 import type { UUID } from '~/store';
 
@@ -85,6 +86,16 @@ export function SaveViewModal({
     attached ? 'That view could not be created.' : 'Could not save the view',
   );
 
+  /**
+   * The name only. `personal` is derived from who the viewer is and where they saved from,
+   * so the switch as it stands is this dialog's own answer rather than work somebody did —
+   * and a question asked over a dialog that was opened and immediately dismissed teaches
+   * people to dismiss it without reading it. The filter itself is the list's, not this
+   * dialog's: closing does not throw it away.
+   */
+  const dirty = name.trim() !== '';
+  const { requestClose, confirming, keep, discard } = useDiscardGuard(dirty, onClose);
+
   const save = async () => {
     const trimmed = name.trim();
     if (trimmed === '') {
@@ -138,74 +149,87 @@ export function SaveViewModal({
   );
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={attached ? 'New view' : 'Save view'}
-      description={
-        attached
-          ? "A saved filter of this project's issues, shown as a tab."
-          : "A named filter. Shared views appear in everyone's sidebar; private ones stay yours."
-      }
-      size="md"
-      initialFocus={nameRef}
-      footer={
-        <>
-          {/* Ghost, not the default secondary. A footer says what Enter does with exactly one
+    <>
+      <Modal
+        open={open}
+        onClose={requestClose}
+        title={attached ? 'New view' : 'Save view'}
+        description={
+          attached
+            ? "A saved filter of this project's issues, shown as a tab."
+            : "A named filter. Shared views appear in everyone's sidebar; private ones stay yours."
+        }
+        size="md"
+        initialFocus={nameRef}
+        footer={
+          <>
+            {/* Ghost, not the default secondary. A footer says what Enter does with exactly one
               primary; a bordered Cancel beside it is a second control making the same visual
               claim, and the only one of the two that throws the form away. */}
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button form={formId} type="submit" variant="primary" loading={saving}>
-            {attached ? 'Create view' : 'Save view'}
-          </Button>
-        </>
-      }
-    >
-      <form
-        id={formId}
-        className={styles.form}
-        onSubmit={(event: FormEvent) => {
-          event.preventDefault();
-          void save();
-        }}
+            <Button variant="ghost" onClick={requestClose}>
+              Cancel
+            </Button>
+            <Button form={formId} type="submit" variant="primary" loading={saving}>
+              {attached ? 'Create view' : 'Save view'}
+            </Button>
+          </>
+        }
       >
-        <Input
-          ref={nameRef}
-          label="Name"
-          value={name}
-          onChange={(event) => {
-            setName(event.target.value);
-            setNameError(null);
+        <form
+          id={formId}
+          className={styles.form}
+          onSubmit={(event: FormEvent) => {
+            event.preventDefault();
+            void save();
           }}
-          error={nameError ?? undefined}
-          placeholder={attached ? 'View name' : 'My bugs'}
-        />
+        >
+          <Input
+            ref={nameRef}
+            label="Name"
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value);
+              setNameError(null);
+            }}
+            error={nameError ?? undefined}
+            placeholder={attached ? 'View name' : 'My bugs'}
+          />
 
-        {/* What is actually being saved. An attached tab starts from the whole project and
+          {/* What is actually being saved. An attached tab starts from the whole project and
             has nothing to show yet, so the summary is for the case that has one. */}
-        {attached ? null : (
-          <div className={styles.saving}>
-            <h3 className={styles.savingHeading}>What this view will show</h3>
-            <FilterSummary
-              filter={filter}
-              timezone={timezone}
-              label="Filter being saved"
-              emptyLabel="No filters — every issue in this list"
-            />
-          </div>
-        )}
+          {attached ? null : (
+            <div className={styles.saving}>
+              <h3 className={styles.savingHeading}>What this view will show</h3>
+              <FilterSummary
+                filter={filter}
+                timezone={timezone}
+                label="Filter being saved"
+                emptyLabel="No filters — every issue in this list"
+              />
+            </div>
+          )}
 
-        {attached ? null : (
-          <Switch label="Only visible to me" checked={personal} onChange={setPersonal} />
-        )}
-        {error !== null && (
-          <p className={styles.error} role="alert">
-            {error}
-          </p>
-        )}
-      </form>
-    </Modal>
+          {attached ? null : (
+            <Switch label="Only visible to me" checked={personal} onChange={setPersonal} />
+          )}
+          {error !== null && (
+            <p className={styles.error} role="alert">
+              {error}
+            </p>
+          )}
+        </form>
+      </Modal>
+      {confirming ? (
+        <ConfirmDialog
+          open
+          title="Discard this view?"
+          consequence="The view has not been saved, and the name you typed is not kept anywhere else."
+          confirmLabel="Discard"
+          destructive
+          onConfirm={discard}
+          onClose={keep}
+        />
+      ) : null}
+    </>
   );
 }

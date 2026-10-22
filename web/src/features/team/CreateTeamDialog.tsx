@@ -21,8 +21,9 @@ import { useId, useRef, useState, type FormEvent } from 'react';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Button, Input, Modal, PropertyPill, SWATCHES, Switch } from '~/components';
+import { Button, ConfirmDialog, Input, Modal, PropertyPill, SWATCHES, Switch } from '~/components';
 import { IconPicker } from '~/features/icon/IconPicker';
+import { useDiscardGuard } from '~/hooks/useDiscardGuard';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import type { Team } from '~/store';
@@ -61,6 +62,16 @@ export function CreateTeamDialog({ onClose, onCreated }: CreateTeamDialogProps) 
   const [keyError, setKeyError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  /**
+   * Everything here somebody had to decide. The key counts only once it has been typed
+   * into: until then it is whatever `suggestTeamKey` made of the name, which is this
+   * dialog's suggestion rather than a choice — and a question asked over a dialog that was
+   * opened and immediately dismissed teaches people to dismiss it without reading it.
+   */
+  const dirty =
+    name.trim() !== '' || (keyTouched && key.trim() !== '') || isPrivate || icon.icon !== '';
+  const { requestClose, confirming, keep, discard } = useDiscardGuard(dirty, onClose);
 
   const save = async () => {
     if (saving) return;
@@ -127,115 +138,128 @@ export function CreateTeamDialog({ onClose, onCreated }: CreateTeamDialogProps) 
   const preview = key.trim() === '' ? null : `${key.trim().toUpperCase()}-123`;
 
   return (
-    <Modal
-      open
-      onClose={onClose}
-      title="New team"
-      size="sm"
-      initialFocus={nameRef}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button form={formId} type="submit" variant="primary" loading={saving}>
-            Create team
-          </Button>
-        </>
-      }
-    >
-      <form
-        id={formId}
-        className={styles.form}
-        onSubmit={(event: FormEvent<HTMLFormElement>) => {
-          event.preventDefault();
-          // The picker panel is portalled out of this form's DOM but stay inside its React
-          // tree, so the little form it uses to commit a typed value bubbles its
-          // submit through here. Only this form's own submit is a save; without the check,
-          // choosing an emoji filed the edit as a side effect of choosing it.
-          if (event.target !== event.currentTarget) return;
-          void save();
-        }}
+    <>
+      <Modal
+        open
+        onClose={requestClose}
+        title="New team"
+        size="sm"
+        initialFocus={nameRef}
+        footer={
+          <>
+            <Button variant="ghost" onClick={requestClose}>
+              Cancel
+            </Button>
+            <Button form={formId} type="submit" variant="primary" loading={saving}>
+              Create team
+            </Button>
+          </>
+        }
       >
-        <Input
-          ref={nameRef}
-          label="Name"
-          value={name}
-          error={nameError ?? undefined}
-          placeholder="Design systems"
-          autoComplete="off"
-          onChange={(event) => {
-            const next = event.target.value;
-            setName(next);
-            if (nameError !== null) setNameError(null);
-            if (!keyTouched) {
-              setKey(suggestTeamKey(next));
-              setKeyError(null);
-            }
+        <form
+          id={formId}
+          className={styles.form}
+          onSubmit={(event: FormEvent<HTMLFormElement>) => {
+            event.preventDefault();
+            // The picker panel is portalled out of this form's DOM but stay inside its React
+            // tree, so the little form it uses to commit a typed value bubbles its
+            // submit through here. Only this form's own submit is a save; without the check,
+            // choosing an emoji filed the edit as a side effect of choosing it.
+            if (event.target !== event.currentTarget) return;
+            void save();
           }}
-        />
-
-        <Input
-          ref={keyRef}
-          label="Key"
-          hint={
-            preview === null
-              ? 'It goes in front of every issue identifier and is hard to change later.'
-              : `Issues in this team will be called ${preview}.`
-          }
-          value={key}
-          error={keyError ?? undefined}
-          maxLength={MAX_TEAM_KEY_LENGTH}
-          autoComplete="off"
-          spellCheck={false}
-          className={styles.key}
-          onChange={(event) => {
-            setKeyTouched(true);
-            setKey(event.target.value.toUpperCase());
-            if (keyError !== null) setKeyError(null);
-          }}
-        />
-
-        <div className={styles.pills}>
-          <PropertyPill
-            {...iconTrigger.props}
-            name="Icon"
-            describe={`${formId}-icon`}
-            empty={icon.icon === '' ? 'No icon' : undefined}
-            icon={
-              icon.icon === '' ? null : (
-                <span aria-hidden="true" style={{ color: icon.color }}>
-                  {icon.icon}
-                </span>
-              )
-            }
-          >
-            {icon.icon === '' ? 'Icon' : icon.icon}
-          </PropertyPill>
-          <IconPicker
-            open={iconTrigger.open}
-            onClose={iconTrigger.hide}
-            trigger={iconTrigger.ref}
-            value={icon}
-            onChange={setIcon}
-            actionId="team.create.closeIconPicker"
-            label="Team icon"
+        >
+          <Input
+            ref={nameRef}
+            label="Name"
+            value={name}
+            error={nameError ?? undefined}
+            placeholder="Design systems"
+            autoComplete="off"
+            onChange={(event) => {
+              const next = event.target.value;
+              setName(next);
+              if (nameError !== null) setNameError(null);
+              if (!keyTouched) {
+                setKey(suggestTeamKey(next));
+                setKeyError(null);
+              }
+            }}
           />
-        </div>
 
-        <Switch
-          label="Private team"
-          hint="A private team and everything in it is invisible to anyone who is not a member."
-          checked={isPrivate}
-          onChange={setPrivate}
+          <Input
+            ref={keyRef}
+            label="Key"
+            hint={
+              preview === null
+                ? 'It goes in front of every issue identifier and is hard to change later.'
+                : `Issues in this team will be called ${preview}.`
+            }
+            value={key}
+            error={keyError ?? undefined}
+            maxLength={MAX_TEAM_KEY_LENGTH}
+            autoComplete="off"
+            spellCheck={false}
+            className={styles.key}
+            onChange={(event) => {
+              setKeyTouched(true);
+              setKey(event.target.value.toUpperCase());
+              if (keyError !== null) setKeyError(null);
+            }}
+          />
+
+          <div className={styles.pills}>
+            <PropertyPill
+              {...iconTrigger.props}
+              name="Icon"
+              describe={`${formId}-icon`}
+              empty={icon.icon === '' ? 'No icon' : undefined}
+              icon={
+                icon.icon === '' ? null : (
+                  <span aria-hidden="true" style={{ color: icon.color }}>
+                    {icon.icon}
+                  </span>
+                )
+              }
+            >
+              {icon.icon === '' ? 'Icon' : icon.icon}
+            </PropertyPill>
+            <IconPicker
+              open={iconTrigger.open}
+              onClose={iconTrigger.hide}
+              trigger={iconTrigger.ref}
+              value={icon}
+              onChange={setIcon}
+              actionId="team.create.closeIconPicker"
+              label="Team icon"
+            />
+          </div>
+
+          <Switch
+            label="Private team"
+            hint="A private team and everything in it is invisible to anyone who is not a member."
+            checked={isPrivate}
+            onChange={setPrivate}
+          />
+
+          {saveError === null ? null : (
+            <p className={styles.error} role="alert">
+              {saveError}
+            </p>
+          )}
+        </form>
+      </Modal>
+      {confirming ? (
+        <ConfirmDialog
+          open
+          title="Discard this team?"
+          consequence="The team has not been created, and the name, key and icon you chose are not saved anywhere else."
+          confirmLabel="Discard"
+          destructive
+          onConfirm={discard}
+          onClose={keep}
         />
-
-        {saveError === null ? null : (
-          <p className={styles.error} role="alert">
-            {saveError}
-          </p>
-        )}
-      </form>
-    </Modal>
+      ) : null}
+    </>
   );
 }
