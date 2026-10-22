@@ -71,6 +71,14 @@
   border-inline-start: var(--space-1) solid var(--text-danger);
 }
 
+/* The same edge in the colour the product already uses for work that finished. It agrees
+   with the words rather than carrying the meaning: a success toast says what happened, and
+   somebody who cannot tell this edge from the red one still reads "Invited pat@example.com"
+   rather than a refusal. */
+.success {
+  border-inline-start: var(--space-1) solid var(--state-completed);
+}
+
 .text {
   display: flex;
   min-width: 0;

@@ -32,6 +32,7 @@ import { PencilGlyph, TrashGlyph } from '~/features/project-updates/glyphs';
 import { setCustomerSubscription } from '~/features/subscriptions/mutations';
 import { SubscribeBell } from '~/features/subscriptions/SubscribeBell';
 import { useContextMenu } from '~/hooks/useContextMenu';
+import { offerSuccess } from '~/features/toast/ToastHost';
 import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -274,10 +275,16 @@ export function CustomerDetail() {
     if (mergeTarget === null) return;
     setMergeBusy(true);
     setMergeError(null);
+    const from = customer.name;
+    const into = mergeTarget.name;
     mergeCustomers(engine, customer.id, mergeTarget.id)
       .then(() => {
         setMergeBusy(false);
         setMerging(false);
+        // The one write on this screen the screen cannot show: a merge is not optimistic,
+        // it cannot be undone, and what it leaves on screen is somebody else's customer
+        // page — which is indistinguishable from having clicked the wrong row.
+        offerSuccess({ title: `Merged ${from} into ${into}` });
         void navigate(`/customer/${mergeTarget.id}`);
       })
       .catch((failure: unknown) => {

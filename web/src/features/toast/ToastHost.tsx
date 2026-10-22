@@ -118,6 +118,22 @@ export function offerError(request: Omit<ToastRequest, 'tone'>): string {
   return showToast({ ...request, tone: 'error' });
 }
 
+/**
+ * Says a write landed, for the writes whose landing is invisible.
+ *
+ * The product reported every refusal and confirmed nothing, so a bulk move of fifty issues,
+ * an invitation sent and an export started were all indistinguishable from a click that
+ * missed. This is not for the optimistic edits, which are the majority: a row that has
+ * already changed on screen has said it, and a toast repeating it is noise. It is for the
+ * ones where nothing on the current screen moves.
+ *
+ * `retry` is omitted from the type rather than left unused. A retry on something that
+ * worked is a second write nobody asked for.
+ */
+export function offerSuccess(request: Omit<ToastRequest, 'tone' | 'retry'>): string {
+  return showToast({ ...request, tone: 'success' });
+}
+
 /** Takes one down early. */
 export function dismissToast(id: string): void {
   publish(dismiss(stack, id));
@@ -217,6 +233,18 @@ export function ToastHost() {
  * and a stack-level exit would take the survivor with it. `open` is a local flag flipped by
  * the close button before the store is told, so the fall runs before the row is gone.
  */
+/**
+ * The leading edge, by tone.
+ *
+ * A map rather than a ternary chain because a third tone made the chain the place a fourth
+ * one would be forgotten. `info` has no entry on purpose: it is the default tone and the
+ * plain card is what it looks like.
+ */
+const TONE_CLASS: Partial<Record<ToastTone, string | undefined>> = {
+  error: styles.error,
+  success: styles.success,
+};
+
 function ToastCard({ toast }: { toast: Toast }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(true);
@@ -232,9 +260,7 @@ function ToastCard({ toast }: { toast: Toast }) {
   return (
     <div
       ref={cardRef}
-      className={[styles.toast, toast.tone === 'error' ? styles.error : null]
-        .filter(Boolean)
-        .join(' ')}
+      className={[styles.toast, TONE_CLASS[toast.tone] ?? null].filter(Boolean).join(' ')}
       {...exitProps}
     >
       <div className={styles.text}>
