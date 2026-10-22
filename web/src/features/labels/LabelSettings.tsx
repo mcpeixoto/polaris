@@ -43,6 +43,7 @@ import { useContextMenu } from '~/hooks/useContextMenu';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Store, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import {
   archiveLabel,
   createLabel,
@@ -74,6 +75,8 @@ interface Scope {
 const WORKSPACE_SCOPE = 'workspace';
 
 export function LabelSettings() {
+  useDocumentTitle(['Labels']);
+
   const engine = useEngine();
   const [error, setError] = useState<string | null>(null);
 

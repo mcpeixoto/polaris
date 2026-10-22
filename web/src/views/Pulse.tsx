@@ -19,6 +19,7 @@ import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadg
 import { createPulseFeed, deletePulseFeed, updatePulseFeed } from '~/features/pulse/mutations';
 import { feedIdOf, listPulse, listPulseFeeds, type PulseTab } from '~/features/pulse/pulse';
 import { when } from '~/features/time';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId, useViewerRole } from '~/hooks/useViewer';
 import type { Project, PulseFeed, Store, UUID } from '~/store';
@@ -109,6 +110,8 @@ export function Pulse() {
     ],
     [cursor, flat.length, active, navigate],
   );
+
+  useDocumentTitle(['Pulse']);
 
   /**
    * Guests never see Pulse, and the role has to come from the session to say so.

@@ -45,6 +45,7 @@ import {
   type Cell,
 } from '~/features/pricing/plans';
 import { useBillingLive } from '~/features/pricing/useBillingLive';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { isSignedIn } from '~/sync/api';
 
 import styles from './Pricing.module.css';
@@ -70,6 +71,8 @@ export function Pricing() {
    * downgraded it to "Talk to us" would be worse than either state.
    */
   const billingLive = useBillingLive();
+
+  useDocumentTitle(['Pricing']);
 
   return (
     <div className={styles.page}>

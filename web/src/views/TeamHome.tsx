@@ -20,6 +20,7 @@ import { Avatar, Badge, Button, EmptyState } from '~/components';
 import { EntityLoading, useEntityState } from '~/features/entity-gate/EntityGate';
 import { personName } from '~/features/prefs/prefs';
 import { triageQueueCount } from '~/features/triage/queue';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import type { Store, Team, UUID } from '~/store';
 import styles from './TeamHome.module.css';
@@ -57,6 +58,11 @@ export function TeamHome() {
   );
 
   const state = useEntityState(view);
+
+  // 'Team' rather than nothing while the row is in flight, because that is what the
+  // heading of both un-loaded branches says: a tab reading "Polaris" and a screen
+  // headed "Team" are the same moment described two ways.
+  useDocumentTitle(view === null ? ['Team'] : [view.team.name]);
 
   if (state === 'loading') {
     return (

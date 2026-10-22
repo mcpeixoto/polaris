@@ -46,6 +46,7 @@ import { plural } from '~/features/insights/plural';
 import { personName } from '~/features/prefs/prefs';
 import { when } from '~/features/time';
 import { useContextMenu } from '~/hooks/useContextMenu';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { listRowDomId, useListCursor } from '~/hooks/useListCursor';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
@@ -154,6 +155,8 @@ export function Dashboards() {
     ],
     [cursor.cursorId],
   );
+
+  useDocumentTitle(['Dashboards']);
 
   const closeMenus = () => {
     setMenuOpen(false);

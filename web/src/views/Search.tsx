@@ -83,6 +83,7 @@ import {
 } from '~/features/issue/rowMenu';
 import { contextMenuPoint, contextMenuPointOn } from '~/hooks/useContextMenu';
 import { useContextMenuHandoff } from '~/hooks/useContextMenuHandoff';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { LabelPicker } from '~/features/labels/LabelPicker';
 import { applyLabel, removeLabel } from '~/features/labels/mutations';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
@@ -579,6 +580,8 @@ export function Search() {
       setMenuOpen(true);
     },
   };
+
+  useDocumentTitle(['Search']);
 
   useKeyContext('list');
 

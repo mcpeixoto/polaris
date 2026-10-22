@@ -354,10 +354,6 @@ export function App() {
  */
 export function SignedInShell() {
   const { pathname } = useLocation();
-  // The shell's own claim on the tab, which is the bare product name. Screens that know what
-  // they are call the hook again with something more specific; this is what they fall back to
-  // so that leaving a named screen does not leave its name in the tab strip behind it.
-  useDocumentTitle([]);
   /*
     The address the session was created at, which is not an address the product has.
 
@@ -916,6 +912,9 @@ function GoHome() {
 export function NotFound() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
+
+  useDocumentTitle(['Page not found']);
+
   return (
     <EmptyState
       title="Page not found"

@@ -55,6 +55,7 @@ import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
 import { copyText } from '~/features/github/copy';
 import { useContextMenu } from '~/hooks/useContextMenu';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewer, useViewerId } from '~/hooks/useViewer';
@@ -128,6 +129,12 @@ export function ProjectShell() {
     ['projectSubscription'],
     [projectId, viewer?.id],
   );
+
+  // The shell names the tab, not the tab's own content: the overview deliberately has no
+  // heading of its own, and Activity would otherwise leave the project's name behind.
+  // Null while the row is still arriving, which reads as the bare product rather than as a
+  // tab briefly called "undefined".
+  useDocumentTitle(project === null ? [] : [project.name]);
 
   const toggleFavourite = () => {
     if (viewerId === null || project === null) return;

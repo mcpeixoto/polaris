@@ -7,6 +7,7 @@ import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { byOrderKey } from '~/store';
 import type { Store, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 
 import { archiveInitiativeLabel, createInitiativeLabel, updateInitiativeLabel } from './mutations';
 import styles from '../labels/LabelSettings.module.css';
@@ -22,6 +23,8 @@ interface LabelView {
 }
 
 export function InitiativeLabelSettings() {
+  useDocumentTitle(['Initiative labels']);
+
   const engine = useEngine();
   const [error, setError] = useState<string | null>(null);
 

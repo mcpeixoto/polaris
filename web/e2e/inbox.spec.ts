@@ -233,7 +233,7 @@ test.describe('inbox', () => {
     // server for anything: every row that appears arrived over the socket.
     await watcher.page.goto('/inbox');
     await expect(unreadLabel(watcher.page)).toHaveText('All read');
-    await expect(watcher.page).toHaveTitle('Polaris');
+    await expect(watcher.page).toHaveTitle('Inbox · Polaris');
 
     // ---------------------------------------------------------------- assigned
     await actor.keyboard.press('a');
@@ -245,7 +245,7 @@ test.describe('inbox', () => {
     ).toBeVisible({ timeout: 20_000 });
     await expect(unreadLabel(watcher.page)).toHaveText('1 unread');
     // The badge, on the only surface a browser tab has.
-    await expect(watcher.page).toHaveTitle('(1) Polaris');
+    await expect(watcher.page).toHaveTitle('(1) Inbox · Polaris');
 
     // ---------------------------------------------------------------- commented
     await comment(actor, 'A remark from the actor');
@@ -261,7 +261,7 @@ test.describe('inbox', () => {
     });
     await expect(statusRow).toBeVisible({ timeout: 20_000 });
     await expect(unreadLabel(watcher.page)).toHaveText('3 unread');
-    await expect(watcher.page).toHaveTitle('(3) Polaris');
+    await expect(watcher.page).toHaveTitle('(3) Inbox · Polaris');
 
     // ---------------------------------------------------------------- read, unread
     // Opening a row is how most rows are read, and it lands on the issue it is about.
@@ -285,7 +285,7 @@ test.describe('inbox', () => {
     // ---------------------------------------------------------------- mark all read
     await watcher.page.getByRole('button', { name: /mark all read/i }).click();
     await expect(unreadLabel(watcher.page)).toHaveText('All read', { timeout: 15_000 });
-    await expect(watcher.page).toHaveTitle('Polaris');
+    await expect(watcher.page).toHaveTitle('Inbox · Polaris');
     await watcher.page.reload();
     await expect(unreadLabel(watcher.page)).toHaveText('All read', { timeout: 20_000 });
 

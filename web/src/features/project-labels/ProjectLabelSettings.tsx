@@ -7,6 +7,7 @@ import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { byOrderKey } from '~/store';
 import type { Store, UUID } from '~/store';
 import { ApiError } from '~/sync/api';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 
 import { archiveProjectLabel, createProjectLabel, updateProjectLabel } from './mutations';
 import styles from '../labels/LabelSettings.module.css';
@@ -22,6 +23,8 @@ interface LabelView {
 }
 
 export function ProjectLabelSettings() {
+  useDocumentTitle(['Project labels']);
+
   const engine = useEngine();
   const [error, setError] = useState<string | null>(null);
 

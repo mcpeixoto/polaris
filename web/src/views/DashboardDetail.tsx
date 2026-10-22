@@ -25,6 +25,7 @@ import { EntityLoading, useEntityState } from '~/features/entity-gate/EntityGate
 import { issueIdsForTile, TILE_MEASURE, TILE_SLICE } from '~/features/dashboards/issueIds';
 import { buildInsights, MEASURE_LABELS, SLICE_LABELS } from '~/features/insights/computeInsights';
 import { formatTotal, formatValue, InsightChart } from '~/features/insights/InsightChart';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { ApiError } from '~/sync/api';
 import { compareOrderKeys } from '~/store';
@@ -97,6 +98,8 @@ export function DashboardDetail() {
   );
 
   const state = useEntityState(dashboard);
+
+  useDocumentTitle(dashboard === null ? [] : [dashboard.name]);
 
   // A cold start used to answer a deep link with "No such dashboard" while the row was
   // still arriving, and offer a button away from a page that was about to work.

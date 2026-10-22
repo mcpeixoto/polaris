@@ -14,6 +14,7 @@
 import type { FormEvent, ReactNode } from 'react';
 
 import { Logo } from '~/components';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 
 import styles from './AuthLayout.module.css';
 
@@ -28,6 +29,10 @@ export interface AuthLayoutProps {
 }
 
 export function AuthLayout({ title, subtitle, footer, children }: AuthLayoutProps) {
+  // One journey with several entrances, so the frame names the tab rather than each screen:
+  // a person bounced from sign-in to create-a-workspace should see the step they are on.
+  useDocumentTitle([title]);
+
   return (
     <main className={styles.page}>
       {/* The same accent wash the marketing page opens with, so the step from the poster

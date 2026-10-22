@@ -56,6 +56,7 @@ import { uiLocale } from '~/features/locale';
 import { ProgressRing } from '~/features/projects/ProgressRing';
 import { readCollapsed } from '~/features/view/collapse';
 import { useContextMenu } from '~/hooks/useContextMenu';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useListCursor, listRowDomId } from '~/hooks/useListCursor';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
@@ -194,6 +195,11 @@ export function Cycles() {
       ),
     [grouped, collapsed],
   );
+
+  // Cycles first, the team second: this is one team's cycle list, so the team is the
+  // container and belongs where every other trail puts it — to the right of the thing
+  // being looked at. The heading reads the other way round because it is a breadcrumb.
+  useDocumentTitle(team === null ? [] : ['Cycles', team.name]);
 
   useKeyContext('list');
   const cursor = useListCursor({

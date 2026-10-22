@@ -58,6 +58,7 @@ import { SubscribeBell } from '~/features/subscriptions/SubscribeBell';
 import { readCollapsed, writeCollapsed } from '~/features/view/collapse';
 import { isFavorite, toggleFavorite } from '~/features/view/mutations';
 import { useContextMenu } from '~/hooks/useContextMenu';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewer, useViewerId } from '~/hooks/useViewer';
@@ -156,6 +157,10 @@ export function InitiativeShell() {
   );
 
   useKeyContext('detail');
+
+  // The shell names the tab so that Activity, which renders no heading of its own, still
+  // says which initiative it belongs to.
+  useDocumentTitle(initiative === null ? [] : [initiative.name]);
 
   if (state === 'loading') return <EntityLoading label="Loading initiative…" lines={4} />;
   // `useLiveQuery` answers null for an initiative that is absent and for one still on the

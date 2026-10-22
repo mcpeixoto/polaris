@@ -45,6 +45,7 @@ import { report } from '~/features/issue/mutations';
 import { exact, when } from '~/features/time';
 import { entityRowMenuItems } from '~/features/entity/entityRowMenu';
 import { useContextMenu } from '~/hooks/useContextMenu';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { isFavorite, toggleFavorite } from '~/features/view/mutations';
 import { useViewerId } from '~/hooks/useViewer';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -181,6 +182,8 @@ export function Documents() {
       : team !== null
         ? `${team.name} documents`
         : 'Documents';
+
+  useDocumentTitle([heading]);
 
   const closeMenus = () => {
     setRowMenuOpen(false);

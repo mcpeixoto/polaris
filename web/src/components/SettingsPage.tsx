@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
+
 import styles from './SettingsPage.module.css';
 
 export interface SettingsPageProps {
@@ -52,6 +54,11 @@ export function SettingsPage({
   width = 'default',
   children,
 }: SettingsPageProps) {
+  // The frame owns the tab's name for the same reason it owns the heading: thirty settings
+  // screens that each named themselves would be thirty chances to forget, and the page's own
+  // title is already the one string that distinguishes them.
+  useDocumentTitle([title]);
+
   return (
     <div className={styles.screen}>
       <div className={width === 'wide' ? `${styles.body} ${styles.wide}` : styles.body}>

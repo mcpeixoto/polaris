@@ -70,6 +70,7 @@ import { copyText } from '~/features/github/copy';
 import { report } from '~/features/issue/mutations';
 import { isFavorite, toggleFavorite } from '~/features/view/mutations';
 import { useContextMenu } from '~/hooks/useContextMenu';
+import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useViewerId } from '~/hooks/useViewer';
 import type { Cycle } from '~/store';
@@ -164,6 +165,8 @@ export function CycleDetail() {
   const go = (target: Cycle | null) => {
     if (target !== null) void navigate(`/cycle/${target.id}`);
   };
+
+  useDocumentTitle(cycle === null ? [] : [cycle.name]);
 
   useKeyContext('detail');
   useActions(

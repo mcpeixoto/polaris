@@ -2,6 +2,8 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
+import { TITLE_SUFFIX } from '~/hooks/useDocumentTitle';
+
 import { DangerZone, DangerZoneRow } from './DangerZone';
 import { SettingsPage } from './SettingsPage';
 import { SettingsRow, SettingsSection } from './SettingsSection';
@@ -38,6 +40,19 @@ describe('SettingsPage', () => {
     );
 
     expect(screen.getByRole('alert').textContent).toBe('That change could not be saved.');
+  });
+
+  // Thirty-one settings screens reach the tab strip through this frame, so the frame is
+  // where the name is asserted. Before it named the tab, every one of them read "Polaris" —
+  // and six of them open side by side in the kind of session that needs a settings screen.
+  it('names the browser tab after the page', () => {
+    render(
+      <SettingsPage title="API keys">
+        <p>body</p>
+      </SettingsPage>,
+    );
+
+    expect(document.title).toBe(`API keys · ${TITLE_SUFFIX}`);
   });
 
   it('renders no alert region when nothing failed', () => {
