@@ -193,6 +193,73 @@ public final class IssuesStore {
         }
     }
 
+    /// One change across a selection, optimistically.
+    ///
+    /// The same shape as `setState` and for the same reasons — apply first, reconcile with
+    /// what the server returns, roll back what it refused — with one difference that is the
+    /// whole point of the operation: the server may accept part of a batch. So the rollback
+    /// is per id rather than wholesale. A thrown error is the batch failing as a unit and
+    /// every row goes back; a `skipped` entry is one row the server declined, and only that
+    /// row goes back, because the other eight genuinely moved and restoring them would be
+    /// this client inventing a failure.
+    ///
+    /// The result is handed to the caller rather than kept here: `skipped` is about the
+    /// selection the reader just acted on, not a property of the list, and a screen that
+    /// re-renders later must not still be apologising for a batch from ten minutes ago.
+    @discardableResult
+    public func bulkApply(_ edit: BulkIssueEdit) async -> BulkIssueResult? {
+        let ids = Set(edit.change.ids)
+        guard !ids.isEmpty else { return nil }
+        writeError = nil
+        pendingIssueIDs.formUnion(ids)
+        defer { pendingIssueIDs.subtract(ids) }
+
+        var originals: [String: Issue] = [:]
+        if var current = issues.value {
+            for index in current.indices where ids.contains(current[index].id) {
+                originals[current[index].id] = current[index]
+                edit.apply(to: &current[index])
+            }
+            issues = .loaded(sort(current))
+        }
+
+        do {
+            let result = try await api.bulkUpdateIssues(edit.change)
+            if var current = issues.value {
+                for confirmed in result.issues {
+                    if let position = current.firstIndex(where: { $0.id == confirmed.id }) {
+                        current[position] = confirmed
+                    }
+                }
+                for skip in result.skipped {
+                    if let original = originals[skip.id],
+                       let position = current.firstIndex(where: { $0.id == skip.id }) {
+                        current[position] = original
+                    }
+                }
+                issues = .loaded(sort(current))
+            }
+            // One fan-out per confirmed issue, and none for a skipped one: the rule in
+            // `AppModel.issueDidChange` is that only server-confirmed values travel, and a
+            // skipped id has no confirmed value to send.
+            for confirmed in result.issues { onWriteConfirmed?(confirmed) }
+            return result
+        } catch {
+            let mapped = PolarisError.mapped(error)
+            writeError = mapped
+            if case .unauthorized = mapped { onUnauthorized?(mapped) }
+            if var current = issues.value {
+                for (id, original) in originals {
+                    if let position = current.firstIndex(where: { $0.id == id }) {
+                        current[position] = original
+                    }
+                }
+                issues = .loaded(sort(current))
+            }
+            return nil
+        }
+    }
+
     /// The same write with nothing here to be optimistic about.
     ///
     /// No row to move ahead of the reply and none to roll back, so the row is only marked as

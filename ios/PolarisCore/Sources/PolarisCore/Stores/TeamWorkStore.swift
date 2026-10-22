@@ -144,6 +144,43 @@ public final class TeamWorkStore {
         }
     }
 
+    /// One change across a selection — see `IssuesStore.bulkApply`, which this mirrors
+    /// deliberately rather than sharing: the two stores hold their lists differently and a
+    /// shared implementation would have to own both, which is the coupling `IssueWriting`
+    /// exists to avoid.
+    @discardableResult
+    public func bulkApply(_ edit: BulkIssueEdit) async -> BulkIssueResult? {
+        let ids = Set(edit.change.ids)
+        guard !ids.isEmpty else { return nil }
+        writeError = nil
+
+        var originals: [String: Issue] = [:]
+        if var current = issues.value {
+            for index in current.indices where ids.contains(current[index].id) {
+                originals[current[index].id] = current[index]
+                edit.apply(to: &current[index])
+            }
+            issues = .loaded(IssueOrder.sorted(current))
+        }
+
+        do {
+            let result = try await api.bulkUpdateIssues(edit.change)
+            for confirmed in result.issues { replace(confirmed) }
+            // Only the rows the server declined go back; the rest moved.
+            for skip in result.skipped {
+                if let original = originals[skip.id] { replace(original) }
+            }
+            for confirmed in result.issues { onWriteConfirmed?(confirmed) }
+            return result
+        } catch {
+            for original in originals.values { replace(original) }
+            let mapped = PolarisError.mapped(error)
+            writeError = mapped
+            report(mapped)
+            return nil
+        }
+    }
+
     /// The write for an issue this list does not hold: nothing to apply ahead of the reply,
     /// nothing to roll back, and the outcome either fanned out or said out loud.
     private func writeUnheld(issueID: String, to state: WorkflowState) async {

@@ -16,6 +16,11 @@ struct TeamIssuesView: View {
     /// A team's list has always been the grouped one — the question it answers is "where is
     /// everything", not "what do I do next" — so the default must not move.
     @State private var display = ListDisplay()
+    /// Selection mode, what is picked, and what the last batch did — see `MyIssuesView`,
+    /// which keeps the same three for the same reasons.
+    @State private var isSelecting = false
+    @State private var selection: Set<String> = []
+    @State private var bulkResult: BulkIssueResult?
 
     init(team: Team, kind: TeamListKind = .active) {
         self.team = team
@@ -37,6 +42,15 @@ struct TeamIssuesView: View {
             HairlineDivider()
             if let store {
                 content(store: store)
+                if isSelecting {
+                    BulkActionBar(
+                        selection: selection,
+                        issues: issues(in: store),
+                        statesFor: { model.workspaceData.states(forTeam: $0.team.id) },
+                        people: model.workspaceData.users.value ?? [],
+                        apply: { applyBulk($0, store: store) }
+                    )
+                }
             } else {
                 VStack {
                     SkeletonIssueList()
@@ -50,6 +64,7 @@ struct TeamIssuesView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                SelectModeButton(isSelecting: $isSelecting, selection: $selection, identifier: "team.issues.select")
                 DisplayOptionsMenu(display: $display, identifier: "team.issues.display")
                 Button { isComposing = true } label: {
                     Image(systemName: "square.and.pencil")
@@ -66,6 +81,19 @@ struct TeamIssuesView: View {
         // Not while the compose sheet is up: the list under it is about to gain the issue
         // being written, and a reload behind a modal is a read nobody can see the result of.
         .refreshOnRealtime(isSuspended: isComposing) { await store?.load() }
+    }
+
+    private func identifier(of id: String, store: TeamWorkStore) -> String {
+        store.all.first { $0.id == id }?.identifier ?? id
+    }
+
+    private func applyBulk(_ edit: BulkIssueEdit, store: TeamWorkStore) {
+        Task {
+            let result = await store.bulkApply(edit)
+            isSelecting = false
+            selection = []
+            bulkResult = result
+        }
     }
 
     private func issues(in store: TeamWorkStore) -> [Issue] {
@@ -110,6 +138,12 @@ struct TeamIssuesView: View {
                             .padding(.bottom, Theme.Space.sm)
                             .readableColumn()
                     }
+                    if let bulkResult {
+                        BulkResultLabel(result: bulkResult, identify: { identifier(of: $0, store: store) })
+                            .padding(.horizontal, Theme.Space.lg)
+                            .padding(.bottom, Theme.Space.sm)
+                            .readableColumn()
+                    }
                     IssueListView(
                         issues: list,
                         display: display,
@@ -117,7 +151,9 @@ struct TeamIssuesView: View {
                         ensureStates: { await model.workspaceData.ensureStates(forTeam: $0.team.id) },
                         setState: { issue, state in
                             Task { await store.setState(issueID: issue.id, to: state) }
-                        }
+                        },
+                        selection: $selection,
+                        isSelecting: isSelecting
                     )
                     .readableColumn()
                     .refreshable { await store.load() }

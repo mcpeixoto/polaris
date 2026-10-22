@@ -17,6 +17,15 @@ struct MyIssuesView: View {
     /// Ungrouped by default, against the schema's own `state` — Linear's own default for this
     /// view, and the one `LinearParityTests` asserts My Issues keeps.
     @State private var display = ListDisplay(groupBy: .none)
+    /// Selection mode and what is picked. Local to the screen: a selection is about the list
+    /// in front of somebody right now, and one that survived a tab switch would be a batch
+    /// waiting to be applied to rows they have stopped looking at.
+    @State private var isSelecting = false
+    @State private var selection: Set<String> = []
+    /// The last batch's outcome, including what the server would not change. Cleared when a
+    /// new selection starts, because an apology for a batch from ten minutes ago describes
+    /// nothing on screen.
+    @State private var bulkResult: BulkIssueResult?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -45,14 +54,30 @@ struct MyIssuesView: View {
                     .readableColumn()
                     .accessibilityIdentifier("issues.writeError")
             }
+            if let bulkResult {
+                BulkResultLabel(result: bulkResult, identify: identifier(of:))
+                    .padding(.horizontal, Theme.Space.lg)
+                    .padding(.bottom, Theme.Space.sm)
+                    .readableColumn()
+            }
             HairlineDivider()
             content
+            if isSelecting {
+                BulkActionBar(
+                    selection: selection,
+                    issues: model.issues.issues.value ?? [],
+                    statesFor: { model.workspaceData.states(forTeam: $0.team.id) },
+                    people: model.workspaceData.users.value ?? [],
+                    apply: applyBulk
+                )
+            }
         }
         .background(Theme.background.ignoresSafeArea())
         .navigationTitle(Text("My Issues"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                SelectModeButton(isSelecting: $isSelecting, selection: $selection, identifier: "issues.select")
                 filterMenu
                 Button { isComposing = true } label: {
                     Image(systemName: "square.and.pencil")
@@ -60,6 +85,22 @@ struct MyIssuesView: View {
                 .accessibilityLabel(Text("New issue"))
                 .accessibilityIdentifier("issues.compose")
             }
+        }
+    }
+
+    /// `ENG-12` for an id, so the skipped list names rows a reader recognises.
+    private func identifier(of id: String) -> String {
+        model.issues.issues.value?.first { $0.id == id }?.identifier ?? id
+    }
+
+    private func applyBulk(_ edit: BulkIssueEdit) {
+        Task {
+            let result = await model.issues.bulkApply(edit)
+            // Selection mode ends with the write. Leaving it on would leave a bar with
+            // nothing selected under a list that has just moved out from under the reader.
+            isSelecting = false
+            selection = []
+            bulkResult = result
         }
     }
 
@@ -308,7 +349,9 @@ struct MyIssuesView: View {
                 ensureStates: { await model.workspaceData.ensureStates(forTeam: $0.team.id) },
                 setState: { issue, state in
                     Task { await model.issues.setState(issueID: issue.id, to: state) }
-                }
+                },
+                selection: $selection,
+                isSelecting: isSelecting
             )
             .readableColumn()
             .refreshable { await model.issues.load() }
