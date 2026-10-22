@@ -6,7 +6,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { Badge, Button, EmptyState, SettingsPage, SettingsSection, Spinner } from '~/components';
+import {
+  Badge,
+  Button,
+  EmptyState,
+  SettingsPage,
+  SettingsSection,
+  LoadingRows,
+} from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { SettingsRow } from '~/components/SettingsSection';
 import {
@@ -111,9 +118,7 @@ export function AuthorisedApps() {
 
         {loading ? (
           <SettingsRow>
-            <div className={styles.loading}>
-              <Spinner label="Loading authorised apps" />
-            </div>
+            <LoadingRows label="Loading authorised apps" count={3} />
           </SettingsRow>
         ) : null}
 

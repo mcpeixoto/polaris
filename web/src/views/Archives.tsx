@@ -28,7 +28,15 @@ import { useNavigate, useParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
-import { Badge, Button, EmptyState, IconButton, Menu, Spinner, type MenuNode } from '~/components';
+import {
+  Badge,
+  Button,
+  EmptyState,
+  IconButton,
+  Menu,
+  LoadingRows,
+  type MenuNode,
+} from '~/components';
 import {
   fetchArchivedCycles,
   fetchArchivedIssues,
@@ -401,9 +409,7 @@ export function Archives() {
         )}
 
         {load.phase === 'loading' ? (
-          <div className={styles.loading}>
-            <Spinner label="Looking in the archives" />
-          </div>
+          <LoadingRows label="Looking in the archives" count={8} />
         ) : null}
 
         {load.phase === 'failed' ? (

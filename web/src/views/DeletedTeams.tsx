@@ -10,7 +10,14 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 
 import { useEngine } from '~/app/context';
-import { Badge, Button, EmptyState, SettingsPage, SettingsSection, Spinner } from '~/components';
+import {
+  Badge,
+  Button,
+  EmptyState,
+  SettingsPage,
+  SettingsSection,
+  LoadingRows,
+} from '~/components';
 import { SettingsRow } from '~/components/SettingsSection';
 import { when } from '~/features/time';
 import {
@@ -104,9 +111,7 @@ export function DeletedTeams() {
 
         {load.phase === 'loading' ? (
           <SettingsRow>
-            <div className={styles.loading}>
-              <Spinner label="Looking for deleted teams" />
-            </div>
+            <LoadingRows label="Looking for deleted teams" count={2} />
           </SettingsRow>
         ) : null}
 

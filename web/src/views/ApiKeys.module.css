@@ -30,13 +30,6 @@
   line-height: var(--line-height-normal);
 }
 
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: var(--space-6) 0;
-  color: var(--text-tertiary);
-}
-
 /* --- the listing ------------------------------------------------------------ */
 
 /* The card clips its corners, so a table wider than it scrolls inside its own box rather

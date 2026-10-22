@@ -27,7 +27,7 @@ import {
   Input,
   SettingsPage,
   SettingsSection,
-  Spinner,
+  LoadingRows,
   Textarea,
 } from '~/components';
 import { SettingsRow } from '~/components/SettingsSection';
@@ -343,9 +343,7 @@ function SubmitSection() {
           </SettingsRow>
         ) : proposals === null ? (
           <SettingsRow>
-            <div className={styles.proposalsLoading}>
-              <Spinner label="Loading proposals" />
-            </div>
+            <LoadingRows label="Loading proposals" count={3} />
           </SettingsRow>
         ) : proposals.length === 0 ? (
           <SettingsRow>

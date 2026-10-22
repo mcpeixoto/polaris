@@ -48,7 +48,7 @@ import {
   Select,
   SettingsPage,
   SettingsSection,
-  Spinner,
+  LoadingRows,
   Tooltip,
   type MenuNode,
 } from '~/components';
@@ -582,9 +582,7 @@ export function MemberSettings() {
           >
             {invites.phase === 'loading' ? (
               <SettingsRow>
-                <div className={styles.loading}>
-                  <Spinner label="Loading pending invitations" />
-                </div>
+                <LoadingRows label="Loading pending invitations" count={3} />
               </SettingsRow>
             ) : null}
 

@@ -28,13 +28,6 @@
   line-height: var(--line-height-normal);
 }
 
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: var(--space-4);
-  color: var(--text-tertiary);
-}
-
 /* --- the listing ------------------------------------------------------------ */
 
 /*

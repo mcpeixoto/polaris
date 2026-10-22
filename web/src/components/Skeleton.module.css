@@ -83,3 +83,18 @@
     animation: none;
   }
 }
+
+/* Named for a screen reader and nothing else: the blocks are aria-hidden, so this line is
+ * the whole announcement. Same recipe as EntityGate's, which is the recipe a dozen
+ * stylesheets in this codebase already spell out. */
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}

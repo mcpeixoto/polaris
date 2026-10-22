@@ -61,3 +61,38 @@ export function SkeletonRows({ count = 6, height, className }: SkeletonRowsProps
     </div>
   );
 }
+
+export interface LoadingRowsProps {
+  /** Announced by the live region: "Loading your API keys". Says which rows are coming. */
+  label: string;
+  /** How many placeholder rows. Match the density of the list being stood in for. */
+  count?: number | undefined;
+  /** Row height. Defaults to `SkeletonRows`' own, which is a settings row. */
+  height?: string | undefined;
+  className?: string | undefined;
+}
+
+/**
+ * Placeholder rows that say they are placeholder rows.
+ *
+ * The fourteen screens in this product that genuinely load — the ones whose answer is not in
+ * the replica, like the invite list, the API keys and the trash — each drew a centred
+ * `Spinner` with a label. A spinner is the right shape for an action and the wrong one for a
+ * list: it says "something is happening" where the screen could say "rows, this many, about
+ * this wide", and it leaves the layout to jump when the real rows land under it.
+ *
+ * Swapping in `SkeletonRows` alone would have been a downgrade, which is the whole reason
+ * this exists. `Spinner`'s `label` is a live region; a skeleton block is `aria-hidden` and
+ * announces nothing, by design. So the region comes with the rows here rather than being
+ * left for fourteen screens to remember — the same bargain `EntityLoading` strikes for a
+ * detail screen, and the reason that one is not reused is that it draws a title bar and a
+ * tapering paragraph, which is a document's shape and not a list's.
+ */
+export function LoadingRows({ label, count, height, className }: LoadingRowsProps) {
+  return (
+    <div className={className} role="status" aria-live="polite" aria-busy="true">
+      <span className={styles.hidden}>{label}</span>
+      <SkeletonRows count={count} height={height} />
+    </div>
+  );
+}

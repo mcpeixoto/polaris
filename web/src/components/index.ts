@@ -77,8 +77,8 @@ export type { SecretFieldProps } from './SecretField';
 export { Select } from './Select';
 export type { SelectProps } from './Select';
 
-export { Skeleton, SkeletonRows } from './Skeleton';
-export type { SkeletonProps, SkeletonRowsProps } from './Skeleton';
+export { LoadingRows, Skeleton, SkeletonRows } from './Skeleton';
+export type { LoadingRowsProps, SkeletonProps, SkeletonRowsProps } from './Skeleton';
 
 export { Spinner } from './Spinner';
 export type { SpinnerProps, SpinnerSize } from './Spinner';

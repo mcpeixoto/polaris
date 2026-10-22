@@ -18,7 +18,7 @@ import {
   Modal,
   SettingsPage,
   SettingsSection,
-  Spinner,
+  LoadingRows,
 } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
 import { SecretField } from '~/components/SecretField';
@@ -124,9 +124,7 @@ export function Webhooks() {
 
         {loading ? (
           <SettingsRow>
-            <div className={styles.loading}>
-              <Spinner label="Loading webhooks" />
-            </div>
+            <LoadingRows label="Loading webhooks" count={3} />
           </SettingsRow>
         ) : null}
 

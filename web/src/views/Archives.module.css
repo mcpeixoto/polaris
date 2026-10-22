@@ -114,13 +114,6 @@
   line-height: var(--line-height-normal);
 }
 
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: var(--space-12) var(--space-4);
-  color: var(--text-tertiary);
-}
-
 .table {
   width: 100%;
   border-collapse: collapse;

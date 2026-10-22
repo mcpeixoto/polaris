@@ -348,7 +348,11 @@ describe('MemberSettings · pending invitations', () => {
     });
     renderScreen();
 
-    expect(await screen.findByRole('status', { name: 'Loading pending invitations' })).toBeTruthy();
+    // The live region's text rather than its accessible name: `LoadingRows` puts the label
+    // in a visually-hidden child, and ARIA's `status` role does not take its name from its
+    // content. By text rather than by role because this screen has a second status region,
+    // the one that announces a revoked invitation.
+    expect(await screen.findByText('Loading pending invitations')).toBeTruthy();
     // The one sentence this screen must never say while it does not know.
     expect(screen.queryByText('Nobody is waiting on an invitation.')).toBeNull();
 
