@@ -171,7 +171,7 @@ function Where() {
 
 function rowNamed(title: string): HTMLElement {
   const titleNode = screen.getByText(title);
-  const row = titleNode.closest('[role="option"]');
+  const row = titleNode.closest('[role="gridcell"]');
   if (row === null) throw new Error(`no row for ${title}`);
   return row as HTMLElement;
 }

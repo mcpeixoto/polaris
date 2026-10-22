@@ -224,12 +224,12 @@ export async function signIn(page: Page, account: Account): Promise<void> {
  *
  * "The list" is two shapes, and a fresh workspace is the second one: a team with no work
  * yet renders the empty state and its create button in place of the rows, so waiting only
- * for the listbox would hang in exactly the state most of these tests start in.
+ * for the grid would hang in exactly the state most of these tests start in.
  */
 export async function openTeamList(page: Page, teamKey: string): Promise<void> {
   await page.goto(`/team/${teamKey}`);
   await page
-    .getByRole('listbox', { name: /issues/i })
+    .getByRole('grid', { name: /issues/i })
     .or(page.getByRole('button', { name: 'Create an issue' }))
     .first()
     .waitFor();

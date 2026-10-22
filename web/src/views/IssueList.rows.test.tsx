@@ -179,12 +179,12 @@ function renderList(search = '') {
   return { store, mutate, user: userEvent.setup() };
 }
 
-function listbox(): HTMLElement {
-  return screen.getByRole('listbox', { name: 'Engineering issues' });
+function grid(): HTMLElement {
+  return screen.getByRole('grid', { name: 'Engineering issues' });
 }
 
 function cursorId(): string | null {
-  return listbox().getAttribute('aria-activedescendant');
+  return grid().getAttribute('aria-activedescendant');
 }
 
 function cursorText(): string | null {
@@ -217,7 +217,7 @@ describe('one issue in two label groups', () => {
   it('gives each of its rows an id of its own', () => {
     renderList(BY_LABEL);
 
-    const ids = screen.getAllByRole('option').map((option) => option.id);
+    const ids = screen.getAllByRole('gridcell').map((cell) => cell.id);
 
     expect(ids.length, 'issue-1 is in both label groups, so there are four rows').toBe(4);
     expect(new Set(ids).size, 'aria-activedescendant must resolve to exactly one element').toBe(
@@ -306,17 +306,17 @@ describe('the pointer', () => {
 
     await user.click(screen.getByRole('checkbox', { name: 'Select ENG-1' }));
 
-    expect(
-      screen.getByRole('option', { name: /Fix the flake/ }).getAttribute('aria-selected'),
-    ).toBe('true');
-    // Still on the list: opening would have unmounted the listbox for the detail route.
-    expect(listbox()).toBeTruthy();
+    expect(screen.getByRole('row', { name: /Fix the flake/ }).getAttribute('aria-selected')).toBe(
+      'true',
+    );
+    // Still on the list: opening would have unmounted the grid for the detail route.
+    expect(grid()).toBeTruthy();
   });
 
   it('opens a menu of the same commands on a right-click', async () => {
     renderList();
 
-    fireEvent.contextMenu(screen.getByRole('option', { name: /Ship the importer/ }), {
+    fireEvent.contextMenu(screen.getByRole('gridcell', { name: /Ship the importer/ }), {
       clientX: 120,
       clientY: 240,
     });
@@ -352,7 +352,7 @@ describe('group headings', () => {
 
     expect(heading.getAttribute('aria-expanded')).toBe('false');
     expect(
-      screen.queryByRole('option', { name: /Ship the importer/ }),
+      screen.queryByRole('row', { name: /Ship the importer/ }),
       'the folded group keeps its heading and loses its rows',
     ).toBeNull();
   });

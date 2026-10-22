@@ -144,7 +144,7 @@ test('the help overlay lists the shortcuts that are hidden from the command menu
   await signIn(page, workspace.account);
   const issue = await createIssueViaApi(workspace, 'Help overlay probe');
   await page.goto(`/team/${workspace.teamKey}`);
-  await page.getByRole('listbox', { name: /issues/i }).waitFor();
+  await page.getByRole('grid', { name: /issues/i }).waitFor();
 
   await page.keyboard.press('?');
   const help = page.getByRole('dialog', { name: /keyboard shortcuts/i });
@@ -284,7 +284,7 @@ test('the help overlay teaches the triage keys on the screen where they fire', a
   // (#132). The sheet must teach these four keys on this screen either way — `hasRows()`
   // is why they cannot fire *right now*, not a reason to stop naming them here.
   await page
-    .getByRole('listbox', { name: /issues/i })
+    .getByRole('grid', { name: /issues/i })
     .or(page.getByText('Inbox is clear'))
     .first()
     .waitFor();

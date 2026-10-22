@@ -81,7 +81,7 @@ async function createIssue(page: Page, teamKey: string, title: string): Promise<
   await page.keyboard.press('ControlOrMeta+Enter');
   await expect(dialog).toBeHidden();
 
-  const row = page.getByRole('option').filter({ hasText: title }).first();
+  const row = page.getByRole('gridcell').filter({ hasText: title }).first();
   await expect(row).toBeVisible({ timeout: 15_000 });
   const identifier = /([A-Z]+-\d+)/.exec(await row.innerText())?.[1];
   if (identifier === undefined) throw new Error(`no identifier on the row for "${title}"`);

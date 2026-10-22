@@ -213,7 +213,7 @@ function where(): string {
 
 /** Right-click one row and wait for its menu. */
 async function openContextMenu(title: string): Promise<HTMLElement> {
-  fireEvent.contextMenu(screen.getByRole('option', { name: new RegExp(title) }), {
+  fireEvent.contextMenu(screen.getByRole('gridcell', { name: new RegExp(title) }), {
     clientX: 120,
     clientY: 240,
   });
@@ -343,7 +343,7 @@ describe('reaching the row menu without a pointer', () => {
 
     // No pointer behind it: nothing pressed, and Chrome reports 0,0 for the coordinates.
     // The menu must still be about the row the event came from.
-    fireEvent.contextMenu(screen.getByRole('option', { name: /Ship the importer/ }), {
+    fireEvent.contextMenu(screen.getByRole('gridcell', { name: /Ship the importer/ }), {
       button: 0,
       buttons: 0,
       clientX: 0,
@@ -400,10 +400,10 @@ describe('archiving from the row menu', () => {
     // Select both rows, then right-click one of them: the menu is about the selection, and
     // renames itself to say so. The cursor lives on the scroller as an `aria-activedescendant`,
     // so the keyboard goes there — clicking a row would open the issue instead.
-    screen.getByRole('listbox').focus();
+    screen.getByRole('grid').focus();
     await user.keyboard('x{ArrowDown}x');
 
-    fireEvent.contextMenu(screen.getByRole('option', { name: /Ship the importer/ }), {
+    fireEvent.contextMenu(screen.getByRole('gridcell', { name: /Ship the importer/ }), {
       clientX: 120,
       clientY: 240,
     });
@@ -468,9 +468,9 @@ describe('the Copy submenu', () => {
   it('drops the single-row copies when a selection stands', async () => {
     const { user } = renderList();
 
-    screen.getByRole('listbox').focus();
+    screen.getByRole('grid').focus();
     await user.keyboard('x{ArrowDown}x');
-    fireEvent.contextMenu(screen.getByRole('option', { name: /Ship the importer/ }), {
+    fireEvent.contextMenu(screen.getByRole('gridcell', { name: /Ship the importer/ }), {
       button: 2,
       buttons: 2,
       clientX: 120,

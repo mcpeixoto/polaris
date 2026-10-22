@@ -29,11 +29,11 @@ export interface PropertyTriggerProps {
   /**
    * Keep the control out of the tab order.
    *
-   * Required inside a `role="option"` row: that listbox navigates by
-   * `aria-activedescendant` and a tab stop inside an option breaks the roving model. The
-   * cost is that these triggers are pointer-only on those surfaces, which is why every one
-   * of them has a registered chord and a context-menu item as well. Omitted in Peek and the
-   * detail rail, where the buttons are ordinary focusable controls.
+   * Required inside a list row: the issue list is a `grid` whose cursor is an
+   * `aria-activedescendant` on the row's cell, and a tab stop inside that cell breaks the
+   * roving model. The cost is that these triggers are pointer-only on those surfaces, which
+   * is why every one of them has a registered chord and a context-menu item as well. Omitted
+   * in Peek and the detail rail, where the buttons are ordinary focusable controls.
    */
   roving?: boolean | undefined;
   /** Handed the button element, because that is what the menu anchors to. */

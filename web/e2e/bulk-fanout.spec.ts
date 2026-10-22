@@ -65,10 +65,10 @@ async function invitedMember(
  */
 async function selectWholeList(page: Page, teamKey: string, titles: string[]): Promise<void> {
   await page.goto(`/team/${teamKey}`);
-  const list = page.getByRole('listbox', { name: /issues/i });
+  const list = page.getByRole('grid', { name: /issues/i });
   await list.waitFor({ timeout: 30_000 });
   await expect
-    .poll(() => list.getByRole('option').count(), { timeout: 30_000 })
+    .poll(() => list.getByRole('gridcell').count(), { timeout: 30_000 })
     .toBe(titles.length);
 
   await page.getByText(titles[0]!).click({ modifiers: ['Shift'] });

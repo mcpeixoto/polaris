@@ -21,13 +21,23 @@
  * and reconciled against the current order on every render — see hooks/useSelection, where
  * that is the whole subject.
  *
- * On accessibility: the scroller is a multi-selectable listbox and each row is an option
- * naming its own status, so a screen-reader user hears "ENG-14, Fix the flake, In Progress,
- * Ada Lovelace" without needing to have landed on a group header. The status headers are
- * therefore hidden from assistive technology rather than announced twice — they are a visual
- * grouping over rows that already say where they are, and a listbox flattened for
- * virtualisation cannot express real `role="group"` nesting without giving up the flat
- * absolute positioning that makes it fast.
+ * On accessibility: the scroller is a multi-selectable `grid`, each virtualiser slot is a
+ * `row`, and the row's visible body is its one `gridcell` — the idiom `views/Trash.tsx` and
+ * `views/Archives.tsx` already use for the same shape, reached here through the slot that
+ * virtualisation needs anyway, so the roles cost no extra DOM. The cell names itself from its
+ * contents, so a screen-reader user still hears "ENG-14, Fix the flake, In Progress, Ada
+ * Lovelace" without having landed on a group header.
+ *
+ * It was a `listbox` of `option`s, and that was a floor the product could not reach: an
+ * option's children are presentational, so every control a row owns — the select checkbox,
+ * the `⋯` menu, the property pills — was a `nested-interactive` violation, and a listbox may
+ * own options and groups but not the buttons a group heading is made of. No arrangement of
+ * wrappers answers either, because a listbox subtree may not contain controls at all. A grid
+ * row may, which is what this list has always been: rows of properties you act on in place.
+ *
+ * Virtualisation is why `aria-rowcount` is on the grid and `aria-rowindex` on every row.
+ * Thirty rows of five thousand exist in the document, so without them a reader is told it is
+ * on row 3 of 30 somewhere in the middle of a list it cannot size.
  */
 
 import {
@@ -3348,21 +3358,22 @@ export function IssueList({
             <div
               ref={scrollRef}
               className={styles.scroller}
-              role="listbox"
+              role="grid"
               aria-multiselectable="true"
               aria-label={`${scope.heading} issues`}
+              aria-rowcount={rows.length}
               aria-activedescendant={
                 cursorId !== null && cursorRendered ? rowDomId(cursorGroupKey, cursorId) : undefined
               }
               tabIndex={0}
             >
-              {/* `role="presentation"` on both wrappers: a listbox may only own options,
-                groups and elements it explicitly claims, and two unroled divs between the two
-                made several screen readers report a list with no items in it. The sizer and
-                the slot are virtualisation arithmetic and have nothing to say. */}
+              {/* The sizer is the `rowgroup`, which is a role the grid owns rather than a lie
+                about an unroled div: it is the one element between the grid and its rows, and
+                axe walks a grid through a rowgroup by name. Its height is the whole list's
+                arithmetic and it has nothing else to say. */}
               <div
                 className={styles.sizer}
-                role="presentation"
+                role="rowgroup"
                 style={{ height: virtualizer.getTotalSize() }}
               >
                 {virtualRows.map((virtualRow) => {
@@ -3374,11 +3385,19 @@ export function IssueList({
                       data-index={virtualRow.index}
                       ref={virtualizer.measureElement}
                       className={styles.slot}
-                      role="presentation"
+                      role="row"
+                      // Selection is the row's fact and the cursor is the cell's: `X` ticks a
+                      // whole issue, and `aria-activedescendant` names the body below, which
+                      // is where the context menu anchors and what the cursor mark is drawn
+                      // on. A heading row is not selectable, so it says nothing either way
+                      // rather than claiming to be a row nobody has ticked.
+                      aria-selected={row.kind === 'header' ? undefined : selection.ids.has(row.id)}
+                      aria-rowindex={virtualRow.index + 1}
                       style={{ transform: `translateY(${virtualRow.start}px)` }}
                     >
                       {row.kind === 'header' ? (
                         <GroupHeader
+                          cell
                           row={row}
                           onToggle={onToggleGroup}
                           onCreate={onCreateInGroup}
@@ -3594,12 +3613,23 @@ export function IssueList({
  * `aria-expanded` says which way the group is folded.
  */
 function GroupHeader({
+  cell,
   row,
   onToggle,
   onCreate,
   onContextMenu,
   reorder,
 }: {
+  /**
+   * True where this heading is drawn inside the list's grid, which is every heading except
+   * the pinned one: that copy sits above the scroller, and a cell outside a row is a worse
+   * claim than no role at all.
+   *
+   * `rowheader` rather than `gridcell`, because that is what this bar is — the header for the
+   * rows under it — and because it keeps the two kinds of row apart for anybody asking the
+   * document a question: the headings are the row headers and the issues are the cells.
+   */
+  cell?: boolean | undefined;
   row: HeaderRow;
   onToggle: (key: string) => void;
   /** Files a new issue into this group. Absent where the group is not something to file into. */
@@ -3642,6 +3672,7 @@ function GroupHeader({
   return (
     <div
       className={styles.group}
+      role={cell === true ? 'rowheader' : undefined}
       draggable={reorder !== undefined}
       data-dragging={reorder?.draggingKey === row.groupKey ? true : undefined}
       data-drop={
@@ -4235,8 +4266,11 @@ const IssueRow = memo(function IssueRow({
   return (
     <div
       id={rowDomId(groupKey, id)}
-      role="option"
-      aria-selected={selected}
+      // The row's body, and the whole of it: one cell rather than a cell per property,
+      // because the properties on a row are a view setting and a reader who had to arrow
+      // across eight of them to hear a title would be paying for a column layout nobody
+      // chose. `aria-selected` is on the slot above, which is the row.
+      role="gridcell"
       className={[
         styles.row,
         selected ? styles.selected : null,

@@ -51,7 +51,7 @@ test('C files the next issue while the last one is still in flight', async ({
   // Every round is a real issue, not a chord that quietly filed nothing.
   await openTeamList(page, workspace.teamKey);
   for (const round of [0, 4, 9]) {
-    await expect(page.getByRole('option', { name: new RegExp(`Filed ${round}\\b`) })).toBeVisible();
+    await expect(page.getByRole('row', { name: new RegExp(`Filed ${round}\\b`) })).toBeVisible();
   }
 });
 

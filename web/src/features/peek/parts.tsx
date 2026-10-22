@@ -63,8 +63,8 @@ export function PeekHeader({
  * drift from.
  *
  * These stay in the tab order, unlike the triggers on a list row: Peek is a panel, not a
- * `role="option"` navigating by `aria-activedescendant`, so an ordinary focusable control is
- * exactly right here.
+ * grid cell reached by `aria-activedescendant`, so an ordinary focusable control is exactly
+ * right here.
  */
 export function Fact({
   label,

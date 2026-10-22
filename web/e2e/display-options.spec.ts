@@ -49,14 +49,14 @@ test('display options are remembered per screen, and a link outranks them', asyn
 
   // A link that says how it should look wins, whatever the reader has remembered.
   await page.goto(`/team/${workspace.teamKey}?group=assignee`);
-  await page.getByRole('listbox', { name: /issues/i }).waitFor();
+  await page.getByRole('grid', { name: /issues/i }).waitFor();
   await page.keyboard.press('Shift+V');
   await expect(panel.getByLabel('Grouping')).toHaveValue('assignee');
   await page.keyboard.press('Escape');
 
   // `Cmd/Ctrl+B` toggles the layout, and toggles it back.
   await page.goto(`/team/${workspace.teamKey}`);
-  await page.getByRole('listbox', { name: /issues/i }).waitFor();
+  await page.getByRole('grid', { name: /issues/i }).waitFor();
   await page.keyboard.press('ControlOrMeta+B');
   await expect(page).toHaveURL(/layout=board/);
   await page.keyboard.press('ControlOrMeta+B');
@@ -69,7 +69,7 @@ test('display options are remembered per screen, and a link outranks them', asyn
   await page.goto('/my-issues');
   await page.getByRole('heading', { name: /my issues/i }).waitFor();
   await page.goto(`/team/${workspace.teamKey}`);
-  await page.getByRole('listbox', { name: /issues/i }).waitFor();
+  await page.getByRole('grid', { name: /issues/i }).waitFor();
   await expect(page).not.toHaveURL(/group=/);
 });
 
@@ -94,8 +94,8 @@ test('a saved view carries a shared default, and a personal choice outranks it',
   // to save. It also means the view saved below has an issue in it, so the grouping the
   // rest of this exercises is grouping of something.
   await page.goto(`/team/${workspace.teamKey}?filter=title.contains(Gamma)`);
-  await page.getByRole('listbox', { name: /issues/i }).waitFor();
-  await expect(page.getByRole('option', { name: /Gamma/ })).toBeVisible();
+  await page.getByRole('grid', { name: /issues/i }).waitFor();
+  await expect(page.getByRole('row', { name: /Gamma/ })).toBeVisible();
   await page.getByRole('button', { name: 'Save view' }).click();
   const save = page.getByRole('dialog', { name: /save view/i });
   await save.getByLabel(/name/i).fill('Shared view');
@@ -157,7 +157,7 @@ test('every display property can be turned off, and stays off', async ({ page, w
   // The last one is the interesting one: an empty set encodes to `show=`, and reading that
   // back as "nothing was said" put the default properties on again.
   await page.reload();
-  await page.getByRole('listbox', { name: /issues/i }).waitFor();
+  await page.getByRole('grid', { name: /issues/i }).waitFor();
   await page.keyboard.press('Shift+V');
   for (const name of properties) {
     await expect(panel.getByLabel(name, { exact: true })).not.toBeChecked();

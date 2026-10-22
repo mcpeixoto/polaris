@@ -166,7 +166,7 @@ function where(): string {
 }
 
 function row(title: string): HTMLElement {
-  return screen.getByRole('option', { name: new RegExp(title) });
+  return screen.getByRole('gridcell', { name: new RegExp(title) });
 }
 
 /** The status circle in one row, which is a control named by the status it is showing. */

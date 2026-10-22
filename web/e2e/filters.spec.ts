@@ -23,7 +23,7 @@ test('a text filter typed into the bar survives its own URL', async ({ page, wor
 
   await signIn(page, workspace.account);
   await page.goto(`/team/${workspace.teamKey}`);
-  await page.getByRole('listbox', { name: /issues/i }).waitFor();
+  await page.getByRole('grid', { name: /issues/i }).waitFor();
 
   await page.getByRole('button', { name: 'Add filter' }).click();
   await page.getByRole('menuitem', { name: /^Title$/ }).click();
@@ -38,13 +38,13 @@ test('a text filter typed into the bar survives its own URL', async ({ page, wor
   await page.getByRole('button', { name: 'Done' }).click();
 
   await page.reload();
-  await page.getByRole('listbox', { name: /issues/i }).waitFor();
+  await page.getByRole('grid', { name: /issues/i }).waitFor();
   await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(
     page.getByRole('button', { name: 'Title contains "haystack"', exact: true }),
   ).toBeVisible();
-  await expect(page.getByRole('option', { name: /Findable haystack/ })).toBeVisible();
-  await expect(page.getByRole('option', { name: /Something else/ })).toHaveCount(0);
+  await expect(page.getByRole('row', { name: /Findable haystack/ })).toBeVisible();
+  await expect(page.getByRole('row', { name: /Something else/ })).toHaveCount(0);
 });
 
 test('opening a saved view leaves a filter a person can read in the URL', async ({
@@ -56,7 +56,7 @@ test('opening a saved view leaves a filter a person can read in the URL', async 
 
   await signIn(page, workspace.account);
   await page.goto(`/team/${workspace.teamKey}`);
-  await page.getByRole('listbox', { name: /issues/i }).waitFor();
+  await page.getByRole('grid', { name: /issues/i }).waitFor();
 
   await page.getByRole('button', { name: 'Add filter' }).click();
   await page.getByRole('menuitem', { name: /^Priority$/ }).click();
@@ -75,8 +75,8 @@ test('opening a saved view leaves a filter a person can read in the URL', async 
   await page.goto(bare);
   await expect(page).toHaveURL(/filter=priority\.eq\(1\)/);
   await expect(page.getByRole('button', { name: 'Priority is Urgent', exact: true })).toBeVisible();
-  await expect(page.getByRole('option', { name: /Urgent one/ })).toBeVisible();
-  await expect(page.getByRole('option', { name: /Quiet one/ })).toHaveCount(0);
+  await expect(page.getByRole('row', { name: /Urgent one/ })).toBeVisible();
+  await expect(page.getByRole('row', { name: /Quiet one/ })).toHaveCount(0);
 });
 
 const API = process.env.POLARIS_E2E_API ?? 'http://localhost:8088';
