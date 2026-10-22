@@ -122,11 +122,18 @@ export function Links({ issueId }: { issueId: UUID }) {
         />
       }
     >
+      {/* Named, and out of the tab order. This is the picker behind the "Upload image"
+          button and never somewhere to land: it is visually hidden rather than
+          `display: none` because a browser will not open a picker it cannot draw, so it
+          stays in the document — which made it a tab stop that announced nothing at all.
+          The button below is the keyboard route to it, and it has a name of its own. */}
       <input
         ref={fileRef}
         type="file"
         accept="image/png,image/jpeg,image/gif,image/webp"
         className={styles.fileInput}
+        aria-label="Upload an image"
+        tabIndex={-1}
         onChange={onFile}
       />
 

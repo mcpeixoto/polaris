@@ -145,3 +145,47 @@ describe('Links, when the server will not take one', () => {
     );
   });
 });
+
+/**
+ * The picker is a visually-hidden `<input type="file">`, and it has to stay in the document:
+ * a browser will not open a file dialog for an input it is not drawing. So the only question
+ * is whether it is a control a person can arrive at, and it was — a tab stop between the
+ * heading and the form that announced nothing, because it had no name either.
+ */
+describe('Links, the hidden file picker', () => {
+  function mounted() {
+    const store = seeded();
+    const engine = { store, mutate: vi.fn().mockResolvedValue({}) } as unknown as SyncEngine;
+    return render(
+      <MemoryRouter>
+        <KeymapProvider>
+          <EngineProvider engine={engine} status={{ phase: 'idle' }}>
+            <Links issueId="i1" />
+          </EngineProvider>
+        </KeymapProvider>
+      </MemoryRouter>,
+    );
+  }
+
+  it('is named, and is not a tab stop', () => {
+    const { container } = mounted();
+    const picker = container.querySelector('input[type="file"]');
+    expect(picker).not.toBeNull();
+    expect(picker?.getAttribute('aria-label')).toBe('Upload an image');
+    expect(picker?.getAttribute('tabindex')).toBe('-1');
+  });
+
+  it('is still opened from the keyboard, through the button that names it', async () => {
+    const { container } = mounted();
+    const picker = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const opened = vi.fn();
+    picker.click = opened;
+
+    const user = userEvent.setup();
+    const button = screen.getByRole('button', { name: 'Upload image' });
+    button.focus();
+    await user.keyboard('{Enter}');
+
+    expect(opened).toHaveBeenCalledTimes(1);
+  });
+});
