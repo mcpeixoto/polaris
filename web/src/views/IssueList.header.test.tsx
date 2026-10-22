@@ -218,13 +218,13 @@ describe('the scope pills', () => {
       'false',
     );
     // The filter did something: only the backlog issue is left.
-    expect(screen.getAllByRole('option').map((row) => row.textContent)).toEqual([
+    expect(screen.getAllByRole('gridcell').map((row) => row.textContent)).toEqual([
       'ENG-2Ship the importer',
     ]);
 
     await user.click(screen.getByRole('button', { name: 'All issues' }));
     expect(where()).toBe('/team/ENG');
-    expect(screen.getAllByRole('option')).toHaveLength(3);
+    expect(screen.getAllByRole('gridcell')).toHaveLength(3);
   });
 });
 
@@ -259,10 +259,10 @@ describe('the row', () => {
   it('counts the live sub-issues on the parent and says nothing on the rest', () => {
     renderList();
 
-    const parent = screen.getByRole('option', { name: /Fix the flake/ });
+    const parent = screen.getByRole('gridcell', { name: /Fix the flake/ });
     expect(within(parent).getByRole('img', { name: '1 sub-issue' })).toBeTruthy();
 
-    const child = screen.getByRole('option', { name: /Find the flaky assertion/ });
+    const child = screen.getByRole('gridcell', { name: /Find the flaky assertion/ });
     expect(within(child).queryByRole('img', { name: /sub-issue/ })).toBeNull();
   });
 });

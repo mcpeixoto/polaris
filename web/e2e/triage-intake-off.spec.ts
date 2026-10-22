@@ -53,7 +53,7 @@ test('a queue outlives the switch that filled it', async ({ page, workspace }) =
   await composer.getByRole('button', { name: 'Create issue' }).click();
   await expect(composer).toBeHidden();
 
-  const row = page.getByRole('option', { name: /Left behind by the switch/ });
+  const row = page.getByRole('row', { name: /Left behind by the switch/ });
   await expect(row).toBeVisible();
 
   await setTriage(page, workspace, false);
@@ -83,7 +83,7 @@ test('a queue outlives the switch that filled it', async ({ page, workspace }) =
   // this is the server's answer rather than an optimistic patch still sitting in memory.
   await page.goto(`/team/${workspace.teamKey}`);
   await page.reload();
-  await expect(page.getByRole('option', { name: /Left behind by the switch/ })).toBeVisible();
+  await expect(page.getByRole('row', { name: /Left behind by the switch/ })).toBeVisible();
 });
 
 /**
@@ -107,7 +107,7 @@ test('the inbox explains its keys once it is clear', async ({ page, workspace })
   await composer.getByRole('button', { name: 'Create issue' }).click();
   await expect(composer).toBeHidden();
 
-  const row = page.getByRole('option', { name: /Something to clear/ });
+  const row = page.getByRole('row', { name: /Something to clear/ });
   await expect(row).toBeVisible();
   await page.keyboard.press('1');
   const acceptPrompt = page.getByRole('dialog', { name: /^Accept / });

@@ -140,9 +140,9 @@ export function LabelList({ issueId, className, onOpenPicker, pickerOpen }: Labe
               />
             </Link>
           ) : (
-            /* `tabIndex={-1}` because on a row this sits inside a `role="option"` that
-               navigates by `aria-activedescendant`, and a tab stop inside an option breaks
-               that roving model. The chord and the context menu are the keyboard routes. */
+            /* `tabIndex={-1}` because on a row this sits inside a grid cell the cursor
+               reaches by `aria-activedescendant`, and a tab stop inside it breaks that
+               roving model. The chord and the context menu are the keyboard routes. */
             <button
               type="button"
               className={styles.trigger}

@@ -217,8 +217,8 @@ const ACTIVATABLE = 'button, summary, a[href], [role="button"], [role="link"]';
  * Enter-to-open, dropping the user on an unrelated issue. The same keystroke on the
  * header's Insights or Display buttons did it too.
  *
- * The list keeps its Enter. Focus there lives on the `role="listbox"` scroller and the
- * cursor is an `aria-activedescendant`, not a focused element, so nothing matches here.
+ * The list keeps its Enter. Focus there lives on the `role="grid"` scroller and the cursor
+ * is an `aria-activedescendant`, not a focused element, so nothing matches here.
  *
  * Modified chords are not activation: ⌘Enter still submits from a button, and the
  * text-field rule above still runs first.

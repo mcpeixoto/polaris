@@ -162,7 +162,7 @@ describe('issue category tabs', () => {
         .getByRole('button', { name: 'All issues' })
         .getAttribute('aria-pressed'),
     ).toBe('true');
-    expect(screen.getAllByRole('option').map((row) => row.textContent)).toEqual([
+    expect(screen.getAllByRole('gridcell').map((row) => row.textContent)).toEqual([
       'ENG-2Ship the importer',
     ]);
   });

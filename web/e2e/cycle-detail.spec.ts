@@ -38,7 +38,7 @@ async function enableCycles(page: Page, teamKey: string): Promise<void> {
  */
 function listOrEmpty(page: Page) {
   return page
-    .getByRole('listbox', { name: /issues/i })
+    .getByRole('grid', { name: /issues/i })
     .or(page.getByRole('button', { name: 'Create an issue' }))
     .first();
 }
@@ -58,7 +58,7 @@ async function fileIssue(page: Page, title: string): Promise<void> {
   // create from anywhere else files into the team rather than into this cycle. With rows
   // on screen that means clicking into them first; with none, it means the empty state's
   // own button, which invokes the same action in the same context.
-  const rows = page.getByRole('listbox', { name: /issues/i });
+  const rows = page.getByRole('grid', { name: /issues/i });
   if (await rows.isVisible()) {
     await rows.focus();
     await page.keyboard.press('c');
@@ -68,12 +68,12 @@ async function fileIssue(page: Page, title: string): Promise<void> {
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Title').fill(title);
   await dialog.getByRole('button', { name: 'Create issue' }).click();
-  await expect(page.getByRole('option', { name: new RegExp(title) })).toBeVisible();
+  await expect(page.getByRole('row', { name: new RegExp(title) })).toBeVisible();
 }
 
 /** Moves the row under the cursor, which is what the property shortcuts act on. */
 async function setStatus(page: Page, title: string, status: string): Promise<void> {
-  await page.getByRole('option', { name: new RegExp(title) }).hover();
+  await page.getByRole('row', { name: new RegExp(title) }).hover();
   const item = page.getByRole('menuitem', { name: status, exact: true });
   await page.keyboard.press('s');
   await item.waitFor();

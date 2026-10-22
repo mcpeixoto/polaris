@@ -121,9 +121,9 @@ test('a project carries saved views as tabs, created, reordered and deleted in p
 
   // The corpus is the project's issues and nothing else.
   await tabs.getByRole('link', { name: 'Alpha', exact: true }).click();
-  await page.getByRole('listbox', { name: /issues/i }).waitFor();
-  await expect(page.getByRole('option', { name: /In the project/ })).toBeVisible();
-  await expect(page.getByRole('option', { name: /Somewhere else/ })).toHaveCount(0);
+  await page.getByRole('grid', { name: /issues/i }).waitFor();
+  await expect(page.getByRole('row', { name: /In the project/ })).toBeVisible();
+  await expect(page.getByRole('row', { name: /Somewhere else/ })).toHaveCount(0);
 
   // Dragging a tab onto another puts it after it, and the order is the server's rather than
   // this tab's — so a reload that rebuilds the replica still shows it.
@@ -184,20 +184,20 @@ test('a saved view seeds its filter once, so the bar can still be cleared', asyn
 
   await signIn(page, workspace.account);
   await page.goto(`/project/${projectId}/view/${viewId}`);
-  await page.getByRole('listbox', { name: /issues/i }).waitFor();
+  await page.getByRole('grid', { name: /issues/i }).waitFor();
 
   // Arriving with a bare URL spells the saved filter out, so the link is shareable.
   await expect(page).toHaveURL(/filter=priority\.eq\(1\)/);
-  await expect(page.getByRole('option', { name: /Low thing/ })).toHaveCount(0);
+  await expect(page.getByRole('row', { name: /Low thing/ })).toHaveCount(0);
 
   // Taking the last chip off widens the view and stays that way.
   await page.getByRole('button', { name: /^Remove filter:/ }).click();
-  await expect(page.getByRole('option', { name: /Low thing/ })).toBeVisible();
+  await expect(page.getByRole('row', { name: /Low thing/ })).toBeVisible();
   await expect(page).not.toHaveURL(/filter=/);
 
   // A reload is a fresh arrival, and starts from the saved filter again.
   await page.reload();
-  await page.getByRole('listbox', { name: /issues/i }).waitFor();
+  await page.getByRole('grid', { name: /issues/i }).waitFor();
   await expect(page).toHaveURL(/filter=priority\.eq\(1\)/);
 
   // Two things write to the address bar on arrival — this seeding, and `useView` putting
@@ -209,7 +209,7 @@ test('a saved view seeds its filter once, so the bar can still be cleared', asyn
   await page.keyboard.press('Escape');
 
   await page.goto(`/project/${projectId}/view/${viewId}`);
-  await page.getByRole('listbox', { name: /issues/i }).waitFor();
+  await page.getByRole('grid', { name: /issues/i }).waitFor();
   await expect(page).toHaveURL(/filter=priority\.eq\(1\)/);
   await expect(page).toHaveURL(/group=priority/);
 });

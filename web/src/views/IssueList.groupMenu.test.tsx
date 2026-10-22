@@ -181,9 +181,9 @@ function openGroupMenu(name: string): void {
 
 function selectedTitles(): string[] {
   return screen
-    .getAllByRole('option')
-    .filter((option) => option.getAttribute('aria-selected') === 'true')
-    .map((option) => option.textContent ?? '');
+    .getAllByRole('row')
+    .filter((row) => row.getAttribute('aria-selected') === 'true')
+    .map((row) => row.textContent ?? '');
 }
 
 describe('a right-click on a group', () => {
@@ -230,17 +230,17 @@ describe('a right-click on a group', () => {
     const { user } = renderList(backlogStore());
 
     await user.click(groupToggle('Backlog'));
-    expect(screen.queryByRole('option', { name: /Write the annex/ })).toBeNull();
+    expect(screen.queryByRole('row', { name: /Write the annex/ })).toBeNull();
 
     openGroupMenu('Backlog');
     await user.click(await screen.findByRole('menuitem', { name: /^Select all/ }));
 
-    expect(
-      screen.getByRole('option', { name: /Write the annex/ }).getAttribute('aria-selected'),
-    ).toBe('true');
-    expect(
-      screen.getByRole('option', { name: /Price the lot/ }).getAttribute('aria-selected'),
-    ).toBe('true');
+    expect(screen.getByRole('row', { name: /Write the annex/ }).getAttribute('aria-selected')).toBe(
+      'true',
+    );
+    expect(screen.getByRole('row', { name: /Price the lot/ }).getAttribute('aria-selected')).toBe(
+      'true',
+    );
   });
 
   it('offers the same status list from a board column', async () => {

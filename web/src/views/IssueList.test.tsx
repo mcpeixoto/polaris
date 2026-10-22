@@ -185,21 +185,21 @@ function renderList(search = '', teamOverrides: Partial<Team> = {}) {
   return { store, mutate, dismissed, user: userEvent.setup() };
 }
 
-function listbox(): HTMLElement {
-  return screen.getByRole('listbox', { name: 'Engineering issues' });
+function grid(): HTMLElement {
+  return screen.getByRole('grid', { name: 'Engineering issues' });
 }
 
-/** The row the keyboard is on, which the listbox names rather than focuses. */
+/** The row the keyboard is on, which the grid names rather than focuses. */
 function cursorText(): string | null {
-  const id = listbox().getAttribute('aria-activedescendant');
+  const id = grid().getAttribute('aria-activedescendant');
   return id === null ? null : (document.getElementById(id)?.textContent ?? null);
 }
 
 function selectedTexts(): string[] {
   return screen
-    .getAllByRole('option')
-    .filter((option) => option.getAttribute('aria-selected') === 'true')
-    .map((option) => option.textContent ?? '');
+    .getAllByRole('row')
+    .filter((row) => row.getAttribute('aria-selected') === 'true')
+    .map((row) => row.textContent ?? '');
 }
 
 /**
@@ -256,7 +256,7 @@ describe('IssueList', () => {
   it('groups the issues by status, started work first', () => {
     renderList();
 
-    const rows = screen.getAllByRole('option').map((option) => option.textContent);
+    const rows = screen.getAllByRole('gridcell').map((cell) => cell.textContent);
     expect(rows).toEqual([
       'ENG-3Rewrite the seeder',
       'ENG-1Fix the flake',
@@ -284,7 +284,7 @@ describe('IssueList', () => {
 
     expect(screen.queryAllByRole('button', { name: 'Unassigned' })).toHaveLength(0);
     // The rows themselves are untouched: this is a column being turned off, not a filter.
-    expect(screen.getAllByRole('option')).toHaveLength(3);
+    expect(screen.getAllByRole('gridcell')).toHaveLength(3);
   });
 
   /**
@@ -328,7 +328,7 @@ describe('IssueList', () => {
   it('says so when a filter has excluded everything, even though the status groups remain', () => {
     renderList('?filter=title.contains(nothing-matches-this)');
 
-    expect(screen.queryAllByRole('option')).toHaveLength(0);
+    expect(screen.queryAllByRole('gridcell')).toHaveLength(0);
     expect(screen.getByText('Nothing matches this filter')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Clear the filter' })).toBeTruthy();
   });
@@ -338,7 +338,7 @@ describe('IssueList', () => {
 
     await user.click(screen.getByRole('button', { name: 'Clear the filter' }));
 
-    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+    expect(screen.getAllByRole('gridcell').map((cell) => cell.textContent)).toEqual([
       'ENG-3Rewrite the seeder',
       'ENG-1Fix the flake',
       'ENG-2Ship the importer',
@@ -606,8 +606,8 @@ describe('IssueList over an assignee', () => {
   it('refuses a bulk status change across teams, from the toolbar and the keyboard', async () => {
     const { user } = renderMine();
 
-    const listbox = screen.getByRole('listbox', { name: 'My issues issues' });
-    listbox.focus();
+    const grid = screen.getByRole('grid', { name: 'My issues issues' });
+    grid.focus();
     // Select-all rather than two toggles: it is one keystroke, it cannot half-apply, and
     // "everything assigned to me" is exactly the selection somebody makes before trying a
     // bulk edit — which is the case this guard exists for.
@@ -625,8 +625,8 @@ describe('IssueList over an assignee', () => {
   it('allows a status change once the selection is inside one team', async () => {
     const { user } = renderMine();
 
-    const listbox = screen.getByRole('listbox', { name: 'My issues issues' });
-    listbox.focus();
+    const grid = screen.getByRole('grid', { name: 'My issues issues' });
+    grid.focus();
     await user.keyboard('{j}{x}');
 
     expect(screen.getByRole('button', { name: 'Status' }).hasAttribute('disabled')).toBe(false);
@@ -899,7 +899,7 @@ describe('triage', () => {
     renderTriage(store);
 
     expect(screen.getByText('Triage is off')).toBeTruthy();
-    expect(screen.queryByRole('listbox', { name: /issues/i })).toBeNull();
+    expect(screen.queryByRole('grid', { name: /issues/i })).toBeNull();
   });
 
   /**

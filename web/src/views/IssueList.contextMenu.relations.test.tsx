@@ -167,7 +167,7 @@ function renderList() {
 }
 
 async function openContextMenu(title: string): Promise<HTMLElement> {
-  fireEvent.contextMenu(screen.getByRole('option', { name: new RegExp(title) }), {
+  fireEvent.contextMenu(screen.getByRole('gridcell', { name: new RegExp(title) }), {
     clientX: 120,
     clientY: 240,
   });
@@ -218,14 +218,14 @@ describe('marking a relation from the row menu', () => {
 
     // And the row says so without anybody opening the issue: the fact that a row cannot move
     // is the one fact a list had no way of showing.
-    const row = screen.getByRole('option', { name: /Ship the importer/ });
+    const row = screen.getByRole('gridcell', { name: /Ship the importer/ });
     expect(within(row).getByText('Blocked by ENG-1')).toBeTruthy();
   });
 
   it('leaves the unblocked row unmarked', async () => {
     renderList();
 
-    const row = screen.getByRole('option', { name: /Fix the flake/ });
+    const row = screen.getByRole('gridcell', { name: /Fix the flake/ });
     expect(within(row).queryByText(/^Blocked by/)).toBeNull();
   });
 });

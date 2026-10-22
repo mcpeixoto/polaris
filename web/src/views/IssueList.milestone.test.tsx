@@ -141,7 +141,7 @@ function renderList() {
 }
 
 async function openMenuOn(title: string): Promise<HTMLElement> {
-  fireEvent.contextMenu(screen.getByRole('option', { name: new RegExp(title) }), {
+  fireEvent.contextMenu(screen.getByRole('gridcell', { name: new RegExp(title) }), {
     button: 2,
     buttons: 2,
     clientX: 120,

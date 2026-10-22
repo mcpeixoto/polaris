@@ -33,7 +33,7 @@ async function graphql<T>(
 
 /** Rows of the issue list, and nothing else — `<option>` in a `<select>` shares the role. */
 function rows(page: Page) {
-  return page.getByRole('listbox', { name: /issues/i }).getByRole('option');
+  return page.getByRole('grid', { name: /issues/i }).getByRole('gridcell');
 }
 
 function panelOf(page: Page) {

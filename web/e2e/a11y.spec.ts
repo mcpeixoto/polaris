@@ -27,12 +27,11 @@
  * actually commits to.
  *
  * The threshold is the thing not to negotiate with. The first run of this file failed on
- * three real violations, and the screen list below is short by exactly the screens that carry
- * them — named below SCREENS — rather than the threshold being lowered to let them through: a
- * suite that passes at `critical`-only, or with half the rules off, reports a floor the
- * product does not have. One of those three is fixed and the issue detail is back in the
- * walk; the other two are both the issue list, and the comment below SCREENS says what axe
- * reports on it and why no arrangement of wrappers answers it.
+ * three real violations, and the screen list was short by exactly the screens that carried
+ * them rather than the threshold being lowered to let them through: a suite that passes at
+ * `critical`-only, or with half the rules off, reports a floor the product does not have.
+ * All three are fixed, and the walk is the whole list again — which is the only state in
+ * which this file means what its name says.
  */
 
 import AxeBuilder from '@axe-core/playwright';
@@ -51,8 +50,11 @@ import { test, expect, signIn, createIssueViaApi, openTeamList } from './fixture
  * reaches `/projects` and `/dashboards` as empty states, which is the shape every screen in
  * the product is in on its first day and the shape an `EmptyState` bug hides in.
  *
- * The issue detail is here because the one violation it carried is fixed: the visually-hidden
- * `<input type="file">` behind "Upload image" is named and out of the tab order.
+ * The two that were held back are in: the issue detail, whose visually-hidden
+ * `<input type="file">` behind "Upload image" is now named and out of the tab order, and the
+ * team list, which is a `grid` of rows rather than a `listbox` of options — see the comment
+ * below for what that was about, because it is the one of the three that was a design
+ * question rather than an attribute.
  */
 const SCREENS: [name: string, path: string][] = [
   ['inbox', '/inbox'],
@@ -60,33 +62,38 @@ const SCREENS: [name: string, path: string][] = [
   ['dashboards', '/dashboards'],
   ['profile settings', '/settings/profile'],
   ['issue detail', '/issue/ISSUE'],
+  ['team list', '/team/ENG'],
 ];
 
 /*
- * The one screen this walk does not visit yet, and why — recorded here rather than in a
- * commit message, because the next person to add a screen needs to know it was audited and
- * found wanting rather than overlooked.
+ * What the team list cost, kept because the shape of the mistake is reusable.
  *
- * `/team/ENG` — the issue list. Both of its violations are the same fact about the markup,
- * and axe's wording is worth reading rather than the one in the first draft of this comment,
- * which blamed the virtualiser's wrappers: axe walks straight through a `role="presentation"`
- * div, and the wrappers are not the problem.
+ * It was a `role="listbox"` whose rows were `role="option"`, and it failed twice:
+ * `aria-required-children` on the scroller — "Element has children which are not allowed:
+ * button, button[aria-label]", the group headings, since a heading owns the control that
+ * folds it and the "+" that files into it — and `nested-interactive` on a row, which owns the
+ * select checkbox, the `⋯` menu and the property pills.
  *
- *   - `aria-required-children` (critical) on `.scroller`: "Element has children which are not
- *     allowed: button, button[aria-label]" — the group headings. A heading owns the control
- *     that folds its group away and the "+" that files an issue into it, and a listbox may
- *     own options and groups, not buttons.
- *   - `nested-interactive` (serious) on an issue row: a `role="option"` owning the select
- *     checkbox, the `⋯` menu and the property pills. `tabIndex={-1}` does not help, and axe
- *     says why — a negative tabindex still leaves the element focusable to assistive
- *     technology.
+ * Two readings were wrong and cost time. The first was that the virtualiser's
+ * `role="presentation"` wrappers were in the way; axe walks straight through them, and they
+ * never were. The second was that `tabIndex={-1}` on a control inside an option would do it;
+ * axe answers that one in the failure text — a negative tabindex still leaves the element
+ * focusable to assistive technology. No arrangement of wrappers or tabindexes could have
+ * worked, because an option's children are presentational and a listbox may not own controls
+ * at all, while this list is made of them.
  *
- * So no arrangement of wrappers fixes it: a listbox subtree may not contain controls at all,
- * and this list is full of them. The fix is the `role="grid"` idiom the sibling `Trash` and
- * `Archives` views already use for the same shape — rows and gridcells, which do own
- * controls — and that renames the roles a dozen pre-existing specs select the list by
- * (`getByRole('listbox', { name: /issues/i })`, `getByRole('option')`). It is one line in
- * SCREENS away from being covered once that lands: `['team list', '/team/ENG']`.
+ * So the roles were the bug rather than the markup around them, and the list is now the
+ * `grid` that `views/Trash.tsx` and `views/Archives.tsx` already use for the same shape. That
+ * renamed what a dozen specs here select the list by, which is why this is a wide diff for
+ * two violations: `getByRole('grid', { name: /issues/i })` for the list, `row` for a whole
+ * row and the selection on it, `gridcell` for an issue's body — the element that carries the
+ * row's id, its click and its context menu — and `rowheader` for a group heading.
+ *
+ * What this walk still does not see is the same screen's other layout. `/team/ENG` is the
+ * list, and `?layout=board` is a `listbox` of cards that carry the same pills, so it has the
+ * same `nested-interactive` fault the list just shed. It is not a line in SCREENS away: a
+ * board is not a grid, and what a column of cards should be is the question that fix has to
+ * answer first.
  */
 
 const TAGS = ['wcag2a', 'wcag2aa'];

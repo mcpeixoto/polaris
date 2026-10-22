@@ -126,7 +126,7 @@ describe('useActions', () => {
         <>
           <button onClick={() => activated()}>Filter by E2E</button>
           {/* What the issue list is: focus on the scroller, cursor as an activedescendant. */}
-          <div role="listbox" aria-label="issues" tabIndex={0} />
+          <div role="grid" aria-label="issues" tabIndex={0} />
         </>
       );
     }
@@ -147,7 +147,7 @@ describe('useActions', () => {
     expect(opened).not.toHaveBeenCalled();
 
     // The list itself is untouched: nothing focusable is under the cursor there.
-    screen.getByRole('listbox').focus();
+    screen.getByRole('grid').focus();
     await user.keyboard('{Enter}');
     expect(opened).toHaveBeenCalledTimes(1);
   });

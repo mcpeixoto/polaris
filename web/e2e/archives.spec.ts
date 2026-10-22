@@ -26,7 +26,7 @@ test('E archives an issue, G X finds it, and # brings it back', async ({ page, w
 
   // `E` acts on the row under the cursor, which starts on the first row. Read the order
   // rather than assume it — the assertion has to name the row that was actually acted on.
-  const rows = await page.getByRole('option').allInnerTexts();
+  const rows = await page.getByRole('gridcell').allInnerTexts();
   const first = rows[0]?.includes(gone.identifier) === true ? gone : stays;
   const firstTitle = first === gone ? 'Archived and restored' : 'Left alone';
   const otherTitle = first === gone ? 'Left alone' : 'Archived and restored';
@@ -46,7 +46,7 @@ test('E archives an issue, G X finds it, and # brings it back', async ({ page, w
 
   // And really gone: a reload rebuilds the replica from the server.
   await page.reload();
-  await page.getByRole('listbox', { name: /issues/i }).waitFor();
+  await page.getByRole('grid', { name: /issues/i }).waitFor();
   await expect(page.getByText(otherTitle)).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText(firstTitle)).toBeHidden();
 

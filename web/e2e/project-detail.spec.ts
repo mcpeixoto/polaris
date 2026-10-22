@@ -84,7 +84,7 @@ test('a started project with an issue is short of history, not short of a projec
   await page.keyboard.press('c');
   await page.getByRole('dialog').getByLabel('Title').fill('The first one');
   await page.getByRole('dialog').getByRole('button', { name: 'Create issue' }).click();
-  await expect(page.getByRole('option', { name: /The first one/ })).toBeVisible();
+  await expect(page.getByRole('row', { name: /The first one/ })).toBeVisible();
 
   await page.goto(`/project/${projectId}`);
   await expect(noGraph).toHaveCount(0);

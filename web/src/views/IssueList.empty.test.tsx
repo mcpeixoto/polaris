@@ -196,7 +196,7 @@ function renderList(options: { plans?: boolean; board?: boolean } = {}) {
 }
 
 function row(): HTMLElement {
-  return screen.getByRole('option', { name: /Fix the flake/ });
+  return screen.getByRole('gridcell', { name: /Fix the flake/ });
 }
 
 /** The fields a write carried, however `updateIssues` chose to shape its input. */
@@ -298,7 +298,7 @@ describe('a row whose properties are not set yet', () => {
 
     // The row is still on screen; a bubbled click would have navigated to the issue and
     // taken the list with it.
-    expect(screen.getByRole('option', { name: /Fix the flake/ })).toBeTruthy();
+    expect(screen.getByRole('gridcell', { name: /Fix the flake/ })).toBeTruthy();
   });
 
   /**
