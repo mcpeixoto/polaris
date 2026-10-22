@@ -37,6 +37,7 @@ enum TeamListRoute: Hashable {
 /// place that turns it into a screen.
 enum WorkspaceBrowse: Hashable {
     case projects
+    case favorites
 }
 
 /// One `TeamWorkStore` per team, shared by the hub and every screen under it.

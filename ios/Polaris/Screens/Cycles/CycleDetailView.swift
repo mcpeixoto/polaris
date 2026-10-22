@@ -32,6 +32,16 @@ struct CycleDetailView: View {
         .background(Theme.background.ignoresSafeArea())
         .navigationTitle(Text("Cycle \(seed.number)"))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                FavoriteButton(
+                    kind: .cycle,
+                    targetId: seed.id,
+                    name: seed.displayName,
+                    identifier: "cycle.favorite"
+                )
+            }
+        }
         .task {
             if store == nil {
                 let created = CycleStore(api: model.api, cycle: seed)

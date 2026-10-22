@@ -753,6 +753,7 @@ struct IssueDetailView: View {
                     SwiftUI.Label("Subscribe", systemImage: "bell")
                 }
             }
+            FavoriteMenuButton(kind: .issue, targetId: seed.id)
             Divider()
             Button {
                 UIPasteboard.general.string = webURL?.absoluteString ?? "polaris://issue/\(seed.id)"

@@ -376,6 +376,7 @@ struct PolarisNavigation<Content: View>: View {
                 .navigationDestination(for: WorkspaceBrowse.self) { route in
                     switch route {
                     case .projects: ProjectsView(team: nil)
+                    case .favorites: FavoritesView()
                     }
                 }
         }

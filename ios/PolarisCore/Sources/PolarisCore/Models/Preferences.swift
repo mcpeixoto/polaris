@@ -7,8 +7,14 @@ public enum FavoriteKind: String, Codable, Sendable, Hashable, CaseIterable {
     case issue = "ISSUE"
     case label = "LABEL"
     case folder = "FOLDER"
+    case project = "PROJECT"
+    case cycle = "CYCLE"
     /// A kind this build does not know. Kept rather than dropped so the row still counts
     /// as a favourite — and so removing it removes the right one.
+    ///
+    /// The server also has INITIATIVE, DOCUMENT and DASHBOARD. They land here on purpose:
+    /// this client has no screen to open any of them, and a case without a destination is
+    /// a row that looks tappable and is not.
     case other = "OTHER"
 
     public init(from decoder: any Decoder) throws {

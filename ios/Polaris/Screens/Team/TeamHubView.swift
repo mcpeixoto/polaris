@@ -13,7 +13,6 @@ struct TeamHubView: View {
     let team: Team
     @Environment(AppModel.self) private var model
     @State private var store: TeamWorkStore?
-    @State private var favoriteToggles = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,7 +28,6 @@ struct TeamHubView: View {
         .background(Theme.background.ignoresSafeArea())
         .navigationTitle(team.name)
         .navigationBarTitleDisplayMode(.inline)
-        .sensoryFeedback(.impact(weight: .light), trigger: favoriteToggles)
         .task {
             if store == nil { store = TeamWorkStores.shared.store(for: team, model: model) }
             await store?.load()
@@ -69,7 +67,12 @@ struct TeamHubView: View {
                     .accessibilityIdentifier("team.hub.open")
             }
             Spacer(minLength: Theme.Space.sm)
-            favoriteButton
+            FavoriteButton(
+                kind: .team,
+                targetId: team.id,
+                name: team.name,
+                identifier: "team.favorite"
+            )
         }
         .padding(.horizontal, Theme.Space.lg)
         .padding(.vertical, Theme.Space.sm)
@@ -86,27 +89,6 @@ struct TeamHubView: View {
             let open = issues.filter { $0.state.category.isOpen }.count
             return "\(team.key) · \(String(localized: "\(open) open"))"
         }
-    }
-
-    private var isFavorite: Bool {
-        model.workspaceData.isFavorite(kind: .team, targetId: team.id)
-    }
-
-    private var favoriteButton: some View {
-        Button {
-            favoriteToggles += 1
-            Task { await model.workspaceData.toggleFavorite(kind: .team, targetId: team.id) }
-        } label: {
-            Image(systemName: isFavorite ? "star.fill" : "star")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(isFavorite ? Theme.gold : Theme.textTertiary)
-                .hitTarget()
-        }
-        .buttonStyle(PressableStyle())
-        .accessibilityLabel(isFavorite
-            ? Text("Remove \(team.name) from favorites")
-            : Text("Add \(team.name) to favorites"))
-        .accessibilityIdentifier("team.favorite")
     }
 
     // MARK: - Rows
