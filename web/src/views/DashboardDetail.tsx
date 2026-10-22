@@ -25,6 +25,7 @@ import { EntityLoading, useEntityState } from '~/features/entity-gate/EntityGate
 import { issueIdsForTile, TILE_MEASURE, TILE_SLICE } from '~/features/dashboards/issueIds';
 import { buildInsights, MEASURE_LABELS, SLICE_LABELS } from '~/features/insights/computeInsights';
 import { formatTotal, formatValue, InsightChart } from '~/features/insights/InsightChart';
+import { offerSuccess } from '~/features/toast/ToastHost';
 import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { ApiError } from '~/sync/api';
@@ -131,9 +132,15 @@ export function DashboardDetail() {
   const confirmRemoval = () => {
     setRemoving(true);
     setFailure(null);
+    const name = dashboard.name;
     void deleteDashboard(engine, dashboard.id)
       .then(() => {
         setConfirming(false);
+        // Said rather than implied by the list this navigates to. A dashboard cannot be
+        // taken back — there is no restoreDashboard — so there is no undo offer to carry
+        // the news, and arriving on /dashboards is equally what a refusal would look like
+        // if the catch below had ever been missed again.
+        offerSuccess({ title: `Deleted ${name === '' ? 'the dashboard' : name}` });
         void navigate('/dashboards');
       })
       .catch((error: unknown) => setFailure(messageFor(error, 'That could not be deleted.')))

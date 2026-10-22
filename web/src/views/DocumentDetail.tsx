@@ -54,6 +54,7 @@ import { Markdown } from '~/features/markdown/Markdown';
 import { report } from '~/features/subscriptions/mutations';
 import { isFavorite, toggleFavorite } from '~/features/view/mutations';
 import { useContextMenu } from '~/hooks/useContextMenu';
+import { offerSuccess } from '~/features/toast/ToastHost';
 import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
@@ -300,9 +301,14 @@ export function DocumentDetail() {
     const work = archiving
       ? archiveDocument(engine, document.id, true)
       : deleteDocument(engine, document.id);
+    const name = document.title === '' ? 'the document' : document.title;
     void work
       .then(() => {
         setConfirming(null);
+        // Only the delete. An archived document is restorable and will say so through the
+        // undo offer; a deleted one is gone, nothing on the list this navigates to records
+        // that it ever existed, and silence is the same screen a refusal would leave.
+        if (!archiving) offerSuccess({ title: `Deleted ${name}` });
         void navigate(listPath);
       })
       .catch((error: unknown) =>

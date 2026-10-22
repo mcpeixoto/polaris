@@ -21,7 +21,7 @@
  * component and none of which should have to reach one through a context.
  */
 
-export type ToastTone = 'error' | 'info';
+export type ToastTone = 'error' | 'success' | 'info';
 
 export interface Toast {
   /** Stable for as long as the entry lives, so a click and a timer name the same one. */
@@ -49,6 +49,7 @@ export interface Toast {
  */
 export const TOAST_TTL_MS: Readonly<Record<ToastTone, number>> = {
   error: 8000,
+  success: 5000,
   info: 5000,
 };
 
