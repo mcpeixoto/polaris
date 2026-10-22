@@ -13,30 +13,10 @@ struct MyIssuesView: View {
     /// View options, as Linear's display menu offers them. Session state rather than a
     /// stored preference: the row order below is what several UI tests pin, and a choice
     /// that survived a relaunch would make each test depend on the one before it.
-    @State private var order: ListOrder = .priority
-    @State private var groupByStatus = false
-
-    /// How the rows are ordered. Priority is `IssueOrder`, the one every list shares.
-    enum ListOrder: String, CaseIterable, Identifiable {
-        case priority
-        case recentlyUpdated
-
-        var id: String { rawValue }
-
-        var label: String {
-            switch self {
-            case .priority: String(localized: "Priority")
-            case .recentlyUpdated: String(localized: "Recently updated")
-            }
-        }
-
-        func apply(_ issues: [Issue]) -> [Issue] {
-            switch self {
-            case .priority: issues
-            case .recentlyUpdated: issues.sorted { $0.updatedAt > $1.updatedAt }
-            }
-        }
-    }
+    ///
+    /// Ungrouped by default, against the schema's own `state` — Linear's own default for this
+    /// view, and the one `LinearParityTests` asserts My Issues keeps.
+    @State private var display = ListDisplay(groupBy: .none)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -179,8 +159,22 @@ struct MyIssuesView: View {
         .accessibilityIdentifier("issues.scope")
     }
 
+    /// The display menu, plus the two items that are this screen's own.
+    ///
+    /// "Show completed" is not a display option: it changes which issues are *fetched*, so it
+    /// goes through the store rather than through the local sectioning.
+    ///
+    /// "Group by status" is a display option, and the menu below offers all nine groupings — but
+    /// this toggle stays, in front of them, because it is the gesture this menu has had since the
+    /// list could be grouped at all: one tap, headings on. The picker is how the other eight are
+    /// reached, not a replacement for the one everybody already knows.
     private var filterMenu: some View {
-        Menu {
+        DisplayOptionsMenu(
+            display: $display,
+            symbol: "line.3.horizontal.decrease",
+            label: String(localized: "Filter"),
+            identifier: "issues.filter"
+        ) {
             Toggle(
                 isOn: Binding(
                     get: { model.issues.includeCompleted },
@@ -191,22 +185,15 @@ struct MyIssuesView: View {
             ) {
                 Text("Show completed")
             }
-            Toggle(isOn: $groupByStatus) {
+            Toggle(
+                isOn: Binding(
+                    get: { display.groupBy == .state },
+                    set: { display.groupBy = $0 ? .state : .none }
+                )
+            ) {
                 Text("Group by status")
             }
-            Picker(selection: $order) {
-                ForEach(ListOrder.allCases) { option in
-                    Text(option.label).tag(option)
-                }
-            } label: {
-                Text("Order")
-            }
-            .pickerStyle(.menu)
-        } label: {
-            Image(systemName: "line.3.horizontal.decrease")
         }
-        .accessibilityLabel(Text("Filter"))
-        .accessibilityIdentifier("issues.filter")
     }
 
     /// Projects, then each team, on a line of their own.
@@ -314,9 +301,9 @@ struct MyIssuesView: View {
             // are for a team's list, where the question is "where is everything", not "what
             // do I do next" — offered here from the filter menu, off until asked for.
             IssueListView(
-                issues: order.apply(issues),
+                issues: issues,
                 pendingIDs: model.issues.pendingIssueIDs,
-                grouping: groupByStatus ? .status : .none,
+                display: display,
                 statesFor: { model.workspaceData.states(forTeam: $0.team.id) },
                 ensureStates: { await model.workspaceData.ensureStates(forTeam: $0.team.id) },
                 setState: { issue, state in

@@ -12,6 +12,10 @@ struct TeamIssuesView: View {
     @State private var store: TeamWorkStore?
     @State private var kind: TeamListKind
     @State private var isComposing = false
+    /// The schema's defaults: grouped by status, in the order the store handed the list over.
+    /// A team's list has always been the grouped one — the question it answers is "where is
+    /// everything", not "what do I do next" — so the default must not move.
+    @State private var display = ListDisplay()
 
     init(team: Team, kind: TeamListKind = .active) {
         self.team = team
@@ -45,7 +49,8 @@ struct TeamIssuesView: View {
         .navigationTitle(Text("\(team.key) issues"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                DisplayOptionsMenu(display: $display, identifier: "team.issues.display")
                 Button { isComposing = true } label: {
                     Image(systemName: "square.and.pencil")
                 }
@@ -107,7 +112,7 @@ struct TeamIssuesView: View {
                     }
                     IssueListView(
                         issues: list,
-                        grouping: .status,
+                        display: display,
                         statesFor: { model.workspaceData.states(forTeam: $0.team.id) },
                         ensureStates: { await model.workspaceData.ensureStates(forTeam: $0.team.id) },
                         setState: { issue, state in

@@ -21,6 +21,9 @@ struct SearchView: View {
     @State private var teamId: String?
     @State private var assignedToMe = false
     @State private var openOnly = false
+    /// The schema's defaults. Results come back grouped by status, which is how a search
+    /// result has read since it existed.
+    @State private var display = ListDisplay()
     /// No `UserDefaults` in the fixture app, for the reason `InMemoryIssueCache` exists.
     @State private var recents = RecentSearches(defaults: LaunchOptions.usesFixtures ? nil : .standard)
 
@@ -52,6 +55,11 @@ struct SearchView: View {
         .background(Theme.background.ignoresSafeArea())
         .navigationTitle(Text("Search"))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                DisplayOptionsMenu(display: $display, identifier: "search.display")
+            }
+        }
         .searchable(
             text: $text,
             placement: .navigationBarDrawer(displayMode: .always),
@@ -215,7 +223,7 @@ struct SearchView: View {
                 IssueListView(
                     issues: results.issues,
                     pendingIDs: session.pendingIssueIDs,
-                    grouping: .status,
+                    display: display,
                     statesFor: { model.workspaceData.states(forTeam: $0.team.id) },
                     ensureStates: { await model.workspaceData.ensureStates(forTeam: $0.team.id) },
                     // To the store that holds this row. It went to `model.issues` before,

@@ -16,15 +16,13 @@ import PolarisCore
 /// same list works inside a `NavigationStack` on a phone and inside the content column of a
 /// `NavigationSplitView` on an iPad.
 struct IssueListView: View {
-    enum Grouping {
-        case status
-        case none
-    }
-
     let issues: [Issue]
     /// Rows with a write in flight, which show a spinner where their avatar goes.
     var pendingIDs: Set<String> = []
-    var grouping: Grouping = .status
+    /// How the list is grouped and ordered. The schema's own default — group by state, keep the
+    /// caller's order — which is what every screen but My Issues wants, and what this view did
+    /// before the other eight groupings existed.
+    var display: ListDisplay = ListDisplay()
     /// The states this issue's team defines, for the swipe action and the context menu. Empty
     /// disables both rather than offering a menu with nothing in it.
     let statesFor: (Issue) -> [WorkflowState]
@@ -42,19 +40,21 @@ struct IssueListView: View {
 
     var body: some View {
         List {
-            switch grouping {
-            case .none:
-                ForEach(issues) { issue in
-                    row(issue)
-                }
-            case .status:
-                ForEach(IssueGrouping.byStatus(issues, statesFor: statesFor)) { group in
+            ForEach(sections) { section in
+                if case .none = section.key {
+                    // Ungrouped stays a bare run of rows rather than one `Section` with no
+                    // header: a section whose header is nothing still asks the list for the
+                    // space a header would take.
+                    ForEach(section.issues) { issue in
+                        row(issue)
+                    }
+                } else {
                     Section {
-                        ForEach(group.issues) { issue in
+                        ForEach(section.issues) { issue in
                             row(issue)
                         }
                     } header: {
-                        StatusGroupHeader(state: group.state, count: group.issues.count)
+                        IssueGroupHeader(key: section.key, count: section.issues.count)
                     }
                 }
             }
@@ -78,6 +78,17 @@ struct IssueListView: View {
                 await ensureStates(issue)
             }
         }
+    }
+
+    /// Resolved in Core, so that nine groupings and seven orderings are asserted host-side
+    /// rather than clicked through on a phone. The states come from the caller for the same
+    /// reason the swipe actions do — only it knows which team's reference data is held.
+    private var sections: [IssueSectioning.Section] {
+        IssueSectioning.sections(
+            issues,
+            display: display,
+            context: IssueSectioning.Context(statesFor: statesFor)
+        )
     }
 
     /// One issue per team in the list, which is all `ensureStates` needs: the states are
@@ -181,17 +192,26 @@ struct IssueListView: View {
     }
 }
 
-/// The heading over a status group: the state's glyph, its name, and how many rows are under
-/// it. Drawn on the raised tint the web's group bar uses, so the groups read as bands of the
-/// list rather than as rows of it.
-struct StatusGroupHeader: View {
-    let state: WorkflowState
+/// The heading over a group: the group's own glyph, its name, and how many rows are under it.
+/// Drawn on the raised tint the web's group bar uses, so the groups read as bands of the list
+/// rather than as rows of it.
+///
+/// One header for all nine groupings rather than one per grouping, because the band is the same
+/// band — only the mark inside it changes, and each mark is the one the rest of the app already
+/// uses for that property: `StateIcon` for a status, `PriorityIcon` for a priority, `AvatarView`
+/// for a person.
+///
+/// The accessibility identifier is the group's untranslated name, which is what it has always
+/// been for a status: `issues.group.In Progress` is the workspace's own word for that state, so
+/// a test addressing it keeps addressing the same heading in any locale.
+struct IssueGroupHeader: View {
+    let key: IssueSectioning.GroupKey
     let count: Int
 
     var body: some View {
         HStack(spacing: Theme.Space.sm) {
-            StateIcon(state: state, size: 14)
-            Text(state.name)
+            mark
+            Text(title)
                 .font(.system(.footnote).weight(.medium))
                 .foregroundStyle(Theme.textPrimary)
             Text("\(count)")
@@ -206,7 +226,101 @@ struct StatusGroupHeader: View {
         .listRowInsets(EdgeInsets())
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
-        .accessibilityIdentifier("issues.group.\(state.name)")
+        .accessibilityIdentifier("issues.group.\(key.name)")
+    }
+
+    @ViewBuilder
+    private var mark: some View {
+        switch key {
+        case .state(let state):
+            StateIcon(state: state, size: 14)
+        case .stateCategory(let category):
+            // The category has no state to draw, so the SF Symbol behind `StateIcon`'s shape
+            // stands in for it rather than one arbitrary state's glyph.
+            Image(systemName: category.symbolName)
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.state(category))
+                .frame(width: 14)
+        case .assignee(let user):
+            AvatarView(user: user, size: 16)
+                .accessibilityHidden(true)
+        case .priority(let priority):
+            PriorityIcon(priority: priority, size: 14)
+        case .label(let label):
+            if let label {
+                Circle()
+                    .fill(Theme.hex(label.color))
+                    .frame(width: 8, height: 8)
+                    .frame(width: 14)
+            } else {
+                glyph("tag")
+            }
+        case .team(let team):
+            Circle()
+                .fill(Theme.hex(team.color))
+                .frame(width: 8, height: 8)
+                .frame(width: 14)
+        case .dueDate:
+            glyph("calendar")
+        case .parent:
+            glyph("list.bullet.indent")
+        case .none:
+            EmptyView()
+        }
+    }
+
+    private func glyph(_ name: String) -> some View {
+        Image(systemName: name)
+            .font(.system(size: 12))
+            .foregroundStyle(Theme.textSecondary)
+            .frame(width: 14)
+    }
+
+    /// Workspace data verbatim, this client's own words translated. A state is called whatever
+    /// the workspace called it; "No assignee" is a sentence this app wrote.
+    private var title: String {
+        switch key {
+        case .none: ""
+        case .state(let state): state.name
+        case .stateCategory(let category): category.groupTitle
+        case .assignee(let user): user?.displayName ?? String(localized: "No assignee")
+        case .priority(let priority): priority.label
+        case .label(let label): label?.name ?? String(localized: "No label")
+        case .team(let team): team.name
+        case .dueDate(let bucket): bucket.title
+        case .parent(let parent): parent?.identifier ?? String(localized: "No parent")
+        }
+    }
+}
+
+extension StateCategory {
+    /// What a category-grouped list calls this category. `rawValue` is the wire's word for it,
+    /// not a reader's, and a workspace's own state names do not apply — a category is this
+    /// client's grouping, so the string is this client's to translate.
+    var groupTitle: String {
+        switch self {
+        case .triage: String(localized: "Triage")
+        case .backlog: String(localized: "Backlog")
+        case .unstarted: String(localized: "Unstarted")
+        case .started: String(localized: "In progress")
+        case .completed: String(localized: "Completed")
+        case .canceled: String(localized: "Canceled")
+        case .duplicate: String(localized: "Duplicate")
+        }
+    }
+}
+
+extension IssueSectioning.DueBucket {
+    var title: String {
+        switch self {
+        case .overdue: String(localized: "Overdue")
+        case .today: String(localized: "Today")
+        case .tomorrow: String(localized: "Tomorrow")
+        case .thisWeek: String(localized: "This week")
+        case .nextWeek: String(localized: "Next week")
+        case .later: String(localized: "Later")
+        case .none: String(localized: "No due date")
+        }
     }
 }
 

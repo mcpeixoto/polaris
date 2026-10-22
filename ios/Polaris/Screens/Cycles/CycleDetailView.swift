@@ -11,6 +11,8 @@ struct CycleDetailView: View {
     @State private var store: CycleStore?
     @State private var writeError: PolarisError?
     @State private var pendingIDs: Set<String> = []
+    /// The schema's defaults: a cycle's issues have always been grouped by status.
+    @State private var display = ListDisplay()
 
     private let seed: Cycle
 
@@ -33,7 +35,8 @@ struct CycleDetailView: View {
         .navigationTitle(Text("Cycle \(seed.number)"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                DisplayOptionsMenu(display: $display, identifier: "cycle.display")
                 FavoriteButton(
                     kind: .cycle,
                     targetId: seed.id,
@@ -143,7 +146,7 @@ struct CycleDetailView: View {
             IssueListView(
                 issues: issues,
                 pendingIDs: pendingIDs,
-                grouping: .status,
+                display: display,
                 statesFor: { model.workspaceData.states(forTeam: $0.team.id) },
                 ensureStates: { await model.workspaceData.ensureStates(forTeam: $0.team.id) },
                 setState: { issue, state in
