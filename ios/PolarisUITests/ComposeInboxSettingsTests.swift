@@ -269,7 +269,28 @@ final class ComposeInboxSettingsTests: XCTestCase {
         let app = launch()
         tapWhenReady(app.buttons["Settings"].firstMatch)
         XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: long))
-        XCTAssertTrue(app.buttons["Sign out"].firstMatch.exists, "sign out is still on the screen")
+        // Scrolled to rather than asserted where it stands. Settings has grown past a phone's
+        // height — Cloud Pro, Send feedback and the Delete account the App Store requires all
+        // arrived after the note in SettingsView about keeping this row off the tab bar — and
+        // a SwiftUI List does not put a row in the accessibility hierarchy until it realises
+        // it. The same `isHittable`/`swipeUp` idiom this file already uses for Cloud Pro.
+        let signOut = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == %@", "settings.signOut"))
+            .firstMatch
+        let accountRow = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == %@", "settings.profile"))
+            .firstMatch
+        if !signOut.exists || !signOut.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(signOut.waitForExistence(timeout: long), "sign out is still on the screen")
+        // Back to the top, because the rest of this test is about the first row. Asserted
+        // rather than assumed: a swipe that did not land would otherwise fail later, on the
+        // profile row, for a reason that has nothing to do with the profile row.
+        if !accountRow.isHittable {
+            app.swipeDown()
+        }
+        XCTAssertTrue(accountRow.waitForExistence(timeout: long), "the account row is back in view")
 
         let notifications = app.buttons["settings.notifications"].exists
             ? app.buttons["settings.notifications"]

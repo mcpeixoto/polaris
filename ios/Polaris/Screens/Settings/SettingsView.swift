@@ -99,9 +99,14 @@ struct SettingsView: View {
                 }
                 .accessibilityIdentifier("settings.notifications")
                 appearanceRow
-                // In Preferences rather than an About section of its own: the extra header
-                // pushed Sign out under the tab bar on a phone, and a settings screen whose
-                // last row needs a scroll to find is one people give up on.
+                // In Preferences rather than an About section of its own, to keep this
+                // screen short. It is no longer short enough, and that is now accepted
+                // rather than fought: Cloud Pro, this row, and the Delete account and legal
+                // links the App Store requires have taken Settings past a phone's height, so
+                // Sign out is one scroll down. Folding Legal behind a single row was tried
+                // and reverted — `testSettingsLegalLinksAndCloudProRestore` asserts both
+                // links are on this screen, because Guideline 5.1.1 wants the privacy policy
+                // in the app, and a tap away is a worse answer to that than a short scroll.
                 Link(destination: Self.feedbackURL) {
                     HStack {
                         Text("Send feedback")
