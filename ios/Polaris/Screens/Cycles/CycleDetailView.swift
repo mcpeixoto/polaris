@@ -17,6 +17,9 @@ struct CycleDetailView: View {
     @State private var pendingIDs: Set<String> = []
     /// The schema's defaults: a cycle's issues have always been grouped by status.
     @State private var display = ListDisplay()
+    /// Which issues the list holds. `CycleStore` holds every issue scheduled into the cycle,
+    /// so the filter is exact and the count says so.
+    @State private var filter = IssueFilterDraft()
     @State private var isEditing = false
     @State private var isConfirmingStart = false
 
@@ -42,6 +45,11 @@ struct CycleDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                FilterButton(
+                    draft: $filter,
+                    options: filterOptions(store?.issues.value ?? []),
+                    identifier: "cycle.filter"
+                )
                 DisplayOptionsMenu(display: $display, identifier: "cycle.display")
                 FavoriteButton(
                     kind: .cycle,
@@ -218,9 +226,26 @@ struct CycleDetailView: View {
             .scrollIndicators(.hidden)
             .refreshable { await store.load() }
 
+        case .loaded(let issues) where filter.apply(to: issues).isEmpty:
+            ScrollView {
+                NoFilterMatchesView(total: issues.count) { filter = IssueFilterDraft() }
+                    .padding(.top, Theme.Space.xxl)
+                    .readableColumn()
+            }
+            .scrollIndicators(.hidden)
+            .refreshable { await store.load() }
+
         case .loaded(let issues):
+            if !filter.isEmpty {
+                FilterCountCaption(
+                    matched: filter.apply(to: issues).count,
+                    total: issues.count,
+                    identifier: "cycle.filter.count"
+                )
+                .readableColumn()
+            }
             IssueListView(
-                issues: issues,
+                issues: filter.apply(to: issues),
                 pendingIDs: pendingIDs,
                 display: display,
                 statesFor: { model.workspaceData.states(forTeam: $0.team.id) },
@@ -232,6 +257,14 @@ struct CycleDetailView: View {
             .readableColumn()
             .refreshable { await store.load() }
         }
+    }
+
+    /// Without the cycle section: every issue here is in this cycle. The project section
+    /// stays — "what of this cycle belongs to Alpha" is the question a cycle list is asked.
+    private func filterOptions(_ issues: [Issue]) -> IssueFilterOptions {
+        var options = IssueFilterOptions(from: issues)
+        options.cycles = []
+        return options
     }
 
     /// The cycle store has no optimistic write of its own, so the row shows a spinner until

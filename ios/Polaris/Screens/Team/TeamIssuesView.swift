@@ -16,6 +16,10 @@ struct TeamIssuesView: View {
     /// A team's list has always been the grouped one — the question it answers is "where is
     /// everything", not "what do I do next" — so the default must not move.
     @State private var display = ListDisplay()
+    /// Which issues the list holds, as opposed to how they are arranged. Answered on this
+    /// device: `issues(teamId:)` has no pagination, so `store.all` is every issue on the team
+    /// and a filter over it is exact rather than approximate.
+    @State private var filter = IssueFilterDraft()
     /// Selection mode, what is picked, and what the last batch did — see `MyIssuesView`,
     /// which keeps the same three for the same reasons.
     @State private var isSelecting = false
@@ -45,7 +49,7 @@ struct TeamIssuesView: View {
                 if isSelecting {
                     BulkActionBar(
                         selection: selection,
-                        issues: issues(in: store),
+                        issues: visible(in: store),
                         statesFor: { model.workspaceData.states(forTeam: $0.team.id) },
                         people: model.workspaceData.users.value ?? [],
                         apply: { applyBulk($0, store: store) }
@@ -65,6 +69,14 @@ struct TeamIssuesView: View {
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 SelectModeButton(isSelecting: $isSelecting, selection: $selection, identifier: "team.issues.select")
+                FilterButton(
+                    draft: $filter,
+                    // Built from the whole team list rather than from the tab in front of
+                    // somebody, so the chips do not appear and vanish as the segmented
+                    // control moves.
+                    options: IssueFilterOptions(from: store?.all ?? []),
+                    identifier: "team.issues.filter"
+                )
                 DisplayOptionsMenu(display: $display, identifier: "team.issues.display")
                 Button { isComposing = true } label: {
                     Image(systemName: "square.and.pencil")
@@ -104,6 +116,11 @@ struct TeamIssuesView: View {
         }
     }
 
+    /// The rows actually on screen: the tab's cut, narrowed by the filter.
+    private func visible(in store: TeamWorkStore) -> [Issue] {
+        filter.apply(to: issues(in: store))
+    }
+
     @ViewBuilder
     private func content(store: TeamWorkStore) -> some View {
         switch store.issues {
@@ -119,17 +136,30 @@ struct TeamIssuesView: View {
                 .readableColumn()
 
         case .loaded:
-            let list = issues(in: store)
+            let all = issues(in: store)
+            let list = filter.apply(to: all)
             if list.isEmpty {
                 ScrollView {
-                    emptyState
-                        .padding(.top, Theme.Space.xxxl)
-                        .readableColumn()
+                    // Two different empties: "nothing active" is a fact about the team, and
+                    // "everything here is filtered out" is a fact about the filter.
+                    Group {
+                        if all.isEmpty {
+                            emptyState
+                        } else {
+                            NoFilterMatchesView(total: all.count) { filter = IssueFilterDraft() }
+                        }
+                    }
+                    .padding(.top, Theme.Space.xxxl)
+                    .readableColumn()
                 }
                 .scrollIndicators(.hidden)
                 .refreshable { await store.load() }
             } else {
                 VStack(spacing: 0) {
+                    if !filter.isEmpty {
+                        FilterCountCaption(matched: list.count, total: all.count, identifier: "team.issues.filter.count")
+                            .readableColumn()
+                    }
                     // A refused status change, said out loud. The row rolling back on its own
                     // reads as a tap that missed.
                     if let error = store.writeError {
