@@ -352,7 +352,20 @@ final class DetailAndSettingsTests: XCTestCase {
     func testSignOutReturnsToWelcome() {
         let app = launch()
         goToSettings(app)
-        app.buttons["Sign out"].firstMatch.tap()
+        // Scrolled to rather than tapped where it stands, the same as
+        // `testSettingsOpensProfileAndNotifications` in ComposeInboxSettingsTests. Settings
+        // is taller than a phone — Cloud Pro, Send feedback, and the Delete account and legal
+        // links the App Store requires — and a SwiftUI List does not put a row in the
+        // accessibility hierarchy until it realises it, so the row is plainly on screen for a
+        // person and absent to a query. Sign out itself is not broken: confirmed by hand.
+        let signOut = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == %@", "settings.signOut"))
+            .firstMatch
+        if !signOut.exists || !signOut.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(signOut.waitForExistence(timeout: long), "sign out is on the settings screen")
+        signOut.tap()
         XCTAssertTrue(
             app.staticTexts["Sign out of Polaris?"].waitForExistence(timeout: 20),
             "confirmation dialog should appear"
