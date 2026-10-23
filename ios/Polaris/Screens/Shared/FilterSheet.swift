@@ -510,14 +510,7 @@ struct FilterButton: View {
                   : "line.3.horizontal.decrease.circle.fill")
         }
         .tint(draft.isEmpty ? Theme.textSecondary : Theme.accentBright)
-        // Not "Filter". My Issues' and the team list's *display* menu has been called that
-        // since before it held display options, and `DisplayOptionsMenu` takes its label as a
-        // parameter for exactly that reason — so a bare "Filter" here puts two buttons with
-        // one name in the same toolbar, which XCUITest reports as an ambiguous query and a
-        // VoiceOver user hears as two identical choices. The funnel deserves the shorter name
-        // and the sliders deserve "Display"; renaming the sliders means editing the suites
-        // that tap them, so it is asked for rather than taken.
-        .accessibilityLabel(Text("Filter issues"))
+        .accessibilityLabel(Text("Filter"))
         .accessibilityValue(Text(draft.isEmpty
                                  ? String(localized: "Off")
                                  : String(localized: "\(draft.activeFields) fields")))

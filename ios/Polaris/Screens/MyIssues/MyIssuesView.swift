@@ -89,9 +89,9 @@ struct MyIssuesView: View {
                 FilterButton(
                     draft: $filter,
                     options: IssueFilterOptions(from: loaded),
-                    identifier: "issues.filter.sheet"
+                    identifier: "issues.filter"
                 )
-                filterMenu
+                displayMenu
                 Button { isComposing = true } label: {
                     Image(systemName: "square.and.pencil")
                 }
@@ -219,6 +219,11 @@ struct MyIssuesView: View {
 
     /// The display menu, plus the two items that are this screen's own.
     ///
+    /// It was called "Filter" and wore the funnel, from before the list could be grouped and
+    /// long before anything could actually filter it. Now that something can, the funnel and
+    /// the name belong to `FilterButton` beside it, and this is the sliders menu it has been
+    /// everywhere else in the app all along.
+    ///
     /// "Show completed" is not a display option: it changes which issues are *fetched*, so it
     /// goes through the store rather than through the local sectioning.
     ///
@@ -226,13 +231,8 @@ struct MyIssuesView: View {
     /// this toggle stays, in front of them, because it is the gesture this menu has had since the
     /// list could be grouped at all: one tap, headings on. The picker is how the other eight are
     /// reached, not a replacement for the one everybody already knows.
-    private var filterMenu: some View {
-        DisplayOptionsMenu(
-            display: $display,
-            symbol: "line.3.horizontal.decrease",
-            label: String(localized: "Filter"),
-            identifier: "issues.filter"
-        ) {
+    private var displayMenu: some View {
+        DisplayOptionsMenu(display: $display, identifier: "issues.display") {
             Toggle(
                 isOn: Binding(
                     get: { model.issues.includeCompleted },
