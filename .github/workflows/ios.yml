@@ -11,10 +11,18 @@ on:
     paths:
       - 'ios/**'
       - '.github/workflows/ios.yml'
+      # Not an iOS file, but `PolarisCoreTests/FilterConformanceTests` reads it: the iOS
+      # filter evaluator is a third implementation of the shared grammar, beside the Go
+      # compiler and the web evaluator, and this fixture is what makes the three agree. Edit
+      # it alone and — without this line — the Go and TypeScript suites re-pin while the
+      # Swift one is never run on the change. `ci.yml` is unfiltered but does not run
+      # `swift test`, so this is the only place that gap closes.
+      - 'schema/filter-conformance.json'
   pull_request:
     paths:
       - 'ios/**'
       - '.github/workflows/ios.yml'
+      - 'schema/filter-conformance.json'
   workflow_dispatch:
 
 jobs:
@@ -69,9 +77,10 @@ jobs:
       # The app-hosted unit tests and the UI smoke test. The bundle-level checks — the
       # version keys interpolating, the privacy manifest being copied, the URL scheme being
       # registered — only exist against the built product, and the smoke test is the one that
-      # proves the fixture app still launches to a signed-in screen. The full QA sweeps stay a
-      # local `xcodebuild test`: on this runner they cost twenty minutes for coverage the
-      # PolarisCore suite already has host-side.
+      # proves the fixture app still launches to a signed-in screen.
+      #
+      # Kept as its own step, ahead of the sweeps below, because it is minutes rather than
+      # twenty and a broken build should say so quickly.
       - name: Run app-hosted tests
         working-directory: ios
         run: |
@@ -85,10 +94,66 @@ jobs:
             -resultBundlePath build/results.xcresult \
             test-without-building
 
+      # Everything else in the UI bundle.
+      #
+      # These used to be a local `xcodebuild test` that nobody ran, on the reasoning that they
+      # were "coverage the PolarisCore suite already has host-side". That is not true of what
+      # they actually catch, and the cost of believing it was two regressions reaching main:
+      # a second copy of a row-matching helper that made a settings suite count four rows
+      # where it expected three (#298, found and fixed in #300), and two buttons sharing the
+      # accessibility label "Filter" in one toolbar, which broke three cases across two suites
+      # (#306, caught only because the sweeps were run by hand). Neither is visible to a
+      # host-side test: one is about what a query matches in a live hierarchy, the other about
+      # a duplicate label. `DetailAndSettingsTests` had meanwhile been red for weeks with
+      # nobody looking (#308).
+      #
+      # Written as `-skip-testing` rather than a list of `-only-testing`, deliberately. An
+      # allow-list is what caused this: a suite added later is not in it, so it is silently
+      # ungated and rots exactly the way these did. Skipping the two known exceptions means
+      # everything else — including every suite nobody has written yet — is a gate by default.
+      #
+      # Measured, not guessed: 57 tests in 17m38s on an M-series Mac against an iPhone 17 Pro
+      # Max, with the build already done by the step above. A GitHub macOS runner is slower,
+      # so budget more. That is the real price of the two regressions above not reaching main
+      # again, and it is worth saying out loud rather than discovering on the first PR.
+      #
+      # The four skips, each for its own reason:
+      #
+      #   PolarisTests, SmokeTests  Already run in the step above, where they fail fast.
+      #
+      #   LiveStackTests            Needs a `make dev` stack on localhost. It skips itself
+      #                             without POLARIS_LIVE_STACK=1, so naming it here only
+      #                             saves booting the app to skip one test.
+      #
+      #   OnboardingQATests         Red on main, and not from this change. Its accessibility
+      #                             audit reports "Hit area is too small" on Welcome, Sign in
+      #                             and Sign up — tap targets under the 44pt minimum on the
+      #                             first three screens anybody sees. The audit names no
+      #                             element in the result bundle, so finding them is its own
+      #                             pass. Gating on it today would block every iOS PR on a
+      #                             defect none of them caused. Delete this line the day it
+      #                             goes green; it is a defect to fix, not a suite to retire.
+      - name: Run the UI sweeps
+        working-directory: ios
+        run: |
+          xcodebuild \
+            -project Polaris.xcodeproj \
+            -scheme Polaris \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build/DerivedData \
+            -skip-testing:PolarisTests \
+            -skip-testing:PolarisUITests/SmokeTests \
+            -skip-testing:PolarisUITests/LiveStackTests \
+            -skip-testing:PolarisUITests/OnboardingQATests \
+            -resultBundlePath build/sweeps.xcresult \
+            test-without-building
+
       - name: Keep the result bundle
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ios-test-results
-          path: ios/build/results.xcresult
+          path: |
+            ios/build/results.xcresult
+            ios/build/sweeps.xcresult
           if-no-files-found: ignore
