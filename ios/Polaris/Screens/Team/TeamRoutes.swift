@@ -73,4 +73,11 @@ final class TeamWorkStores {
         stores[team.id] = created
         return created
     }
+
+    /// A cycle edited one screen deeper, into the team store that is holding the list it came
+    /// from — if one is. Nothing is built here: a team nobody has opened has no list to put
+    /// it back into.
+    func apply(_ cycle: Cycle) {
+        stores[cycle.teamId]?.apply(cycle)
+    }
 }

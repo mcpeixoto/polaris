@@ -36,6 +36,9 @@ public actor FixturePolarisClient: PolarisAPI {
     /// And for a bulk edit, where it matters most: the op touches many rows, so a retry that
     /// applied a second time would move a selection twice.
     private var bulkByOpId: [String: BulkIssueResult] = [:]
+    /// And for a project create, which has no client-minted id to deduplicate on — `opId` is
+    /// the only thing a retry and the original have in common.
+    private var projectsByOpId: [String: Project] = [:]
     /// How many bulk edits actually reached the store behind this double. A retry served from
     /// `bulkByOpId` does not increment it, which is the only way a test can tell "replayed"
     /// from "applied again with the same outcome".
@@ -481,6 +484,142 @@ public actor FixturePolarisClient: PolarisAPI {
         return result
     }
 
+    // MARK: - Planning writes
+
+    /// Idempotent on `opId`, checked before the armed failure for `createIssue`'s reason: a
+    /// replay of an op that already landed is not a write.
+    ///
+    /// The empty-`teamIds` refusal is the one piece of server validation this double
+    /// reproduces, because it is the one a form can get wrong: the input's own comment says a
+    /// project with no team is invisible to everyone, and a double that accepted it would let
+    /// a screen ship that could create one.
+    public func createProject(_ draft: ProjectDraft) async throws -> Project {
+        if let existing = projectsByOpId[draft.opId] { return existing }
+        guard !draft.teamIds.isEmpty else {
+            throw PolarisError.validation(
+                message: "A project needs at least one team.", field: "teamIds"
+            )
+        }
+        try consumeFailure()
+        let created = FixtureData.project(
+            id: UUIDv7.string(),
+            name: draft.name,
+            summary: draft.summary,
+            description: draft.description ?? "",
+            icon: draft.icon,
+            color: draft.color ?? "#8A8F98",
+            priority: draft.priority,
+            lead: draft.leadId.flatMap { id in people.first { $0.id == id } },
+            startDate: draft.startDate,
+            targetDate: draft.targetDate,
+            status: storedProjectStatuses.first { $0.id == draft.statusId }
+                ?? storedProjectStatuses[0],
+            teams: allTeams.filter { draft.teamIds.contains($0.id) }
+        )
+        projectsByOpId[draft.opId] = created
+        storedProjects.append(created)
+        return created
+    }
+
+    /// Mutated, not rebuilt, for the reason `updateIssue` gives: rebuilding would silently
+    /// drop the milestones and the teams, and a project whose milestones vanish on a rename
+    /// reads as a product bug.
+    public func updateProject(_ change: ProjectChange) async throws -> Project {
+        try consumeFailure()
+        guard let index = storedProjects.firstIndex(where: { $0.id == change.id }) else {
+            throw PolarisError.notFound
+        }
+        var updated = storedProjects[index]
+        if let name = change.name { updated.name = name }
+        if let summary = change.summary { updated.summary = summary }
+        if let description = change.description { updated.description = description }
+        if let icon = change.icon { updated.icon = icon }
+        if let color = change.color { updated.color = color }
+        if let statusId = change.statusId,
+           let next = storedProjectStatuses.first(where: { $0.id == statusId }) {
+            updated.status = next
+        }
+        if let priority = change.priority { updated.priority = priority }
+        if change.clearLead {
+            updated.leadId = nil
+            updated.lead = nil
+        } else if let leadId = change.leadId {
+            updated.leadId = leadId
+            updated.lead = people.first { $0.id == leadId }
+        }
+        if change.clearStart {
+            updated.startDate = nil
+        } else if let startDate = change.startDate {
+            updated.startDate = startDate
+        }
+        if change.clearTarget {
+            updated.targetDate = nil
+        } else if let targetDate = change.targetDate {
+            updated.targetDate = targetDate
+        }
+        storedProjects[index] = updated
+        return updated
+    }
+
+    /// Enforces the two immutability rules `UpdateCycleInput` documents, with the sentences
+    /// the server would send.
+    ///
+    /// A double that accepted them would let a form ship whose Save button is a coin toss —
+    /// the whole reason `Cycle.allowsStartEdit` exists is so the control is disabled instead,
+    /// and nothing proves that is wired up unless the refusal is reachable here.
+    public func updateCycle(_ change: CycleChange) async throws -> Cycle {
+        guard let index = storedCycles.firstIndex(where: { $0.id == change.id }) else {
+            throw PolarisError.notFound
+        }
+        let current = storedCycles[index]
+        if change.startsAt != nil, !current.allowsStartEdit() {
+            throw PolarisError.validation(
+                message: "A cycle that has already started cannot have its start moved.",
+                field: "startsAt"
+            )
+        }
+        if change.endsAt != nil, !current.allowsEndEdit() {
+            throw PolarisError.validation(
+                message: "A cycle that has already ended cannot have its end moved.",
+                field: "endsAt"
+            )
+        }
+        try consumeFailure()
+        var updated = current
+        if let name = change.name { updated.name = name }
+        if change.clearDescription {
+            updated.description = nil
+        } else if let description = change.description {
+            updated.description = description
+        }
+        if let startsAt = change.startsAt { updated.startsAt = startsAt }
+        if let endsAt = change.endsAt { updated.endsAt = endsAt }
+        storedCycles[index] = updated
+        return updated
+    }
+
+    /// Pulls an upcoming cycle to the start of today, keeping its length — the server moves
+    /// both ends, because a cycle dragged backwards with a fixed end is a shorter cycle than
+    /// the team's cadence says.
+    public func startCycleToday(id: String, opId: String) async throws -> Cycle {
+        guard let index = storedCycles.firstIndex(where: { $0.id == id }) else {
+            throw PolarisError.notFound
+        }
+        let current = storedCycles[index]
+        guard current.isUpcoming() else {
+            throw PolarisError.validation(
+                message: "Only an upcoming cycle can be started today.", field: "id"
+            )
+        }
+        try consumeFailure()
+        var updated = current
+        let today = Calendar.current.startOfDay(for: Date())
+        updated.endsAt = today.addingTimeInterval(current.endsAt.timeIntervalSince(current.startsAt))
+        updated.startsAt = today
+        storedCycles[index] = updated
+        return updated
+    }
+
     /// Applies an edit to an issue wherever it is held and hands back the result.
     private func mutateIssue(id: String, _ edit: (inout Issue) -> Void) throws -> Issue {
         if let index = storedIssues.firstIndex(where: { $0.id == id }) {
@@ -852,6 +991,43 @@ public enum FixtureData {
       "milestones":[]}]
     """)
 
+    /// A project, built the way every other fixture is: encoded to the wire shape and decoded
+    /// back, so `Project.init(from:)` and its `teams { team { … } }` flattening are exercised
+    /// rather than side-stepped.
+    public static func project(
+        id: String,
+        name: String,
+        summary: String? = nil,
+        description: String = "",
+        icon: String? = nil,
+        color: String = "#8A8F98",
+        priority: Priority = .none,
+        lead: User? = nil,
+        startDate: String? = nil,
+        targetDate: String? = nil,
+        status: ProjectStatus,
+        teams: [Team] = [],
+        milestones: [ProjectMilestone] = []
+    ) -> Project {
+        func encoded<T: Encodable>(_ value: T?) -> String {
+            guard let value, let data = try? PolarisJSON.encoder().encode(value),
+                  let text = String(data: data, encoding: .utf8)
+            else { return "null" }
+            return text
+        }
+        let links = teams.map { "{\"team\":\(encoded($0))}" }.joined(separator: ",")
+        return decoded("""
+        {"id":"\(id)","name":"\(name)","summary":\(summary.map { "\"\($0)\"" } ?? "null"),
+         "description":"\(description)","icon":\(icon.map { "\"\($0)\"" } ?? "null"),
+         "color":"\(color)","priority":\(priority.rawValue),
+         "leadId":\(lead.map { "\"\($0.id)\"" } ?? "null"),
+         "startDate":\(startDate.map { "\"\($0)\"" } ?? "null"),
+         "targetDate":\(targetDate.map { "\"\($0)\"" } ?? "null"),
+         "status":\(encoded(status)),"lead":\(encoded(lead)),
+         "teams":[\(links)],"milestones":\(encoded(milestones))}
+        """)
+    }
+
     /// One cycle running now and one after it. Dated relative to the clock rather than fixed,
     /// because "active" is a property of today and a fixture pinned to a week in August is a
     /// fixture that stops being active in September.
@@ -869,6 +1045,27 @@ public enum FixtureData {
 
     public static let activeCycle: Cycle = cycles[0]
     public static let upcomingCycle: Cycle = cycles[1]
+
+    /// A cycle at dates the caller chooses. The stock pair are one running and one upcoming;
+    /// a *past* cycle is the third case `UpdateCycleInput` treats differently, and there is no
+    /// way to reach it without naming the dates.
+    public static func cycle(
+        id: String,
+        teamId: String = "t1",
+        number: Int,
+        name: String = "",
+        description: String? = nil,
+        startsAt: Date,
+        endsAt: Date,
+        completedAt: Date? = nil
+    ) -> Cycle {
+        decoded("""
+        {"id":"\(id)","teamId":"\(teamId)","number":\(number),"name":"\(name)",
+         "description":\(description.map { "\"\($0)\"" } ?? "null"),
+         "startsAt":"\(PolarisJSON.rfc3339(startsAt))","endsAt":"\(PolarisJSON.rfc3339(endsAt))",
+         "completedAt":\(completedAt.map { "\"\(PolarisJSON.rfc3339($0))\"" } ?? "null")}
+        """)
+    }
 
     /// The issue set, selected by launch argument.
     ///

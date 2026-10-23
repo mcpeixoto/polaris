@@ -11,6 +11,7 @@ struct ProjectsView: View {
     /// Nil is the workspace-wide list.
     let team: Team?
     @Environment(AppModel.self) private var model
+    @State private var isComposing = false
 
     var body: some View {
         ZStack {
@@ -19,6 +20,32 @@ struct ProjectsView: View {
         }
         .navigationTitle(Text("Projects"))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    isComposing = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .tint(Theme.accentBright)
+                .accessibilityLabel(Text("New project"))
+                .accessibilityIdentifier("projects.add")
+            }
+        }
+        .sheet(isPresented: $isComposing) {
+            // The created project goes into `WorkspaceDataStore`, which is where this list
+            // reads from — so the new row is on screen when the sheet closes rather than
+            // after the next reference-data fetch, which nothing schedules.
+            ProjectComposeView(mode: .create) { request in
+                guard case .create(let draft) = request else { return nil }
+                do {
+                    _ = try await model.workspaceData.create(draft)
+                    return nil
+                } catch {
+                    return PolarisError.mapped(error)
+                }
+            }
+        }
         .task {
             // Projects load with the rest of the reference data at sign-in; this only fills a
             // gap left by a failed or not-yet-finished load — and asks for projects alone,

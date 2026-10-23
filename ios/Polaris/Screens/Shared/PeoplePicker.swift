@@ -8,11 +8,18 @@ import PolarisCore
 /// A sheet rather than a menu because a workspace has more people than a menu can hold, and
 /// because a menu cannot be searched. Named apart from the detail screen's private
 /// `AssigneePicker`, which is a menu over the same people.
+/// Also the project lead's picker — which is the same question about the same people, and
+/// differs only in what the sheet is called and in what "nobody" is called. Both default to
+/// the assignee's words, so every existing caller is unchanged.
 struct PeoplePicker: View {
     let people: [User]
     /// The reader, so their row sits first and reads "you".
     let me: User?
     @Binding var selection: String?
+    var title: String = String(localized: "Assignee")
+    /// What the top row says when nobody is picked. "Unassigned" is right for an issue and
+    /// wrong for a project, which has a lead rather than an assignee.
+    var noneLabel: String = String(localized: "Unassigned")
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
 
@@ -35,7 +42,7 @@ struct PeoplePicker: View {
         NavigationStack {
             List {
                 if query.isEmpty {
-                    row(user: nil, title: String(localized: "Unassigned"), subtitle: nil, isSelected: selection == nil) {
+                    row(user: nil, title: noneLabel, subtitle: nil, isSelected: selection == nil) {
                         pick(nil)
                     }
                 }
@@ -60,7 +67,7 @@ struct PeoplePicker: View {
                 placement: .navigationBarDrawer(displayMode: .always),
                 prompt: Text("Search people")
             )
-            .navigationTitle(Text("Assignee"))
+            .navigationTitle(Text(title))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

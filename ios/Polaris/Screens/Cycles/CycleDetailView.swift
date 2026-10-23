@@ -13,6 +13,8 @@ struct CycleDetailView: View {
     @State private var pendingIDs: Set<String> = []
     /// The schema's defaults: a cycle's issues have always been grouped by status.
     @State private var display = ListDisplay()
+    @State private var isEditing = false
+    @State private var isConfirmingStart = false
 
     private let seed: Cycle
 
@@ -43,7 +45,35 @@ struct CycleDetailView: View {
                     name: seed.displayName,
                     identifier: "cycle.favorite"
                 )
+                menu
             }
+        }
+        .sheet(isPresented: $isEditing) {
+            if let store {
+                let current = store.cycle.value ?? seed
+                CycleEditView(cycle: current) { change in
+                    guard await store.update(change) != nil else { return store.writeError }
+                    propagate(store)
+                    return nil
+                }
+            }
+        }
+        // A confirmation, because `startCycleToday` is the one irreversible thing on this
+        // screen: the schema says so, and there is no mutation that puts the dates back.
+        .confirmationDialog(
+            "Start this cycle today?",
+            isPresented: $isConfirmingStart,
+            titleVisibility: .visible
+        ) {
+            Button("Start today") {
+                Task {
+                    guard let store, await store.startToday() != nil else { return }
+                    propagate(store)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("It will run from today, for as long as it was scheduled for. This cannot be undone.")
         }
         .task {
             if store == nil {
@@ -59,6 +89,44 @@ struct CycleDetailView: View {
         // The cycle store has no optimistic write, so a row mid-change is showing a spinner
         // over the old status; a reload would land the old status as if it were news.
         .refreshOnRealtime(isSuspended: !pendingIDs.isEmpty) { await store?.load() }
+    }
+
+    /// Everything that can be done to the cycle rather than to its list.
+    ///
+    /// "Start today" is offered only while the cycle is upcoming: the mutation pulls *the next
+    /// upcoming cycle* forward, so on a running or finished one it is an action that can only
+    /// be refused. A menu item that always fails is worse than no menu item.
+    private var menu: some View {
+        let current = store?.cycle.value ?? seed
+        return Menu {
+            Button {
+                isEditing = true
+            } label: {
+                Label("Edit cycle", systemImage: "pencil")
+            }
+            .accessibilityIdentifier("cycle.edit")
+
+            if current.isUpcoming() {
+                Button {
+                    isConfirmingStart = true
+                } label: {
+                    Label("Start today", systemImage: "play.circle")
+                }
+                .accessibilityIdentifier("cycle.startToday")
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+        }
+        .tint(Theme.textSecondary)
+        .accessibilityLabel(Text("Cycle actions"))
+        .accessibilityIdentifier("cycle.menu")
+    }
+
+    /// The edited cycle into the team's own list, which the cycles screen behind this one is
+    /// holding and does not refetch on the way back.
+    private func propagate(_ store: CycleStore) {
+        guard let updated = store.cycle.value else { return }
+        TeamWorkStores.shared.apply(updated)
     }
 
     private func header(store: CycleStore) -> some View {

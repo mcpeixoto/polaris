@@ -917,6 +917,98 @@ public actor LivePolarisClient: PolarisAPI {
         return try decode(Payload.self, from: data).attachment
     }
 
+    // MARK: - Planning writes
+
+    public func createProject(_ draft: ProjectDraft) async throws -> Project {
+        let input = JSONValue.object(compacting: [
+            "name": .string(draft.name),
+            "summary": draft.summary.map(JSONValue.string),
+            "description": draft.description.map(JSONValue.string),
+            "icon": draft.icon.map(JSONValue.string),
+            "color": draft.color.map(JSONValue.string),
+            "statusId": draft.statusId.map(JSONValue.string),
+            "priority": .int(draft.priority.rawValue),
+            "leadId": draft.leadId.map(JSONValue.string),
+            // Always sent, never omitted: the field is non-null on the input, so an absent
+            // key is a validation error rather than a project on no team.
+            "teamIds": .array(draft.teamIds.map(JSONValue.string)),
+            "startDate": draft.startDate.map(JSONValue.string),
+            "startDateGranularity": draft.startDateGranularity.map { JSONValue.string($0.rawValue) },
+            "targetDate": draft.targetDate.map(JSONValue.string),
+            "targetDateGranularity": draft.targetDateGranularity.map { JSONValue.string($0.rawValue) },
+        ])
+        let data = try await graphQL(
+            GraphQLDocuments.createProject,
+            variables: idempotent(["input": input], opId: draft.opId),
+            field: "createProject"
+        )
+        return try decodePayloadProject(from: data)
+    }
+
+    public func updateProject(_ change: ProjectChange) async throws -> Project {
+        let input = JSONValue.object(compacting: [
+            "id": .string(change.id),
+            "name": change.name.map(JSONValue.string),
+            "summary": change.summary.map(JSONValue.string),
+            "description": change.description.map(JSONValue.string),
+            "icon": change.icon.map(JSONValue.string),
+            "color": change.color.map(JSONValue.string),
+            "statusId": change.statusId.map(JSONValue.string),
+            "priority": change.priority.map { JSONValue.int($0.rawValue) },
+            "leadId": change.leadId.map(JSONValue.string),
+            "clearLead": change.clearLead ? .bool(true) : nil,
+            "startDate": change.startDate.map(JSONValue.string),
+            "startDateGranularity": change.startDateGranularity.map { JSONValue.string($0.rawValue) },
+            "clearStart": change.clearStart ? .bool(true) : nil,
+            "targetDate": change.targetDate.map(JSONValue.string),
+            "targetDateGranularity": change.targetDateGranularity.map { JSONValue.string($0.rawValue) },
+            "clearTarget": change.clearTarget ? .bool(true) : nil,
+        ])
+        let data = try await graphQL(
+            GraphQLDocuments.updateProject,
+            variables: idempotent(["input": input], opId: change.opId),
+            field: "updateProject"
+        )
+        return try decodePayloadProject(from: data)
+    }
+
+    public func updateCycle(_ change: CycleChange) async throws -> Cycle {
+        let input = JSONValue.object(compacting: [
+            "id": .string(change.id),
+            "name": change.name.map(JSONValue.string),
+            "description": change.description.map(JSONValue.string),
+            "clearDescription": change.clearDescription ? .bool(true) : nil,
+            // `Time`, so RFC 3339 — not the calendar-day form the project dates use.
+            "startsAt": change.startsAt.map { JSONValue.string(PolarisJSON.rfc3339($0)) },
+            "endsAt": change.endsAt.map { JSONValue.string(PolarisJSON.rfc3339($0)) },
+        ])
+        let data = try await graphQL(
+            GraphQLDocuments.updateCycle,
+            variables: idempotent(["input": input], opId: change.opId),
+            field: "updateCycle"
+        )
+        return try decodePayloadCycle(from: data)
+    }
+
+    public func startCycleToday(id: String, opId: String) async throws -> Cycle {
+        let data = try await graphQL(
+            GraphQLDocuments.startCycleToday,
+            variables: idempotent(["id": .string(id)], opId: opId),
+            field: "startCycleToday"
+        )
+        return try decodePayloadCycle(from: data)
+    }
+
+    private func decodePayloadProject(from data: Data) throws -> Project {
+        struct Payload: Decodable { let project: Project }
+        return try decode(Payload.self, from: data).project
+    }
+
+    private func decodePayloadCycle(from data: Data) throws -> Cycle {
+        struct Payload: Decodable { let cycle: Cycle }
+        return try decode(Payload.self, from: data).cycle
+    }
+
     // MARK: - Comment writes
 
     public func updateComment(id: String, body: String, opId: String) async throws -> Comment {
