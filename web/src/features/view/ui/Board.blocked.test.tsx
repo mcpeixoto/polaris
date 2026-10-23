@@ -201,7 +201,7 @@ describe('a blocked card', () => {
   it('names its blocker in words as well as in colour', () => {
     renderBoard('s-todo');
 
-    const card = screen.getByRole('option', { name: /Ship the importer/ });
+    const card = screen.getByRole('gridcell', { name: /Ship the importer/ });
     // The word, not only the flag: colour is never the only carrier of meaning, and a red
     // glyph beside an identifier says nothing to a reader who cannot see it.
     expect(within(card).getByText('Blocked by ENG-2')).toBeTruthy();
@@ -210,7 +210,7 @@ describe('a blocked card', () => {
   it('stops flagging once the blocker is finished', () => {
     renderBoard('s-done');
 
-    const card = screen.getByRole('option', { name: /Ship the importer/ });
+    const card = screen.getByRole('gridcell', { name: /Ship the importer/ });
     expect(within(card).queryByText(/^Blocked by/)).toBeNull();
   });
 });

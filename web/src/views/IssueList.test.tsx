@@ -248,9 +248,10 @@ describe('IssueList', () => {
   it('keeps board columns in pipeline order', () => {
     renderList('?layout=board');
 
-    expect(
-      screen.getAllByRole('listbox').map((column) => column.getAttribute('aria-label')),
-    ).toEqual(['Todo', 'In Progress']);
+    expect(screen.getAllByRole('grid').map((column) => column.getAttribute('aria-label'))).toEqual([
+      'Todo',
+      'In Progress',
+    ]);
   });
 
   it('groups the issues by status, started work first', () => {

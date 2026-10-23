@@ -264,7 +264,7 @@ function transfer() {
 }
 
 function card(): HTMLElement {
-  return screen.getByText('Fix the flake').closest('[role="option"]') as HTMLElement;
+  return screen.getByText('Fix the flake').closest('[role="gridcell"]') as HTMLElement;
 }
 
 describe('a card whose properties are editable where they are drawn', () => {
