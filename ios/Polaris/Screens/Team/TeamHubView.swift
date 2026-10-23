@@ -268,7 +268,11 @@ struct TeamHubView: View {
                 // A refused status change, said out loud. The row rolling back on its own
                 // reads as a tap that missed.
                 if let error = store.writeError {
-                    InlineErrorLabel(text: error.displayMessage)
+                    InlineErrorLabel(
+                        write: store.pendingWrite,
+                        text: error.displayMessage,
+                        retry: { await store.retryLastWrite() }
+                    )
                         .padding(.horizontal, Theme.Space.lg)
                         .padding(.bottom, Theme.Space.sm)
                         .readableColumn()

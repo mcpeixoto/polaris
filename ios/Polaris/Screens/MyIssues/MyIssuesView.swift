@@ -48,7 +48,11 @@ struct MyIssuesView: View {
             // A refused status change used to be a row that quietly snapped back, which reads
             // as a tap that missed rather than as a server saying no.
             if let error = model.issues.writeError {
-                InlineErrorLabel(text: error.displayMessage)
+                InlineErrorLabel(
+                    write: model.issues.pendingWrite,
+                    text: error.displayMessage,
+                    retry: { await model.issues.retryLastWrite() }
+                )
                     .padding(.horizontal, Theme.Space.lg)
                     .padding(.bottom, Theme.Space.sm)
                     .readableColumn()

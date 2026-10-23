@@ -26,6 +26,11 @@ public final class IssueDetailStore {
     /// The last refused property write. Separate from `commentError` because they appear in
     /// different places on the screen and one must not clear the other.
     public private(set) var propertyError: PolarisError?
+    /// The write behind whichever of those two is set, with the `opId` it was sent under — see
+    /// `PendingWrite`. One, not two: the reader made one write last, and a screen offering to
+    /// resend a property edit from five minutes ago beside a comment that just failed would be
+    /// offering to resend something nobody is looking at.
+    public private(set) var pendingWrite: PendingWrite?
 
     private let api: any PolarisAPI
     private let issueID: String
@@ -133,7 +138,37 @@ public final class IssueDetailStore {
     /// whether it can show it at all.
     public func merge(_ updated: Issue) {
         guard updated.id == issueID, issue.value != nil else { return }
+        // The value this screen was asking for, arrived by another route — a swipe on the list
+        // underneath, fanned in by `AppModel.issueDidChange`. The write landed, so there is
+        // nothing left to retry and nothing left to apologise for.
+        if let pending = pendingWrite, pending.operation.isSatisfied(by: updated) {
+            pendingWrite = nil
+            propertyError = nil
+        }
         setIssue(updated)
+    }
+
+    /// Sends the refused write again under the `opId` it already used — see `PendingWrite`.
+    ///
+    /// Nothing is re-applied optimistically: the screen is already showing whatever the
+    /// failure left it showing, and the only thing this changes is that the server is asked
+    /// the same question a second time rather than a different one.
+    public func retryLastWrite() async {
+        guard let pending = pendingWrite, pending.isRetryable else { return }
+        switch pending.operation {
+        case .issue(let change):
+            guard let current = issue.value else { return }
+            await send(change, rollingBackTo: current)
+        case .comment(_, let body, _):
+            _ = await postComment(body)
+        case .addLabel(_, let labelId, let opId):
+            await sendLabel(add: true, labelId: labelId, opId: opId)
+        case .removeLabel(_, let labelId, let opId):
+            await sendLabel(add: false, labelId: labelId, opId: opId)
+        // Nothing else reaches this store.
+        case .bulk:
+            break
+        }
     }
 
     /// Writes the issue to both places it is held.
@@ -160,22 +195,24 @@ public final class IssueDetailStore {
         commentError = nil
         defer { isPostingComment = false }
 
+        let opId = pendingCommentOpId ?? UUIDv7.string()
+        pendingCommentOpId = opId
         do {
-            let opId = pendingCommentOpId ?? UUIDv7.string()
-            pendingCommentOpId = opId
             let created = try await api.createComment(issueId: issueID, body: trimmed, opId: opId)
             // Cleared only once it landed: the next comment is a new operation, but every
             // retry of *this* one has to keep the id it started with.
             pendingCommentOpId = nil
+            pendingWrite = nil
             var current = comments.value ?? []
             current.append(created)
             comments = .loaded(current)
             return true
-        } catch let error as PolarisError {
-            commentError = error
-            return false
         } catch {
-            commentError = .badResponse
+            let mapped = PolarisError.mapped(error)
+            commentError = mapped
+            pendingWrite = PendingWrite(
+                operation: .comment(issueId: issueID, body: trimmed, opId: opId), failure: mapped
+            )
             return false
         }
     }
@@ -380,18 +417,30 @@ public final class IssueDetailStore {
         optimistically mutate: (inout Issue) -> Void,
         change: (String) -> IssueChange
     ) async {
-        propertyError = nil
         var optimistic = current
         mutate(&optimistic)
         setIssue(optimistic)
+        await send(change(issueID), rollingBackTo: current)
+    }
+
+    /// The request half of a property write, shared with `retryLastWrite()` — which has
+    /// nothing to apply ahead of it, because the screen is already showing what the failure
+    /// left it showing.
+    private func send(_ change: IssueChange, rollingBackTo rollback: Issue) async {
+        propertyError = nil
         do {
-            let updated = try await api.updateIssue(change(issueID))
+            let updated = try await api.updateIssue(change)
+            pendingWrite = nil
             setIssue(updated)
             onChange?(updated)
         } catch {
-            setIssue(current)
+            setIssue(rollback)
             let mapped = PolarisError.mapped(error)
             propertyError = mapped
+            // Held under the id it was sent with, so Retry is this operation again rather
+            // than a second one. A refusal is held too — the screen reads `isRetryable` and
+            // offers no button for it.
+            pendingWrite = PendingWrite(operation: .issue(change), failure: mapped)
             report(mapped)
         }
     }
@@ -402,38 +451,65 @@ public final class IssueDetailStore {
     /// people adding different labels a second apart must both win.
     public func addLabel(_ label: Label) async {
         guard let current = issue.value, !current.labels.contains(where: { $0.id == label.id }) else { return }
-        propertyError = nil
         var optimistic = current
         optimistic.labels.append(label)
         setIssue(optimistic)
-        do {
-            let stored = try await api.addIssueLabel(issueId: issueID, labelId: label.id, opId: UUIDv7.string())
-            if var latest = issue.value {
-                latest.labels = latest.labels.map { $0.id == stored.id ? stored : $0 }
-                setIssue(latest)
-                onChange?(latest)
-            }
-        } catch {
-            setIssue(current)
-            let mapped = PolarisError.mapped(error)
-            propertyError = mapped
-            report(mapped)
-        }
+        await sendLabel(add: true, labelId: label.id, opId: UUIDv7.string(), rollingBackTo: current)
     }
 
     public func removeLabel(_ label: Label) async {
         guard let current = issue.value, current.labels.contains(where: { $0.id == label.id }) else { return }
-        propertyError = nil
         var optimistic = current
         optimistic.labels.removeAll { $0.id == label.id }
         setIssue(optimistic)
+        await sendLabel(add: false, labelId: label.id, opId: UUIDv7.string(), rollingBackTo: current)
+    }
+
+    /// One label write, and the retry of the same one.
+    ///
+    /// The success path states the outcome rather than assuming the optimistic value is
+    /// already there: a retry runs *after* the rollback, so the label it is adding is off the
+    /// screen again and a map over the existing list would silently add nothing.
+    private func sendLabel(
+        add: Bool,
+        labelId: String,
+        opId: String,
+        rollingBackTo rollback: Issue? = nil
+    ) async {
+        let fallback = rollback ?? issue.value
+        propertyError = nil
         do {
-            try await api.removeIssueLabel(issueId: issueID, labelId: label.id, opId: UUIDv7.string())
-            if let latest = issue.value { onChange?(latest) }
+            if add {
+                let stored = try await api.addIssueLabel(issueId: issueID, labelId: labelId, opId: opId)
+                pendingWrite = nil
+                if var latest = issue.value {
+                    if latest.labels.contains(where: { $0.id == stored.id }) {
+                        latest.labels = latest.labels.map { $0.id == stored.id ? stored : $0 }
+                    } else {
+                        latest.labels.append(stored)
+                    }
+                    setIssue(latest)
+                    onChange?(latest)
+                }
+            } else {
+                try await api.removeIssueLabel(issueId: issueID, labelId: labelId, opId: opId)
+                pendingWrite = nil
+                if var latest = issue.value {
+                    latest.labels.removeAll { $0.id == labelId }
+                    setIssue(latest)
+                    onChange?(latest)
+                }
+            }
         } catch {
-            setIssue(current)
+            if let fallback { setIssue(fallback) }
             let mapped = PolarisError.mapped(error)
             propertyError = mapped
+            pendingWrite = PendingWrite(
+                operation: add
+                    ? .addLabel(issueId: issueID, labelId: labelId, opId: opId)
+                    : .removeLabel(issueId: issueID, labelId: labelId, opId: opId),
+                failure: mapped
+            )
             report(mapped)
         }
     }

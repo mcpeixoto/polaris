@@ -119,7 +119,11 @@ struct IssueDetailView: View {
                 VStack(alignment: .leading, spacing: Theme.Space.sm) {
                     properties(issue: issue, store: store)
                     if let error = store.propertyError {
-                        InlineErrorLabel(text: error.displayMessage)
+                        InlineErrorLabel(
+                            write: store.pendingWrite,
+                            text: error.displayMessage,
+                            retry: { await store.retryLastWrite() }
+                        )
                     }
                 }
                 .padding(.top, Theme.Space.xl)

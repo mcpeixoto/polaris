@@ -49,6 +49,8 @@ Launch arguments for developers (and UI tests):
 | `-polaris-sync-hub <ws-url>` | Point the sync socket at a hub other than the API origin |
 | `-polaris-fixtures` | In-memory client; settles local development without connect (test harness) |
 | `-polaris-force-connect` | Show connect even under fixtures |
+| `-qa-fail-writes` | Under fixtures, the next write fails with a retryable 500 — the Try again path |
+| `-qa-refuse-writes` | Under fixtures, the next write is refused with `.forbidden` — rolls back, no button |
 
 `allowsDevSession` (Debug auto-login via `POST /auth/dev-session`) is enabled only for
 loopback origins, so Cloud and customer self-hosts never get it.
@@ -109,6 +111,20 @@ The replica is still deliberately absent:
 What it keeps from the local-first design is the part that matters most for correctness:
 every mutation carries `clientId` and `opId`, so a retry after a timeout replays the original
 result instead of creating a duplicate, and `createIssue` mints its own v7 UUID.
+
+Both halves of that pair have to survive, because the server keys idempotency on the pair and
+on nothing else. `clientId` is persisted in `UserDefaults` under `polaris.clientId`
+(`ClientIdentity`), minted once per install and injected into `LivePolarisClient`; it used to
+be `UUID().uuidString` per process, which made the guarantee above false across exactly the
+relaunch a retry is most likely to follow. `opId` is held by the store that sent the write
+(`PendingWrite`), so `retryLastWrite()` is the same operation rather than a second one — a
+failed write used to let `IssueChange`'s default mint a fresh id, which meant nothing in the
+app could retry anything safely.
+
+There is still no durable outbox, and nothing but the client id is written to disk. A queue
+would mean unconfirmed values crossing six stores that fan out only confirmed ones, offline
+*reads* that do not exist, and — after a long weekend — no protection at all, because the
+server's `IdempotencyTTL` is 24 hours.
 
 The cost is honest: no offline *writes* — a cold-start read comes from the cache described
 under **Offline** below — and a refetch of the whole list per signal rather than a row-level
@@ -355,3 +371,15 @@ project statuses, favourites — got what the per-team workflow states already h
 `ensure(_:)`, `reload(_:)` and `failure(of:)` on `WorkspaceDataStore`, written once over a
 `ReferenceCollection` rather than six times, so one refused `teams()` at sign-in no longer
 disables the composer's Create button and hides every team screen for the life of the session.
+
+A refused *write* now says so and offers a way back as well. The store keeps the operation
+beside the sentence (`PendingWrite`) and the screen draws **Try again** next to it only when
+`PolarisError.isRetryable` says a second attempt could work — a timeout, a 5xx, an unreachable
+server. A refusal is the sentence alone: `.forbidden` and a validation error are refused
+identically every time, so a button for them would be a button that lies. What `Try again`
+sends is the same operation under the same `opId`, which is what makes pressing it safe; a
+confirmed value that arrives by another route first drops the offer rather than leaving a
+button that would ask a question already answered.
+
+`-qa-fail-writes` arms a retryable failure under `-polaris-fixtures`, and `-qa-refuse-writes`
+arms a refusal, so both halves can be driven by hand or from a UI test.

@@ -13,9 +13,13 @@ public actor LivePolarisClient: PolarisAPI {
     private let decoder = PolarisJSON.decoder()
     private let encoder = PolarisJSON.encoder()
 
-    /// Stable for the life of the process. Paired with a per-operation `opId`, it is what lets
-    /// the server recognise a retried mutation as the same mutation.
-    private let clientId = UUID().uuidString
+    /// Stable for the life of the *install* — see `ClientIdentity`, which is where it is kept.
+    ///
+    /// Paired with a per-operation `opId`, it is what lets the server recognise a retried
+    /// mutation as the same mutation. It was minted per process here and documented as such,
+    /// which made that recognition fail across exactly the relaunch a retry is most likely to
+    /// follow.
+    private let clientId: String
 
     private var accessToken: String?
     private var accessTokenExpiry: Date?
@@ -25,9 +29,17 @@ public actor LivePolarisClient: PolarisAPI {
     /// round trip to learn who is asking. Dropped with the session.
     private var viewerUserId: String?
 
-    public init(environment: PolarisEnvironment, urlSession: URLSession = .shared) {
+    /// `clientId` is injected rather than read inside, so a test can pin it and assert the
+    /// two halves that matter: that two clients over one `UserDefaults` send the same one, and
+    /// that a client rebuilt over the same defaults does too.
+    public init(
+        environment: PolarisEnvironment,
+        urlSession: URLSession = .shared,
+        clientId: String = ClientIdentity.current()
+    ) {
         self.environment = environment
         self.urlSession = urlSession
+        self.clientId = clientId
     }
 
     // MARK: - Auth

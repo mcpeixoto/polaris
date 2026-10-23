@@ -77,6 +77,36 @@ public enum ServerPreference: Sendable {
     }
 }
 
+/// This install's `clientId`, remembered across launches.
+///
+/// It used to be `UUID().uuidString` on `LivePolarisClient`, minted per process, and the
+/// docstring there said "stable for the life of the process" — which is not long enough to be
+/// worth anything. The server keys idempotency on the pair `(clientId, opId)` with a 24-hour
+/// TTL (`services/internal/domain/idempotency.go`), so a retry that crossed a relaunch
+/// presented the original `opId` under a *new* `clientId`: the server saw an operation it had
+/// never been asked for, and the write applied twice. Persisted, the pair the server looks up
+/// is the pair the first attempt used, and the guarantee `ios/README.md` claims holds across a
+/// relaunch as well as within one.
+///
+/// Same storage as the API origin, for the same reasons: device-local `UserDefaults`, readable
+/// before there is a session, and not a secret. It names an install to an idempotency table;
+/// it authorises nothing.
+public enum ClientIdentity: Sendable {
+    public static let storageKey = "polaris.clientId"
+
+    /// The stored id, minting and saving one the first time it is asked for.
+    public static func current(defaults: UserDefaults = .standard) -> String {
+        if let stored = defaults.string(forKey: storageKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !stored.isEmpty {
+            return stored
+        }
+        let minted = UUID().uuidString
+        defaults.set(minted, forKey: storageKey)
+        return minted
+    }
+}
+
 public enum ServerURLError: Error, Equatable, Sendable {
     case empty
     case invalid

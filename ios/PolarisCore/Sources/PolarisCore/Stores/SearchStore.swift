@@ -24,6 +24,8 @@ public final class SearchStore {
     /// The last refused write from a result row, for the reason `IssuesStore` keeps one: a
     /// row that snaps back reads as a tap that missed.
     public private(set) var writeError: PolarisError?
+    /// The write behind `writeError`, with the `opId` it was sent under — see `PendingWrite`.
+    public private(set) var pendingWrite: PendingWrite?
 
     public var onUnauthorized: (@MainActor (PolarisError) -> Void)?
     /// Called with the server's issue once a write from a result row lands — see
@@ -98,8 +100,9 @@ public final class SearchStore {
             results = .loaded(found)
             lastQuery = trimmed
             // The list the refused write rolled back has just been replaced, so the sentence
-            // about it no longer describes anything on screen.
+            // about it no longer describes anything on screen — nor does the offer to resend.
             writeError = nil
+            pendingWrite = nil
         } catch {
             guard mine == generation else { return }
             let mapped = PolarisError.mapped(error)
@@ -117,6 +120,21 @@ public final class SearchStore {
     /// and almost never the thing they have just searched for — so the row did not move, no
     /// request went out, and nothing said why.
     public func setState(issueID: String, to state: WorkflowState) async {
+        await send(IssueChange(id: issueID, stateId: state.id), applying: state)
+    }
+
+    /// Sends the refused write again under the `opId` it already used — see `PendingWrite`.
+    public func retryLastWrite() async {
+        guard let pending = pendingWrite, pending.isRetryable else { return }
+        if case .issue(let change) = pending.operation {
+            await send(change, applying: nil)
+        }
+    }
+
+    /// The first attempt applies the new state ahead of the reply; the retry does not, because
+    /// the request is the same one and nothing on screen has moved since.
+    private func send(_ change: IssueChange, applying state: WorkflowState?) async {
+        let issueID = change.id
         guard let current = results.value,
               let index = current.issues.firstIndex(where: { $0.id == issueID })
         else { return }
@@ -125,28 +143,40 @@ public final class SearchStore {
         writeError = nil
         defer { pendingIssueIDs.remove(issueID) }
 
-        var optimistic = current.issues
-        optimistic[index].state = state
-        results = .loaded(SearchResults(issues: optimistic, issueCount: current.issueCount))
+        if let state {
+            var optimistic = current.issues
+            optimistic[index].state = state
+            results = .loaded(SearchResults(issues: optimistic, issueCount: current.issueCount))
+        }
 
         do {
-            let updated = try await api.updateIssue(IssueChange(id: issueID, stateId: state.id))
+            let updated = try await api.updateIssue(change)
+            pendingWrite = nil
             replace(updated)
             onWriteConfirmed?(updated)
         } catch {
             replace(original)
             let mapped = PolarisError.mapped(error)
             writeError = mapped
+            pendingWrite = PendingWrite(operation: .issue(change), failure: mapped)
             if case .unauthorized = mapped { onUnauthorized?(mapped) }
         }
     }
 
-    /// Dismisses the refused-write sentence, once the reader has read it.
+    /// Dismisses the refused-write sentence, once the reader has read it, and the offer to
+    /// send it again with it.
     public func clearWriteError() {
         writeError = nil
+        pendingWrite = nil
     }
 
     public func merge(_ updated: Issue) {
+        // The value this store was asking for, arrived by another route — `AppModel` fanning
+        // out a confirmed write. Nothing left to retry.
+        if let pending = pendingWrite, pending.operation.isSatisfied(by: updated) {
+            pendingWrite = nil
+            writeError = nil
+        }
         replace(updated)
     }
 

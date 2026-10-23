@@ -130,18 +130,45 @@ struct InlineErrorLabel: View {
     var retryLabel: String?
     var onRetry: (() -> Void)?
 
+    init(text: String, retryLabel: String? = nil, onRetry: (() -> Void)? = nil) {
+        self.text = text
+        self.retryLabel = retryLabel
+        self.onRetry = onRetry
+    }
+
+    /// A refused write, with a Retry beside it only when sending the same operation again
+    /// could plausibly work.
+    ///
+    /// The store decides, not the view: `PendingWrite.isRetryable` is the failure's own
+    /// answer, and `retry` sends the operation back under the `opId` it already used. A
+    /// refusal — `.forbidden`, a validation error — gets the sentence and no button, because
+    /// a button that re-sends something refused identically every time is a button that lies.
+    init(write: PendingWrite?, text: String, retry: @escaping () async -> Void) {
+        let offer = write?.isRetryable == true
+        self.text = text
+        self.retryLabel = offer ? String(localized: "Try again") : nil
+        self.onRetry = offer ? { Task { await retry() } } : nil
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: Theme.Space.sm) {
-            Image(systemName: "exclamationmark.circle.fill")
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.danger)
-                .padding(.top, 1)
-                .accessibilityHidden(true)
-            Text(text)
-                .font(.system(.footnote).weight(.medium))
-                .foregroundStyle(Theme.danger)
-                .fixedSize(horizontal: false, vertical: true)
-                .multilineTextAlignment(.leading)
+            // The sentence is one element; the button beside it is its own. Combining the
+            // whole row made the retry invisible to VoiceOver and to XCUITest — a button
+            // nobody can reach is not an affordance.
+            HStack(alignment: .top, spacing: Theme.Space.sm) {
+                Image(systemName: "exclamationmark.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.danger)
+                    .padding(.top, 1)
+                    .accessibilityHidden(true)
+                Text(text)
+                    .font(.system(.footnote).weight(.medium))
+                    .foregroundStyle(Theme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.leading)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isStaticText)
             if let retryLabel, let onRetry {
                 Button(action: onRetry) {
                     Text(retryLabel)
@@ -150,10 +177,9 @@ struct InlineErrorLabel: View {
                         .foregroundStyle(Theme.accentBright)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("error.retry")
             }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isStaticText)
         // Drawn is not the same as announced. Focus stays on the button the reader just
         // pressed, so without this a VoiceOver user presses Sign in and hears nothing at all.
         // `.high`, because the layout change that accompanies the error posts its own
