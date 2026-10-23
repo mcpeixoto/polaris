@@ -17,6 +17,10 @@ struct MyIssuesView: View {
     /// Ungrouped by default, against the schema's own `state` — Linear's own default for this
     /// view, and the one `LinearParityTests` asserts My Issues keeps.
     @State private var display = ListDisplay(groupBy: .none)
+    /// Which issues the list holds. Answered on this device, over the complete list the store
+    /// holds — `IssuesStore` fetches every issue in scope, not a page of them — so the count
+    /// under the bar is a fact about all of them.
+    @State private var filter = IssueFilterDraft()
     /// Selection mode and what is picked. Local to the screen: a selection is about the list
     /// in front of somebody right now, and one that survived a tab switch would be a batch
     /// waiting to be applied to rows they have stopped looking at.
@@ -69,7 +73,7 @@ struct MyIssuesView: View {
             if isSelecting {
                 BulkActionBar(
                     selection: selection,
-                    issues: model.issues.issues.value ?? [],
+                    issues: visible,
                     statesFor: { model.workspaceData.states(forTeam: $0.team.id) },
                     people: model.workspaceData.users.value ?? [],
                     apply: applyBulk
@@ -82,6 +86,11 @@ struct MyIssuesView: View {
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 SelectModeButton(isSelecting: $isSelecting, selection: $selection, identifier: "issues.select")
+                FilterButton(
+                    draft: $filter,
+                    options: IssueFilterOptions(from: loaded),
+                    identifier: "issues.filter.sheet"
+                )
                 filterMenu
                 Button { isComposing = true } label: {
                     Image(systemName: "square.and.pencil")
@@ -91,6 +100,10 @@ struct MyIssuesView: View {
             }
         }
     }
+
+    /// Everything the store holds, and then the part of it the filter keeps.
+    private var loaded: [Issue] { model.issues.issues.value ?? [] }
+    private var visible: [Issue] { filter.apply(to: loaded) }
 
     /// `ENG-12` for an id, so the skipped list names rows a reader recognises.
     private func identifier(of id: String) -> String {
@@ -341,12 +354,29 @@ struct MyIssuesView: View {
             .scrollIndicators(.hidden)
             .refreshable { await model.issues.load() }
 
+        case .loaded(let issues) where filter.apply(to: issues).isEmpty:
+            ScrollView {
+                NoFilterMatchesView(total: issues.count) { filter = IssueFilterDraft() }
+                    .padding(.top, Theme.Space.xxxl)
+                    .readableColumn()
+            }
+            .scrollIndicators(.hidden)
+            .refreshable { await model.issues.load() }
+
         case .loaded(let issues):
+            if !filter.isEmpty {
+                FilterCountCaption(
+                    matched: filter.apply(to: issues).count,
+                    total: issues.count,
+                    identifier: "issues.filter.count"
+                )
+                .readableColumn()
+            }
             // Flat, in priority order — Linear's own default for My Issues. Status groups
             // are for a team's list, where the question is "where is everything", not "what
             // do I do next" — offered here from the filter menu, off until asked for.
             IssueListView(
-                issues: issues,
+                issues: filter.apply(to: issues),
                 pendingIDs: model.issues.pendingIssueIDs,
                 display: display,
                 statesFor: { model.workspaceData.states(forTeam: $0.team.id) },

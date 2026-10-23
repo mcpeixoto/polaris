@@ -21,6 +21,9 @@ struct SearchView: View {
     @State private var teamId: String?
     @State private var assignedToMe = false
     @State private var openOnly = false
+    /// Everything the sheet composes, answered by the server rather than here — see
+    /// `serverFilter`.
+    @State private var filterDraft = IssueFilterDraft()
     /// The schema's defaults. Results come back grouped by status, which is how a search
     /// result has read since it existed.
     @State private var display = ListDisplay()
@@ -29,12 +32,25 @@ struct SearchView: View {
 
     private var teams: [Team] { model.workspaceData.teams.value ?? [] }
 
-    /// The filter AST for the quick filters, or nil when neither is on — an empty `and` is a
-    /// clause the server would have to evaluate for nothing.
-    private var filter: JSONValue? {
+    /// The filter AST for the quick filters and the sheet, or nil when none of them is on —
+    /// an empty `and` is a clause the server would have to evaluate for nothing.
+    ///
+    /// **It goes to the server, and what comes back is not filtered again here.** That is the
+    /// one place this screen differs from every other list in the app, and it is not an
+    /// optimisation: `search` answers with at most `PageSize.search` rows, so what is on
+    /// screen is the first forty matches rather than the matches. Narrowing those forty
+    /// locally would leave `countCaption` reporting "Showing 40 of 400" about a list that had
+    /// since been cut to nine — a number about nothing. `IssueFilterEvaluator` is exact only
+    /// over a complete collection, and this is the one screen that has not got one.
+    ///
+    /// Which is also why the sheet is given `IssueFilterOptions(forServerSearch:)`: it
+    /// withholds `project` and `cycle`, the two fields this client can answer and the shared
+    /// grammar has no name for. Either one, sent, is a hard error.
+    private var serverFilter: JSONValue? {
         var nodes: [JSONValue] = []
         if assignedToMe, let me = model.currentUser { nodes.append(IssueFilter.assignedTo(me.id)) }
         if openOnly { nodes.append(IssueFilter.openOnly) }
+        if let composed = filterDraft.filter { nodes.append(composed) }
         return nodes.isEmpty ? nil : IssueFilter.and(nodes)
     }
 
@@ -56,7 +72,15 @@ struct SearchView: View {
         .navigationTitle(Text("Search"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                FilterButton(
+                    draft: $filterDraft,
+                    options: IssueFilterOptions(
+                        forServerSearch: model.workspaceData.users.value ?? [],
+                        labels: teamId.map { model.workspaceData.labels(forTeam: $0) } ?? []
+                    ),
+                    identifier: "search.filter"
+                )
                 DisplayOptionsMenu(display: $display, identifier: "search.display")
             }
         }
@@ -65,16 +89,19 @@ struct SearchView: View {
             placement: .navigationBarDrawer(displayMode: .always),
             prompt: Text("Search issues")
         )
-        .onChange(of: text) { _, updated in session?.query(updated, teamId: teamId, filter: filter) }
+        .onChange(of: text) { _, updated in session?.query(updated, teamId: teamId, filter: serverFilter) }
         // A changed chip re-runs the query at once: the reader is looking at results and
         // just said they want different ones.
         .onChange(of: teamId) { _, _ in resubmit() }
         .onChange(of: assignedToMe) { _, _ in resubmit() }
         .onChange(of: openOnly) { _, _ in resubmit() }
+        // The sheet's filter is the server's to answer, so a change to it is a new query
+        // rather than a re-section of what is already on screen.
+        .onChange(of: filterDraft) { _, _ in resubmit() }
         .onSubmit(of: .search) { submit(text) }
         // Results are a query answered at a moment in time, so a signal re-runs the last one
         // rather than leaving a list somebody is reading two edits behind.
-        .refreshOnRealtime { await session?.refresh(teamId: teamId, filter: filter) }
+        .refreshOnRealtime { await session?.refresh(teamId: teamId, filter: serverFilter) }
         .task {
             if session == nil {
                 let created = SearchStore(api: model.api)
@@ -130,6 +157,8 @@ struct SearchView: View {
         .scrollIndicators(.hidden)
     }
 
+    /// The same pill the filter sheet draws. It moved to `FilterChip` when the sheet needed
+    /// one: two implementations of the same chip is how a product ends up with two chips.
     private func chip(
         _ title: String,
         isOn: Bool,
@@ -137,29 +166,7 @@ struct SearchView: View {
         dot: Color? = nil,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
-            HStack(spacing: Theme.Space.xs + 2) {
-                if let dot {
-                    Circle().fill(dot).frame(width: 7, height: 7)
-                }
-                Text(title)
-                    .font(.system(.footnote).weight(.medium))
-                    .foregroundStyle(isOn ? Theme.accentBright : Theme.textSecondary)
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, Theme.Space.sm + 2)
-            .frame(minHeight: 28)
-            .background(isOn ? Theme.accentTint : Theme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous)
-                    .stroke(isOn ? Theme.accent : Theme.border, lineWidth: 1)
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(PressableStyle())
-        .accessibilityAddTraits(isOn ? [.isSelected] : [])
-        .accessibilityIdentifier(identifier)
+        FilterChip(title: title, isOn: isOn, identifier: identifier, dot: dot, action: action)
     }
 
     @ViewBuilder
@@ -324,12 +331,12 @@ struct SearchView: View {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         recents.remember(trimmed)
-        Task { await session?.submit(trimmed, teamId: teamId, filter: filter) }
+        Task { await session?.submit(trimmed, teamId: teamId, filter: serverFilter) }
     }
 
     private func resubmit() {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        Task { await session?.submit(trimmed, teamId: teamId, filter: filter) }
+        Task { await session?.submit(trimmed, teamId: teamId, filter: serverFilter) }
     }
 }

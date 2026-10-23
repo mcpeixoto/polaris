@@ -19,6 +19,9 @@ struct ProjectDetailView: View {
     @State private var pendingIDs: Set<String> = []
     /// The schema's defaults: a project's issues have always been grouped by status.
     @State private var display = ListDisplay()
+    /// Which issues the list holds. `ProjectStore` gathers every issue in the project across
+    /// every team it spans, so the filter is exact and the count says so.
+    @State private var filter = IssueFilterDraft()
     @State private var isEditing = false
 
     private let seed: Project
@@ -45,6 +48,11 @@ struct ProjectDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                FilterButton(
+                    draft: $filter,
+                    options: filterOptions(store?.issues.value ?? []),
+                    identifier: "project.filter"
+                )
                 DisplayOptionsMenu(display: $display, identifier: "project.display")
                 FavoriteButton(
                     kind: .project,
@@ -284,9 +292,26 @@ struct ProjectDetailView: View {
             .scrollIndicators(.hidden)
             .refreshable { await store.load() }
 
+        case .loaded(let issues) where filter.apply(to: issues).isEmpty:
+            ScrollView {
+                NoFilterMatchesView(total: issues.count) { filter = IssueFilterDraft() }
+                    .padding(.top, Theme.Space.xxl)
+                    .readableColumn()
+            }
+            .scrollIndicators(.hidden)
+            .refreshable { await store.load() }
+
         case .loaded(let issues):
+            if !filter.isEmpty {
+                FilterCountCaption(
+                    matched: filter.apply(to: issues).count,
+                    total: issues.count,
+                    identifier: "project.filter.count"
+                )
+                .readableColumn()
+            }
             IssueListView(
-                issues: issues,
+                issues: filter.apply(to: issues),
                 pendingIDs: pendingIDs,
                 display: display,
                 statesFor: { model.workspaceData.states(forTeam: $0.team.id) },
@@ -298,6 +323,16 @@ struct ProjectDetailView: View {
             .readableColumn()
             .refreshable { await store.load() }
         }
+    }
+
+    /// Without the project section: every issue here is in this project, so it would be one
+    /// chip that narrows nothing. The cycle section stays — scheduling is the question a
+    /// project list is actually asked.
+    private func filterOptions(_ issues: [Issue]) -> IssueFilterOptions {
+        var options = IssueFilterOptions(from: issues)
+        options.projects = []
+        options.hasUnfiled = false
+        return options
     }
 
     /// The project store has no optimistic write of its own, so the row shows a spinner

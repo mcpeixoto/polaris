@@ -19,8 +19,15 @@ public enum IssueFilter {
             "op": .string(op.rawValue),
         ]
         // `isNull` / `isNotNull` must carry no `values` at all — a present-but-empty array
-        // is refused by the server's validator.
-        if !values.isEmpty { node["values"] = .array(values.map(JSONValue.string)) }
+        // is refused by the server's validator. Every other operator keeps the key even when
+        // the list is empty, because there the empty list *is* the filter: "an empty in-list
+        // matches nothing, it is not a skipped clause", and dropping the key turned that into
+        // a node the server refuses for want of values. Keyed off the operator rather than
+        // off the list being empty, which is what it used to be.
+        switch op {
+        case .isNull, .isNotNull: break
+        default: node["values"] = .array(values.map(JSONValue.string))
+        }
         return .object(node)
     }
 
