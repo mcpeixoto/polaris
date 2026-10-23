@@ -215,7 +215,11 @@ struct SearchView: View {
                 // A refused status change, said out loud. The row rolling back on its own
                 // reads as a tap that missed.
                 if let error = session.writeError {
-                    InlineErrorLabel(text: error.displayMessage)
+                    InlineErrorLabel(
+                        write: session.pendingWrite,
+                        text: error.displayMessage,
+                        retry: { await session.retryLastWrite() }
+                    )
                         .padding(.horizontal, Theme.Space.lg)
                         .padding(.bottom, Theme.Space.sm)
                         .readableColumn()

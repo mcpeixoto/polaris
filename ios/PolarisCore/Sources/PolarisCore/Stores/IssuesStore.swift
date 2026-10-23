@@ -31,6 +31,10 @@ public final class IssuesStore {
     /// can't change the status and I don't know why" looks like from the outside. The detail
     /// screen has said why since it was written; the list said nothing.
     public private(set) var writeError: PolarisError?
+    /// The write behind `writeError`, with the `opId` it was sent under — see `PendingWrite`.
+    /// `retryLastWrite()` sends that same id, which is what makes the retry the same operation
+    /// to the server rather than a second one.
+    public private(set) var pendingWrite: PendingWrite?
     /// Called on a refused read, so a session that expired while the app was open ends at the
     /// sign-in screen instead of on a list with no way back.
     public var onUnauthorized: (@MainActor (PolarisError) -> Void)?
@@ -69,8 +73,10 @@ public final class IssuesStore {
             isShowingCachedIssues = false
             lastRefreshError = nil
             // The list the refused write rolled back has just been replaced by the server's
-            // own, so the sentence about it no longer describes anything on screen.
+            // own, so the sentence about it no longer describes anything on screen — and
+            // neither does the offer to send it again.
             writeError = nil
+            pendingWrite = nil
             // Only the unfiltered, assigned list is cached. Persisting a filtered one would
             // restore "everything including completed" — or "everything I created" — as if it
             // were the whole truth on the next cold start, under a filter that is off.
@@ -111,10 +117,21 @@ public final class IssuesStore {
     /// `refreshIfStale` short-circuits while `syncVersion` is unchanged, which it is, because
     /// the change came from this client.
     public func merge(_ updated: Issue) {
+        resolvePendingWrite(against: updated)
         guard var current = issues.value else { return }
         guard let index = current.firstIndex(where: { $0.id == updated.id }) else { return }
         current[index] = updated
         issues = .loaded(sort(current))
+    }
+
+    /// Drops the pending write — and the sentence about it — when the value it was asking for
+    /// has arrived by another route: another store's confirmed write fanned in through
+    /// `AppModel.issueDidChange`, or the refetch a sync signal triggered. The write landed
+    /// after all, so there is nothing left to retry and nothing left to apologise for.
+    private func resolvePendingWrite(against updated: Issue) {
+        guard let pending = pendingWrite, pending.operation.isSatisfied(by: updated) else { return }
+        pendingWrite = nil
+        writeError = nil
     }
 
     /// Refetches only if the workspace actually changed.
@@ -144,6 +161,31 @@ public final class IssuesStore {
     /// optimistic one rather than being assumed equal to it, so a server-side side effect
     /// (`startedAt`, an automation) is not lost.
     public func setState(issueID: String, to state: WorkflowState) async {
+        await send(IssueChange(id: issueID, stateId: state.id), applying: state)
+    }
+
+    /// Sends the write again under the `opId` it already used.
+    ///
+    /// Nothing is re-applied optimistically and nothing is minted: the point of the method is
+    /// that the server sees the operation it has already been told about, and answers with the
+    /// original result if the first attempt did land after all.
+    public func retryLastWrite() async {
+        guard let pending = pendingWrite, pending.isRetryable else { return }
+        switch pending.operation {
+        case .issue(let change):
+            await send(change, applying: nil)
+        case .bulk(let edit):
+            await bulkApply(edit)
+        // Nothing else reaches this store.
+        case .comment, .addLabel, .removeLabel:
+            break
+        }
+    }
+
+    /// One status write: the first attempt, which applies the new state ahead of the reply,
+    /// and the retry, which does not — the row is already showing it.
+    private func send(_ change: IssueChange, applying state: WorkflowState?) async {
+        let issueID = change.id
         guard let list = issues.value, let index = list.firstIndex(where: { $0.id == issueID })
         else {
             // Asked about an issue this list does not hold — a search result, a row from a
@@ -151,7 +193,7 @@ public final class IssuesStore {
             // nothing, which from the outside is a tap that missed. The write goes out
             // regardless; the reader asked for it, and which list they asked from is not the
             // server's business.
-            await writeUnheld(issueID: issueID, to: state)
+            await writeUnheld(change)
             return
         }
 
@@ -164,12 +206,15 @@ public final class IssuesStore {
         // finishes, which is the thing "optimistic" is supposed to avoid — and it also means
         // there is nothing for the catch below to roll back, so the rollback would be dead
         // code that no test could distinguish from working.
-        var optimistic = list
-        optimistic[index].state = state
-        issues = .loaded(sort(optimistic))
+        if let state {
+            var optimistic = list
+            optimistic[index].state = state
+            issues = .loaded(sort(optimistic))
+        }
 
         do {
-            let updated = try await api.updateIssue(IssueChange(id: issueID, stateId: state.id))
+            let updated = try await api.updateIssue(change)
+            pendingWrite = nil
             if var current = issues.value, let position = current.firstIndex(where: { $0.id == issueID }) {
                 current[position] = updated
                 issues = .loaded(sort(current))
@@ -182,6 +227,10 @@ public final class IssuesStore {
             // snapping back was never enough on its own to tell a refusal from a missed tap.
             let mapped = PolarisError.mapped(error)
             writeError = mapped
+            // Held under the id it was sent with, so Retry is this operation again rather
+            // than a second one. A refusal is held too — the screen reads `isRetryable` and
+            // offers no button for it.
+            pendingWrite = PendingWrite(operation: .issue(change), failure: mapped)
             if case .unauthorized = mapped { onUnauthorized?(mapped) }
             if var current = issues.value, let position = current.firstIndex(where: { $0.id == issueID }) {
                 current[position] = original
@@ -211,6 +260,7 @@ public final class IssuesStore {
         let ids = Set(edit.change.ids)
         guard !ids.isEmpty else { return nil }
         writeError = nil
+        pendingWrite = nil
         pendingIssueIDs.formUnion(ids)
         defer { pendingIssueIDs.subtract(ids) }
 
@@ -247,6 +297,9 @@ public final class IssuesStore {
         } catch {
             let mapped = PolarisError.mapped(error)
             writeError = mapped
+            // The whole batch under one `opId`, which is what makes the retry safe: the
+            // server either replays the original block or applies it once.
+            pendingWrite = PendingWrite(operation: .bulk(edit), failure: mapped)
             if case .unauthorized = mapped { onUnauthorized?(mapped) }
             if var current = issues.value {
                 for (id, original) in originals {
@@ -266,23 +319,28 @@ public final class IssuesStore {
     /// settling and the outcome is either fanned out to the stores that do hold the issue or
     /// said out loud. Slower to feel than the optimistic path, and the honest cost of asking
     /// a list about a row that is not in it.
-    private func writeUnheld(issueID: String, to state: WorkflowState) async {
+    private func writeUnheld(_ change: IssueChange) async {
+        let issueID = change.id
         pendingIssueIDs.insert(issueID)
         writeError = nil
         defer { pendingIssueIDs.remove(issueID) }
         do {
-            let updated = try await api.updateIssue(IssueChange(id: issueID, stateId: state.id))
+            let updated = try await api.updateIssue(change)
+            pendingWrite = nil
             onWriteConfirmed?(updated)
         } catch {
             let mapped = PolarisError.mapped(error)
             writeError = mapped
+            pendingWrite = PendingWrite(operation: .issue(change), failure: mapped)
             if case .unauthorized = mapped { onUnauthorized?(mapped) }
         }
     }
 
-    /// Dismisses the refused-write sentence, once the reader has read it.
+    /// Dismisses the refused-write sentence, once the reader has read it. The offer to send it
+    /// again goes with the sentence: a Retry button beside nothing explains nothing.
     public func clearWriteError() {
         writeError = nil
+        pendingWrite = nil
     }
 
     public func create(_ draft: IssueDraft) async throws -> Issue {

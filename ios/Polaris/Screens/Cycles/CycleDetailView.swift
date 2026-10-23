@@ -10,6 +10,10 @@ struct CycleDetailView: View {
     @Environment(AppModel.self) private var model
     @State private var store: CycleStore?
     @State private var writeError: PolarisError?
+    /// The row write behind `writeError`, with the `opId` it was sent under — see
+    /// `PendingWrite`. Held here rather than in the store because this list's status
+    /// write goes straight to the API: the store has no optimistic write of its own.
+    @State private var pendingWrite: PendingWrite?
     @State private var pendingIDs: Set<String> = []
     /// The schema's defaults: a cycle's issues have always been grouped by status.
     @State private var display = ListDisplay()
@@ -169,7 +173,11 @@ struct CycleDetailView: View {
             .font(PolarisText.captionSmall.monospacedDigit())
             .foregroundStyle(Theme.textTertiary)
             if let writeError {
-                InlineErrorLabel(text: writeError.displayMessage)
+                InlineErrorLabel(
+                    write: pendingWrite,
+                    text: writeError.displayMessage,
+                    retry: { await retryLastWrite(store: store) }
+                )
             }
         }
         .padding(.horizontal, Theme.Space.lg)
@@ -229,15 +237,31 @@ struct CycleDetailView: View {
     /// The cycle store has no optimistic write of its own, so the row shows a spinner until
     /// the server answers and the answer is merged into both this list and My Issues.
     private func setState(_ issue: Issue, to state: WorkflowState, store: CycleStore) async {
+        await send(IssueChange(id: issue.id, stateId: state.id), store: store)
+    }
+
+    /// Sends the refused write again under the `opId` it already used — see `PendingWrite`.
+    /// Nothing to re-apply and nothing to roll back: the row was never optimistic.
+    private func retryLastWrite(store: CycleStore) async {
+        guard let pending = pendingWrite, pending.isRetryable,
+              case .issue(let change) = pending.operation
+        else { return }
+        await send(change, store: store)
+    }
+
+    private func send(_ change: IssueChange, store: CycleStore) async {
         writeError = nil
-        pendingIDs.insert(issue.id)
-        defer { pendingIDs.remove(issue.id) }
+        pendingIDs.insert(change.id)
+        defer { pendingIDs.remove(change.id) }
         do {
-            let updated = try await model.api.updateIssue(IssueChange(id: issue.id, stateId: state.id))
+            let updated = try await model.api.updateIssue(change)
+            pendingWrite = nil
             store.merge(updated)
             model.issueDidChange(updated, from: store)
         } catch {
-            writeError = PolarisError.mapped(error)
+            let mapped = PolarisError.mapped(error)
+            writeError = mapped
+            pendingWrite = PendingWrite(operation: .issue(change), failure: mapped)
         }
     }
 }

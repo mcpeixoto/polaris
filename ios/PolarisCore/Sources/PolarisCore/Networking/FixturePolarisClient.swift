@@ -39,10 +39,16 @@ public actor FixturePolarisClient: PolarisAPI {
     /// And for a project create, which has no client-minted id to deduplicate on — `opId` is
     /// the only thing a retry and the original have in common.
     private var projectsByOpId: [String: Project] = [:]
+    /// And for a single issue update, which is the operation every list row and every property
+    /// control sends. Without it a retry of a refused status change applied a second time
+    /// here, which is the very thing `(clientId, opId)` exists to stop at the server.
+    private var issueUpdatesByOpId: [String: Issue] = [:]
     /// How many bulk edits actually reached the store behind this double. A retry served from
     /// `bulkByOpId` does not increment it, which is the only way a test can tell "replayed"
     /// from "applied again with the same outcome".
     public private(set) var bulkWritesApplied = 0
+    /// The same counter for `updateIssue`, and for the same reason.
+    public private(set) var issueWritesApplied = 0
     private var people: [User]
     private let allTeams: [Team]
     private let states: [WorkflowState]
@@ -380,12 +386,16 @@ public actor FixturePolarisClient: PolarisAPI {
         return created
     }
 
+    /// Idempotent on `opId`, like the server, and checked before the armed failure for the
+    /// reason `createIssue` gives: a replay of an op that already landed is not a write.
     public func updateIssue(_ change: IssueChange) async throws -> Issue {
+        if let existing = issueUpdatesByOpId[change.opId] { return existing }
         try consumeFailure()
+        issueWritesApplied += 1
         // Mutated, not rebuilt. Rebuilding through FixtureData.issue silently dropped
         // description, labels, estimate, dueDate and timestamps, so any property change made
         // the description vanish — which reads as a product bug and is a defect in the double.
-        return try mutateIssue(id: change.id) { updated in
+        let updatedIssue = try mutateIssue(id: change.id) { updated in
             if let title = change.title { updated.title = title }
             if let description = change.description { updated.description = description }
             if let stateId = change.stateId, let next = states.first(where: { $0.id == stateId }) {
@@ -427,6 +437,8 @@ public actor FixturePolarisClient: PolarisAPI {
                 updated.cycle = storedCycles.first { $0.id == cycleId }?.ref
             }
         }
+        issueUpdatesByOpId[change.opId] = updatedIssue
+        return updatedIssue
     }
 
     /// Idempotent on `opId`, like the server, and checked before the armed failure for the
@@ -1395,10 +1407,16 @@ public enum QAFixtureSwitches {
     public static var plan: String { value("-qa-plan") ?? "pro" }
     public static var noStates: Bool { args.contains("-qa-no-states") }
 
+    /// `-qa-fail-writes` arms a retryable failure, `-qa-refuse-writes` a refusal. Two
+    /// arguments because the two halves of a failed write look different on screen and only
+    /// one of them offers a Retry: a 500 is worth asking again, `.forbidden` is refused
+    /// identically every time and a button for it would be a button that lies.
     public static var armedWriteFailure: PolarisError? {
-        args.contains("-qa-fail-writes")
-            ? .server(status: 500, message: "Polaris had a problem handling that.")
-            : nil
+        if args.contains("-qa-fail-writes") {
+            return .server(status: 500, message: "Polaris had a problem handling that.")
+        }
+        if args.contains("-qa-refuse-writes") { return .forbidden }
+        return nil
     }
 
     public static var workspaceName: String {

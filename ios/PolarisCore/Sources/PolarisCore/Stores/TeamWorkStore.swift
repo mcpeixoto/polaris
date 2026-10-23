@@ -46,6 +46,8 @@ public final class TeamWorkStore {
     /// The last refused status change, for the same reason `IssuesStore` keeps one: a row
     /// that snaps back says something went wrong and nothing about what.
     public private(set) var writeError: PolarisError?
+    /// The write behind `writeError`, with the `opId` it was sent under — see `PendingWrite`.
+    public private(set) var pendingWrite: PendingWrite?
 
     public var onUnauthorized: (@MainActor (PolarisError) -> Void)?
     /// Called with the server's issue once a write from this list lands — see
@@ -73,8 +75,10 @@ public final class TeamWorkStore {
         case .success(let list):
             issues = .loaded(IssueOrder.sorted(list))
             // The list the refused write rolled back has just been replaced by the server's
-            // own, so the sentence about it no longer describes anything on screen.
+            // own, so the sentence about it no longer describes anything on screen — and
+            // neither does the offer to send it again.
             writeError = nil
+            pendingWrite = nil
         case .failure(let error):
             let mapped = PolarisError.mapped(error)
             if issues.value == nil { issues = .failed(mapped) }
@@ -120,26 +124,51 @@ public final class TeamWorkStore {
 
     /// Optimistic status change, as a swipe action calls it.
     public func setState(issueID: String, to state: WorkflowState) async {
+        await send(IssueChange(id: issueID, stateId: state.id), applying: state)
+    }
+
+    /// Sends the refused write again under the `opId` it already used — see `PendingWrite`.
+    public func retryLastWrite() async {
+        guard let pending = pendingWrite, pending.isRetryable else { return }
+        switch pending.operation {
+        case .issue(let change):
+            await send(change, applying: nil)
+        case .bulk(let edit):
+            await bulkApply(edit)
+        // Nothing else reaches this store.
+        case .comment, .addLabel, .removeLabel:
+            break
+        }
+    }
+
+    /// The first attempt applies the new state ahead of the reply; the retry does not, because
+    /// it is the same request and the row has not moved since.
+    private func send(_ change: IssueChange, applying state: WorkflowState?) async {
+        let issueID = change.id
         guard let list = issues.value, let index = list.firstIndex(where: { $0.id == issueID })
         else {
             // Not in this team's list — the same silent drop `IssuesStore.setState` had, and
             // the same answer: send it anyway rather than eating the tap.
-            await writeUnheld(issueID: issueID, to: state)
+            await writeUnheld(change)
             return
         }
         let original = list[index]
         writeError = nil
-        var optimistic = list
-        optimistic[index].state = state
-        issues = .loaded(IssueOrder.sorted(optimistic))
+        if let state {
+            var optimistic = list
+            optimistic[index].state = state
+            issues = .loaded(IssueOrder.sorted(optimistic))
+        }
         do {
-            let updated = try await api.updateIssue(IssueChange(id: issueID, stateId: state.id))
+            let updated = try await api.updateIssue(change)
+            pendingWrite = nil
             replace(updated)
             onWriteConfirmed?(updated)
         } catch {
             replace(original)
             let mapped = PolarisError.mapped(error)
             writeError = mapped
+            pendingWrite = PendingWrite(operation: .issue(change), failure: mapped)
             report(mapped)
         }
     }
@@ -153,6 +182,7 @@ public final class TeamWorkStore {
         let ids = Set(edit.change.ids)
         guard !ids.isEmpty else { return nil }
         writeError = nil
+        pendingWrite = nil
 
         var originals: [String: Issue] = [:]
         if var current = issues.value {
@@ -176,6 +206,9 @@ public final class TeamWorkStore {
             for original in originals.values { replace(original) }
             let mapped = PolarisError.mapped(error)
             writeError = mapped
+            // The whole batch under one `opId`: the server either replays the original block
+            // or applies it once, so a retry cannot move a selection twice.
+            pendingWrite = PendingWrite(operation: .bulk(edit), failure: mapped)
             report(mapped)
             return nil
         }
@@ -183,24 +216,33 @@ public final class TeamWorkStore {
 
     /// The write for an issue this list does not hold: nothing to apply ahead of the reply,
     /// nothing to roll back, and the outcome either fanned out or said out loud.
-    private func writeUnheld(issueID: String, to state: WorkflowState) async {
+    private func writeUnheld(_ change: IssueChange) async {
         writeError = nil
         do {
-            let updated = try await api.updateIssue(IssueChange(id: issueID, stateId: state.id))
+            let updated = try await api.updateIssue(change)
+            pendingWrite = nil
             onWriteConfirmed?(updated)
         } catch {
             let mapped = PolarisError.mapped(error)
             writeError = mapped
+            pendingWrite = PendingWrite(operation: .issue(change), failure: mapped)
             report(mapped)
         }
     }
 
-    /// Dismisses the refused-write sentence, once the reader has read it.
+    /// Dismisses the refused-write sentence, once the reader has read it, and the offer to
+    /// send it again with it.
     public func clearWriteError() {
         writeError = nil
+        pendingWrite = nil
     }
 
     public func merge(_ updated: Issue) {
+        // The value this store was asking for, arrived by another route. Nothing to retry.
+        if let pending = pendingWrite, pending.operation.isSatisfied(by: updated) {
+            pendingWrite = nil
+            writeError = nil
+        }
         replace(updated)
     }
 

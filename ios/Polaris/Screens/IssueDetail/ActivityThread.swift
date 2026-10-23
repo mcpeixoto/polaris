@@ -66,8 +66,16 @@ struct ActivityThreadView: View {
                 }
             }
 
+            // The composer's Post button already reuses the draft's `opId`, so pressing it
+            // again is this retry by another route. Offered here too because the sentence is
+            // here, and a reader who has scrolled to the error should not have to find the
+            // composer to act on it.
             if let error = store.commentError {
-                InlineErrorLabel(text: error.displayMessage)
+                InlineErrorLabel(
+                    write: store.pendingWrite,
+                    text: error.displayMessage,
+                    retry: { await store.retryLastWrite() }
+                )
             }
         }
     }
