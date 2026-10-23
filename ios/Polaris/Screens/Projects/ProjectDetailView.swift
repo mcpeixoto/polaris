@@ -15,6 +15,7 @@ struct ProjectDetailView: View {
     @State private var pendingIDs: Set<String> = []
     /// The schema's defaults: a project's issues have always been grouped by status.
     @State private var display = ListDisplay()
+    @State private var isEditing = false
 
     private let seed: Project
     /// How many milestones the header shows before it says "and N more".
@@ -47,6 +48,38 @@ struct ProjectDetailView: View {
                     name: seed.name,
                     identifier: "project.favorite"
                 )
+                // An overflow menu rather than an Edit button: the bar already carries two
+                // glyphs, and everything that can be done *to* a project rather than to the
+                // list belongs behind one place.
+                Menu {
+                    Button {
+                        isEditing = true
+                    } label: {
+                        Label("Edit project", systemImage: "pencil")
+                    }
+                    .accessibilityIdentifier("project.edit")
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
+                .tint(Theme.textSecondary)
+                .accessibilityLabel(Text("Project actions"))
+                .accessibilityIdentifier("project.menu")
+            }
+        }
+        .sheet(isPresented: $isEditing) {
+            // Seeded from the store's own copy rather than from `seed`, which is the row the
+            // reader tapped and may be a refetch behind the header above this sheet.
+            if let store {
+                let current = store.project.value ?? seed
+                ProjectComposeView(mode: .edit(current)) { request in
+                    guard case .update(let change) = request else { return nil }
+                    guard let updated = await store.update(change) else { return store.writeError }
+                    // The list this screen was opened from reads from the workspace store,
+                    // and nothing refetches it: without this the row behind keeps the old
+                    // name until the session ends.
+                    model.workspaceData.apply(updated)
+                    return nil
+                }
             }
         }
         .task {

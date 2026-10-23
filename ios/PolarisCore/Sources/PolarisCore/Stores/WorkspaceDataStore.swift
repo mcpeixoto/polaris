@@ -332,6 +332,36 @@ public final class WorkspaceDataStore {
             }
     }
 
+    // MARK: - Project writes
+
+    /// Creates a project and puts it straight into the held list.
+    ///
+    /// Throws rather than parking the failure, like `IssuesStore.create`: the form that called
+    /// it is the only place a refusal can be shown next to the fields it is about.
+    @discardableResult
+    public func create(_ draft: ProjectDraft) async throws -> Project {
+        let created = try await api.createProject(draft)
+        apply(created)
+        return created
+    }
+
+    /// Inserts a project, or replaces the one already held under that id.
+    ///
+    /// `projects` is fetched once per session, and nothing but `reload(.projects)` ever asks
+    /// again — so without this a create would not appear until something refetched the whole
+    /// collection, which reads as a create that failed. Order is not imposed here: every
+    /// reader goes through `projects(forTeam:)` or the list screen's own sort, both of which
+    /// put open work first.
+    public func apply(_ project: Project) {
+        var current = projects.value ?? []
+        if let index = current.firstIndex(where: { $0.id == project.id }) {
+            current[index] = project
+        } else {
+            current.append(project)
+        }
+        projects = .loaded(current)
+    }
+
     public func isFavorite(kind: FavoriteKind, targetId: String) -> Bool {
         favorites.value?.contains { $0.kind == kind && $0.targetId == targetId } ?? false
     }

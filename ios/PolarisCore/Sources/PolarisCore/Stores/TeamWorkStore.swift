@@ -204,6 +204,19 @@ public final class TeamWorkStore {
         replace(updated)
     }
 
+    /// A cycle edited on its own detail screen, back in this team's list.
+    ///
+    /// The cycles screen holds this store for the life of the navigation stack and reloads
+    /// only on a realtime signal, so a rename made one screen deeper would otherwise still
+    /// read as the old name when the reader came back.
+    public func apply(_ updated: Cycle) {
+        guard var current = cycles.value,
+              let index = current.firstIndex(where: { $0.id == updated.id })
+        else { return }
+        current[index] = updated
+        cycles = .loaded(current.sorted { $0.number < $1.number })
+    }
+
     private func replace(_ issue: Issue) {
         guard var current = issues.value,
               let position = current.firstIndex(where: { $0.id == issue.id })
@@ -229,6 +242,9 @@ extension CycleStore: IssueMerging {}
 public final class ProjectStore {
     public private(set) var project: Loadable<Project>
     public private(set) var issues: Loadable<[Issue]> = .idle
+    /// The last refused edit, for `TeamWorkStore.writeError`'s reason: a sheet that closes
+    /// with nothing changed says something went wrong and nothing about what.
+    public private(set) var writeError: PolarisError?
 
     public var onUnauthorized: (@MainActor (PolarisError) -> Void)?
 
@@ -291,6 +307,37 @@ public final class ProjectStore {
 
     public var progress: WorkProgress { WorkProgress(issues: issues.value ?? []) }
 
+    /// Edits the project and replaces the header's copy with the server's.
+    ///
+    /// Not optimistic. A project header is a status pill, a lead, a date span and a progress
+    /// bar read from a list that did not change; showing a value the server has not accepted
+    /// gains nothing and there is nothing on screen to roll back to if it refuses.
+    @discardableResult
+    public func update(_ change: ProjectChange) async -> Project? {
+        writeError = nil
+        do {
+            let updated = try await api.updateProject(change)
+            apply(updated)
+            return updated
+        } catch {
+            let mapped = PolarisError.mapped(error)
+            writeError = mapped
+            report(mapped)
+            return nil
+        }
+    }
+
+    /// The project as the server now holds it. Ignores anything that is not this project, so
+    /// a fan-out cannot replace the header with somebody else's.
+    public func apply(_ updated: Project) {
+        guard updated.id == projectID else { return }
+        project = .loaded(updated)
+    }
+
+    public func clearWriteError() {
+        writeError = nil
+    }
+
     public func merge(_ updated: Issue) {
         guard var current = issues.value else { return }
         current.removeAll { $0.id == updated.id }
@@ -309,6 +356,10 @@ public final class ProjectStore {
 public final class CycleStore {
     public private(set) var cycle: Loadable<Cycle>
     public private(set) var issues: Loadable<[Issue]> = .idle
+    /// The last refused edit. It carries the server's own sentence, which for a cycle is the
+    /// part that matters: "a cycle that has already started cannot have its start moved" is
+    /// the whole explanation, and "something went wrong" is none of it.
+    public private(set) var writeError: PolarisError?
 
     public var onUnauthorized: (@MainActor (PolarisError) -> Void)?
 
@@ -359,6 +410,49 @@ public final class CycleStore {
     public func daysRemaining(at now: Date = Date()) -> Int {
         guard let cycle = cycle.value else { return 0 }
         return max(0, Int((cycle.endsAt.timeIntervalSince(now) / 86_400).rounded(.up)))
+    }
+
+    /// Renames the cycle or moves one of its ends, and replaces the header with the server's
+    /// copy. Not optimistic, for `ProjectStore.update`'s reason.
+    @discardableResult
+    public func update(_ change: CycleChange) async -> Cycle? {
+        writeError = nil
+        do {
+            let updated = try await api.updateCycle(change)
+            apply(updated)
+            return updated
+        } catch {
+            let mapped = PolarisError.mapped(error)
+            writeError = mapped
+            report(mapped)
+            return nil
+        }
+    }
+
+    /// Starts an upcoming cycle today. Irreversible server-side, so the caller confirms first.
+    @discardableResult
+    public func startToday(opId: String = UUIDv7.string()) async -> Cycle? {
+        writeError = nil
+        do {
+            let updated = try await api.startCycleToday(id: cycleID, opId: opId)
+            apply(updated)
+            return updated
+        } catch {
+            let mapped = PolarisError.mapped(error)
+            writeError = mapped
+            report(mapped)
+            return nil
+        }
+    }
+
+    /// The cycle as the server now holds it. Ignores anything that is not this cycle.
+    public func apply(_ updated: Cycle) {
+        guard updated.id == cycleID else { return }
+        cycle = .loaded(updated)
+    }
+
+    public func clearWriteError() {
+        writeError = nil
     }
 
     public func merge(_ updated: Issue) {

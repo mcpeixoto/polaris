@@ -44,6 +44,20 @@ public struct ProjectStatus: Codable, Sendable, Hashable, Identifiable {
     enum CodingKeys: String, CodingKey { case id, name, color, category }
 }
 
+/// Mirrors `enum TimeframeGranularity`. How precisely a project's start or target date is
+/// meant: a day, or the month/quarter/half/year it falls in.
+///
+/// The form only ever sets `.day` — it collects a date from a calendar — but the value travels
+/// beside the date on both project inputs, and a client that dropped it would let the server
+/// keep whatever granularity the project had while the date moved underneath it.
+public enum TimeframeGranularity: String, Codable, Sendable, Hashable, CaseIterable {
+    case day = "DAY"
+    case month = "MONTH"
+    case quarter = "QUARTER"
+    case half = "HALF"
+    case year = "YEAR"
+}
+
 public struct ProjectMilestone: Codable, Sendable, Hashable, Identifiable {
     public let id: String
     public let name: String
@@ -55,18 +69,22 @@ public struct ProjectMilestone: Codable, Sendable, Hashable, Identifiable {
 
 public struct Project: Codable, Sendable, Hashable, Identifiable {
     public let id: String
-    public let name: String
-    public let summary: String?
-    public let description: String
-    public let icon: String?
-    public let color: String
-    public let priority: Priority
-    public let leadId: String?
+    // `var` from `name` down to `lead` for the reason `Issue.title` is: everything
+    // `UpdateProjectInput` can change, the edit form can change, and a double standing in for
+    // the server has to be able to apply it to the project it already holds. `teams` and
+    // `milestones` stay `let` — neither is on that input, and neither is editable here.
+    public var name: String
+    public var summary: String?
+    public var description: String
+    public var icon: String?
+    public var color: String
+    public var priority: Priority
+    public var leadId: String?
     /// Calendar days, `2006-01-02`.
-    public let startDate: String?
-    public let targetDate: String?
-    public let status: ProjectStatus
-    public let lead: User?
+    public var startDate: String?
+    public var targetDate: String?
+    public var status: ProjectStatus
+    public var lead: User?
     /// Flattened from `teams { team { … } }`: the join row carries nothing a phone renders.
     public let teams: [Team]
     public let milestones: [ProjectMilestone]
@@ -128,10 +146,12 @@ public struct Cycle: Codable, Sendable, Hashable, Identifiable {
     public let id: String
     public let teamId: String
     public let number: Int
-    public let name: String
-    public let description: String?
-    public let startsAt: Date
-    public let endsAt: Date
+    /// The four `UpdateCycleInput` can change, for the reason `Issue.title` is a `var`: an
+    /// edited cycle is the same cycle, and the header above the list shows the new value.
+    public var name: String
+    public var description: String?
+    public var startsAt: Date
+    public var endsAt: Date
     public let completedAt: Date?
 
     enum CodingKeys: String, CodingKey {
@@ -159,6 +179,22 @@ public struct Cycle: Codable, Sendable, Hashable, Identifiable {
 
     public func isUpcoming(at now: Date = Date()) -> Bool {
         completedAt == nil && startsAt > now
+    }
+
+    /// Whether `updateCycle` will accept a new start for this cycle.
+    ///
+    /// `UpdateCycleInput` says it in the schema — "Upcoming cycles only. Past and current
+    /// starts are immutable" — and it is written down here so the edit form can disable the
+    /// field. A control that accepts a date the server refuses makes somebody fill in a sheet
+    /// to be told no.
+    public func allowsStartEdit(at now: Date = Date()) -> Bool {
+        isUpcoming(at: now)
+    }
+
+    /// Whether `updateCycle` will accept a new end. "Current and upcoming cycles. Past ends
+    /// are immutable."
+    public func allowsEndEdit(at now: Date = Date()) -> Bool {
+        isUpcoming(at: now) || isActive(at: now)
     }
 
     public var ref: CycleRef {

@@ -329,6 +329,67 @@ enum GraphQLDocuments {
     \(issueFields)
     """
 
+    /// The project a create or an edit hands back.
+    ///
+    /// The selection is `project` above, field for field — one project, not a list, so nothing
+    /// in it is multiplied and the screens that read a project can read this one. Written out
+    /// rather than interpolated because `scripts/lint-ios-graphql.mjs` resolves exactly one
+    /// interpolation, `issueFields`, and a second would validate something other than what is
+    /// sent.
+    ///
+    /// Emphatically NOT the `projects` list shape with a wider `team` block: read the comment
+    /// above `GraphQLDocuments.projects` for what that cost. The multiplier there is the list,
+    /// so this payload is affordable for the same reason `project` is.
+    static let createProject = """
+    mutation CreateProject($input: CreateProjectInput!, $clientId: UUID, $opId: UUID) {
+      createProject(input: $input, clientId: $clientId, opId: $opId) {
+        version
+        project {
+          id name summary description icon color priority leadId startDate targetDate
+          status { id name color category }
+          lead { id name displayName avatarUrl email }
+          teams { team { id key name icon color triageEnabled cyclesEnabled } }
+          milestones { id name targetDate }
+        }
+      }
+    }
+    """
+
+    static let updateProject = """
+    mutation UpdateProject($input: UpdateProjectInput!, $clientId: UUID, $opId: UUID) {
+      updateProject(input: $input, clientId: $clientId, opId: $opId) {
+        version
+        project {
+          id name summary description icon color priority leadId startDate targetDate
+          status { id name color category }
+          lead { id name displayName avatarUrl email }
+          teams { team { id key name icon color triageEnabled cyclesEnabled } }
+          milestones { id name targetDate }
+        }
+      }
+    }
+    """
+
+    /// Both cycle writes select the same fields as the `cycle` query, so the header a detail
+    /// screen is showing is replaced by something with every field it was already drawing.
+    static let updateCycle = """
+    mutation UpdateCycle($input: UpdateCycleInput!, $clientId: UUID, $opId: UUID) {
+      updateCycle(input: $input, clientId: $clientId, opId: $opId) {
+        version
+        cycle { id teamId number name description startsAt endsAt completedAt }
+      }
+    }
+    """
+
+    static let startCycleToday = """
+    mutation StartCycleToday($id: UUID!, $clientId: UUID, $opId: UUID) {
+      startCycleToday(id: $id, clientId: $clientId, opId: $opId) {
+        version
+        cycle { id teamId number name description startsAt endsAt completedAt }
+      }
+    }
+    """
+
     static let acceptTriageIssue = """
     mutation AcceptTriageIssue($id: UUID!, $clientId: UUID, $opId: UUID) {
       acceptTriageIssue(id: $id, clientId: $clientId, opId: $opId) {

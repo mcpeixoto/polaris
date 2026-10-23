@@ -188,6 +188,17 @@ public protocol PolarisAPI: Sendable {
     /// connection, which is the whole reason triaging ten rows one sheet at a time is the
     /// most tedious thing in this app.
     func bulkUpdateIssues(_ change: BulkIssueChange) async throws -> BulkIssueResult
+    /// A new project. `teamIds` is not optional on the input and must not be empty — see
+    /// `ProjectDraft`.
+    func createProject(_ draft: ProjectDraft) async throws -> Project
+    func updateProject(_ change: ProjectChange) async throws -> Project
+    /// Renames a cycle, or moves one end of it. The server refuses a start or an end it
+    /// considers immutable; `Cycle.allowsStartEdit` / `allowsEndEdit` are the same rule, so a
+    /// form can disable the field instead.
+    func updateCycle(_ change: CycleChange) async throws -> Cycle
+    /// Pulls the next upcoming cycle forward to midnight today in the team's timezone.
+    /// Irreversible, which is why it is a mutation of its own rather than a `startsAt` write.
+    func startCycleToday(id: String, opId: String) async throws -> Cycle
     func updateProfile(_ change: ProfileChange) async throws -> User
     /// Deletes the signed-in account. The server refuses when this person is the last
     /// owner of a workspace that still has other people.
@@ -343,6 +354,18 @@ public extension PolarisAPI {
     }
     func bulkUpdateIssues(_ change: BulkIssueChange) async throws -> BulkIssueResult {
         throw PolarisError.unsupported("bulk edits")
+    }
+    func createProject(_ draft: ProjectDraft) async throws -> Project {
+        throw PolarisError.unsupported("creating a project")
+    }
+    func updateProject(_ change: ProjectChange) async throws -> Project {
+        throw PolarisError.unsupported("editing a project")
+    }
+    func updateCycle(_ change: CycleChange) async throws -> Cycle {
+        throw PolarisError.unsupported("editing a cycle")
+    }
+    func startCycleToday(id: String, opId: String) async throws -> Cycle {
+        throw PolarisError.unsupported("starting a cycle")
     }
     func updateProfile(_ change: ProfileChange) async throws -> User {
         throw PolarisError.unsupported("profile edits")
@@ -637,6 +660,174 @@ public struct BulkIssueEdit: Sendable, Hashable {
         } else if let dueDate = change.dueDate {
             issue.dueDate = dueDate
         }
+    }
+}
+
+/// A new project, as the form collects it.
+///
+/// No client-minted id, unlike `IssueDraft`: `CreateProjectInput` has no `id` field, so the
+/// server assigns one. `opId` still travels, and still has to stay stable across retries —
+/// without it a create that timed out and was tapped again is two projects.
+///
+/// `teamIds` is `[UUID!]!` on the input, and its schema comment says why it has no default:
+/// *a project with no team is invisible to everyone*. So this carries the list as given and
+/// the form requires it, rather than quietly picking a team on somebody's behalf.
+public struct ProjectDraft: Sendable, Hashable {
+    public let opId: String
+    public var name: String
+    public var summary: String?
+    public var description: String?
+    public var icon: String?
+    public var color: String?
+    public var statusId: String?
+    public var priority: Priority
+    public var leadId: String?
+    /// At least one, or the project is created and nobody can see it.
+    public var teamIds: [String]
+    /// Calendar days, `2006-01-02`, each with the granularity it was meant at.
+    public var startDate: String?
+    public var startDateGranularity: TimeframeGranularity?
+    public var targetDate: String?
+    public var targetDateGranularity: TimeframeGranularity?
+
+    public init(
+        opId: String = UUIDv7.string(),
+        name: String,
+        summary: String? = nil,
+        description: String? = nil,
+        icon: String? = nil,
+        color: String? = nil,
+        statusId: String? = nil,
+        priority: Priority = .none,
+        leadId: String? = nil,
+        teamIds: [String],
+        startDate: String? = nil,
+        startDateGranularity: TimeframeGranularity? = nil,
+        targetDate: String? = nil,
+        targetDateGranularity: TimeframeGranularity? = nil
+    ) {
+        self.opId = opId
+        self.name = name
+        self.summary = summary
+        self.description = description
+        self.icon = icon
+        self.color = color
+        self.statusId = statusId
+        self.priority = priority
+        self.leadId = leadId
+        self.teamIds = teamIds
+        self.startDate = startDate
+        self.startDateGranularity = startDateGranularity
+        self.targetDate = targetDate
+        self.targetDateGranularity = targetDateGranularity
+    }
+}
+
+/// A partial update to a project.
+///
+/// The `clear…` flags are here for the reason `IssueChange` gives: nil in a partial update
+/// means "leave alone", so removing the lead, the start or the target needs a boolean of its
+/// own. The server models each as one, and so does this — three flags against three
+/// nullable properties.
+///
+/// Ordering (`afterProjectId`, `moveToTop`) and the update-reminder schedule are on
+/// `UpdateProjectInput` and deliberately absent: neither has a control on a phone, and a
+/// field this struct carries but never sets is a field a reader of the wire cannot account
+/// for.
+public struct ProjectChange: Sendable, Hashable {
+    public let id: String
+    public let opId: String
+    public var name: String?
+    public var summary: String?
+    public var description: String?
+    public var icon: String?
+    public var color: String?
+    public var statusId: String?
+    public var priority: Priority?
+    public var leadId: String?
+    public var clearLead: Bool
+    public var startDate: String?
+    public var startDateGranularity: TimeframeGranularity?
+    public var clearStart: Bool
+    public var targetDate: String?
+    public var targetDateGranularity: TimeframeGranularity?
+    public var clearTarget: Bool
+
+    public init(
+        id: String,
+        opId: String = UUIDv7.string(),
+        name: String? = nil,
+        summary: String? = nil,
+        description: String? = nil,
+        icon: String? = nil,
+        color: String? = nil,
+        statusId: String? = nil,
+        priority: Priority? = nil,
+        leadId: String? = nil,
+        clearLead: Bool = false,
+        startDate: String? = nil,
+        startDateGranularity: TimeframeGranularity? = nil,
+        clearStart: Bool = false,
+        targetDate: String? = nil,
+        targetDateGranularity: TimeframeGranularity? = nil,
+        clearTarget: Bool = false
+    ) {
+        self.id = id
+        self.opId = opId
+        self.name = name
+        self.summary = summary
+        self.description = description
+        self.icon = icon
+        self.color = color
+        self.statusId = statusId
+        self.priority = priority
+        self.leadId = leadId
+        self.clearLead = clearLead
+        self.startDate = startDate
+        self.startDateGranularity = startDateGranularity
+        self.clearStart = clearStart
+        self.targetDate = targetDate
+        self.targetDateGranularity = targetDateGranularity
+        self.clearTarget = clearTarget
+    }
+}
+
+/// A partial update to a cycle: the two things that can be renamed and the two ends that can
+/// sometimes be moved.
+///
+/// `clearDescription` is the one `clear…` flag the input has, for `IssueChange`'s reason. The
+/// dates have none: a cycle with no start or no end is not a state the schema can express —
+/// `startsAt` and `endsAt` are `Time!` on the type — so there is nothing to clear.
+///
+/// There is no `createCycle` to pair with this. Cycles are minted by `updateTeamCycles` from
+/// a team's cadence, which is why no screen here offers to create one.
+public struct CycleChange: Sendable, Hashable {
+    public let id: String
+    public let opId: String
+    public var name: String?
+    public var description: String?
+    public var clearDescription: Bool
+    /// Upcoming cycles only — see `Cycle.allowsStartEdit`.
+    public var startsAt: Date?
+    /// Current and upcoming cycles — see `Cycle.allowsEndEdit`.
+    public var endsAt: Date?
+
+    public init(
+        id: String,
+        opId: String = UUIDv7.string(),
+        name: String? = nil,
+        description: String? = nil,
+        clearDescription: Bool = false,
+        startsAt: Date? = nil,
+        endsAt: Date? = nil
+    ) {
+        self.id = id
+        self.opId = opId
+        self.name = name
+        self.description = description
+        self.clearDescription = clearDescription
+        self.startsAt = startsAt
+        self.endsAt = endsAt
     }
 }
 
