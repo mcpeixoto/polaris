@@ -361,8 +361,13 @@ final class DetailAndSettingsTests: XCTestCase {
         let signOut = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier == %@", "settings.signOut"))
             .firstMatch
-        if !signOut.exists || !signOut.isHittable {
+        // Bounded rather than a single swipe: `ios.yml` takes whatever simulator the runner
+        // image ships rather than pinning a name, so the screen height is not fixed, and a row
+        // added above Sign out would cost one swipe more.
+        var swipes = 0
+        while !signOut.isHittable, swipes < 5 {
             app.swipeUp()
+            swipes += 1
         }
         XCTAssertTrue(signOut.waitForExistence(timeout: long), "sign out is on the settings screen")
         signOut.tap()
