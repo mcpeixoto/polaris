@@ -178,16 +178,16 @@ function renderBoard({
   return { store, mutate, onOpen, onFocus, onToggle, onExtend, user: userEvent.setup() };
 }
 
-/** A column, by the name its listbox carries. */
+/** A column, by the name its grid of cards carries. */
 function column(name: string): HTMLElement {
-  const list = screen.getByRole('listbox', { name });
-  const section = list.closest('section');
+  const grid = screen.getByRole('grid', { name });
+  const section = grid.closest('section');
   if (section === null) throw new Error(`the ${name} column has no section around its cards`);
   return section;
 }
 
 function card(title: string): HTMLElement {
-  return screen.getByText(title).closest('[role="option"]') as HTMLElement;
+  return screen.getByText(title).closest('[role="gridcell"]') as HTMLElement;
 }
 
 /**
@@ -235,7 +235,7 @@ describe('Board', () => {
   it('renders one column per group, each carrying its own count', () => {
     renderBoard();
 
-    expect(screen.getAllByRole('listbox').map((list) => list.getAttribute('aria-label'))).toEqual([
+    expect(screen.getAllByRole('grid').map((grid) => grid.getAttribute('aria-label'))).toEqual([
       'Todo',
       'In Progress',
     ]);
@@ -248,10 +248,10 @@ describe('Board', () => {
 
     expect(
       within(column('Todo'))
-        .getAllByRole('option')
+        .getAllByRole('gridcell')
         .map((option) => option.textContent),
     ).toEqual(['ENG-1Fix the flake', 'ENG-2Ship the importer']);
-    expect(within(column('In Progress')).getAllByRole('option')).toHaveLength(1);
+    expect(within(column('In Progress')).getAllByRole('gridcell')).toHaveLength(1);
   });
 
   it('keeps an empty column on the board', () => {

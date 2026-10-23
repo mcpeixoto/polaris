@@ -63,6 +63,7 @@ const SCREENS: [name: string, path: string][] = [
   ['profile settings', '/settings/profile'],
   ['issue detail', '/issue/ISSUE'],
   ['team list', '/team/ENG'],
+  ['team board', '/team/ENG?layout=board'],
 ];
 
 /*
@@ -89,11 +90,17 @@ const SCREENS: [name: string, path: string][] = [
  * row and the selection on it, `gridcell` for an issue's body — the element that carries the
  * row's id, its click and its context menu — and `rowheader` for a group heading.
  *
- * What this walk still does not see is the same screen's other layout. `/team/ENG` is the
- * list, and `?layout=board` is a `listbox` of cards that carry the same pills, so it has the
- * same `nested-interactive` fault the list just shed. It is not a line in SCREENS away: a
- * board is not a grid, and what a column of cards should be is the question that fix has to
- * answer first.
+ * The board followed, for the reason the file it lives in gives for everything else: it is
+ * the list turned on its side, and the way that goes wrong is by being written twice. Each
+ * column is a one-column `grid` of card rows — same roles, same cursor, same selection — and
+ * `?layout=board` is the sixth screen here.
+ *
+ * What this walk sees of it is one column with one card, which is all a fresh workspace draws.
+ * The two shapes that carried the bugs are display state no URL reaches: an empty column, and
+ * a folded one. `src/features/view/ui/Board.a11y.test.tsx` runs the same rules over both in
+ * jsdom, and it is worth knowing why it exists — an empty column used to draw "Nothing here"
+ * *inside* the listbox, which is a third critical nobody had seen, because the only screen
+ * that showed it was never walked.
  */
 
 const TAGS = ['wcag2a', 'wcag2aa'];

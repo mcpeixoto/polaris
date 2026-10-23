@@ -207,11 +207,11 @@ function renderBoard({
 }
 
 function column(name: string): HTMLElement {
-  return screen.getByRole('listbox', { name }).closest('section')!;
+  return screen.getByRole('grid', { name }).closest('section')!;
 }
 
 function card(title: string): HTMLElement {
-  return screen.getByRole('option', { name: new RegExp(title) });
+  return screen.getByRole('gridcell', { name: new RegExp(title) });
 }
 
 describe('the column header', () => {
@@ -251,7 +251,7 @@ describe('a folded column', () => {
     expect(screen.getByRole('button', { name: 'In Progress' }).getAttribute('aria-expanded')).toBe(
       'false',
     );
-    expect(screen.queryByRole('listbox', { name: 'In Progress' })).toBeNull();
+    expect(screen.queryByRole('grid', { name: 'In Progress' })).toBeNull();
     // Still on the board, so the status is still reachable by drag — the spec asks for hidden
     // columns to collect at the far right and go on accepting drops.
     expect(screen.getByRole('button', { name: 'Options for In Progress' })).toBeTruthy();
@@ -351,7 +351,7 @@ describe('card ids', () => {
     // document happens to hold first.
     renderBoard();
 
-    const ids = screen.getAllByRole('option').map((option) => option.id);
+    const ids = screen.getAllByRole('gridcell').map((cell) => cell.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
 });

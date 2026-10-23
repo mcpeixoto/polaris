@@ -192,12 +192,15 @@
 }
 
 /*
- * The column takes focus so a screen reader has somewhere to announce the active card from —
- * the keys themselves are handled by the registry at the window. A ring around the whole
- * column would say "you are here" about a region the user never left, so the cursor card's
- * own mark carries it.
+ * The grid of cards takes focus so a screen reader has somewhere to announce the active card
+ * from — the keys themselves are handled by the registry at the window. A ring around the
+ * whole column would say "you are here" about a region the user never left, so the cursor
+ * card's own mark carries it.
+ *
+ * It sits inside the scroller rather than being it, because an empty column draws a sentence
+ * and no grid: see `Board.tsx` on why "Nothing here" is not a row.
  */
-.scroller:focus {
+.grid:focus {
   outline: none;
 }
 

@@ -27,6 +27,13 @@
  * no grouping at all, labels, due dates, parents, teams, status categories — dragging is
  * turned off and the column says why, because the alternative is a card that snaps back and
  * a person who does not know whether the write failed or was never attempted.
+ *
+ * **Each column is a one-column `grid`**, its cards rows holding one `gridcell` each — the
+ * same roles the list uses, for the same reason it had to stop being a `listbox` of
+ * `option`s: an option's children are presentational, so the property pills on a card made
+ * every card a `nested-interactive` violation, and a listbox may not own the sentence an
+ * empty column draws either. A grid row may own controls, a card is a thing you act on in
+ * place, and this way the two halves of one view answer a screen reader the same way.
  */
 
 import {
@@ -747,7 +754,7 @@ function BoardColumn({
   }, [registerScroller, group.key, virtualizer]);
 
   // A group's label is empty for "no grouping", where the single column holds the whole
-  // view. It still needs a name: a listbox announced as "" is one a screen-reader user
+  // view. It still needs a name: a grid of cards announced as "" is one a screen-reader user
   // cannot tell from the page.
   const title = group.label === '' ? 'All issues' : group.label;
   const virtualCards = virtualizer.getVirtualItems();
@@ -993,79 +1000,90 @@ function BoardColumn({
           `display: none` on the scroller: the virtualiser measures what it is handed, so a
           hidden card is still a card's worth of scroll range. */}
       {collapsed ? null : (
-        <div
-          ref={scrollRef}
-          className={styles.scroller}
-          role="listbox"
-          aria-multiselectable="true"
-          aria-label={title}
-          aria-activedescendant={
-            cursorId !== null && cursorRendered ? cardDomId(group.key, cursorId) : undefined
-          }
-          tabIndex={0}
-        >
+        <div ref={scrollRef} className={styles.scroller}>
+          <div
+            className={styles.grid}
+            role="grid"
+            aria-multiselectable="true"
+            aria-label={title}
+            aria-rowcount={group.ids.length}
+            aria-activedescendant={
+              cursorId !== null && cursorRendered ? cardDomId(group.key, cursorId) : undefined
+            }
+            tabIndex={0}
+          >
+            {group.ids.length === 0 ? null : (
+              <div
+                className={styles.sizer}
+                role="rowgroup"
+                style={{ height: virtualizer.getTotalSize() }}
+              >
+                {insertAt === null || !draggable ? null : (
+                  // The gap the drop would land in, drawn where it would land. Purely visual, so
+                  // it is out of the accessibility tree — the keyboard's move-to-column actions
+                  // announce themselves through the registry instead.
+                  <div
+                    className={styles.insertion}
+                    aria-hidden="true"
+                    style={{
+                      transform: `translateY(${
+                        virtualCards.find((item) => item.index === insertAt)?.start ??
+                        virtualizer.getTotalSize()
+                      }px)`,
+                    }}
+                  />
+                )}
+                {virtualCards.map((virtualCard) => {
+                  const id = group.ids[virtualCard.index];
+                  if (id === undefined) return null;
+                  return (
+                    <div
+                      key={virtualCard.key}
+                      data-index={virtualCard.index}
+                      ref={virtualizer.measureElement}
+                      className={styles.slot}
+                      role="row"
+                      aria-selected={selected.has(id)}
+                      aria-rowindex={virtualCard.index + 1}
+                      style={{ transform: `translateY(${virtualCard.start}px)` }}
+                    >
+                      <BoardCard
+                        id={id}
+                        index={virtualCard.index}
+                        groupKey={group.key}
+                        properties={properties}
+                        selected={selected.has(id)}
+                        active={id === cursorId}
+                        draggable={draggable}
+                        dragging={dragging === id}
+                        onOpen={onOpen}
+                        onFocus={onFocus}
+                        onToggle={onToggle}
+                        onExtend={onExtend}
+                        onDragStart={onDragStartCard}
+                        onDragEnd={onDragEndCard}
+                        onContextMenu={onContextMenu}
+                        onProperty={onProperty}
+                        openProperty={openProperty?.id === id ? openProperty.kind : null}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           {group.ids.length === 0 ? (
             // Kept on the board rather than dropped: an empty column is information — "nothing
             // is in review" — and a board whose columns come and go as work moves through it
             // is one nobody can build a habit around.
+            //
+            // Beside the grid rather than inside it. A `grid` whose only content is the words
+            // "Nothing here" is a grid claiming a row that does not exist, which axe reports
+            // as `aria-required-children`; an empty one owning nothing is simply empty, and
+            // `aria-rowcount={0}` is what a reader hears. The column keeps its grid either
+            // way, because it is still somewhere to tab to and still somewhere to drop a card.
             <p className={styles.blank}>Nothing here</p>
-          ) : (
-            <div
-              className={styles.sizer}
-              role="presentation"
-              style={{ height: virtualizer.getTotalSize() }}
-            >
-              {insertAt === null || !draggable ? null : (
-                // The gap the drop would land in, drawn where it would land. Purely visual, so
-                // it is out of the accessibility tree — the keyboard's move-to-column actions
-                // announce themselves through the registry instead.
-                <div
-                  className={styles.insertion}
-                  aria-hidden="true"
-                  style={{
-                    transform: `translateY(${
-                      virtualCards.find((item) => item.index === insertAt)?.start ??
-                      virtualizer.getTotalSize()
-                    }px)`,
-                  }}
-                />
-              )}
-              {virtualCards.map((virtualCard) => {
-                const id = group.ids[virtualCard.index];
-                if (id === undefined) return null;
-                return (
-                  <div
-                    key={virtualCard.key}
-                    data-index={virtualCard.index}
-                    ref={virtualizer.measureElement}
-                    className={styles.slot}
-                    role="presentation"
-                    style={{ transform: `translateY(${virtualCard.start}px)` }}
-                  >
-                    <BoardCard
-                      id={id}
-                      index={virtualCard.index}
-                      groupKey={group.key}
-                      properties={properties}
-                      selected={selected.has(id)}
-                      active={id === cursorId}
-                      draggable={draggable}
-                      dragging={dragging === id}
-                      onOpen={onOpen}
-                      onFocus={onFocus}
-                      onToggle={onToggle}
-                      onExtend={onExtend}
-                      onDragStart={onDragStartCard}
-                      onDragEnd={onDragEndCard}
-                      onContextMenu={onContextMenu}
-                      onProperty={onProperty}
-                      openProperty={openProperty?.id === id ? openProperty.kind : null}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          ) : null}
         </div>
       )}
     </section>
@@ -1371,8 +1389,11 @@ const BoardCard = memo(function BoardCard({
   return (
     <div
       id={cardDomId(groupKey, id)}
-      role="option"
-      aria-selected={selected}
+      // The card is the row's one cell, the way an issue row's body is on the list: a card
+      // reads as a sentence rather than a set of columns, and `aria-selected` belongs to the
+      // row above it. Cells may own controls, which is the whole point — a card carries the
+      // same property pills the list rows do.
+      role="gridcell"
       className={[
         styles.card,
         selected ? styles.selected : null,
