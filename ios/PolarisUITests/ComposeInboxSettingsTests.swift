@@ -93,10 +93,10 @@ final class ComposeInboxSettingsTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["3 open"].waitForExistence(timeout: long))
     }
 
-    /// The filter menu grew Linear's display options beside the completed toggle.
-    func testFilterMenuOffersGroupingAndOrder() {
+    /// The display menu grew Linear's display options beside the completed toggle.
+    func testDisplayMenuOffersGroupingAndOrder() {
         let app = launch()
-        app.buttons["Filter"].tap()
+        app.buttons["Display"].tap()
         let showCompleted = app.switches["Show completed"].exists
             ? app.switches["Show completed"] : app.buttons["Show completed"]
         XCTAssertTrue(showCompleted.waitForExistence(timeout: 10), "the completed toggle is still there")

@@ -68,11 +68,11 @@ final class IssueListQATests: XCTestCase {
     }
 
     private func toggleShowCompleted(_ app: XCUIApplication) {
-        app.buttons["Filter"].tap()
+        app.buttons["Display"].tap()
         let toggle = app.switches["Show completed"].exists
             ? app.switches["Show completed"]
             : app.buttons["Show completed"]
-        XCTAssertTrue(toggle.waitForExistence(timeout: 10), "filter menu should offer Show completed")
+        XCTAssertTrue(toggle.waitForExistence(timeout: 10), "the display menu should offer Show completed")
         toggle.tap()
     }
 
@@ -105,8 +105,8 @@ final class IssueListQATests: XCTestCase {
         print("=====QA-REFRESH before=\(rows.count) after=\(afterRefresh.count)")
         XCTAssertEqual(rows, afterRefresh, "pull to refresh should return the same list")
 
-        // --- filter menu ---
-        app.buttons["Filter"].tap()
+        // --- display menu ---
+        app.buttons["Display"].tap()
         snap(app, "03-filter-menu-open")
         dump(app, "filter-menu")
         let toggle = app.switches["Show completed"].exists
@@ -173,7 +173,7 @@ final class IssueListQATests: XCTestCase {
 
         app.navigationBars.buttons.element(boundBy: 0).tap()
         XCTAssertTrue(app.staticTexts["My Issues"].waitForExistence(timeout: 20))
-        _ = app.buttons["Filter"].waitForExistence(timeout: 5)
+        _ = app.buttons["Display"].waitForExistence(timeout: 5)
 
         let eyebrowAfter = eyebrowLabel(app)
         let rowsAfter = rowLabels(app)

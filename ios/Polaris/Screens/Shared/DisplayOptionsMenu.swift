@@ -14,10 +14,12 @@ import PolarisCore
 /// cannot be a field of a display the client resolves locally.
 struct DisplayOptionsMenu<Extra: View>: View {
     @Binding var display: ListDisplay
-    var symbol: String = "slider.horizontal.3"
-    /// Spoken name and test identifier. Parameters because My Issues' menu has been called
-    /// "Filter" since before it had display options in it, and a UI suite taps it by that name.
-    var label: String = String(localized: "Display")
+    /// No longer a parameter. My Issues used to override both the symbol and the name to keep
+    /// calling this "Filter" with a funnel, from before the list could be grouped and long
+    /// before anything could filter it. `FilterButton` now holds that name and that icon, so
+    /// every list says Display for this one and means the same thing by it.
+    private let symbol = "slider.horizontal.3"
+    private let label = String(localized: "Display")
     var identifier: String = "issues.display"
     @ViewBuilder var extra: () -> Extra
 
@@ -60,13 +62,8 @@ struct DisplayOptionsMenu<Extra: View>: View {
 }
 
 extension DisplayOptionsMenu where Extra == EmptyView {
-    init(
-        display: Binding<ListDisplay>,
-        symbol: String = "slider.horizontal.3",
-        label: String = String(localized: "Display"),
-        identifier: String = "issues.display"
-    ) {
-        self.init(display: display, symbol: symbol, label: label, identifier: identifier) {
+    init(display: Binding<ListDisplay>, identifier: String = "issues.display") {
+        self.init(display: display, identifier: identifier) {
             EmptyView()
         }
     }
