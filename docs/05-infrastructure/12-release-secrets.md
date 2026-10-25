@@ -24,7 +24,8 @@ configured and working.
 
 ## Shipping to TestFlight
 
-`ios-release.yml`, on a `v*` tag. **Not configured — the job fails at its first step.**
+`ios-release.yml`, on a `v*` tag. **All five are configured** (checked 2026-10-25); the job
+fails at its first step if any of them is ever removed.
 
 That failure is deliberate. `desktop.yml` degrades to an unsigned build when a certificate
 is missing, which is right for something still useful unsigned; an upload is not. A release
@@ -54,6 +55,39 @@ which reads as a missing certificate and is a missing key. `make release-secrets
 
 The same three are what `desktop.yml` notarises macOS builds with, so setting them fixes
 two things at once.
+
+### The second trap: a profile is not downloaded either
+
+The secrets get the job as far as a signed archive and no further. A manual-signing export
+names its profiles, and a named profile has to be *on the machine*:
+
+```
+error: exportArchive No "iOS App Store" profiles for team "..." matching "Polaris App Store" are installed.
+```
+
+`-allowProvisioningUpdates` does not fix it. It creates Xcode-managed profiles, and a named
+one is not Xcode-managed. The profiles are on the maintainer's Mac only because
+`ios/scripts/asc-setup.py` installed them once, which is exactly why an export works by hand
+and fails on a fresh runner — at the end of a ten-minute archive, every time.
+
+`scripts/install-profiles.py` closes it. It reads the names out of `ios/ExportOptions.plist`,
+so there is one list rather than two, fetches each profile from App Store Connect and
+installs it before anything signs. Both the workflow and `scripts/release-ios.sh` run it.
+
+### And the pairing underneath both
+
+A profile lists the certificates allowed to sign against it, by id. An export signs with an
+identity from the keychain, and if the profile does not list *that* certificate the export is
+refused — reported as a missing profile, not a missing certificate, which sends you looking
+in the wrong place. So `install-profiles.py` prints the certificates each profile carries and
+the identities available locally, side by side, before the archive starts.
+
+Two consequences worth knowing in advance:
+
+* A second distribution certificate — for CI, say, with a locally generated private key — is
+  useless until every profile is recreated to list it. App Store Connect has no "update the
+  certificates on a profile": the portal's Edit is a delete and a create, and so is the API.
+* Renewing a certificate is the same job again. A profile follows an id, not a renewal.
 
 **The role matters and the failure is cryptic.** Notarisation needs only the Developer
 role; creating or downloading an iOS distribution signing asset needs **App Manager**. A
