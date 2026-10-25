@@ -47,16 +47,27 @@ awk '/^  publish:/{p=1} p&&/needs: build/{found=1} END{exit !found}' "$desktop" 
 
 # The iOS version has to come from the tag. project.yml still carries literals — that is
 # fine and is what a local build uses — but the release workflow must overwrite them.
-if ! grep -q 'MARKETING_VERSION: ' "$ios"; then
-  note "$ios does not set MARKETING_VERSION"
-  echo "      The tag would decide when the build was uploaded and nothing about what it is:"
-  echo "      TestFlight would show the literal version left in ios/project.yml."
+# The version and the build number must come from the tag and the run, not from a literal
+# somebody has to remember to edit. Both are stamped by scripts/stamp-ios-version.sh, which
+# the release workflow calls before the project is generated — so the check follows the
+# stamping rather than the file it used to live in.
+stamp=scripts/stamp-ios-version.sh
+if ! grep -q 'stamp-ios-version.sh' "$ios"; then
+  note "$ios never stamps the version, so a tag decides only when a build is uploaded and nothing about what it is"
+  echo "      Cutting v0.9.0 from a tree whose manifest still said 0.8.0 would upload a"
+  echo "      TestFlight build called 0.8.0."
+elif [ ! -f "$stamp" ]; then
+  note "$ios calls $stamp, which does not exist"
+else
+  grep -q 'MARKETING_VERSION' "$stamp" \
+    || note "$stamp does not set MARKETING_VERSION"
+  grep -q 'CURRENT_PROJECT_VERSION' "$stamp" \
+    || note "$stamp does not set CURRENT_PROJECT_VERSION"
 fi
-if ! grep -q 'CURRENT_PROJECT_VERSION: ' "$ios"; then
-  note "$ios does not set CURRENT_PROJECT_VERSION"
-  echo "      TestFlight refuses a build number it has already accepted, so a hand-bumped"
-  echo "      literal fails the second tag nobody remembered to edit — at the end of the"
-  echo "      archive, with the tag already spent."
+if ! grep -q 'github.run_number' "$ios"; then
+  note "$ios does not take the build number from the run"
+  echo "      A hand-bumped literal fails the second tag nobody remembered to edit — at the"
+  echo "      end of the archive, with the tag already spent."
 fi
 
 # Production is deployed by a tag, not by a merge.
@@ -144,11 +155,11 @@ fi
 # `builds[0]` was the original rule and it shipped the wrong build to testers twice, most
 # recently handing v0.12.0's testers the v0.11.1 build. It is a one-word regression with no
 # other symptom: the job stays green and the log reads plausibly.
-if [ -f ios/scripts/distribute-build.py ]; then
-  grep -q 'builds\[0\]' ios/scripts/distribute-build.py \
-    && note "ios/scripts/distribute-build.py takes the newest build rather than the one this run built"
-  grep -q 'want_build' ios/scripts/distribute-build.py \
-    || note "ios/scripts/distribute-build.py does not match the build by number"
+if [ -f scripts/distribute-build.py ]; then
+  grep -q 'builds\[0\]' scripts/distribute-build.py \
+    && note "scripts/distribute-build.py takes the newest build rather than the one this run built"
+  grep -q 'want_build' scripts/distribute-build.py \
+    || note "scripts/distribute-build.py does not match the build by number"
 fi
 
 # Every secret a workflow reads must be written down, with what breaks without it.
