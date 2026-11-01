@@ -378,10 +378,42 @@
  * every slot; anything else setting `top` here would fight it on every frame of a scroll.
  */
 .slot {
+  --nest-depth: 0;
+  --nest-indent: var(--space-5);
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
+}
+
+/*
+ * A nested row's connector. The columns are centred on the leading slot of the row a level up:
+ * the row's margin and padding, half of the 16px slot, then one indent per column.
+ */
+.nestLine,
+.nestElbow {
+  --nest-column: 0;
+  position: absolute;
+  left: calc(var(--space-6) + var(--nest-column) * var(--nest-indent));
+  background-color: var(--border-default);
+  pointer-events: none;
+}
+
+.nestLine {
+  top: 0;
+  width: 1px;
+  height: 100%;
+}
+
+/* The last sibling's line stops at its own row rather than running on into whatever is next. */
+.nestLineLast {
+  height: 50%;
+}
+
+.nestElbow {
+  top: 50%;
+  width: calc(var(--nest-indent) - var(--space-2));
+  height: 1px;
 }
 
 /*
@@ -536,12 +568,7 @@
   opacity: 1;
 }
 
-/* A sub-issue is indented and says whose it is. The indent alone would say "this is under
-   something" without saying what, which in a filtered list is the half not worth having. */
-.child {
-  padding-inline-start: var(--space-8);
-}
-
+/* The parent's identifier, for a sub-issue with no parent drawn above it. */
 .parentCrumb {
   flex: none;
   color: var(--text-tertiary);
@@ -561,7 +588,8 @@
   gap: var(--space-2);
   height: var(--row-height);
   margin-inline: var(--space-2);
-  padding-inline: var(--space-2) var(--space-3);
+  /* `--nest-depth` is set on the slot, which also draws the connector in the space this opens. */
+  padding-inline: calc(var(--space-2) + var(--nest-depth, 0) * var(--nest-indent)) var(--space-3);
   border-radius: var(--radius-lg);
   color: var(--text-primary);
   font-size: var(--font-size-md);
@@ -576,6 +604,40 @@
 
 .row:hover {
   background-color: var(--bg-hover);
+}
+
+/*
+ * A parent drawn for orientation. Dimmed by tone so it reads as context and not as one of the
+ * group's issues, and the tone steps up with the row's own wash for the reason given at
+ * `.row:hover .date` below.
+ */
+.parentContext {
+  color: var(--text-tertiary);
+}
+
+.parentContext:hover {
+  color: var(--text-secondary);
+}
+
+.parentContext .identifier {
+  color: inherit;
+}
+
+.parentContextState {
+  display: inline-flex;
+  flex: none;
+  opacity: 0.6;
+}
+
+.parentContextTitle {
+  color: inherit;
+  text-decoration: none;
+}
+
+.parentContextTitle:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 /*
@@ -1014,6 +1076,10 @@ a.pill:visited {
   /* The gutters were sized for a pane inset from the window; at this width the pane is the
      window and the row's own inset is all the margin there is. */
   .row {
-    padding-inline: var(--space-2);
+    padding-inline-end: var(--space-2);
+  }
+
+  .slot {
+    --nest-indent: var(--space-3);
   }
 }
