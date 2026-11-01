@@ -258,13 +258,10 @@ export function ProjectPeek({ open, projectId, onClose }: ProjectPeekProps) {
         <ProjectUpdateComposer
           open
           onClose={health.hide}
-          trigger={health.ref}
           projectId={project.id}
           // The health the project already claims, so posting again confirms it rather than
           // quietly resetting a struggling project to "On track".
           initialHealth={project.health ?? undefined}
-          actionId="projectPeek.closeUpdateComposer"
-          actionGroup="Projects"
         />
       )}
     </aside>

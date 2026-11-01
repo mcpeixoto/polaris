@@ -222,6 +222,15 @@ describe('ProjectPeek rail', () => {
     expect(written.optimistic[0]?.after.targetDateGranularity).toBe('quarter');
   });
 
+  it('opens the update composer as a modal', async () => {
+    const { user } = mount();
+
+    await user.click(screen.getByRole('button', { name: 'No update' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Project update' });
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+  });
+
   it('opens the update composer from Health rather than a picker, and files the update', async () => {
     const { mutate, user } = mount();
 

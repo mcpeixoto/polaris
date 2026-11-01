@@ -267,7 +267,6 @@
   color: var(--text-primary);
   font-size: var(--font-size-md);
   line-height: var(--line-height-normal);
-  white-space: pre-wrap;
 }
 
 /* The composer is a card with nothing in it yet: the same box, the text unboxed inside it,

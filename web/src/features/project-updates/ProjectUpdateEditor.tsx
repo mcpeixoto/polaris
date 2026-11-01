@@ -12,7 +12,8 @@
 import { useState, type FormEvent } from 'react';
 
 import { useEngine } from '~/app/context';
-import { Button, Select, Textarea } from '~/components';
+import { Button, Select } from '~/components';
+import { WritingField } from '~/editor/WritingField';
 import type { ProjectUpdate, ProjectUpdateHealth } from '~/store';
 import { ApiError } from '~/sync/api';
 
@@ -63,12 +64,7 @@ export function ProjectUpdateEditor({ update, onDone }: ProjectUpdateEditorProps
           </option>
         ))}
       </Select>
-      <Textarea
-        label="Edit update"
-        value={body}
-        onChange={(event) => setBody(event.target.value)}
-        minRows={4}
-      />
+      <WritingField label="Edit update" value={body} onChange={setBody} minRows={4} />
       {/* Fields, then the message, then the actions. A refusal belongs beside the button
           that was refused rather than above the form, where it scrolls out of the way of
           the thing the reader is about to press again. */}

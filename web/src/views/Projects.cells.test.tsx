@@ -257,6 +257,15 @@ describe('Projects row health', () => {
     expect(screen.queryByText('opened')).toBeNull();
   });
 
+  it('opens it as a modal', async () => {
+    const { ui } = mount();
+
+    await ui.click(within(row('Launch')).getByRole('button', { name: 'No update posted' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Project update' });
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+  });
+
   it('posts the update against the project whose row was clicked', async () => {
     const { mutate, ui } = mount();
 

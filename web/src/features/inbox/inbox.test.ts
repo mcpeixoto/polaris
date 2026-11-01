@@ -146,6 +146,15 @@ describe('matchesInboxQuery', () => {
   });
 });
 
+describe('describeEvent for a mention', () => {
+  it('says project update when there is no issue to name, and names the issue otherwise', () => {
+    expect(describeEvent('mention', 'an issue', { projectId: 'p1' })).toBe(
+      'mentioned you in a project update',
+    );
+    expect(describeEvent('mention', 'ENG-1')).toBe('mentioned you in ENG-1');
+  });
+});
+
 describe('describeEvent for entity subscriptions', () => {
   it('names a project update without pretending it is an issue', () => {
     expect(describeEvent('project_update', 'an issue')).toBe(
@@ -165,6 +174,12 @@ describe('describeEvent for entity subscriptions', () => {
 });
 
 describe('notificationHref', () => {
+  it('opens a mention in a project update on the project, an issue mention stays put', () => {
+    const payload = { projectId: 'p1' };
+    expect(notificationHref('mention', payload, undefined)).toBe('/project/p1/activity');
+    expect(notificationHref('mention', undefined, 'i1')).toBeUndefined();
+  });
+
   it('opens Pulse, activity, and the customer page when there is no issue', () => {
     expect(notificationHref('pulse_digest', undefined, undefined)).toBe('/pulse');
     expect(notificationHref('project_update', { projectId: 'p1' }, undefined)).toBe(

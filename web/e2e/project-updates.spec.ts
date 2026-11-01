@@ -40,12 +40,13 @@ async function postUpdate(page: Page, health: string, body: string): Promise<voi
   // The composer's health is a menu button now, not a select: the overview keeps the
   // composer and the latest post, and the picker matches the pills the rest of the shell
   // uses. The edit form below still has a real `<select>`.
+  await page.getByRole('button', { name: 'Write update' }).click();
   await page.getByRole('button', { name: 'Health' }).click();
   await page.getByRole('menu', { name: 'Health' }).getByRole('menuitem', { name: health }).click();
   await page.getByLabel('Update', { exact: true }).fill(body);
   await page.getByRole('button', { name: 'Post update' }).click();
-  // The compose box clears once the mutation has resolved.
-  await expect(page.getByLabel('Update', { exact: true })).toHaveValue('');
+  // The dialog closes once the mutation has resolved.
+  await expect(page.getByRole('dialog', { name: 'Project update' })).toBeHidden();
 }
 
 test('an author edits their update and the derived health follows', async ({ page, workspace }) => {

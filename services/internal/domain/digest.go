@@ -298,6 +298,11 @@ func itemFor(row store.ClaimNotificationsForEmailRow, inboxURL, base string) mai
 		// so would read as if two hundred issues were one.
 		Others: int(row.Count) - 1,
 	}
+	if row.Type == model.NotifyMention && row.IssueID == nil {
+		// Named in a project update, which has no issue to link to.
+		item.Title = "a project update"
+		return item
+	}
 	if row.TeamKey == "" {
 		// The issue is gone — deleted since the notification was written — and the row is
 		// still in somebody's inbox, so it still has to be describable. It points at the inbox

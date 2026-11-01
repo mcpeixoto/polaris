@@ -125,6 +125,7 @@ describe('ProjectOverview as a document', () => {
     const user = userEvent.setup();
     renderOverview();
 
+    await user.click(screen.getByRole('button', { name: 'Write update' }));
     expect(screen.getByLabelText('Update')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Post update' })).toBeTruthy();
 

@@ -2,6 +2,7 @@ package domain_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -271,5 +272,103 @@ func TestSetProjectSubscription_GuestRefusedAndAllFalseUnsubscribes(t *testing.T
 		ProjectID: project.ID,
 	}); platform.CodeOf(err) != platform.CodeNotFound {
 		t.Fatalf("second unsubscribe: %v", err)
+	}
+}
+
+// A mention in a project update reaches whoever it names, follower or not, once, and nobody
+// who could not open the project.
+func TestProjectUpdateMention(t *testing.T) {
+	db := testutil.NewDB(t)
+	f := testutil.NewFixture(t, db)
+	svc := domain.NewService(db)
+	ctx := context.Background()
+	alice := f.Principal()
+	bobID := f.NewUser(t, "bob", "member", true)
+	bob := f.PrincipalFor(bobID, authz.RoleMember, f.TeamID)
+	carolID := f.NewUser(t, "carol", "member", true)
+	carol := f.PrincipalFor(carolID, authz.RoleMember, f.TeamID)
+	outsiderID := f.NewUser(t, "dan", "member", false)
+	outsider := f.PrincipalFor(outsiderID, authz.RoleMember)
+
+	project, _, err := svc.CreateProject(ctx, alice, domain.CreateProjectInput{
+		Name: "Launch", TeamIDs: []uuid.UUID{f.TeamID},
+	})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	// Carol follows and is named: one row, and it says she was mentioned.
+	if _, _, err := svc.SetProjectSubscription(ctx, carol, domain.SetProjectSubscriptionInput{
+		ProjectID: project.ID, Updates: true,
+	}); err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+
+	token := func(name string, id uuid.UUID) string { return "@[" + name + "](user:" + id.String() + ")" }
+	body := "Ask " + token("bob", bobID) + " and " + token("carol", carolID) + " and " +
+		token("dan", outsiderID) + " and " + token("me", alice.UserID)
+	update, _, err := svc.CreateProjectUpdate(ctx, alice, domain.CreateProjectUpdateInput{
+		ProjectID: project.ID, Health: model.ProjectUpdateHealthOnTrack, Body: body,
+	})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if _, err := svc.FanOut(ctx, f.WorkspaceID); err != nil {
+		t.Fatalf("fan-out: %v", err)
+	}
+
+	if n := countType(t, svc, bob, model.NotifyMention); n != 1 {
+		t.Fatalf("bob got %d mentions, want 1", n)
+	}
+	if n := countType(t, svc, carol, model.NotifyMention); n != 1 {
+		t.Fatalf("carol got %d mentions, want 1", n)
+	}
+	if n := countType(t, svc, carol, model.NotifyProjectUpdate); n != 0 {
+		t.Fatalf("carol was told twice about one update (%d follow rows)", n)
+	}
+	if n := countType(t, svc, outsider, model.NotifyMention); n != 0 {
+		t.Fatalf("somebody outside the project's teams got %d mentions", n)
+	}
+	if n := countType(t, svc, alice, model.NotifyMention); n != 0 {
+		t.Fatalf("the author was told about their own typing (%d)", n)
+	}
+
+	rows, err := svc.ListNotifications(ctx, bob, true, true, 10)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(rows) != 1 || !strings.Contains(string(rows[0].Payload), project.ID.String()) {
+		t.Fatalf("the mention does not say which project it is about: %+v", rows)
+	}
+
+	// Correcting the health alone is not a reason to ping everybody again.
+	health := model.ProjectUpdateHealthAtRisk
+	sameBody := update.Body
+	if _, _, err := svc.UpdateProjectUpdate(ctx, alice, domain.UpdateProjectUpdateInput{
+		ID: update.ID, Health: &health, Body: &sameBody,
+	}); err != nil {
+		t.Fatalf("edit health: %v", err)
+	}
+	if _, err := svc.FanOut(ctx, f.WorkspaceID); err != nil {
+		t.Fatalf("fan-out: %v", err)
+	}
+	if n := countType(t, svc, bob, model.NotifyMention); n != 1 {
+		t.Fatalf("a health edit re-notified bob (%d mentions)", n)
+	}
+
+	// Rewriting the words does, the same as a comment.
+	rewritten := "Actually ask " + token("bob", bobID)
+	if _, _, err := svc.UpdateProjectUpdate(ctx, alice, domain.UpdateProjectUpdateInput{
+		ID: update.ID, Body: &rewritten,
+	}); err != nil {
+		t.Fatalf("edit body: %v", err)
+	}
+	if _, err := svc.FanOut(ctx, f.WorkspaceID); err != nil {
+		t.Fatalf("fan-out: %v", err)
+	}
+	if n := countType(t, svc, bob, model.NotifyMention); n != 2 {
+		t.Fatalf("a rewrite naming bob left him %d mention rows, want 2", n)
+	}
+	if n := countType(t, svc, carol, model.NotifyProjectUpdate); n != 0 {
+		t.Fatalf("an edit told a follower something new (%d rows)", n)
 	}
 }

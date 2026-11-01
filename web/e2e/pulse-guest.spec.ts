@@ -27,6 +27,7 @@ async function projectWithAnUpdate(page: Page, name: string): Promise<void> {
   await page.getByRole('heading', { name, level: 1 }).waitFor();
   // The composer's health is a menu button rather than a select now; the update itself is
   // only the bait this test needs a guest not to be shown.
+  await page.getByRole('button', { name: 'Write update' }).click();
   await page.getByRole('button', { name: 'Health' }).click();
   await page
     .getByRole('menu', { name: 'Health' })
@@ -34,7 +35,7 @@ async function projectWithAnUpdate(page: Page, name: string): Promise<void> {
     .click();
   await page.getByLabel('Update', { exact: true }).fill('An update a guest must not read.');
   await page.getByRole('button', { name: 'Post update' }).click();
-  await expect(page.getByLabel('Update', { exact: true })).toHaveValue('');
+  await expect(page.getByRole('dialog', { name: 'Project update' })).toBeHidden();
 }
 
 test('a guest gets neither the Pulse feed nor a link to it', async ({
