@@ -12,6 +12,7 @@ import { Link, Navigate, useNavigate } from 'react-router';
 import { useEngine } from '~/app/context';
 import { useActions, useKeyContext } from '~/app/keymap';
 import { Button, Checkbox, ConfirmDialog, EmptyState, Input, Modal } from '~/components';
+import { Markdown } from '~/editor/Markdown';
 import { EntityLoading, useStoreSettled } from '~/features/entity-gate/EntityGate';
 import { dayKeyOf } from '~/features/inbox/inbox';
 import { browserTimezone } from '~/features/locale';
@@ -211,12 +212,17 @@ export function Pulse() {
                 {day.events.map((row, offset) => {
                   const index = indexOfDay(days, day.key) + offset;
                   return (
-                    <li key={row.id}>
+                    <li
+                      key={row.id}
+                      className={[styles.row, index === cursor ? styles.active : null]
+                        .filter(Boolean)
+                        .join(' ')}
+                    >
+                      {/* The link is stretched over the row by CSS rather than wrapped around
+                          it: a body is markdown, and a link in it cannot sit inside this one. */}
                       <Link
                         to={row.href}
-                        className={[styles.row, index === cursor ? styles.active : null]
-                          .filter(Boolean)
-                          .join(' ')}
+                        className={styles.rowLink}
                         onFocus={() => setCursor(index)}
                       >
                         <div className={styles.meta}>
@@ -227,8 +233,8 @@ export function Pulse() {
                             {when(row.at)}
                           </time>
                         </div>
-                        {row.body !== '' && <p className={styles.body}>{row.body}</p>}
                       </Link>
+                      {row.body !== '' && <Markdown text={row.body} className={styles.body} />}
                     </li>
                   );
                 })}

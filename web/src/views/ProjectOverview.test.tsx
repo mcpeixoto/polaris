@@ -86,6 +86,7 @@ describe('ProjectOverview', () => {
       .mockRejectedValue(new ApiError('VALIDATION', 'The server refused that update'));
     renderOverview(mutate);
 
+    await user.click(screen.getByRole('button', { name: 'Write update' }));
     await user.type(screen.getByLabelText('Update'), 'Shipped the importer');
     await user.click(screen.getByRole('button', { name: 'Post update' }));
 
@@ -99,6 +100,7 @@ describe('ProjectOverview', () => {
     const mutate = vi.fn().mockResolvedValue({});
     renderOverview(mutate);
 
+    await user.click(screen.getByRole('button', { name: 'Write update' }));
     await user.type(screen.getByLabelText('Update'), '   ');
     await user.click(screen.getByRole('button', { name: 'Post update' }));
 

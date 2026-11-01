@@ -169,13 +169,15 @@ describe('the project overview', () => {
     expect(call?.[0].variables.input.name).toBe('Launch day one');
   });
 
-  it('asks for the first update rather than reporting that there is none', () => {
+  it('asks for the first update rather than reporting that there is none', async () => {
+    const user = userEvent.setup();
     mount();
 
     expect(screen.getByRole('heading', { name: 'Write first project update' })).toBeTruthy();
-    // The composer is there to be typed in, not behind the prompt: an empty project is
-    // exactly where writing the first update should cost one click, and that click is Post.
+    // The prompt leads straight to the dialog: an empty project is exactly where writing the
+    // first update should cost one click, and that click is Write update.
+    expect(screen.getByRole('button', { name: 'Write update' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Write update' }));
     expect(screen.getByLabelText('Update')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Post update' })).toBeTruthy();
   });
 });

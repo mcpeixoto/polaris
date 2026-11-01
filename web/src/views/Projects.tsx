@@ -1244,15 +1244,12 @@ export function Projects() {
           setEditing(null);
           if (picker?.kind === 'health') setPicker(null);
         }}
-        trigger={healthPicker.open ? healthPicker.ref : pickerAnchorRef}
         projectId={composingRow?.id ?? ''}
         initialHealth={
           composingRow === null || composingRow === undefined
             ? undefined
             : latestProjectUpdate(engine.store, composingRow.id)?.health
         }
-        actionId="projects.closeUpdateComposer"
-        actionGroup="Projects"
       />
       <PriorityPicker
         open={priorityPicker.open || picker?.kind === 'priority'}

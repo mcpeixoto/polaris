@@ -23,6 +23,7 @@ import { useParams } from 'react-router';
 import { useEngine } from '~/app/context';
 import { EmptyState, IconButton } from '~/components';
 import { ConfirmDialog } from '~/components/ConfirmDialog';
+import { Markdown } from '~/editor/Markdown';
 import { report } from '~/features/issue/mutations';
 import { InitiativeUpdateEditor } from '~/features/initiative-updates/InitiativeUpdateEditor';
 import { listInitiativeUpdates } from '~/features/initiative-updates/helpers';
@@ -165,7 +166,7 @@ function UpdateFeed({ feed, id }: { feed: Feed; id: UUID }) {
               </div>
               {editing === row.id
                 ? feed.editor(row.id, () => setEditing(null))
-                : row.body !== '' && <p className={styles.body}>{row.body}</p>}
+                : row.body !== '' && <Markdown text={row.body} className={styles.body} />}
             </li>
           );
         })}

@@ -176,6 +176,15 @@ describe('a contributing project’s health', () => {
     expect(await screen.findByRole('dialog', { name: 'Project update' })).toBeTruthy();
   });
 
+  it('opens it as a modal', async () => {
+    const { user } = renderOverview();
+
+    await user.click(within(projectRow()).getByRole('button', { name: 'No health' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Project update' });
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+  });
+
   it('files the update against the project the row belongs to', async () => {
     const { mutate, user } = renderOverview();
 

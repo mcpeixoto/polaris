@@ -31,7 +31,6 @@
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
-  white-space: pre-wrap;
 }
 
 .rowActions {

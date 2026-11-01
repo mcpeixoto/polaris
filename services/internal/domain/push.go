@@ -314,6 +314,10 @@ func describePushEvent(typ, identifier string, count int64, payload []byte) stri
 	case "comment":
 		return "commented on " + identifier + others
 	case "mention":
+		// A project update has no issue to name, and "an issue" would be untrue of it.
+		if identifier == "an issue" && strings.Contains(string(payload), `"projectId"`) {
+			return "mentioned you in a project update" + others
+		}
 		return "mentioned you in " + identifier + others
 	case "sub_issue_completed":
 		return "completed a sub-issue of " + identifier + others

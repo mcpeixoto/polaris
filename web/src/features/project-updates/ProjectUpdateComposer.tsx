@@ -4,22 +4,22 @@
  * Health is the one property on a project row that is not a field on the project. It is the
  * newest update's word, so the affordance behind a health cell cannot be a picker: choosing
  * "At risk" with nothing said about it is how a feed fills with rows that carry a colour and
- * no reason. What the cell opens is the composer — the same one the overview has always had,
- * which is why the form lives here now and the overview renders it rather than keeping a
- * second copy free to drift.
- *
- * Two exports, because the two surfaces want different frames around the same form: the
- * overview has a column to put it in, and a list row has a button to hang it off.
+ * no reason. What the cell opens is this dialog — the same one from the project list, the
+ * peek, an initiative's project rows and the overview, so there is one place to write an
+ * update and it has room to write in.
  */
 
-import { useState, type FormEvent, type RefObject } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type Ref } from 'react';
 
 import { useEngine } from '~/app/context';
-import { Button, Menu, Popover, Textarea, type MenuNode } from '~/components';
+import { useActions } from '~/app/keymap';
+import { Button, ConfirmDialog, Menu, Modal, type MenuNode } from '~/components';
+import { WritingField } from '~/editor/WritingField';
+import { useDialogSubmit } from '~/hooks/useDialogSubmit';
+import { useDiscardGuard } from '~/hooks/useDiscardGuard';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
 import { useViewerId } from '~/hooks/useViewer';
 import type { ProjectUpdateHealth, UUID } from '~/store';
-import { ApiError } from '~/sync/api';
 
 import { PROJECT_UPDATE_HEALTH_LABEL } from './helpers';
 import { HealthDot } from './ProjectHealthBadge';
@@ -33,39 +33,45 @@ export interface ProjectUpdateFormProps {
   readonly projectId: UUID;
   /** The health the form opens on: the project's current one, so posting again confirms it. */
   readonly initialHealth?: ProjectUpdateHealth | undefined;
-  /** Called once the update is filed. The popover closes on it; the overview clears its box. */
+  /** Called once the update is filed. The dialog closes on it. */
   readonly onPosted: () => void;
-  /** Focus the body on mount. True in the popover, where the click was the intent to write. */
-  readonly autoFocus?: boolean | undefined;
+  /** Told whether the form holds anything that closing it would lose. */
+  readonly onDirtyChange?: ((dirty: boolean) => void) | undefined;
+  readonly formRef?: Ref<HTMLFormElement> | undefined;
+  readonly id?: string | undefined;
 }
 
 export function ProjectUpdateForm({
   projectId,
   initialHealth = 'on_track',
   onPosted,
-  autoFocus = false,
+  onDirtyChange,
+  formRef,
+  id,
 }: ProjectUpdateFormProps) {
   const engine = useEngine();
   const viewerId = useViewerId();
   const [health, setHealth] = useState<ProjectUpdateHealth>(initialHealth);
   const [body, setBody] = useState('');
-  const [posting, setPosting] = useState(false);
-  const [postError, setPostError] = useState<string | null>(null);
+  const { saving, error, setError, submit, reset } = useDialogSubmit('That update was not posted.');
   const healthMenu = useMenuTrigger();
+
+  // The health counts as well as the words. It opens on the project's current one, so a
+  // change from that is a decision the writer made, and the only copy of it is here.
+  const dirty = body.trim() !== '' || health !== initialHealth;
+  useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (posting || viewerId === null) return;
+    if (viewerId === null) return;
     // A blank post is a health change with nothing said about it, and the feed reads as a
     // row of empty entries. Refused here rather than at the API, so the answer is instant.
     const written = body.trim();
     if (written === '') {
-      setPostError('An update needs something to say.');
+      setError('An update needs something to say.');
       return;
     }
-    setPosting(true);
-    setPostError(null);
-    try {
+    await submit(async () => {
       await createProjectUpdate(engine, {
         projectId,
         health,
@@ -73,15 +79,10 @@ export function ProjectUpdateForm({
         authorId: viewerId,
       });
       setBody('');
+      setHealth(initialHealth);
+      reset();
       onPosted();
-    } catch (failure) {
-      // Without this the promise rejected into nothing: the form cleared its posting flag
-      // in `finally` and looked exactly as it does after a successful post, so a refused
-      // update — offline, a server that said no — read as one that had gone out.
-      setPostError(failure instanceof ApiError ? failure.message : 'That update was not posted.');
-    } finally {
-      setPosting(false);
-    }
+    });
   };
 
   const healthItems: MenuNode[] = HEALTHS.map((value) => ({
@@ -93,23 +94,23 @@ export function ProjectUpdateForm({
   }));
 
   return (
-    <form className={styles.composer} onSubmit={onSubmit}>
-      <Textarea
+    <form ref={formRef} id={id} className={styles.composer} onSubmit={onSubmit}>
+      <WritingField
         label="Update"
         hideLabel
         surface="plain"
         value={body}
-        minRows={2}
-        autoFocus={autoFocus}
+        minRows={8}
+        maxRows={20}
         placeholder="What changed since the last update?"
-        onChange={(event) => {
-          setBody(event.target.value);
-          if (postError !== null) setPostError(null);
+        onChange={(next) => {
+          setBody(next);
+          if (error !== null) setError(null);
         }}
       />
-      {postError === null ? null : (
+      {error === null ? null : (
         <p className={styles.error} role="alert">
-          {postError}
+          {error}
         </p>
       )}
       <div className={styles.composerFoot}>
@@ -128,7 +129,7 @@ export function ProjectUpdateForm({
           label="Health"
           items={healthItems}
         />
-        <Button type="submit" variant="primary" disabled={posting || viewerId === null}>
+        <Button type="submit" variant="primary" loading={saving} disabled={viewerId === null}>
           Post update
         </Button>
       </div>
@@ -139,49 +140,80 @@ export function ProjectUpdateForm({
 export interface ProjectUpdateComposerProps {
   readonly open: boolean;
   readonly onClose: () => void;
-  readonly trigger: RefObject<HTMLElement | null>;
   readonly projectId: UUID;
   readonly initialHealth?: ProjectUpdateHealth | undefined;
-  /** The id this panel's Escape is registered under. Unique across everything mounted. */
-  readonly actionId: string;
-  readonly actionGroup?: string | undefined;
 }
 
 /**
- * The form on a string, for a surface whose health is one cell in a list.
+ * The form in its dialog.
  *
  * One composer per list rather than one per row, for `useMenuTrigger`'s reason: a row that
- * scrolls out of the overscan window unmounts, and a panel mounted inside it goes with it.
+ * scrolls out of the overscan window unmounts, and a dialog mounted inside it goes with it.
  */
 export function ProjectUpdateComposer({
   open,
   onClose,
-  trigger,
   projectId,
   initialHealth,
-  actionId,
-  actionGroup,
 }: ProjectUpdateComposerProps) {
+  const formId = useId();
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const [dirty, setDirty] = useState(false);
+
+  // The form unmounts with the dialog, so the flag has to be lowered here: nothing is left
+  // to report the change, and the next open would ask about a draft that no longer exists.
+  const close = useCallback(() => {
+    setDirty(false);
+    onClose();
+  }, [onClose]);
+  const { requestClose, confirming, keep, discard } = useDiscardGuard(dirty, close);
+
+  // Registered only while the dialog is up: a shut dialog that still bound ⌘⏎ would collide
+  // with the next one to claim it. Through the form so it takes the button's path, blank
+  // check and double-submit guard included.
+  useActions(
+    open
+      ? [
+          {
+            id: 'projectUpdate.post',
+            title: 'Post update',
+            keys: ['mod+Enter'],
+            when: 'modal',
+            group: 'Projects',
+            hidden: true,
+            run: () => formRef.current?.requestSubmit(),
+          },
+        ]
+      : [],
+    [open],
+  );
+
   return (
-    <Popover
-      open={open}
-      onClose={onClose}
-      trigger={trigger}
-      label="Project update"
-      actionId={actionId}
-      actionTitle="Close the update composer"
-      actionGroup={actionGroup}
-      className={styles.panel}
-    >
-      {/* Keyed on the project so the box does not carry one row's half-written sentence
-          over to the next row the reader clicks. */}
-      <ProjectUpdateForm
-        key={projectId}
-        projectId={projectId}
-        initialHealth={initialHealth}
-        onPosted={onClose}
-        autoFocus
-      />
-    </Popover>
+    <>
+      <Modal open={open} onClose={requestClose} title="Project update" size="lg">
+        {/* Keyed on the project so the box does not carry one row's half-written sentence
+            over to the next row the reader clicks. */}
+        <ProjectUpdateForm
+          key={projectId}
+          id={formId}
+          formRef={formRef}
+          projectId={projectId}
+          initialHealth={initialHealth}
+          onPosted={close}
+          onDirtyChange={setDirty}
+        />
+      </Modal>
+      {confirming ? (
+        <ConfirmDialog
+          open
+          title="Discard this update?"
+          consequence="It has not been posted, and what you wrote here is not saved anywhere else."
+          confirmLabel="Discard"
+          destructive
+          onConfirm={discard}
+          onClose={keep}
+        />
+      ) : null}
+    </>
   );
 }

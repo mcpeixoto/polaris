@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	"github.com/google/uuid"
 
@@ -631,21 +632,49 @@ func initiativeIssueDeliveries(
 func projectUpdateDeliveries(
 	ctx context.Context, c *fanOutCache, r store.ChangeLog,
 ) ([]notify.Delivery, error) {
-	if len(r.ChangedFields) != 0 {
+	created := len(r.ChangedFields) == 0
+	// An edit tells followers nothing, but rewritten words can name somebody new. Same rule
+	// and same cost as a comment: rewriting re-notifies whoever the text still names.
+	if !created && !slices.Contains(r.ChangedFields, notify.FieldBody) {
 		return nil, nil
 	}
 	var update model.ProjectUpdate
 	if err := json.Unmarshal(r.Payload, &update); err != nil {
 		return nil, nil
 	}
+	payload, _ := json.Marshal(map[string]string{"projectId": update.ProjectID.String()})
+	var out []notify.Delivery
+
+	mentioned, err := c.mentionedInProject(ctx, update.ProjectID, update.Body)
+	if err != nil {
+		return nil, err
+	}
+	// One row per person per event, the most specific reason winning: the rule notify's
+	// precedence states for issues. Muted people are left out of this set rather than
+	// skipped later, so somebody who mutes mentions still hears about a project they follow.
+	told := make(map[uuid.UUID]bool, len(mentioned))
+	for _, id := range mentioned {
+		if (r.ActorID != nil && *r.ActorID == id) || c.muted[id][model.NotifyMention] {
+			continue
+		}
+		told[id] = true
+		out = append(out, notify.Delivery{
+			UserID:   id,
+			Type:     model.NotifyMention,
+			GroupKey: entitySubGroupKey(r, model.NotifyMention, update.ProjectID),
+			Payload:  payload,
+		})
+	}
+	if !created {
+		return out, nil
+	}
+
 	subs, err := c.projectSubscriptions(ctx)
 	if err != nil {
 		return nil, err
 	}
-	payload, _ := json.Marshal(map[string]string{"projectId": update.ProjectID.String()})
-	var out []notify.Delivery
 	for _, sub := range subs {
-		if sub.ProjectID != update.ProjectID || !sub.NotifyUpdates {
+		if sub.ProjectID != update.ProjectID || !sub.NotifyUpdates || told[sub.UserID] {
 			continue
 		}
 		if r.ActorID != nil && *r.ActorID == sub.UserID {
@@ -668,6 +697,41 @@ func projectUpdateDeliveries(
 			GroupKey: entitySubGroupKey(r, model.NotifyProjectUpdate, sub.ProjectID),
 			Payload:  payload,
 		})
+	}
+	return out, nil
+}
+
+// mentionedInProject is who a project update names, less anybody who cannot open the project.
+//
+// An issue mention gets that from the inbox query, which filters rows by the issue's team. A
+// row carrying only a payload has no issue to filter on and always comes back, so the check
+// has to happen here or a guest learns a private project exists from a link that 404s.
+func (c *fanOutCache) mentionedInProject(
+	ctx context.Context, projectID uuid.UUID, body string,
+) ([]uuid.UUID, error) {
+	known, err := c.keep(ctx, notify.ParseMentions(body))
+	if err != nil || len(known) == 0 {
+		return nil, err
+	}
+	teams, err := c.q.ListProjectTeamIDs(ctx, projectID)
+	if err != nil {
+		return nil, platform.Internal(fmt.Errorf("fan-out: read project teams: %w", err))
+	}
+	out := make([]uuid.UUID, 0, len(known))
+	for _, id := range known {
+		user, err := c.q.GetUser(ctx, id)
+		if err != nil {
+			return nil, platform.Internal(fmt.Errorf("fan-out: read mentioned user: %w", err))
+		}
+		theirs, err := c.q.ListTeamIDsForUser(ctx, id)
+		if err != nil {
+			return nil, platform.Internal(fmt.Errorf("fan-out: read mentioned user's teams: %w", err))
+		}
+		if authz.Role(user.Role).IsAdmin() || slices.ContainsFunc(theirs, func(team uuid.UUID) bool {
+			return slices.Contains(teams, team)
+		}) {
+			out = append(out, id)
+		}
 	}
 	return out, nil
 }

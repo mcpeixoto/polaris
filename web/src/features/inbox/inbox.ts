@@ -216,7 +216,9 @@ export function describeEvent(
     case 'comment':
       return `commented on ${identifier}`;
     case 'mention':
-      return `mentioned you in ${identifier}`;
+      return payloadId(payload, 'projectId') === undefined
+        ? `mentioned you in ${identifier}`
+        : 'mentioned you in a project update';
     case 'sub_issue_completed':
       return `completed a sub-issue of ${identifier}`;
     case 'view_issue_added':
@@ -268,7 +270,7 @@ export function notificationHref(
   issueId: UUID | undefined,
 ): string | undefined {
   if (type === 'pulse_digest') return '/pulse';
-  if (type === 'project_update') {
+  if (type === 'project_update' || (type === 'mention' && issueId === undefined)) {
     const id = payloadId(payload, 'projectId');
     return id === undefined ? undefined : `/project/${id}/activity`;
   }

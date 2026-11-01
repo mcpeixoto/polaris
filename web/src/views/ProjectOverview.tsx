@@ -24,7 +24,7 @@
  * The update *feed* is the activity tab's, not this one's. Both used to draw every update,
  * with different affordances on each copy — edit here, edit and delete there — which made
  * "where do I delete this from" a question about which tab you happened to be on. This tab
- * keeps the composer and the standing answer to "how is it going"; the history is one click
+ * keeps the way in to the composer and the standing answer to "how is it going"; the history is one click
  * away and says so.
  */
 
@@ -49,6 +49,7 @@ import {
   useSaveState,
 } from '~/components';
 import { DescriptionEditor } from '~/editor/DescriptionEditor';
+import { Markdown } from '~/editor/Markdown';
 import { EntityIcon } from '~/features/icon/EntityIcon';
 import { IconPicker } from '~/features/icon/IconPicker';
 import { report } from '~/features/issue/mutations';
@@ -65,7 +66,7 @@ import {
   updateProject,
 } from '~/features/projects/mutations';
 import { MilestoneSection } from '~/features/project-milestones/MilestoneSection';
-import { ProjectUpdateForm } from '~/features/project-updates/ProjectUpdateComposer';
+import { ProjectUpdateComposer } from '~/features/project-updates/ProjectUpdateComposer';
 import { ProjectHealthBadge } from '~/features/project-updates/ProjectHealthBadge';
 import { PencilGlyph } from '~/features/project-updates/glyphs';
 import { ProjectUpdateEditor } from '~/features/project-updates/ProjectUpdateEditor';
@@ -88,6 +89,7 @@ export function ProjectOverview() {
   const viewerId = useViewerId();
   const { projectId = '' } = useParams<{ projectId: string }>();
   const [editingLatest, setEditingLatest] = useState(false);
+  const [composing, setComposing] = useState(false);
   const icon = useMenuTrigger<HTMLButtonElement>('dialog');
 
   // Autosave with nothing to show for it was the state of three detail screens: the summary
@@ -220,7 +222,7 @@ export function ProjectOverview() {
                   />
                 ) : (
                   latest.update.body !== '' && (
-                    <p className={styles.cardBody}>{latest.update.body}</p>
+                    <Markdown text={latest.update.body} className={styles.cardBody} />
                   )
                 )}
               </li>
@@ -228,15 +230,20 @@ export function ProjectOverview() {
           )}
 
           {/* Correcting a post and writing the next one are the same decision made twice,
-              so the composer stands down while the editor is open — which also keeps one
-              "Health" control on the screen rather than two identically named ones. */}
+              so the button stands down while the editor is open. */}
           {!editingLatest && (
-            <ProjectUpdateForm
-              projectId={project.id}
-              initialHealth={latest?.update.health}
-              onPosted={() => {}}
-            />
+            <div>
+              <Button variant="secondary" onClick={() => setComposing(true)}>
+                Write update
+              </Button>
+            </div>
           )}
+          <ProjectUpdateComposer
+            open={composing}
+            onClose={() => setComposing(false)}
+            projectId={project.id}
+            initialHealth={latest?.update.health}
+          />
         </section>
 
         {/* The rich editor rather than a keyed `Textarea`. The key was the bug: a change

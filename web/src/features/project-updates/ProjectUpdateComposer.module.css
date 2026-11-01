@@ -1,24 +1,18 @@
-/* The overview's composer, moved here with the form it frames. */
 .composer {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--bg-elevated);
-  transition: border-color var(--duration-fast) var(--ease-out);
+  gap: var(--space-3);
 }
 
-.composer:focus-within {
-  border-color: var(--border-default);
-}
-
+/* Health on the left, the action on the right: the writer reads the claim they are making
+   last, right beside the button that makes it. */
 .composerFoot {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
 }
 
 /* Field's error treatment, on a message the form draws itself. */
@@ -26,14 +20,4 @@
   margin: 0;
   color: var(--text-danger);
   font-size: var(--font-size-sm);
-}
-
-/* In the popover the panel is already an elevated surface, so the form drops its own box
-   and only keeps a width: a textarea with no column to sit in is otherwise as wide as the
-   longest word somebody typed. */
-.panel .composer {
-  width: 20rem;
-  max-width: 80vw;
-  border: 0;
-  background: none;
 }

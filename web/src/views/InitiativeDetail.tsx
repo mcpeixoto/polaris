@@ -668,11 +668,8 @@ export function InitiativeDetail() {
       <ProjectUpdateComposer
         open={projectProperty.open && editing?.property === 'health'}
         onClose={closeProjectProperty}
-        trigger={projectProperty.ref}
         projectId={editingProject?.projectId ?? ''}
         {...(editingProject?.health == null ? null : { initialHealth: editingProject.health })}
-        actionId="initiativeDetail.closeProjectUpdateComposer"
-        actionGroup="Initiatives"
       />
 
       <ConfirmDialog

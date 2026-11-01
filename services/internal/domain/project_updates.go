@@ -8,6 +8,7 @@ import (
 
 	"github.com/peixotolabs/polaris/services/internal/authz"
 	"github.com/peixotolabs/polaris/services/internal/domain/model"
+	"github.com/peixotolabs/polaris/services/internal/notify"
 	"github.com/peixotolabs/polaris/services/internal/platform"
 	"github.com/peixotolabs/polaris/services/internal/store"
 )
@@ -117,6 +118,10 @@ func (s *Service) UpdateProjectUpdate(
 		}
 
 		params := store.UpdateProjectUpdateParams{ID: in.ID}
+		// Never empty, which the change stream reads as a create. The body only when it moved:
+		// fan-out re-fires mentions on it, and a corrected health is not a reason to ping
+		// everybody the update names a second time.
+		changed := []string{"health"}
 		if in.Health != nil {
 			health, err := parseProjectUpdateHealth(*in.Health)
 			if err != nil {
@@ -130,6 +135,9 @@ func (s *Service) UpdateProjectUpdate(
 				return platform.Validation("body", "that body is too long")
 			}
 			params.Body = &body
+			if body != existing.Body {
+				changed = append(changed, notify.FieldBody)
+			}
 		}
 
 		row, err := q.UpdateProjectUpdate(ctx, params)
@@ -140,7 +148,7 @@ func (s *Service) UpdateProjectUpdate(
 
 		version, err = s.em.Emit(ctx, q, p.WorkspaceID, p.Actor(), Change{
 			EntityType: "projectUpdate", EntityID: in.ID, Op: OpUpsert,
-			Scope: scope, Payload: out, ChangedFields: []string{"health", "body"},
+			Scope: scope, Payload: out, ChangedFields: changed,
 		})
 		return err
 	})
