@@ -1118,9 +1118,9 @@ function ArchiveSettings({
           onChange={(event) => onChange({ autoCloseParent: event.target.checked })}
         />
       </SettingsRow>
-      <SettingsRow label="Close remaining sub-issues when the parent is done">
+      <SettingsRow label="Close remaining sub-issues when the parent is closed">
         <Checkbox
-          aria-label="Close remaining sub-issues when the parent is done"
+          aria-label="Close remaining sub-issues when the parent is closed"
           checked={team.autoCloseChildren}
           onChange={(event) => onChange({ autoCloseChildren: event.target.checked })}
         />

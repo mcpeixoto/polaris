@@ -675,10 +675,10 @@ func TestTriageSchemaInvariants(t *testing.T) {
 func TestArchiveSchemaInvariants(t *testing.T) {
 	t.Parallel()
 	run(t, []schemaCase{{
-		name: "a team has auto-close and auto-archive off until they are turned on",
+		name: "a team closes sub-issues with their parent, and has the other automations off until they are turned on",
 		sql: `SELECT 1 / count(*) FROM team
 		      WHERE id = ` + engID + ` AND auto_close_days = 0 AND auto_archive_days = 0
-		        AND auto_close_parent = false AND auto_close_children = false`,
+		        AND auto_close_parent = false AND auto_close_children = true`,
 	}, {
 		name: "an issue can carry an auto-close stamp",
 		sql: `SELECT 1/count(*) FROM information_schema.columns

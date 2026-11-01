@@ -378,6 +378,35 @@ func (s *Service) BulkUpdateIssues(
 				return err
 			}
 		}
+
+		// After every row has moved, so a child selected along with its parent is already
+		// closed by the time the parent's cascade reaches it and is not moved twice.
+		if newState == nil || !isClosedCategory(newState.Category) {
+			return nil
+		}
+		// One read for the whole selection, so that closing two hundred issues with no
+		// family costs one statement here rather than two hundred.
+		children, err := q.ListChildIssuesForParents(ctx, store.ListChildIssuesForParentsParams{
+			ParentIds: ids, WorkspaceID: p.WorkspaceID,
+		})
+		if err != nil {
+			return platform.Internal(err)
+		}
+		hasChildren := make(map[uuid.UUID]bool, len(children))
+		for _, child := range children {
+			if child.ParentID != nil {
+				hasChildren[*child.ParentID] = true
+			}
+		}
+		visited := map[uuid.UUID]bool{}
+		for _, row := range rows {
+			if !hasChildren[row.ID] && (row.ParentID == nil || !teams[row.TeamID].AutoCloseParent) {
+				continue
+			}
+			if err := s.applyFamilyClose(ctx, q, p, teams[row.TeamID], store.AsIssueRow(row), newState, visited); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if err != nil {

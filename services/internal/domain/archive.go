@@ -381,6 +381,25 @@ func firstCompletedState(ctx context.Context, q *store.Queries, teamID uuid.UUID
 	return store.WorkflowState{}, platform.Validation("stateId", "this team has no completed status")
 }
 
+// familyCloseState is where a sub-issue goes when its parent closes in category. It follows
+// the parent because a canceled parent means the work is not happening: moving its open
+// children to a completed status would count work nobody did as finished. A team with no
+// canceled status falls back on firstCompletedState, which is the only other way to close.
+func familyCloseState(ctx context.Context, q *store.Queries, teamID uuid.UUID, category string) (store.WorkflowState, error) {
+	if category == CategoryCanceled || category == CategoryDuplicate {
+		states, err := q.ListWorkflowStatesForTeam(ctx, teamID)
+		if err != nil {
+			return store.WorkflowState{}, platform.Internal(err)
+		}
+		for i := range states {
+			if states[i].Category == CategoryCanceled {
+				return states[i], nil
+			}
+		}
+	}
+	return firstCompletedState(ctx, q, teamID)
+}
+
 func calendarDay(t time.Time) time.Time {
 	y, m, d := t.Date()
 	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
@@ -466,7 +485,7 @@ func (s *Service) applyFamilyClose(
 					return platform.Internal(err)
 				}
 			}
-			dest, err := firstCompletedState(ctx, q, child.TeamID)
+			dest, err := familyCloseState(ctx, q, child.TeamID, newState.Category)
 			if err != nil {
 				return err
 			}
