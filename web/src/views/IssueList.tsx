@@ -49,6 +49,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type CSSProperties,
   type ReactNode,
 } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
@@ -88,7 +89,6 @@ import {
   unarchiveIssues,
   updateIssueProperties,
   updateIssues,
-  type ReorderTarget,
 } from '~/features/issue/mutations';
 import { copyRich, titleAsLink } from '~/features/issue/copy';
 import { useOptionalCreateIssue } from '~/features/issue/create-context';
@@ -204,6 +204,7 @@ import {
   type UUID,
 } from '~/store';
 import styles from './IssueList.module.css';
+import { nestFamilies, reorderPlan, type NestedRow } from './nestFamilies';
 
 /**
  * A group heading.
@@ -246,9 +247,23 @@ interface IssueRowRef {
   readonly key: string;
   readonly groupKey: string;
   readonly id: UUID;
+  readonly nest: NestedRow;
 }
 
-type ListRow = HeaderRow | IssueRowRef;
+/**
+ * A parent that is not in this group, drawn dimmed above its first child so that child is not
+ * indented under nothing. It is not one of the group's issues: nothing that acts on rows
+ * reaches it, because all of that walks `kind === 'issue'`.
+ */
+interface ParentContextRowRef {
+  readonly kind: 'parentContext';
+  readonly key: string;
+  readonly groupKey: string;
+  readonly id: UUID;
+  readonly nest: NestedRow;
+}
+
+type ListRow = HeaderRow | IssueRowRef | ParentContextRowRef;
 
 /**
  * What the list is of.
@@ -785,7 +800,20 @@ export function IssueList({
     [preferenceKey],
   );
 
-  const rows = useMemo(() => rowsOf(groups, collapsed), [groups, collapsed]);
+  /**
+   * The families in each group, by the group's index.
+   *
+   * A query and not a memo over `groups`: giving an issue a parent changes nothing about the
+   * group's ids, so `groups` keeps its identity and a memo would go on drawing the old family.
+   * An array, because the store compares a result structurally and sees nothing in a Map.
+   */
+  const families = useLiveQuery(
+    (store) =>
+      groups.map((group) => (collapsed.has(group.key) ? [] : nestFamilies(group.ids, store))),
+    ['issue'],
+    [groups, collapsed],
+  );
+  const rows = useMemo(() => rowsOf(groups, collapsed, families), [groups, collapsed, families]);
 
   /**
    * Arranging the groups, which is written against the keys **as drawn** rather than against
@@ -1454,12 +1482,17 @@ export function IssueList({
      * workspace-global, which is why nothing here is scoped to the view.
      */
     reorder: (delta) => {
-      const moved = reorderPlan(uniqueIds, targets, delta);
+      const moved = reorderPlan(groups[0]?.ids ?? [], engine.store, targets, delta);
       if (moved === null) return;
       reorderIssue(engine, moved.id, moved.target).catch(report);
     },
     reorderToEnd: (delta) => {
-      const moved = reorderPlan(uniqueIds, targets, delta * uniqueIds.length);
+      const moved = reorderPlan(
+        groups[0]?.ids ?? [],
+        engine.store,
+        targets,
+        delta * uniqueIds.length,
+      );
       if (moved === null) return;
       reorderIssue(engine, moved.id, moved.target).catch(report);
     },
@@ -3389,12 +3422,20 @@ export function IssueList({
                       // Selection is the row's fact and the cursor is the cell's: `X` ticks a
                       // whole issue, and `aria-activedescendant` names the body below, which
                       // is where the context menu anchors and what the cursor mark is drawn
-                      // on. A heading row is not selectable, so it says nothing either way
-                      // rather than claiming to be a row nobody has ticked.
-                      aria-selected={row.kind === 'header' ? undefined : selection.ids.has(row.id)}
+                      // on. A heading or context row is not selectable, so it says nothing
+                      // either way rather than claiming to be a row nobody has ticked.
+                      aria-selected={row.kind === 'issue' ? selection.ids.has(row.id) : undefined}
                       aria-rowindex={virtualRow.index + 1}
-                      style={{ transform: `translateY(${virtualRow.start}px)` }}
+                      style={
+                        {
+                          transform: `translateY(${virtualRow.start}px)`,
+                          '--nest-depth': row.kind === 'header' ? 0 : row.nest.depth,
+                        } as CSSProperties
+                      }
                     >
+                      {row.kind !== 'header' && row.nest.depth > 0 ? (
+                        <NestLines nest={row.nest} />
+                      ) : null}
                       {row.kind === 'header' ? (
                         <GroupHeader
                           cell
@@ -3404,11 +3445,14 @@ export function IssueList({
                           onContextMenu={onGroupContextMenu}
                           reorder={groupReorder}
                         />
+                      ) : row.kind === 'parentContext' ? (
+                        <ParentContextRow id={row.id} onOpen={onOpenRow} />
                       ) : (
                         <IssueRow
                           id={row.id}
                           rowIndex={virtualRow.index}
                           groupKey={row.groupKey}
+                          nested={row.nest.depth > 0}
                           properties={rowProperties}
                           selected={selection.ids.has(row.id)}
                           active={virtualRow.index === cursorRow}
@@ -4119,6 +4163,8 @@ interface IssueRowProps {
   rowIndex: number;
   /** The group it is being listed in — half of its identity under a label grouping. */
   groupKey: string;
+  /** Indented under its parent, whose row is right there saying what the crumb would. */
+  nested: boolean;
   /**
    * Which optional properties this view draws, from the display menu.
    *
@@ -4158,6 +4204,86 @@ interface IssueRowProps {
 }
 
 /**
+ * The connector from a nested row up to the one it hangs from, and the lines of any ancestors
+ * that carry on past it to a later sibling. Hidden from the accessibility tree: a row says
+ * whose it is in words.
+ *
+ * Drawn on the slot rather than in the row, so a row stays memoised on what it shows.
+ */
+function NestLines({ nest }: { nest: NestedRow }) {
+  const column = (at: number) => ({ '--nest-column': at }) as CSSProperties;
+  return (
+    <span aria-hidden="true">
+      {nest.through.map((at) => (
+        <span key={at} className={styles.nestLine} style={column(at)} />
+      ))}
+      <span
+        className={[styles.nestLine, nest.last ? styles.nestLineLast : null]
+          .filter(Boolean)
+          .join(' ')}
+        style={column(nest.depth - 1)}
+      />
+      <span className={styles.nestElbow} style={column(nest.depth - 1)} />
+    </span>
+  );
+}
+
+/**
+ * A parent drawn for orientation, in a group it is not a member of.
+ *
+ * It keeps a row's height and leading slot so the rows around it do not shift, and reads its
+ * own issue like any other row. Its only gesture is opening the parent: no checkbox, no menu
+ * and no cursor, because it is not one of the issues this list is of. The title is a real link
+ * so a keyboard can still reach it, given that J and K step past.
+ */
+const ParentContextRow = memo(function ParentContextRow({
+  id,
+  onOpen,
+}: {
+  id: UUID;
+  onOpen: (identifier: string) => void;
+}) {
+  const parent = useLiveQuery(
+    (store) => {
+      const found = store.issues.get(id);
+      if (found === undefined) return null;
+      const state = store.workflowStates.get(found.stateId);
+      return {
+        identifier: store.identifierOf(found),
+        title: found.title,
+        stateCategory: state?.category ?? ('backlog' as StateCategory),
+        stateColor: state?.color,
+      };
+    },
+    ['issue', 'team', 'workflowState'],
+    [id],
+  );
+  if (parent === null) return null;
+
+  return (
+    <div
+      role="gridcell"
+      className={`${styles.row} ${styles.parentContext}`}
+      onClick={() => onOpen(parent.identifier)}
+    >
+      <span className={styles.lead} />
+      <span className={styles.identifier}>{parent.identifier}</span>
+      <span className={styles.parentContextState}>
+        <StateIcon category={parent.stateCategory} color={parent.stateColor} decorative />
+      </span>
+      <Link
+        to={`/issue/${parent.identifier}`}
+        className={`${styles.rowTitle} ${styles.parentContextTitle}`}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <span className={styles.srOnly}>Parent issue: </span>
+        {parent.title}
+      </Link>
+    </div>
+  );
+});
+
+/**
  * One issue.
  *
  * It reads its own issue out of the store rather than being handed one, which is what keeps
@@ -4178,6 +4304,7 @@ const IssueRow = memo(function IssueRow({
   id,
   rowIndex,
   groupKey,
+  nested,
   properties,
   selected,
   active,
@@ -4271,12 +4398,7 @@ const IssueRow = memo(function IssueRow({
       // across eight of them to hear a title would be paying for a column layout nobody
       // chose. `aria-selected` is on the slot above, which is the row.
       role="gridcell"
-      className={[
-        styles.row,
-        selected ? styles.selected : null,
-        active ? styles.active : null,
-        issue.parentIdentifier === null ? null : styles.child,
-      ]
+      className={[styles.row, selected ? styles.selected : null, active ? styles.active : null]
         .filter(Boolean)
         .join(' ')}
       onClick={(event) => {
@@ -4334,10 +4456,11 @@ const IssueRow = memo(function IssueRow({
           <span className={styles.srOnly}>{blockedTitle(issue.blockedBy)}</span>
         </span>
       )}
-      {issue.parentIdentifier === null ? null : (
-        // The parent as a crumb rather than as an indent alone: an indent says "this is under
-        // something" and does not say what, which in a filtered list is the only half of the
-        // fact worth having.
+      {issue.parentIdentifier === null ? null : nested ? (
+        // The indent is drawn, and a reader of the grid hears none of it.
+        <span className={styles.srOnly}>Sub-issue of {issue.parentIdentifier}</span>
+      ) : (
+        // The parent as a crumb when nothing on screen says whose this is.
         <span className={styles.parentCrumb}>{issue.parentIdentifier}</span>
       )}
       {properties.has('priority') ? (
@@ -4614,40 +4737,6 @@ function identifierOf(store: Store, id: UUID | null): string | null {
 }
 
 /**
- * Which issue a manual reorder moves, and between which neighbours it lands.
- *
- * `order` is the view's issues in the order on screen, de-duplicated; `targets` is what the
- * command acts on. One issue at a time: moving a multi-row selection through a manual order
- * is several mints with several answers about what "one place up" means for the rows in
- * between, and the spec's gesture is about the row under the cursor.
- *
- * A `delta` larger than the list is how "to the top" and "to the bottom" are said: the
- * clamp does the rest, and there is no second code path to keep in step with this one.
- */
-function reorderPlan(
-  order: readonly UUID[],
-  targets: readonly UUID[],
-  delta: number,
-): { id: UUID; target: ReorderTarget } | null {
-  if (targets.length !== 1) return null;
-  const id = targets[0]!;
-  const from = order.indexOf(id);
-  if (from === -1) return null;
-
-  const to = Math.min(Math.max(from + delta, 0), order.length - 1);
-  if (to === from) return null;
-
-  // The neighbours in the order the row will be in once it has left its old place, which is
-  // not the order it is in now — off by one in the direction of travel, and getting it wrong
-  // is a move that lands the row exactly where it started.
-  const without = order.filter((candidate) => candidate !== id);
-  return {
-    id,
-    target: { afterId: without[to - 1] ?? null, beforeId: without[to] ?? null },
-  };
-}
-
-/**
  * Whether the filter is the one that matches everything.
  *
  * A group with no nodes, at any depth — because that is what the bar leaves behind when the
@@ -4832,11 +4921,16 @@ function corpusIdsOf(
  *
  * Reads nothing from the store. The grouping already decided both the order of the groups
  * and their names, and re-resolving a status here to reproduce a label the group is carrying
- * would be a second, divergent answer to a question already settled.
+ * would be a second, divergent answer to a question already settled. The heading's count is
+ * the group's own, so a context row under it is not counted.
  */
-function rowsOf(groups: readonly ViewGroup[], collapsed: ReadonlySet<string>): ListRow[] {
+function rowsOf(
+  groups: readonly ViewGroup[],
+  collapsed: ReadonlySet<string>,
+  families: readonly (readonly NestedRow[])[],
+): ListRow[] {
   const rows: ListRow[] = [];
-  for (const group of groups) {
+  for (const [at, group] of groups.entries()) {
     const shut = collapsed.has(group.key);
     rows.push({
       kind: 'header',
@@ -4853,8 +4947,27 @@ function rowsOf(groups: readonly ViewGroup[], collapsed: ReadonlySet<string>): L
     // the virtualiser measures and positions what it is given, so a hidden row is still a
     // row's worth of scroll range and the scrollbar would claim work nobody can see.
     if (shut) continue;
-    for (const id of group.ids) {
-      rows.push({ kind: 'issue', key: `${group.key}:${id}`, groupKey: group.key, id });
+    for (const nest of families[at] ?? []) {
+      rows.push(
+        nest.kind === 'issue'
+          ? {
+              kind: 'issue',
+              key: `${group.key}:${nest.id}`,
+              groupKey: group.key,
+              id: nest.id,
+              nest,
+            }
+          : {
+              kind: 'parentContext',
+              // A parent is in another group or none, never this one, so this cannot collide
+              // with a member's key. It is marked anyway: the same issue moving into the group
+              // has to be a new row, not a context row that suddenly grew a checkbox.
+              key: `${group.key}:context:${nest.id}`,
+              groupKey: group.key,
+              id: nest.id,
+              nest,
+            },
+      );
     }
   }
   return rows;
