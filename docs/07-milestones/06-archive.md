@@ -30,7 +30,10 @@ on its own. The project takes its issues with it when *it* is archivable.
 
 `auto_close_days` ∈ `{0, 30, 60, 90, 180}`, `auto_archive_days` ∈ `{0, 30, 60, 90, 180, 365}`.
 Zero is off. `auto_close_parent` / `auto_close_children` fire on a status change in the
-same transaction, not only on the worker.
+same transaction, not only on the worker, for single and bulk edits alike.
+`auto_close_children` defaults to on since migration 000094. A sub-issue follows its parent's
+category: a canceled or duplicate parent cancels its open children, a completed one completes
+them.
 
 ### Auto-close skips
 
