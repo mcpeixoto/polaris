@@ -131,7 +131,9 @@ test('G chords still navigate from the inbox and from pulse', async ({ page, wor
     }
     await page.keyboard.press('g');
     await page.keyboard.press('m');
-    await expect(page, `g m from ${from}`).toHaveURL(/\/my-issues$/, { timeout: 5000 });
+    // The list writes its display options into the address once it mounts, so a pattern
+    // that ends at the path only matches if it is sampled before that write.
+    await expect(page, `g m from ${from}`).toHaveURL(/\/my-issues(\?|$)/, { timeout: 5000 });
   }
 
   expect(errors, errors.join('\n')).toEqual([]);
