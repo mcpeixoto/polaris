@@ -54,6 +54,11 @@ final class AppSession {
         }
     }
 
+    /// The live client's writes that landed, counted for the daily anonymous ping.
+    private static let countUsage: @Sendable (Metrics.Counter) -> Void = { counter in
+        Metrics.count(counter)
+    }
+
     private static func makeModel(environment: PolarisEnvironment) -> AppModel {
         AppModel(
             environment: environment,
@@ -66,7 +71,8 @@ final class AppSession {
             cache: LaunchOptions.usesFixtures
                 ? InMemoryIssueCache()
                 : FileIssueCache(),
-            socketConnector: LaunchOptions.usesFixtures ? nil : URLSessionSyncConnector()
+            socketConnector: LaunchOptions.usesFixtures ? nil : URLSessionSyncConnector(),
+            onUsage: LaunchOptions.usesFixtures ? nil : countUsage
         )
     }
 }

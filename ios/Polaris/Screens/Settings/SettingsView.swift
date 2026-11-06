@@ -99,6 +99,7 @@ struct SettingsView: View {
                 }
                 .accessibilityIdentifier("settings.notifications")
                 appearanceRow
+                UsageStatsToggle()
                 // In Preferences rather than an About section of its own, to keep this
                 // screen short. It is no longer short enough, and that is now accepted
                 // rather than fought: Cloud Pro, this row, and the Delete account and legal

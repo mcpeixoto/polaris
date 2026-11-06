@@ -29,17 +29,27 @@ public actor LivePolarisClient: PolarisAPI {
     /// round trip to learn who is asking. Dropped with the session.
     private var viewerUserId: String?
 
+    /// Told about writes that landed, for `Metrics`. Nil — the default, and every test's —
+    /// counts nothing; the shipping app passes `Metrics.count`.
+    private let onUsage: (@Sendable (Metrics.Counter) -> Void)?
+
     /// `clientId` is injected rather than read inside, so a test can pin it and assert the
     /// two halves that matter: that two clients over one `UserDefaults` send the same one, and
     /// that a client rebuilt over the same defaults does too.
     public init(
         environment: PolarisEnvironment,
         urlSession: URLSession = .shared,
-        clientId: String = ClientIdentity.current()
+        clientId: String = ClientIdentity.current(),
+        onUsage: (@Sendable (Metrics.Counter) -> Void)? = nil
     ) {
         self.environment = environment
         self.urlSession = urlSession
         self.clientId = clientId
+        self.onUsage = onUsage
+    }
+
+    private func countUsage(_ counter: Metrics.Counter) {
+        onUsage?(counter)
     }
 
     // MARK: - Auth
@@ -505,7 +515,9 @@ public actor LivePolarisClient: PolarisAPI {
             ],
             field: "createIssue"
         )
-        return try decodePayloadIssue(from: data)
+        let issue = try decodePayloadIssue(from: data)
+        countUsage(.issuesCreated)
+        return issue
     }
 
     public func updateIssue(_ change: IssueChange) async throws -> Issue {
@@ -554,7 +566,9 @@ public actor LivePolarisClient: PolarisAPI {
             ],
             field: "createComment"
         )
-        return try decode(Payload.self, from: data).comment
+        let comment = try decode(Payload.self, from: data).comment
+        countUsage(.commentsPosted)
+        return comment
     }
 
     public func archiveIssue(id: String, archived: Bool, opId: String) async throws {

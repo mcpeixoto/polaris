@@ -73,6 +73,10 @@ targets:
         # Skips the "Missing Compliance" gate in App Store Connect, which otherwise blocks
         # every build behind a manual questionnaire.
         ITSAppUsesNonExemptEncryption: false
+        # The daily anonymous usage ping (PolarisCore `Metrics`), the same Worker every app in
+        # this account reports to. Remove the key and nothing is sent: forks stay quiet. The
+        # fixture app and test hosts never send, whatever this says.
+        MetricsURL: https://ata-metrics.miguelpeixoto457.workers.dev/v1/ping
         UILaunchScreen:
           UIColorName: LaunchBackground
         # `polaris://issue/<id-or-identifier>` — the scheme the desktop app already registers
