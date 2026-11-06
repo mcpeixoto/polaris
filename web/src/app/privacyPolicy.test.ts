@@ -48,6 +48,6 @@ describe('privacy policy: anonymous usage count', () => {
   it('says what the daily iOS count carries and how to turn it off', () => {
     expect(html).toContain('Anonymous usage count');
     expect(html).toContain('Share anonymous usage stats');
-    expect(html).toMatch(/does not\s+store your IP address/);
+    expect(html).toMatch(/does not\s+store\s+your\s+IP\s+address/);
   });
 });
