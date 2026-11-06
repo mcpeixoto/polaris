@@ -24,7 +24,11 @@
 	<array/>
 	<!-- What leaves the device: the account (email, name) and the work itself (issues,
 	     comments). All of it goes to the Polaris server the person signed in to and nowhere
-	     else; none of it is used for tracking or advertising. -->
+	     else; none of it is used for tracking or advertising.
+
+	     The one exception is OtherUsageData: a daily anonymous count (PolarisCore `Metrics`) of
+	     sessions, issues created and comments posted, under a random id made for that alone.
+	     Not linked to the account, not tracking, switched off in Settings. -->
 	<key>NSPrivacyCollectedDataTypes</key>
 	<array>
 		<dict>
@@ -73,6 +77,18 @@
 			<key>NSPrivacyCollectedDataTypePurposes</key>
 			<array>
 				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeOtherUsageData</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
 			</array>
 		</dict>
 	</array>

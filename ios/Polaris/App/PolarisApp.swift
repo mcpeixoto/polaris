@@ -5,6 +5,7 @@ import PolarisCore
 struct PolarisApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var session = AppSession()
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         // Before the app finishes launching, which is what BGTaskScheduler requires of a
@@ -34,6 +35,14 @@ struct PolarisApp: App {
                         session.connect(to: origin)
                     }
                 }
+            }
+            // Signed in or not: the ping says an install exists, not who uses it. `Metrics`
+            // itself refuses to send before the connect screen has been passed, and the
+            // fixture app never counts or sends.
+            .onChange(of: scenePhase, initial: true) { _, phase in
+                guard phase == .active, !LaunchOptions.usesFixtures else { return }
+                Metrics.count(.sessions)
+                Metrics.sendIfDue()
             }
         }
     }

@@ -126,6 +126,10 @@ struct SettingsView: View {
 
             Section {
                 LegalLinkRows()
+                // Under the links rather than in Preferences: an extra row above them pushed
+                // Terms of Use below the fold, and `testSettingsLegalLinksAndCloudProRestore`
+                // wants both links on the first screen.
+                UsageStatsToggle()
             } header: {
                 header("Legal")
             }

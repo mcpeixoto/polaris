@@ -150,6 +150,16 @@ running product. Polaris makes its own decisions — see `docs/05-infrastructure
 with the sync engine and the permission model. See [`NOTICE`](NOTICE) and
 [`TRADEMARK.md`](TRADEMARK.md).
 
+## Privacy
+
+Polaris has no ads and no tracking SDK. The iOS app sends one anonymous usage count a day: a
+random id made for that alone, the platform, app and OS version, the language setting, and how
+many sessions, issues created and comments posted since the last one — never their content.
+The server reads the country from the connection and never stores the IP address. It is on by
+default and off with "Share anonymous usage stats" in Settings, which also forgets the id. The
+code is [`Metrics.swift`](ios/PolarisCore/Sources/PolarisCore/Metrics/Metrics.swift); the
+policy is [`privacy.html`](web/public/privacy.html).
+
 ## Licence
 
 The core is [**AGPL-3.0**](LICENSE). Enterprise features live in [`ee/`](ee/) under a

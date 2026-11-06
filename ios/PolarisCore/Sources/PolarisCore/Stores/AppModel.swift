@@ -107,14 +107,17 @@ public final class AppModel {
     ///   the fixture app passes nil, because `FixturePolarisClient.syncSocketURL()` is a real
     ///   localhost address and a UI test that dials it is a UI test that depends on what else
     ///   is running on the machine. The poll still runs, so nothing is less fresh than before.
+    /// - Parameter onUsage: Told by the live client about issues and comments that landed, for
+    ///   `Metrics`. Nil counts nothing; only the shipping app passes one.
     public init(
         environment: PolarisEnvironment,
         api: (any PolarisAPI)? = nil,
         cache: (any IssueCache)? = nil,
         socketConnector: (any SyncConnecting)? = URLSessionSyncConnector(),
-        pollInterval: Duration = .seconds(30)
+        pollInterval: Duration = .seconds(30),
+        onUsage: (@Sendable (Metrics.Counter) -> Void)? = nil
     ) {
-        let client = api ?? LivePolarisClient(environment: environment)
+        let client = api ?? LivePolarisClient(environment: environment, onUsage: onUsage)
         self.environment = environment
         self.api = client
         self.cache = cache

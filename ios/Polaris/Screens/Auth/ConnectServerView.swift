@@ -40,12 +40,17 @@ struct ConnectServerView: View {
             title: "Hi. This is ",
             accent: "Polaris."
         ) {
-            Text("Issue tracking without the wait — keyboard-first, local-first, for software teams.")
-                .font(PolarisText.body)
-                .foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.center)
-                .lineSpacing(3)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: Theme.Space.xxl) {
+                Text("Issue tracking without the wait — keyboard-first, local-first, for software teams.")
+                    .font(PolarisText.body)
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                // Here, on the first screen, because nothing is sent until a server has been
+                // picked: by then the switch has been seen.
+                UsageStatsToggle()
+            }
         } footer: {
             PrimaryButton(title: "Continue") {
                 step = .choose
