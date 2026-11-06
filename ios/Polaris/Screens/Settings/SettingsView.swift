@@ -99,7 +99,6 @@ struct SettingsView: View {
                 }
                 .accessibilityIdentifier("settings.notifications")
                 appearanceRow
-                UsageStatsToggle()
                 // In Preferences rather than an About section of its own, to keep this
                 // screen short. It is no longer short enough, and that is now accepted
                 // rather than fought: Cloud Pro, this row, and the Delete account and legal
@@ -127,6 +126,10 @@ struct SettingsView: View {
 
             Section {
                 LegalLinkRows()
+                // Under the links rather than in Preferences: an extra row above them pushed
+                // Terms of Use below the fold, and `testSettingsLegalLinksAndCloudProRestore`
+                // wants both links on the first screen.
+                UsageStatsToggle()
             } header: {
                 header("Legal")
             }
