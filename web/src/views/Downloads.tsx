@@ -4,10 +4,12 @@ import { Logo } from '~/components';
 import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { isSignedIn } from '~/sync/api';
 import { DOWNLOADS, fetchRelease, RELEASES_URL, type Release } from '~/features/downloads/releases';
+import { APP_STORE_URL, devicePlatform } from '~/features/downloads/device';
 import styles from './Downloads.module.css';
 
 export function Downloads() {
   const signedIn = isSignedIn();
+  const [device] = useState(() => devicePlatform());
   const [release, setRelease] = useState<Release | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -49,16 +51,62 @@ export function Downloads() {
         </Link>
       </header>
       <main id="downloads-main" className={styles.main}>
-        <p className={styles.kicker}>Polaris for desktop</p>
+        <p className={styles.kicker}>Get Polaris</p>
         <h1>
           Your workspace.
           <br />
           On your desktop.
+          <br />
+          And on iPhone.
         </h1>
         <p className={styles.lead}>
-          The same Polaris, with native notifications, keyboard shortcuts and your workspace
-          available offline.
+          One workspace for your team’s issues. Get the app for your device, or choose another
+          platform below. Works with Polaris Cloud and self-hosted servers.
         </p>
+        <div className={styles.recommendation}>
+          <div>
+            <p className={styles.kicker}>Suggested for this device</p>
+            <h2>{device === 'browser' ? 'Polaris on the web' : `Polaris for ${device}`}</h2>
+            <p className={styles.note}>
+              {device === 'iOS'
+                ? 'Download from the App Store. All platforms remain available below.'
+                : device === 'macOS'
+                  ? 'Choose Apple Silicon or Intel below. Your browser cannot reliably tell them apart.'
+                  : device === 'browser'
+                    ? 'Use your workspace in the browser. All app downloads remain available below.'
+                    : 'Choose your download below. Looking for another device? All platforms are available.'}
+            </p>
+          </div>
+          <a
+            className={styles.download}
+            href={
+              device === 'iOS'
+                ? APP_STORE_URL
+                : device === 'browser'
+                  ? signedIn
+                    ? '/'
+                    : '/signup'
+                  : `#${device.toLowerCase()}`
+            }
+          >
+            {device === 'iOS'
+              ? 'Get it on the App Store'
+              : device === 'browser'
+                ? 'Open Polaris in your browser'
+                : `Choose ${device} download`}{' '}
+            →
+          </a>
+        </div>
+        <div className={styles.mobileCard}>
+          <div>
+            <p className={styles.kicker}>Now available</p>
+            <h2>Polaris for iPhone</h2>
+            <p className={styles.note}>Your issues, status updates and comments, with you.</p>
+          </div>
+          <a className={styles.download} href={APP_STORE_URL}>
+            Get the iPhone app ↗
+          </a>
+        </div>
         <p className={styles.status} role="status">
           {release
             ? `Latest release · ${release.version}`
@@ -68,7 +116,12 @@ export function Downloads() {
         </p>
         <div className={styles.grid}>
           {(['macOS', 'Windows', 'Linux'] as const).map((platform) => (
-            <section className={styles.card} key={platform} aria-label={`${platform} downloads`}>
+            <section
+              id={platform.toLowerCase()}
+              className={styles.card}
+              key={platform}
+              aria-label={`${platform} downloads`}
+            >
               <h2>{platform}</h2>
               {DOWNLOADS.filter((item) => item.platform === platform).map((item) => {
                 const url = release?.downloads[item.id];

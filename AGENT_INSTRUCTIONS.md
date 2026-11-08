@@ -299,3 +299,7 @@ gh run list --workflow=ci.yml --branch main --limit 1 --json conclusion,headSha
 The deploy job polls the health endpoint itself for five minutes, because
 `docker compose up -d` returns long before anything serves a request. Read the job's
 result, not just its exit.
+
+## Download entry point
+
+`/downloads` is the universal Get Polaris destination for marketing links and QR codes. Keep iOS/App Store and every desktop choice visible. Device detection recommends a platform, never silently starts a download or guesses Mac architecture. Recognize desktop-mode iPads and avoid suggesting Linux installers to Android or ChromeOS visitors.
