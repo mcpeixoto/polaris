@@ -129,3 +129,40 @@
     padding-top: 48px;
   }
 }
+
+.recommendation,
+.mobileCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  padding: 28px;
+  margin-top: 32px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+}
+.recommendation {
+  border-color: var(--accent);
+}
+.recommendation h2,
+.mobileCard h2 {
+  font-size: var(--font-size-xl);
+  margin-bottom: 12px;
+}
+.recommendation .kicker,
+.mobileCard .kicker {
+  margin-bottom: 12px;
+}
+.recommendation > a,
+.mobileCard > a {
+  flex-shrink: 0;
+}
+@media (max-width: 720px) {
+  .recommendation,
+  .mobileCard {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 20px;
+  }
+}
