@@ -77,6 +77,14 @@ fi
 # line up: the website ran ahead of every client by however many merges had happened since
 # the last tag. Flipping this back is a product decision, not a refactor, so it fails here
 # rather than being noticed weeks later by a version mismatch.
+# Handing the .p12 to electron-builder on a Mac fails on macos-26 at signing time, which only
+# a tag ever reaches: it unlocks its own keychain with the certificate's password.
+if ! grep -q 'export CSC_KEYCHAIN=' "$desktop"; then
+  note "$desktop does not sign from its own keychain (CSC_KEYCHAIN)"
+  echo "      electron-builder's own fails on macos-26 with 'SecKeychainUnlock: The user name"
+  echo "      or passphrase you entered is not correct', and only on a release tag."
+fi
+
 ci=.github/workflows/ci.yml
 if grep -qE "if: github.event_name == 'push' && github.ref == 'refs/heads/main'" "$ci"; then
   note "$ci: the deploy job is gated on main, not on a tag"

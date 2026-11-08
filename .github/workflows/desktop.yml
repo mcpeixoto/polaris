@@ -30,10 +30,22 @@ on:
       # only runs after the merge, on main, in a workflow nobody is watching.
       - 'web/**'
       - '.github/workflows/desktop.yml'
+  # With a tag, builds and publishes that existing tag using this file's steps. The way to
+  # finish a release whose installers failed for a reason in this workflow: a re-run would
+  # replay the broken workflow stored at the tag, and moving the tag rewrites history.
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build and publish, e.g. v0.34.0. Empty builds unsigned.'
+        required: false
+        type: string
 
 permissions:
   contents: write # needed to attach artefacts to a release
+
+env:
+  # Empty on a branch or pull request. Every "is this a release?" check reads this.
+  RELEASE_TAG: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name) || '' }}
 
 jobs:
   # Creates the draft release before any platform can, and exists solely to stop the three
@@ -60,16 +72,16 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Create the draft release if it does not exist
-        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ env.RELEASE_TAG != '' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # Idempotent on purpose: a re-run of a partly-finished tag must reuse the release it
         # already made rather than adding another one beside it.
         run: |
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            echo "release $GITHUB_REF_NAME already exists — reusing it"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "release $RELEASE_TAG already exists — reusing it"
           else
-            gh release create "$GITHUB_REF_NAME" --draft --title "$GITHUB_REF_NAME" --generate-notes
+            gh release create "$RELEASE_TAG" --draft --title "$RELEASE_TAG" --generate-notes
           fi
 
   build:
@@ -96,6 +108,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG || github.sha }}
 
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -110,7 +124,7 @@ jobs:
       # so every installed copy compares its own 0.0.0 against a published 0.0.0, finds no
       # update, and the release reaches nobody who already had the app.
       - name: Stamp the version from the tag
-        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ env.RELEASE_TAG != '' }}
         shell: bash
         working-directory: desktop
         run: |
@@ -120,7 +134,7 @@ jobs:
             pkg.version = process.argv[1].replace(/^v/, "");
             fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
             console.log("packaging version", pkg.version);
-          ' "$GITHUB_REF_NAME"
+          ' "$RELEASE_TAG"
 
       # The renderer is built ONCE and copied into every package, rather than each platform
       # building its own. Building it three times invites three different bundles from one
@@ -148,7 +162,7 @@ jobs:
           python3 desktop/assets/make-tray.py
 
       - name: Package (unsigned)
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ env.RELEASE_TAG == '' }}
         working-directory: desktop
         # A pull request gets an unsigned build, because signing certificates are not
         # available to forks and a workflow that fails for every outside contributor is one
@@ -159,7 +173,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Package and sign
-        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ env.RELEASE_TAG != '' }}
         working-directory: desktop
         shell: bash
         # An undefined secret is not an absent environment variable: GitHub sets it to the
@@ -187,6 +201,31 @@ jobs:
             # Otherwise electron-builder searches the runner keychain, finds nothing, and
             # reports the absence as a signing failure instead of skipping.
             export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+
+          # A keychain of this run's own, because electron-builder's cannot be used here.
+          #
+          # Given CSC_LINK, electron-builder 26 makes a keychain with a random password, then
+          # calls `security set-key-partition-list -k` with the .p12's password instead of
+          # that one (importCerts in macCodeSign.js). The macos-14 image let that through;
+          # macos-26 fails it: "SecKeychainUnlock: The user name or passphrase you entered is
+          # not correct". With CSC_KEYCHAIN and no CSC_LINK it signs from this one instead.
+          if [ "$RUNNER_OS" = macOS ] && [ -n "${CSC_LINK:-}" ]; then
+            keychain="$RUNNER_TEMP/desktop-signing.keychain-db"
+            keychain_pw=$(openssl rand -base64 32)
+            security create-keychain -p "$keychain_pw" "$keychain"
+            security set-keychain-settings -lut 21600 "$keychain"
+            security unlock-keychain -p "$keychain_pw" "$keychain"
+            p12="$RUNNER_TEMP/desktop-signing.p12"
+            printf '%s' "$CSC_LINK" | base64 --decode > "$p12"
+            security import "$p12" -k "$keychain" -P "$CSC_KEY_PASSWORD" \
+              -T /usr/bin/codesign -T /usr/bin/productbuild -T /usr/bin/security
+            rm -f "$p12"
+            security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_pw" "$keychain" >/dev/null
+            # shellcheck disable=SC2046 # one path per word is the point
+            security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+            export CSC_KEYCHAIN="$keychain"
+            unset CSC_LINK CSC_KEY_PASSWORD
           fi
 
           # notarytool wants a *path* to the .p8, and the secret holds the key itself.
@@ -221,6 +260,8 @@ jobs:
           pnpm exec electron-builder ${{ matrix.target }} --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Which release to publish to, when this run was started by hand and not by the tag.
+          CI_BUILD_TAG: ${{ env.RELEASE_TAG }}
           # macOS: a Developer ID certificate, and an App Store Connect key for notarisation.
           # Without notarisation Gatekeeper refuses to open the app at all on any machine
           # that did not build it — an unnotarised .dmg is not a release, it is a demo.
@@ -255,7 +296,7 @@ jobs:
       # true: electron-builder signs and staples the application, not the disk image that
       # carries it. Both times the build was correct and the check was not.
       - name: Verify the macOS build is signed and notarised
-        if: ${{ startsWith(github.ref, 'refs/tags/v') && matrix.name == 'macOS' }}
+        if: ${{ env.RELEASE_TAG != '' && matrix.name == 'macOS' }}
         shell: bash
         env:
           HAVE_CERT: ${{ secrets.MAC_CERT_P12 != '' }}
@@ -344,7 +385,7 @@ jobs:
       # silently, forever. An extra file merely *on the release* is invisible to it. That is
       # also why the .zip files — the ones macOS actually updates from — get no alias here.
       - name: Publish stable-named copies of the installers
-        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ env.RELEASE_TAG != '' }}
         shell: bash
         working-directory: desktop/release
         env:
@@ -364,7 +405,7 @@ jobs:
               exit 1
             fi
             cp "${matches[0]}" "$2"
-            gh release upload "$GITHUB_REF_NAME" "$2" --clobber
+            gh release upload "$RELEASE_TAG" "$2" --clobber
             echo "$2  <-  ${matches[0]}"
           }
 
@@ -454,7 +495,7 @@ jobs:
   publish:
     name: Publish the release
     needs: build
-    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    if: ${{ inputs.tag != '' || startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -471,7 +512,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          assets=$(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')
+          assets=$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')
           echo "$assets"
           missing=()
           # The versioned artefacts, the update manifests, and the stable aliases the
@@ -483,7 +524,7 @@ jobs:
             grep -qE "$want" <<<"$assets" || missing+=("$want")
           done
           if [ ${#missing[@]} -ne 0 ]; then
-            echo "::error::$GITHUB_REF_NAME is missing: ${missing[*]}. Not publishing a partial release — a user who downloads it gets an app that cannot update itself."
+            echo "::error::$RELEASE_TAG is missing: ${missing[*]}. Not publishing a partial release — a user who downloads it gets an app that cannot update itself."
             exit 1
           fi
 
@@ -496,9 +537,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python -m pip install 'PyYAML==6.0.3'
-          gh release view "$GITHUB_REF_NAME" --json assets > /tmp/desktop-release.json
-          gh release download "$GITHUB_REF_NAME" --pattern 'latest*.yml' --dir /tmp/desktop-manifests
-          python scripts/verify-desktop-release.py "$GITHUB_REF_NAME" /tmp/desktop-release.json /tmp/desktop-manifests
+          gh release view "$RELEASE_TAG" --json assets > /tmp/desktop-release.json
+          gh release download "$RELEASE_TAG" --pattern 'latest*.yml' --dir /tmp/desktop-manifests
+          python scripts/verify-desktop-release.py "$RELEASE_TAG" /tmp/desktop-release.json /tmp/desktop-manifests
 
       - name: Publish
         env:
@@ -507,5 +548,5 @@ jobs:
         # it judges the tag newest by semver, and this is the pointer the download page and
         # every "latest release" link resolve through.
         run: |
-          gh release edit "$GITHUB_REF_NAME" --draft=false --latest
-          gh release view "$GITHUB_REF_NAME" --json isDraft,url --jq '"published: \(.isDraft == false)  \(.url)"'
+          gh release edit "$RELEASE_TAG" --draft=false --latest
+          gh release view "$RELEASE_TAG" --json isDraft,url --jq '"published: \(.isDraft == false)  \(.url)"'
