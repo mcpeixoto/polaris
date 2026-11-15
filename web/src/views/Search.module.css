@@ -12,6 +12,9 @@
 .screen {
   display: flex;
   flex-direction: column;
+  /* The selection bar is positioned against this, so it sits over the results rather than
+     in the scroll and travelling away with them. */
+  position: relative;
   /* min-height:0 rather than height:100%: this is a flex child of the shell's main pane, and
      without it the scroller below grows to its content and the whole pane scrolls instead. */
   flex: 1;
@@ -164,6 +167,16 @@
 .active {
   background-color: var(--bg-hover);
   box-shadow: inset 2px 0 0 var(--accent);
+}
+
+/*
+ * A selected row, which is not the cursor. The cursor is one row and moves on every
+ * click; the selection is the set a bulk action is about to change. Both can be true of
+ * the same row, so the wash is the selection and the inset bar stays the cursor.
+ */
+.selected,
+.selected:hover {
+  background-color: var(--bg-selected);
 }
 
 .row:focus-visible {
@@ -438,6 +451,69 @@
 /* ------------------------------------------------------------------ *
  * Narrow windows
  * ------------------------------------------------------------------ */
+
+/*
+ * The bulk bar, over the foot of the list rather than in the flow. Appearing must not
+ * reflow the rows under the pointer that just selected one. The scroller keeps its own
+ * overscroll, so the last row is still reachable under the bar.
+ */
+.selectionBar {
+  position: absolute;
+  z-index: var(--z-sticky);
+  bottom: var(--space-4);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: calc(100% - var(--space-8));
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+  overflow-x: auto;
+  transform: translateX(-50%);
+  animation: barIn var(--duration-fast) var(--ease-out);
+}
+
+@keyframes barIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, var(--space-3));
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* The bar moves, so it owes an answer: the same arrival, without the travel. */
+@media (prefers-reduced-motion: reduce) {
+  .selectionBar {
+    animation-name: barFade;
+  }
+
+  @keyframes barFade {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+/* Announced rather than merely drawn: a bulk action's whole risk is acting on more
+   rows than were meant, and this is the only line that says how many. */
+.selectionCount {
+  margin-inline-end: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 
 /*
  * The result row is the issue list's row and it gives up the same things, in the same
