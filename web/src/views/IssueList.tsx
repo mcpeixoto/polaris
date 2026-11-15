@@ -2228,10 +2228,14 @@ export function IssueList({
    */
   const onFocusRow = useCallback((id: UUID, rowIndex = -1) => setCursor({ rowIndex, id }), []);
   const onToggleRow = useCallback((id: UUID) => selection.toggle(id), [selection]);
-  const onExtendRow = useCallback(
-    (id: UUID) => selection.extendTo(id, cursorId),
-    [selection, cursorId],
-  );
+  /*
+   * A shift-click extends from the selection's anchor, and from nowhere else. With nothing
+   * selected it starts the range on the clicked row, so "shift-click one, shift-click another"
+   * takes exactly the rows between them. Falling back to the cursor — right for shift-arrow,
+   * which moves from it — made the first click reach back to whatever row the cursor was
+   * sitting on, usually the top of the list.
+   */
+  const onExtendRow = useCallback((id: UUID) => selection.extendTo(id), [selection]);
   const onToggleGroup = useCallback((key: string) => toggleGroup(key), [toggleGroup]);
 
   /*

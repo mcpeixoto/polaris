@@ -407,6 +407,23 @@ describe('IssueList', () => {
     expect(selectedTexts()).toEqual(['ENG-3Rewrite the seeder']);
   });
 
+  it('shift-click starts a selection on that row, and a second shift-click takes everything between', async () => {
+    const { user } = renderList();
+    const cell = (text: string) =>
+      screen.getAllByRole('gridcell').find((node) => node.textContent?.includes(text))!;
+
+    // The cursor is on the first row. A first shift-click on the last row must not reach back
+    // to it: there was no selection, so the clicked row is where the range starts.
+    await user.keyboard('{Shift>}');
+    await user.click(cell('ENG-2'));
+    expect(selectedTexts()).toHaveLength(1);
+    expect(selectedTexts()[0]).toContain('ENG-2');
+
+    await user.click(cell('ENG-3'));
+    await user.keyboard('{/Shift}');
+    expect(selectedTexts()).toHaveLength(3);
+  });
+
   it('selects everything and clears again', async () => {
     const { user } = renderList();
 
