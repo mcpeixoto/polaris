@@ -217,6 +217,28 @@ describe('the kind filter', () => {
   });
 });
 
+describe('shift-click', () => {
+  it('starts on the clicked row, then takes everything up to the next one', async () => {
+    const { user } = renderInbox([
+      notification('n1'),
+      notification('n2', { createdAt: '2026-08-16T10:00:00.000Z' }),
+      notification('n3', { createdAt: '2026-08-16T09:00:00.000Z' }),
+    ]);
+    const row = (id: string) => document.getElementById(`notification-${id}`)!;
+    const picked = () =>
+      ['n1', 'n2', 'n3'].filter((id) => row(id).getAttribute('aria-selected') === 'true');
+
+    // The cursor is on n1. The first shift-click must not reach back to it.
+    await user.keyboard('{Shift>}');
+    await user.click(row('n3'));
+    expect(picked()).toEqual(['n3']);
+
+    await user.click(row('n1'));
+    await user.keyboard('{/Shift}');
+    expect(picked()).toEqual(['n1', 'n2', 'n3']);
+  });
+});
+
 describe('bulk actions over a selection', () => {
   it('marks read once per selected row, and not once per screen', async () => {
     const { user, mutate } = renderInbox([

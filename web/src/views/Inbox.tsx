@@ -919,7 +919,8 @@ export function Inbox() {
           }
           if (event.shiftKey) {
             place(() => at);
-            selection.extendTo(row.id, current?.id ?? null);
+            // From the selection's anchor only — see IssueList's `onExtendRow`.
+            selection.extendTo(row.id);
             return;
           }
           setCursor(at);
