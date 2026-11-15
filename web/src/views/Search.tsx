@@ -45,7 +45,15 @@
  * says so rather than leaving it to be discovered.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 
 import { useEngine } from '~/app/context';
@@ -116,6 +124,7 @@ import {
 import { when } from '~/features/time';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
 import { useMenuTrigger } from '~/hooks/useMenuTrigger';
+import { useSelection } from '~/hooks/useSelection';
 import { useViewerId } from '~/hooks/useViewer';
 import type { EntityType, StateCategory, Store, UUID } from '~/store';
 import { ApiError, currentWorkspace, gql } from '~/sync/api';
@@ -268,6 +277,9 @@ interface SearchCommands {
   canEdit(): boolean;
   /** Opens one property picker on the cursor row, anchored to that row's element. */
   pick(kind: IssuePropertyKind): void;
+  /** Whether a bulk selection is standing. Escape clears it, and only then. */
+  hasSelection(): boolean;
+  clearSelection(): void;
   /** Whether there is a cursor row for the actions menu to be about. */
   hasCursor(): boolean;
   /** Opens the row menu on the cursor row, where a right-click on it would have put it. */
@@ -390,6 +402,30 @@ export function Search() {
     [view],
   );
 
+  /*
+   * Issue rows only, and only the ones a write can land on, in the order they are drawn.
+   *
+   * Comments are not issues. A result the replica does not hold has nothing to patch, and
+   * `extendTo` / `toggle` only ever see this list, so a gesture on any other row cannot
+   * select it. The anchor is an id in this order — see `useSelection` — which is what makes
+   * a second shift-click mean "everything between these two results" rather than "two rows".
+   */
+  const selectableIds = useMemo(
+    () => view.issues.filter((row) => row.editable).map((row) => row.id),
+    [view.issues],
+  );
+  const selection = useSelection(selectableIds);
+
+  /*
+   * A query or a filter replaces the rows. Keeping the selection would let the bar act on
+   * issues that are no longer the ones on screen — or, when a later answer happens to reuse
+   * an id, on a row the reader did not select this time.
+   */
+  const clearSelection = selection.clear;
+  useEffect(() => {
+    clearSelection();
+  }, [query, filterParam, clearSelection]);
+
   const [cursorKey, setCursorKey] = useState<string | null>(null);
 
   /**
@@ -447,6 +483,16 @@ export function Search() {
    * the issue had a second ago. Resolving by key means the tick follows the write.
    */
   const [propertyFor, setPropertyFor] = useState<string | null>(null);
+  /**
+   * Whether the open picker was asked for by the bar.
+   *
+   * A row glyph and a chord stay about that one row even while a selection is standing —
+   * the glyph is a statement about the row under the pointer. The bar is the statement
+   * about the set, and a choice from it has to reach every selected issue. The flag is
+   * what tells those two writes apart, because there is one picker of each kind on the
+   * screen and not one per row plus another for the bar.
+   */
+  const [forSelection, setForSelection] = useState(false);
   const target = useMemo(
     () => view.issues.find((row) => row.key === propertyFor) ?? null,
     [view.issues, propertyFor],
@@ -469,23 +515,38 @@ export function Search() {
   const viewerId = useViewerId();
   const { registry, context } = useKeymap();
 
-  const openPicker = (kind: IssuePropertyKind, key: string, element: HTMLElement | null) => {
-    // The cursor moves to the row the picker is about, so that the key caps drawn on the
-    // triggers stay true: `S` acts on the cursor row, and this is what makes the row you
-    // pointed at the cursor row.
-    const trigger = (
-      {
+  const triggerFor = (kind: IssuePropertyKind) =>
+    (
+      ({
         status,
         assignee,
         priority,
         project,
         labels: labelMenu,
-      } as Partial<Record<IssuePropertyKind, typeof status>>
+      }) as Partial<Record<IssuePropertyKind, typeof status>>
     )[kind];
+
+  const openPicker = (kind: IssuePropertyKind, key: string, element: HTMLElement | null) => {
+    // The cursor moves to the row the picker is about, so that the key caps drawn on the
+    // triggers stay true: `S` acts on the cursor row, and this is what makes the row you
+    // pointed at the cursor row.
+    const trigger = triggerFor(kind);
     if (trigger === undefined) return;
+    // A glyph or a chord is about this row. Leaving the bar's flag set would write the
+    // choice onto the whole selection, which is not what pointing at one status circle means.
+    setForSelection(false);
     setCursorKey(key);
     setPropertyFor(key);
     trigger.showFrom(element);
+  };
+
+  /** The bar's route into the same pickers. `show` hangs the menu off the button, not a row. */
+  const openForSelection = (kind: IssuePropertyKind) => {
+    const trigger = triggerFor(kind);
+    if (trigger === undefined) return;
+    setForSelection(true);
+    setPropertyFor(null);
+    trigger.show();
   };
 
   /**
@@ -546,6 +607,8 @@ export function Search() {
     canShowMore: () => false,
     canEdit: () => false,
     pick: () => {},
+    hasSelection: () => false,
+    clearSelection: () => {},
     hasCursor: () => false,
     openRowMenu: () => {},
   });
@@ -582,6 +645,8 @@ export function Search() {
       if (row === undefined || row === null || !row.editable) return;
       openPicker(kind, row.key, document.getElementById(rowDomId(row.key)));
     },
+    hasSelection: () => selection.size > 0,
+    clearSelection: () => selection.clear(),
     hasCursor: () => rows[cursorIndex] !== undefined,
     openRowMenu: () => {
       const row = rows[cursorIndex];
@@ -610,6 +675,20 @@ export function Search() {
         when: 'list',
         group: 'Search',
         run: () => commands.current.focusBox(),
+      },
+      {
+        // Registered ahead of `search.leaveBox` because the matcher takes the first enabled
+        // binding. With a selection standing, Escape means "deselect"; with none, this is
+        // disabled and therefore unbound, and the handover below keeps the meaning it had.
+        // An unguarded Escape here would swallow that handover on every visit to the screen.
+        id: 'search.clearSelection',
+        title: 'Clear selection',
+        keys: ['Escape'],
+        when: 'list',
+        group: 'Selection',
+        hidden: true,
+        enabled: () => commands.current.hasSelection(),
+        run: () => commands.current.clearSelection(),
       },
       {
         // Escape is one of the few chords the keymap delivers out of a text field, which is
@@ -756,6 +835,28 @@ export function Search() {
    */
   const createIssue = () => registry.invoke('issue.create', { source: 'menu', context });
 
+  const selectedRows = useMemo(() => {
+    const byId = new Map(view.issues.map((row) => [row.id, row]));
+    // `ordered` is the selection in display order, which is the order a bulk write should
+    // run in — insertion order would be whichever row the pointer happened to touch first.
+    return selection.ordered.flatMap((id) => {
+      const found = byId.get(id);
+      return found === undefined ? [] : [found];
+    });
+  }, [view.issues, selection.ordered]);
+
+  /*
+   * What the open picker writes. The bar names the selection; a glyph or a chord names
+   * one row. Inferring it from `selection.size` would make `S` on the cursor row rewrite
+   * every selected issue, which is not what that chord means on this screen.
+   */
+  const acting = forSelection ? selectedRows : target === null ? EMPTY_ISSUE_ROWS : [target];
+  const selectionTeamId = oneTeam(selectedRows);
+  const pickerTeamId = forSelection ? selectionTeamId : (target?.teamId ?? null);
+  const writeActing = (fields: IssueFields) => {
+    for (const row of acting) writeTo(row, fields);
+  };
+
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
@@ -884,8 +985,11 @@ export function Search() {
                     row={row}
                     terms={terms}
                     active={at === cursorIndex}
+                    selected={selection.ids.has(row.id)}
                     openProperty={propertyFor === row.key ? openKind : null}
                     onFocus={setCursorKey}
+                    onExtend={(id) => selection.extendTo(id)}
+                    onToggle={(id) => selection.toggle(id)}
                     onPick={openPicker}
                     onMenu={openRowMenu}
                   />
@@ -943,12 +1047,11 @@ export function Search() {
              * The shared item list, minus the destructive end of it.
              *
              * `issueRowMenuItems` leaves Delete out when no `askDelete` is passed, and this
-             * screen deliberately passes none. Search is where you go to find something and
-             * jump to it: there is no multi-select to make the target unambiguous, no
-             * confirmation dialogue and no undo toast — the three things that make a
-             * right-click delete recoverable on the issue list. A destructive command one
-             * slip away from a search result, with nothing to take it back, is not the
-             * same command it is there.
+             * screen deliberately passes none. A selection here can name several issues,
+             * which is exactly why a destructive command stays out: there is no confirmation
+             * and no undo toast, the two things that make a right-click delete recoverable
+             * on the issue list. A slip on a search result, with nothing to take it back,
+             * is not the same command it is there.
              */
             items={issueRowMenuItems(
               {
@@ -998,50 +1101,94 @@ export function Search() {
         </>
       )}
 
-      {/* The pickers themselves: one of each for the screen, hanging off whichever row was
-          named. `target` is null while nothing is open, which is why each is gated on it —
-          a picker asked for the statuses of no team would offer the wrong list for a frame. */}
+      {/*
+        The bulk bar. It is the pointer's route to the same five pickers the chords open,
+        and it is absent until a selection exists — a permanent row of buttons would be
+        something to ignore. Status is the one that can be refused: a workflow belongs to
+        one team, and a selection that spans two has no single list to offer.
+      */}
+      <SelectionBar open={selection.size > 0}>
+        <span className={styles.selectionCount} aria-live="polite">
+          {selection.size} selected
+        </span>
+        <Button
+          {...status.props}
+          onClick={() => openForSelection('status')}
+          disabled={selectionTeamId === null}
+        >
+          Status
+        </Button>
+        <Button {...assignee.props} onClick={() => openForSelection('assignee')}>
+          Assignee
+        </Button>
+        <Button {...priority.props} onClick={() => openForSelection('priority')}>
+          Priority
+        </Button>
+        <Button {...project.props} onClick={() => openForSelection('project')}>
+          Project
+        </Button>
+        <Button {...labelMenu.props} onClick={() => openForSelection('labels')}>
+          Labels
+        </Button>
+        <Button onClick={() => selection.clear()}>Clear</Button>
+      </SelectionBar>
+
+      {/* The pickers themselves: one of each for the screen. A row glyph hangs one off
+          that row; the bar hangs the same picker off its own button and the choice is
+          written to every selected issue. Gated on a team for status, because a picker
+          asked for the statuses of no team would offer the wrong list for a frame. */}
       <StatusPicker
-        open={status.open && target !== null && target.teamId !== null}
+        open={status.open && pickerTeamId !== null}
         onClose={closeMenus}
         trigger={status.ref}
-        teamId={target?.teamId ?? ''}
-        value={target?.stateId ?? undefined}
-        onSelect={(stateId) => writeTo(target, { stateId })}
+        teamId={pickerTeamId ?? ''}
+        value={agreed(acting, (row) => row.stateId) ?? undefined}
+        onSelect={(stateId) => writeActing({ stateId })}
       />
       <AssigneePicker
-        open={assignee.open && target !== null}
+        open={assignee.open && acting.length > 0}
         onClose={closeMenus}
         trigger={assignee.ref}
-        value={target === null ? undefined : target.assigneeId}
-        onSelect={(assigneeId) => writeTo(target, { assigneeId })}
+        value={acting.length === 0 ? undefined : agreed(acting, (row) => row.assigneeId)}
+        onSelect={(assigneeId) => writeActing({ assigneeId })}
       />
       <PriorityPicker
-        open={priority.open && target !== null}
+        open={priority.open && acting.length > 0}
         onClose={closeMenus}
         trigger={priority.ref}
-        value={target?.priority}
-        onSelect={(value) => writeTo(target, { priority: value })}
+        value={agreed(acting, (row) => row.priority)}
+        onSelect={(value) => writeActing({ priority: value })}
       />
       <ProjectPicker
-        open={project.open && target !== null}
+        open={project.open && acting.length > 0}
         onClose={closeMenus}
         trigger={project.ref}
-        teamIds={target?.teamId === null || target?.teamId === undefined ? [] : [target.teamId]}
-        value={target === null ? undefined : target.projectId}
-        onSelect={(projectId) => writeTo(target, { projectId })}
+        teamIds={
+          forSelection ? teamIdsOf(selectedRows) : target?.teamId == null ? [] : [target.teamId]
+        }
+        value={acting.length === 0 ? undefined : agreed(acting, (row) => row.projectId)}
+        onSelect={(projectId) => writeActing({ projectId })}
       />
       <LabelPicker
-        open={labelMenu.open && target !== null && target.editable}
+        open={
+          labelMenu.open &&
+          (forSelection ? selectedRows.length > 0 : target !== null && target.editable)
+        }
         onClose={closeMenus}
         trigger={labelMenu.ref}
-        teamId={target?.teamId ?? null}
-        value={target?.labelIds ?? EMPTY_LABELS}
+        teamId={pickerTeamId}
+        value={forSelection ? sharedLabelIds(selectedRows) : (target?.labelIds ?? EMPTY_LABELS)}
         onApply={(labelId, displaced) => {
-          if (target !== null) applyLabel(engine, target.id, labelId, displaced).catch(report);
+          for (const row of acting) {
+            if (!row.editable) continue;
+            applyLabel(engine, row.id, labelId, displaced).catch(report);
+          }
         }}
         onRemove={(labelId) => {
-          if (target !== null) removeLabel(engine, target.id, labelId).catch(report);
+          for (const row of acting) {
+            if (!row.editable) continue;
+            removeLabel(engine, row.id, labelId).catch(report);
+          }
         }}
       />
     </div>
@@ -1050,6 +1197,66 @@ export function Search() {
 
 /** A stable empty list, so a closed label picker does not re-subscribe on every render. */
 const EMPTY_LABELS: readonly UUID[] = [];
+
+/** A stable empty acting-set, so a closed picker does not allocate on every render. */
+const EMPTY_ISSUE_ROWS: readonly IssueRow[] = [];
+
+/**
+ * The one team every row belongs to, or null when a status would have to guess.
+ *
+ * Statuses belong to a team. Offering one team's list for a selection that spans two
+ * would write a state id the other team's issue does not have.
+ */
+function oneTeam(rows: readonly IssueRow[]): UUID | null {
+  const first = rows[0]?.teamId ?? null;
+  if (first === null) return null;
+  return rows.every((row) => row.teamId === first) ? first : null;
+}
+
+/** The value every row agrees on, or `undefined` when they do not — a picker's "mixed". */
+function agreed<T>(rows: readonly IssueRow[], read: (row: IssueRow) => T): T | undefined {
+  const first = rows[0];
+  if (first === undefined) return undefined;
+  const value = read(first);
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (row !== undefined && read(row) !== value) return undefined;
+  }
+  return value;
+}
+
+function teamIdsOf(rows: readonly IssueRow[]): UUID[] {
+  const ids: UUID[] = [];
+  for (const row of rows) {
+    if (row.teamId !== null && !ids.includes(row.teamId)) ids.push(row.teamId);
+  }
+  return ids;
+}
+
+/** The label set when every selected issue carries the same one. Mixed ticks nothing. */
+function sharedLabelIds(rows: readonly IssueRow[]): readonly UUID[] {
+  const first = rows[0];
+  if (first === undefined) return EMPTY_LABELS;
+  const key = (ids: readonly UUID[]) => [...ids].sort().join('\0');
+  const wanted = key(first.labelIds);
+  return rows.every((row) => key(row.labelIds) === wanted) ? first.labelIds : EMPTY_LABELS;
+}
+
+/**
+ * The bulk action bar. Drawn only while a selection exists: a cleared selection has
+ * nothing true left to say, so there is no exit to animate.
+ *
+ * A group and not `role="toolbar"`. A toolbar promises arrow-key navigation between its
+ * controls, and the keyboard on this screen belongs to the registry.
+ */
+function SelectionBar({ open, children }: { open: boolean; children: ReactNode }) {
+  if (!open) return null;
+  return (
+    <div className={styles.selectionBar} role="group" aria-label="Issue actions">
+      {children}
+    </div>
+  );
+}
 
 /**
  * What this browser has been asked before, above the recent work rather than instead of it.
@@ -1127,8 +1334,12 @@ interface ResultProps<Row> {
 }
 
 interface IssueResultProps extends ResultProps<IssueRow> {
+  /** In the bulk selection. Not the keyboard cursor — that is `active`. */
+  readonly selected: boolean;
   /** Which of this row's pickers is showing, if any. Null on every other row. */
   readonly openProperty: IssuePropertyKind | null;
+  readonly onExtend: (id: UUID) => void;
+  readonly onToggle: (id: UUID) => void;
   readonly onPick: (kind: IssuePropertyKind, key: string, element: HTMLElement) => void;
   readonly onMenu: (event: MouseEvent, row: IssueRow) => void;
 }
@@ -1150,8 +1361,11 @@ function IssueResult({
   row,
   terms,
   active,
+  selected,
   openProperty,
   onFocus,
+  onExtend,
+  onToggle,
   onPick,
   onMenu,
 }: IssueResultProps) {
@@ -1161,11 +1375,24 @@ function IssueResult({
       to={`/issue/${row.identifier}`}
       role="option"
       aria-selected={active}
+      aria-checked={selected}
       // Out of the tab order: inside a listbox the container holds focus and the cursor is
       // named by aria-activedescendant. Tabbing through a hundred results is not navigation.
       tabIndex={-1}
-      className={[styles.row, active ? styles.active : null].filter(Boolean).join(' ')}
-      onClick={() => onFocus(row.key)}
+      className={[styles.row, selected ? styles.selected : null, active ? styles.active : null]
+        .filter(Boolean)
+        .join(' ')}
+      onClick={(event) => {
+        onFocus(row.key);
+        if (!event.shiftKey && !event.metaKey && !event.ctrlKey) return;
+        // A modifier click selects. Shift-click on an anchor otherwise opens a new window,
+        // and either modifier would also follow the link — the row would be selected on a
+        // screen the reader had just left.
+        event.preventDefault();
+        if (!row.editable) return;
+        if (event.shiftKey) onExtend(row.id);
+        else onToggle(row.id);
+      }}
       onContextMenu={(event) => onMenu(event, row)}
       /*
        * A control inside a link is still inside a link.
