@@ -73,6 +73,7 @@ import {
   type FilterNode,
 } from '~/filter';
 import { copyText } from '~/features/github/copy';
+import { EntityIcon } from '~/features/icon/EntityIcon';
 import { TagGlyph } from '~/features/issue/glyphs';
 import { report, updateIssue, type IssueFields } from '~/features/issue/mutations';
 import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
@@ -86,6 +87,7 @@ import { useContextMenuHandoff } from '~/hooks/useContextMenuHandoff';
 import { useDocumentTitle } from '~/hooks/useDocumentTitle';
 import { LabelPicker } from '~/features/labels/LabelPicker';
 import { applyLabel, removeLabel } from '~/features/labels/mutations';
+import { ProjectGlyph } from '~/features/projects/glyphs';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { FilterBar } from '~/features/view/ui/FilterBar';
 import { applyFilterParam, readFilter } from '~/features/view/ui/filterParam';
@@ -188,6 +190,13 @@ interface IssueRow {
   readonly assigneeAvatar: string | null;
   readonly labels: readonly LabelRef[];
   /**
+   * The project the issue belongs to, drawn as a pill so a result says which piece of work
+   * it is part of — two issues both called "Contactar escolas" in different projects are
+   * otherwise the same row. Null when there is none, or when the replica does not hold the
+   * issue (the search response does not carry it).
+   */
+  readonly project: ProjectRef | null;
+  /**
    * Whether this client can change the issue at all.
    *
    * False for a result the replica does not hold — see `issueRow`, which is the only place
@@ -206,6 +215,13 @@ interface IssueRow {
   readonly stateId: UUID | null;
   readonly projectId: UUID | null;
   readonly labelIds: readonly UUID[];
+}
+
+interface ProjectRef {
+  readonly id: UUID;
+  readonly name: string;
+  readonly icon: string | undefined;
+  readonly color: string | undefined;
 }
 
 interface CommentRow {
@@ -1201,6 +1217,35 @@ function IssueResult({
         </span>
       )}
       <span className={styles.meta}>
+        {/* A button rather than a link to the project: the whole row is already a link, and a
+            link inside a link is not valid markup. Pressing it opens the project picker, the
+            same thing Shift+P does on this row. */}
+        {row.project === null ? null : (
+          <button
+            type="button"
+            className={styles.projectPill}
+            aria-label={row.project.name}
+            title="Set project"
+            aria-haspopup="menu"
+            aria-expanded={openProperty === 'project'}
+            disabled={!row.editable}
+            tabIndex={-1}
+            onClick={(event) => {
+              event.stopPropagation();
+              onPick('project', row.key, event.currentTarget);
+            }}
+          >
+            <span className={styles.projectGlyph}>
+              <EntityIcon
+                icon={row.project.icon}
+                color={row.project.color}
+                fallback={<ProjectGlyph />}
+                size="sm"
+              />
+            </span>
+            <span className={styles.projectName}>{row.project.name}</span>
+          </button>
+        )}
         {/* The labels trigger is a glyph rather than the chips beside it, and it is on every
             row rather than only on the labelled ones: the chips collapse to nothing when an
             issue has none, and a control that disappears on the rows most in need of it is
@@ -1626,6 +1671,7 @@ function issueRow(store: Store, id: UUID, wire: SearchIssue | null): IssueRow | 
       // No labels: the replica does not hold the issue, so it does not hold what is applied
       // to it either — and the API does not populate `Issue.labels`. See `operations.ts`.
       labels: [],
+      project: null,
       /*
        * Not editable, and every id it would be edited by is null.
        *
@@ -1648,6 +1694,7 @@ function issueRow(store: Store, id: UUID, wire: SearchIssue | null): IssueRow | 
   const state = store.workflowStates.get(local.stateId);
   const assignee = local.assigneeId === undefined ? undefined : store.users.get(local.assigneeId);
   const labels = labelsOf(store, local.id);
+  const project = local.projectId === undefined ? undefined : store.projects.get(local.projectId);
 
   return {
     key: `issue-${local.id}`,
@@ -1662,6 +1709,15 @@ function issueRow(store: Store, id: UUID, wire: SearchIssue | null): IssueRow | 
     assigneeName: assignee?.displayName ?? null,
     assigneeAvatar: assignee?.avatarUrl ?? null,
     labels,
+    project:
+      project === undefined
+        ? null
+        : {
+            id: project.id,
+            name: project.name,
+            icon: project.icon || undefined,
+            color: project.color || undefined,
+          },
     // Archived work is frozen: it is out of every list and its properties are not the
     // thing to change from a search result. Everything else in the replica can be written.
     editable: local.archivedAt === undefined,

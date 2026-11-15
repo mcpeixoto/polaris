@@ -217,6 +217,53 @@
 }
 
 /*
+ * The project the issue is in — the issue list's project pill, at the same size, so the two
+ * lists name a project the same way. The wash on hover is `--bg-selected` for the reason
+ * PropertyTrigger gives: the row under the pointer already wears `--bg-hover`.
+ */
+.projectPill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 18ch;
+  height: var(--control-height-pill);
+  padding-inline: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  background: transparent;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-none);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.projectPill:hover:not(:disabled),
+.projectPill[aria-expanded='true'] {
+  background-color: var(--bg-selected);
+  color: var(--text-primary);
+}
+
+.projectPill:disabled {
+  cursor: default;
+}
+
+.projectGlyph {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-tertiary);
+}
+
+.projectName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
  * Unassigned keeps the avatar's footprint rather than collapsing, so the titles above and
  * below end at the same place. A column that jitters every few rows is visible as noise long
  * before anyone works out what is causing it.
