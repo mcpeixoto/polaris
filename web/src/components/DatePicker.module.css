@@ -75,8 +75,14 @@
   min-width: 0;
 }
 
+/*
+ * Wraps because callers add to it: the due date picker puts two SLA buttons beside the clear
+ * one, which together are wider than the panel. Without wrapping, `flex-end` pushed the
+ * overflow out of the left edge of the popover, where "No due date" sat half outside it.
+ */
 .footer {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--space-2);
 }
