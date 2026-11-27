@@ -102,7 +102,8 @@ jobs:
           fi
           names=$(jq -r '.assets[].name' <<<"$rel")
           echo "$names"
-          for want in '\.dmg$' '\.exe$' '\.AppImage$' '^latest\.yml$' '^latest-mac\.yml$' '^latest-linux\.yml$'; do
+          for want in '\.dmg$' '\.exe$' '\.AppImage$' '^latest\.yml$' '^latest-mac\.yml$' '^latest-linux\.yml$' \
+                      '^polaris-runner-.*-darwin-arm64$' '^polaris-runner-.*-linux-amd64$' '^polaris-runner-.*-windows-amd64\.exe$'; do
             grep -qE "$want" <<<"$names" || { echo "::error::$TAG has no asset matching $want"; exit 1; }
           done
           # The version in the filenames must be the tag's, not whatever package.json held.

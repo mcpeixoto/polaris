@@ -266,6 +266,19 @@ func NewRouter(d Deps) http.Handler {
 	mux.Handle("GET /agent/sessions/{id}/stream",
 		RequireWorkspace(d.Limits.GraphQL(http.HandlerFunc(agents.stream))))
 
+	// External agents. The built-in one is the worker; every other app user is a process
+	// that polls these routes with the OAuth token it was installed under. Same budget as
+	// the rest of the authenticated API. A person holding a token is refused in the handler.
+	runner := &runnerHandlers{svc: d.Service}
+	mux.Handle("POST /runner/v1/claim",
+		RequireWorkspace(d.Limits.GraphQL(http.HandlerFunc(runner.claim))))
+	mux.Handle("POST /runner/v1/runs/{id}/heartbeat",
+		RequireWorkspace(d.Limits.GraphQL(http.HandlerFunc(runner.heartbeat))))
+	mux.Handle("POST /runner/v1/runs/{id}/events",
+		RequireWorkspace(d.Limits.GraphQL(http.HandlerFunc(runner.events))))
+	mux.Handle("POST /runner/v1/runs/{id}/finish",
+		RequireWorkspace(d.Limits.GraphQL(http.HandlerFunc(runner.finish))))
+
 	// Uploaded images for paste/drop. Upload needs a workspace principal; download is
 	// authorised by the capability token in the URL (so <img> and a new tab work without
 	// a Bearer header) or by membership when a session is present.

@@ -3030,6 +3030,9 @@ type User struct {
 	// Populated only for the viewer themselves and for admins.
 	Email      *string    `json:"email,omitempty"`
 	LastSeenAt *time.Time `json:"lastSeenAt,omitempty"`
+	// When an external runner last asked for this agent's work. Null for a person, and
+	// for an agent whose runner has never called.
+	AgentLastSeenAt *time.Time `json:"agentLastSeenAt,omitempty"`
 	// Per-channel, per-type delivery toggles. Opaque on purpose: read whole at delivery time
 	// and never filtered on, so a field per toggle would be a schema change every time a
 	// notification type is added.

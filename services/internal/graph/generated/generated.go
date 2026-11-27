@@ -33,6 +33,7 @@ type Config = graphql.Config[ResolverRoot, DirectiveRoot, ComplexityRoot]
 type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
+	User() UserResolver
 }
 
 type DirectiveRoot struct {
@@ -1864,6 +1865,7 @@ type ComplexityRoot struct {
 	}
 
 	User struct {
+		AgentLastSeenAt   func(childComplexity int) int
 		ArchivedAt        func(childComplexity int) int
 		AvatarURL         func(childComplexity int) int
 		CreatedAt         func(childComplexity int) int
@@ -2378,6 +2380,9 @@ type QueryResolver interface {
 	SlackInbound(ctx context.Context) (*SlackInbound, error)
 	CycleCalendarFeed(ctx context.Context, teamID uuid.UUID) (*CycleCalendarFeed, error)
 	CycleCalendarFeedURL(ctx context.Context, teamID uuid.UUID) (*CycleCalendarFeedURL, error)
+}
+type UserResolver interface {
+	AgentLastSeenAt(ctx context.Context, obj *User) (*time.Time, error)
 }
 
 // endregion ************************** generated!.gotpl **************************
@@ -11963,6 +11968,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.TemplateSubIssue.Title(childComplexity), true
 
+	case "User.agentLastSeenAt":
+		if e.ComplexityRoot.User.AgentLastSeenAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.User.AgentLastSeenAt(childComplexity), true
 	case "User.archivedAt":
 		if e.ComplexityRoot.User.ArchivedAt == nil {
 			break
@@ -13189,6 +13200,11 @@ type User {
   """Populated only for the viewer themselves and for admins."""
   email: String
   lastSeenAt: Time
+  """
+  When an external runner last asked for this agent's work. Null for a person, and
+  for an agent whose runner has never called.
+  """
+  agentLastSeenAt: Time
   """
   Per-channel, per-type delivery toggles. Opaque on purpose: read whole at delivery time
   and never filtered on, so a field per toggle would be a schema change every time a
@@ -20119,6 +20135,8 @@ func (ec *executionContext) childFields_User(ctx context.Context, field graphql.
 		return ec.fieldContext_User_email(ctx, field)
 	case "lastSeenAt":
 		return ec.fieldContext_User_lastSeenAt(ctx, field)
+	case "agentLastSeenAt":
+		return ec.fieldContext_User_agentLastSeenAt(ctx, field)
 	case "notificationPrefs":
 		return ec.fieldContext_User_notificationPrefs(ctx, field)
 	case "createdAt":
@@ -67074,6 +67092,29 @@ func (ec *executionContext) fieldContext_User_lastSeenAt(_ context.Context, fiel
 	return graphql.NewScalarFieldContext("User", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
+func (ec *executionContext) _User_agentLastSeenAt(ctx context.Context, field graphql.CollectedField, obj *User) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_User_agentLastSeenAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.User().AgentLastSeenAt(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_User_agentLastSeenAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("User", field, true, true, errors.New("field of type Time does not have child fields"))
+}
+
 func (ec *executionContext) _User_notificationPrefs(ctx context.Context, field graphql.CollectedField, obj *User) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -92512,77 +92553,115 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 		case "id":
 			out.Values[i] = ec._User_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "workspaceId":
 			out.Values[i] = ec._User_workspaceId(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "name":
 			out.Values[i] = ec._User_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "displayName":
 			out.Values[i] = ec._User_displayName(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "avatarUrl":
 			out.Values[i] = ec._User_avatarUrl(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "timezone":
 			out.Values[i] = ec._User_timezone(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "role":
 			out.Values[i] = ec._User_role(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "status":
 			out.Values[i] = ec._User_status(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "kind":
 			out.Values[i] = ec._User_kind(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "email":
 			out.Values[i] = ec._User_email(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "lastSeenAt":
 			out.Values[i] = ec._User_lastSeenAt(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "agentLastSeenAt":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._User_agentLastSeenAt(ctx, field, obj)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "notificationPrefs":
 			out.Values[i] = ec._User_notificationPrefs(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "createdAt":
 			out.Values[i] = ec._User_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "updatedAt":
 			out.Values[i] = ec._User_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "archivedAt":
 			out.Values[i] = ec._User_archivedAt(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))

@@ -6394,13 +6394,36 @@ func (r *queryResolver) CycleCalendarFeedURL(ctx context.Context, teamID uuid.UU
 	}, nil
 }
 
+// AgentLastSeenAt is the resolver for the agentLastSeenAt field.
+//
+// Not a column on the user. A person has none, and an agent has one only after its
+// runner has polled — which is a different fact from lastSeenAt, the session heartbeat.
+func (r *userResolver) AgentLastSeenAt(ctx context.Context, obj *generated.User) (*time.Time, error) {
+	if obj == nil {
+		return nil, nil
+	}
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	seen, err := r.Svc.GetAgentLastSeen(ctx, p, obj.ID)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	return seen, nil
+}
+
 // Mutation returns generated.MutationResolver implementation.
 func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
 
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
+// User returns generated.UserResolver implementation.
+func (r *Resolver) User() generated.UserResolver { return &userResolver{r} }
+
 type (
 	mutationResolver struct{ *Resolver }
 	queryResolver    struct{ *Resolver }
+	userResolver     struct{ *Resolver }
 )

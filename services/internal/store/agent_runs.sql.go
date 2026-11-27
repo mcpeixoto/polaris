@@ -175,6 +175,61 @@ func (q *Queries) GetAgentRunner(ctx context.Context, agentUserID uuid.UUID) (Ag
 	return i, err
 }
 
+const heartbeatAgentRun = `-- name: HeartbeatAgentRun :one
+UPDATE agent_run
+SET heartbeat_at = CASE
+      WHEN status IN ('claimed', 'running') THEN now()
+      ELSE heartbeat_at
+    END,
+    status = CASE WHEN status = 'claimed' THEN 'running' ELSE status END,
+    updated_at = CASE
+      WHEN status IN ('claimed', 'running') THEN now()
+      ELSE updated_at
+    END
+WHERE id = $1
+  AND agent_user_id = $2
+RETURNING id, workspace_id, issue_id, agent_user_id, delegated_by, status, run_after,
+          claimed_at, heartbeat_at, finished_at, session_ref, summary, error,
+          input_tokens, output_tokens, created_at, updated_at
+`
+
+type HeartbeatAgentRunParams struct {
+	ID          uuid.UUID
+	AgentUserID uuid.UUID
+}
+
+// The runner's heartbeat. The first one promotes claimed to running: claim only means
+// a process holds the row, and running means it has started the work.
+//
+// A run that is no longer claimed or running is returned unchanged. The caller has to
+// tell a cancelled run apart from a run that belongs to somebody else — the first answer
+// is "stop", the second is "not yours". Updating only the live rows and returning
+// nothing for the rest would make those the same answer.
+func (q *Queries) HeartbeatAgentRun(ctx context.Context, arg HeartbeatAgentRunParams) (AgentRun, error) {
+	row := q.db.QueryRow(ctx, heartbeatAgentRun, arg.ID, arg.AgentUserID)
+	var i AgentRun
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.IssueID,
+		&i.AgentUserID,
+		&i.DelegatedBy,
+		&i.Status,
+		&i.RunAfter,
+		&i.ClaimedAt,
+		&i.HeartbeatAt,
+		&i.FinishedAt,
+		&i.SessionRef,
+		&i.Summary,
+		&i.Error,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const insertAgentRun = `-- name: InsertAgentRun :one
 
 INSERT INTO agent_run (
@@ -316,10 +371,13 @@ UPDATE agent_run
 SET status = 'done',
     finished_at = now(),
     summary = $1,
-    input_tokens = input_tokens + $2,
-    output_tokens = output_tokens + $3,
+    -- A finish that does not repeat the resume handle must not wipe the one claim
+    -- already stored. The runner sends it when it has one, and omits it otherwise.
+    session_ref = COALESCE($2, session_ref),
+    input_tokens = input_tokens + $3,
+    output_tokens = output_tokens + $4,
     updated_at = now()
-WHERE id = $4
+WHERE id = $5
   AND status IN ('claimed', 'running')
 RETURNING id, workspace_id, issue_id, agent_user_id, delegated_by, status, run_after,
           claimed_at, heartbeat_at, finished_at, session_ref, summary, error,
@@ -328,6 +386,7 @@ RETURNING id, workspace_id, issue_id, agent_user_id, delegated_by, status, run_a
 
 type MarkAgentRunDoneParams struct {
 	Summary      *string
+	SessionRef   *string
 	InputTokens  int64
 	OutputTokens int64
 	ID           uuid.UUID
@@ -336,6 +395,7 @@ type MarkAgentRunDoneParams struct {
 func (q *Queries) MarkAgentRunDone(ctx context.Context, arg MarkAgentRunDoneParams) (AgentRun, error) {
 	row := q.db.QueryRow(ctx, markAgentRunDone,
 		arg.Summary,
+		arg.SessionRef,
 		arg.InputTokens,
 		arg.OutputTokens,
 		arg.ID,
@@ -369,8 +429,11 @@ SET status = 'failed',
     finished_at = now(),
     summary = COALESCE($1, summary),
     error = $2,
+    session_ref = COALESCE($3, session_ref),
+    input_tokens = input_tokens + $4,
+    output_tokens = output_tokens + $5,
     updated_at = now()
-WHERE id = $3
+WHERE id = $6
   AND status IN ('claimed', 'running', 'done')
 RETURNING id, workspace_id, issue_id, agent_user_id, delegated_by, status, run_after,
           claimed_at, heartbeat_at, finished_at, session_ref, summary, error,
@@ -378,15 +441,25 @@ RETURNING id, workspace_id, issue_id, agent_user_id, delegated_by, status, run_a
 `
 
 type MarkAgentRunFailedParams struct {
-	Summary *string
-	Error   *string
-	ID      uuid.UUID
+	Summary      *string
+	Error        *string
+	SessionRef   *string
+	InputTokens  int64
+	OutputTokens int64
+	ID           uuid.UUID
 }
 
 // A failure after the run was already marked done is still a failure: automatic apply can
 // succeed at writing the turn and then fail a step, and the run should say so.
 func (q *Queries) MarkAgentRunFailed(ctx context.Context, arg MarkAgentRunFailedParams) (AgentRun, error) {
-	row := q.db.QueryRow(ctx, markAgentRunFailed, arg.Summary, arg.Error, arg.ID)
+	row := q.db.QueryRow(ctx, markAgentRunFailed,
+		arg.Summary,
+		arg.Error,
+		arg.SessionRef,
+		arg.InputTokens,
+		arg.OutputTokens,
+		arg.ID,
+	)
 	var i AgentRun
 	err := row.Scan(
 		&i.ID,
