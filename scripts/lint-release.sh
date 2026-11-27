@@ -42,7 +42,8 @@ fi
 # Publishing must be gated on the build matrix. Without `needs: build` the publish job runs
 # beside the platforms rather than after them, and a release goes out holding whichever
 # artefacts happened to have finished uploading.
-awk '/^  publish:/{p=1} p&&/needs: build/{found=1} END{exit !found}' "$desktop" \
+# A list counts too, as long as `build` is in it: publish also waits for the runner binaries.
+awk '/^  publish:/{p=1} p&&/needs: *(build *$|\[(.*[ ,])?build *[],])/{found=1} END{exit !found}' "$desktop" \
   || note "$desktop: the publish job is not gated on \`needs: build\`, so a partial release can be published"
 
 # The iOS version has to come from the tag. project.yml still carries literals — that is
