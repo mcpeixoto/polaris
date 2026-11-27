@@ -351,7 +351,12 @@ func writeRateLimited(w http.ResponseWriter, r *http.Request, d ratelimit.Decisi
 
 func isGraphQLPath(p string) bool { return p == "/graphql" }
 
-func isMCPPath(p string) bool { return p == "/mcp" || p == "/mcp/readonly" }
+// /mcp/catalog is the same JSON-RPC transport with a shorter tool list. A 429 there
+// has to be a JSON-RPC error too, or the client that connected to it gets a body it
+// cannot parse — the same defect this switch exists to avoid on /mcp.
+func isMCPPath(p string) bool {
+	return p == "/mcp" || p == "/mcp/readonly" || p == "/mcp/catalog"
+}
 
 // writeGraphQLRateLimited emits the envelope docs/03-platform/01-graphql-api.md publishes:
 // a top-level errors array whose extensions.code is the thing clients are told to branch on.

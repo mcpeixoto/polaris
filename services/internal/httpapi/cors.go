@@ -86,6 +86,7 @@ func isPublicCORSPath(path string) bool {
 	switch strings.TrimSuffix(path, "/") {
 	case "/mcp",
 		"/mcp/readonly",
+		"/mcp/catalog",
 		"/oauth/register",
 		"/oauth/token",
 		"/oauth/revoke",

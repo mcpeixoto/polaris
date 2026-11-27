@@ -57,6 +57,7 @@ var commentWriteTools = []Tool{
 		InputSchema: objectSchema(map[string]any{
 			"id": stringSchema("Comment UUID"),
 		}, []string{"id"}),
+		Destructive: true,
 		Run: func(ctx context.Context, svc *domain.Service, p *authz.Principal, args map[string]any) (any, error) {
 			id, err := commentID(args)
 			if err != nil {

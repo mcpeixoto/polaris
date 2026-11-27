@@ -212,6 +212,7 @@ var issueWriteTools = []Tool{
 			"id":       stringSchema("Issue UUID or ENG-123 identifier"),
 			"archived": boolSchema("True to archive (default), false to restore"),
 		}, []string{"id"}),
+		Destructive: true,
 		Run: func(ctx context.Context, svc *domain.Service, p *authz.Principal, args map[string]any) (any, error) {
 			issue, err := resolveIssue(ctx, svc, p, "id", strArg(args, "id"))
 			if err != nil {

@@ -25,6 +25,7 @@ export function McpSettings() {
   const origin = window.location.origin;
   const mcpUrl = `${origin}/mcp`;
   const readonlyUrl = `${origin}/mcp/readonly`;
+  const catalogUrl = `${origin}/mcp/catalog`;
   const claude = `claude mcp add --transport http polaris ${mcpUrl}`;
   const cursorHref = cursorMcpInstallHref(origin);
   const cursorSnippet = cursorMcpSnippet(origin);
@@ -33,7 +34,7 @@ export function McpSettings() {
     <SettingsPage title="MCP">
       <SettingsSection
         title="Connect a client"
-        description="Polaris speaks Streamable HTTP MCP. Point a client at the read-write URL and it will open a browser for you to approve the connection. The read-only URL never exposes write tools."
+        description="Polaris speaks Streamable HTTP MCP. Point a client at the read-write URL and it will open a browser for you to approve the connection. The read-only URL never exposes write tools. The short-list URL lists nine everyday tools and finds the rest on request, so a client spends less of its context on tool definitions."
       >
         <SettingsRow>
           <p className={styles.note}>
@@ -46,6 +47,7 @@ export function McpSettings() {
       <SettingsSection title="Endpoints">
         <Endpoint label="Read and write" value={mcpUrl} copyLabel="Copy URL" />
         <Endpoint label="Read only" value={readonlyUrl} copyLabel="Copy URL" />
+        <Endpoint label="Short tool list" value={catalogUrl} copyLabel="Copy URL" />
       </SettingsSection>
 
       <SettingsSection

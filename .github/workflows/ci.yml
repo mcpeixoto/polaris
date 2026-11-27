@@ -673,7 +673,7 @@ jobs:
           # for Claude and for no other client, and it would pair credentials with an
           # origin on a surface that has none.
           fail=0
-          for path in /mcp /mcp/readonly /oauth/register /oauth/token \
+          for path in /mcp /mcp/readonly /mcp/catalog /oauth/register /oauth/token \
                       /.well-known/oauth-authorization-server \
                       /.well-known/oauth-protected-resource; do
             headers=$(curl -s -o /dev/null -D - --max-time 10 -X OPTIONS "$BASE_URL$path" \
