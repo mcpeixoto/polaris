@@ -1,30 +1,46 @@
 <div align="center">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/logo-dark.svg">
-  <img src=".github/assets/logo-light.svg" alt="Polaris" width="300">
-</picture>
+<a href="https://polaris.peixotolabs.com">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/hero-dark.webp">
+    <img src=".github/assets/hero-light.webp" alt="Polaris — the open-source alternative to Linear, Jira and Azure DevOps" width="100%">
+  </picture>
+</a>
 
-### Issue tracking without the wait.
+<h3>The open-source alternative to Linear, Jira and Azure DevOps Boards.</h3>
 
 Keyboard-first, local-first issue tracking for software teams.<br>
-Your whole workspace lives on your machine, so filtering, sorting and grouping<br>take a keystroke — not a round trip.
+Your whole workspace lives on your machine, so filtering, sorting and grouping<br>take a keystroke — not a round trip. Self-host it free with unlimited seats, or use our EU cloud.
 
-[**Website**](https://polaris.peixotolabs.com) · [**Pricing**](https://polaris.peixotolabs.com/pricing) · [**Self-hosting guide**](docs/05-infrastructure/11-self-hosting.md) · [**Docs**](docs/)
+<p>
+  <a href="https://polaris.peixotolabs.com"><b>Website</b></a> ·
+  <a href="https://polaris.peixotolabs.com/signup"><b>Try the cloud</b></a> ·
+  <a href="docs/05-infrastructure/11-self-hosting.md"><b>Self-host</b></a> ·
+  <a href="docs/"><b>Docs</b></a> ·
+  <a href="https://polaris.peixotolabs.com/pricing"><b>Pricing</b></a> ·
+  <a href="https://github.com/mcpeixoto/polaris/discussions"><b>Discussions</b></a>
+</p>
+
+[![GitHub stars](https://img.shields.io/github/stars/mcpeixoto/polaris?style=flat&color=087f91)](https://github.com/mcpeixoto/polaris/stargazers) [![Latest release](https://img.shields.io/github/v/release/mcpeixoto/polaris?color=087f91)](https://github.com/mcpeixoto/polaris/releases/latest) [![Downloads](https://img.shields.io/github/downloads/mcpeixoto/polaris/total?color=087f91)](https://github.com/mcpeixoto/polaris/releases) [![CI](https://github.com/mcpeixoto/polaris/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/mcpeixoto/polaris/actions/workflows/ci.yml) [![Licence: AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-087f91)](LICENSE) [![Go 1.26](https://img.shields.io/badge/go-1.26-00ADD8)](services/go.mod) [![Self-host: free, unlimited seats](https://img.shields.io/badge/self--host-free%20%C2%B7%20unlimited%20seats-087f91)](docs/05-infrastructure/11-self-hosting.md)
 
 **Download** — [macOS Apple Silicon](https://github.com/mcpeixoto/polaris/releases/latest/download/Polaris-mac-arm64.dmg) · [macOS Intel](https://github.com/mcpeixoto/polaris/releases/latest/download/Polaris-mac-x64.dmg) · [Windows](https://github.com/mcpeixoto/polaris/releases/latest/download/Polaris-Setup.exe) · [Linux AppImage](https://github.com/mcpeixoto/polaris/releases/latest/download/Polaris-linux-x86_64.AppImage) · [.deb](https://github.com/mcpeixoto/polaris/releases/latest/download/polaris-amd64.deb)
 
 <sub>The mac and Windows builds are not signed yet, so the first launch needs right-click → Open on macOS, or More info → Run anyway on Windows.</sub>
 
-[![CI](https://github.com/mcpeixoto/polaris/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/mcpeixoto/polaris/actions/workflows/ci.yml) [![Licence: AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-087f91)](LICENSE) [![Go 1.26](https://img.shields.io/badge/go-1.26-00ADD8)](services/go.mod) [![Self-host: free, unlimited seats](https://img.shields.io/badge/self--host-free%20%C2%B7%20unlimited%20seats-087f91)](docs/05-infrastructure/11-self-hosting.md)
-
 </div>
 
 ---
 
-Most trackers put a network request between you and your own backlog. Polaris keeps a full
-replica of your workspace in the browser and answers from it: the server's job is to keep
-that replica true, not to be asked permission for a sort.
+## Why Polaris
+
+- **Fast because it is local.** Polaris keeps a full replica of your workspace in the browser
+  and answers from it — the server's job is to keep that replica true, not to be asked
+  permission for a sort.
+- **Yours to run.** One Compose file, free under the AGPL, with no ceiling on seats, teams or history.
+- **Open, not a demo.** The core is AGPL-3.0. The public GraphQL API is the same API the
+  product itself uses — there is no private backdoor.
+- **Built for agents too.** An MCP server, an in-app agent, OAuth apps, personal API keys and
+  signed webhooks come in the box.
 
 Measured against a 50 ms budget, not asserted:
 
@@ -33,6 +49,29 @@ Measured against a 50 ms budget, not asserted:
 | Filter, group and sort 5,000 issues with four active clauses | **0.2 ms** |
 | Full workspace snapshot | **24 ms**, 20 KB gzipped |
 | Local commit to the rest of the team seeing it | **< 100 ms** |
+
+## How it compares
+
+| | Polaris | Linear | Jira | Azure DevOps Boards |
+|---|:---:|:---:|:---:|:---:|
+| Open source | ✅ AGPL-3.0 | ❌ | ❌ | ❌ |
+| Self-host for free, any team size | ✅ unlimited seats | ❌ cloud only | ❌ Data Center is paid | ❌ free Express tier is for 5 users or fewer |
+| Local-first — reads from an on-device replica | ✅ | ✅ | ❌ | ❌ |
+
+<sub>Accurate to the best of our knowledge on 2026-11-27 — if something has changed, a PR with
+a source is welcome. Linear, Jira and Azure DevOps are trademarks of their respective owners;
+see [`TRADEMARK.md`](TRADEMARK.md).</sub>
+
+<table>
+  <tr>
+    <td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/screenshots/issues-dark.webp"><img src=".github/assets/screenshots/issues-light.webp" alt="Issue list grouped by status"></picture><p align="center"><sub><b>Issue list</b> — grouped, filtered and sorted locally</sub></p></td>
+    <td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/screenshots/board-dark.webp"><img src=".github/assets/screenshots/board-light.webp" alt="Board view"></picture><p align="center"><sub><b>Board</b> — the same view, one keystroke away</sub></p></td>
+  </tr>
+  <tr>
+    <td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/screenshots/peek-dark.webp"><img src=".github/assets/screenshots/peek-light.webp" alt="Issue peek panel"></picture><p align="center"><sub><b>Peek</b> — <code>Space</code> opens an issue without leaving the list</sub></p></td>
+    <td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/screenshots/command-dark.webp"><img src=".github/assets/screenshots/command-light.webp" alt="Command menu"></picture><p align="center"><sub><b>Command menu</b> — <code>⌘K</code> for every action</sub></p></td>
+  </tr>
+</table>
 
 ## Try it
 
@@ -47,6 +86,9 @@ http://localhost:5173/ and it opens as the seed account — no login form.
 
 Run them separately with `make api`, `make sync`, `make worker`, `make web`. The worker is
 what turns changes into inbox notifications; skip it and the inbox stays empty.
+
+Or skip the setup: [**polaris.peixotolabs.com**](https://polaris.peixotolabs.com/signup) is the
+hosted version, EU-only.
 
 ## Self-host it
 
@@ -150,16 +192,6 @@ running product. Polaris makes its own decisions — see `docs/05-infrastructure
 with the sync engine and the permission model. See [`NOTICE`](NOTICE) and
 [`TRADEMARK.md`](TRADEMARK.md).
 
-## Privacy
-
-Polaris has no ads and no tracking SDK. The iOS app sends one anonymous usage count a day: a
-random id made for that alone, the platform, app and OS version, the language setting, and how
-many sessions, issues created and comments posted since the last one — never their content.
-The server reads the country from the connection and never stores the IP address. It is on by
-default and off with "Share anonymous usage stats" in Settings, which also forgets the id. The
-code is [`Metrics.swift`](ios/PolarisCore/Sources/PolarisCore/Metrics/Metrics.swift); the
-policy is [`privacy.html`](web/public/privacy.html).
-
 ## Licence
 
 The core is [**AGPL-3.0**](LICENSE). Enterprise features live in [`ee/`](ee/) under a
@@ -175,5 +207,22 @@ them. See [`docs/06-product-model/02-plans-and-packaging.md`](docs/06-product-mo
 [`CONTRIBUTING.md`](CONTRIBUTING.md) has the shape of it, and
 [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) the rest. Security reports go to
 [`SECURITY.md`](SECURITY.md) — please do not open a public issue for one.
+Questions and ideas go to [Discussions](https://github.com/mcpeixoto/polaris/discussions).
 
 Before you push: `make check`.
+
+<a href="https://github.com/mcpeixoto/polaris/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=mcpeixoto/polaris" alt="Contributors">
+</a>
+
+## Star history
+
+If Polaris is useful to you, a ⭐ helps other teams find it — and **Watch → Custom → Releases**
+gets you every release the moment it ships.
+
+<a href="https://star-history.com/#mcpeixoto/polaris&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=mcpeixoto/polaris&type=Date&theme=dark">
+    <img src="https://api.star-history.com/svg?repos=mcpeixoto/polaris&type=Date" alt="Star history chart" width="600">
+  </picture>
+</a>
