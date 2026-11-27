@@ -550,7 +550,7 @@ func (r *Resolver) hydrateIssues(ctx context.Context, p *authz.Principal, sel se
 		}
 	}
 
-	if sel.has("assignee") || sel.has("creator") {
+	if sel.has("assignee") || sel.has("creator") || sel.has("delegate") {
 		users, err := l.allUsers(ctx, p)
 		if err != nil {
 			return nil, err
@@ -583,9 +583,15 @@ func (r *Resolver) hydrateIssues(ctx context.Context, p *authz.Principal, sel se
 		// pattern is the one project/projectMilestone below already uses.
 		wantAssignee := sel.has("assignee")
 		wantCreator := sel.has("creator")
+		wantDelegate := sel.has("delegate")
 		for k, i := range issues {
 			if wantAssignee {
 				if out[k].Assignee, err = pick(i.AssigneeID); err != nil {
+					return nil, err
+				}
+			}
+			if wantDelegate {
+				if out[k].Delegate, err = pick(i.DelegateID); err != nil {
 					return nil, err
 				}
 			}

@@ -65,6 +65,8 @@ var notInTheAPI = map[string]string{
 	"AddAgentTurn":            "written by a run, not a request: internal/agent stores what the model answered",
 	"MarkAgentSessionFailed":  "written by a run when it gives up; there is no turn to show, only a reason",
 	"StartQueuedAgentRun":     "worker claim: takes the oldest queued conversation, FOR UPDATE SKIP LOCKED",
+	"StartDueDelegatedRun":    "worker cron: claims one due built-in delegation and opens its session",
+	"EnsureAgentIdentities":   "worker cron: mints the built-in agent for workspaces that predate it",
 
 	// Registration is unauthenticated by specification (RFC 7591): the client is asking
 	// for an identity before anybody has signed in, so there is no session for a GraphQL

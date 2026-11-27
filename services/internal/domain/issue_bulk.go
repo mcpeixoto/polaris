@@ -74,6 +74,9 @@ type BulkUpdateIssuesInput struct {
 	AssigneeID    *uuid.UUID
 	ClearAssignee bool
 
+	DelegateID    *uuid.UUID
+	ClearDelegate bool
+
 	Priority *int
 
 	Estimate      *int
@@ -117,13 +120,18 @@ func (s *Service) BulkUpdateIssues(
 	if in.AssigneeID != nil && in.ClearAssignee {
 		return nil, nil, 0, platform.Validation("assigneeId", "cannot set and clear the assignee in one call")
 	}
+	if in.DelegateID != nil && in.ClearDelegate {
+		// COPY: cannot set and clear the delegate in one call
+		return nil, nil, 0, platform.Validation("delegateId", "cannot set and clear the delegate in one call")
+	}
 	if in.Estimate != nil && in.ClearEstimate {
 		return nil, nil, 0, platform.Validation("estimate", "cannot set and clear the estimate in one call")
 	}
 	if in.DueDate != nil && in.ClearDueDate {
 		return nil, nil, 0, platform.Validation("dueDate", "cannot set and clear the due date in one call")
 	}
-	if in.StateID == nil && in.AssigneeID == nil && !in.ClearAssignee && in.Priority == nil &&
+	if in.StateID == nil && in.AssigneeID == nil && !in.ClearAssignee &&
+		in.DelegateID == nil && !in.ClearDelegate && in.Priority == nil &&
 		in.Estimate == nil && !in.ClearEstimate && in.DueDate == nil && !in.ClearDueDate &&
 		len(in.AddLabelIDs) == 0 && len(in.RemoveLabelIDs) == 0 {
 		// Otherwise this writes every selected row, bumps the version and wakes every
@@ -166,6 +174,7 @@ func (s *Service) BulkUpdateIssues(
 
 		teams := map[uuid.UUID]store.Team{}
 		assigneeChecked := map[uuid.UUID]bool{}
+		delegateChecked := map[uuid.UUID]bool{}
 		seen := map[uuid.UUID]bool{}
 		before := make([]store.GetIssueRow, 0, len(in.IDs))
 
@@ -226,6 +235,12 @@ func (s *Service) BulkUpdateIssues(
 					return err
 				}
 				assigneeChecked[row.TeamID] = true
+			}
+			if in.DelegateID != nil && !delegateChecked[row.TeamID] {
+				if err := s.validateDelegate(ctx, q, p, row.TeamID, in.DelegateID); err != nil {
+					return err
+				}
+				delegateChecked[row.TeamID] = true
 			}
 
 			before = append(before, row)
@@ -290,6 +305,8 @@ func (s *Service) BulkUpdateIssues(
 			Priority:      priority,
 			ClearAssignee: in.ClearAssignee,
 			AssigneeID:    in.AssigneeID,
+			ClearDelegate: in.ClearDelegate,
+			DelegateID:    in.DelegateID,
 			ClearEstimate: in.ClearEstimate,
 			Estimate:      estimate,
 			ClearDueDate:  in.ClearDueDate,
@@ -326,6 +343,17 @@ func (s *Service) BulkUpdateIssues(
 		beforeByID := make(map[uuid.UUID]store.GetIssueRow, len(before))
 		for _, row := range before {
 			beforeByID[row.ID] = row
+		}
+
+		if in.DelegateID != nil || in.ClearDelegate {
+			for _, row := range rows {
+				if equalUUIDPtr(beforeByID[row.ID].DelegateID, row.DelegateID) {
+					continue
+				}
+				if err := s.queueDelegation(ctx, q, p, row.ID, row.DelegateID); err != nil {
+					return err
+				}
+			}
 		}
 
 		// What this edit set, the same for every row in it — which is what a bulk edit is.
@@ -428,6 +456,7 @@ func (s *Service) BulkUpdateIssues(
 // that only moves labels must leave the issue row — and its updated_at — alone.
 func bulkTouchesTheIssueRow(in BulkUpdateIssuesInput) bool {
 	return in.StateID != nil || in.AssigneeID != nil || in.ClearAssignee ||
+		in.DelegateID != nil || in.ClearDelegate ||
 		in.Priority != nil || in.Estimate != nil || in.ClearEstimate ||
 		in.DueDate != nil || in.ClearDueDate
 }
@@ -585,6 +614,9 @@ func bulkChangedFields(in BulkUpdateIssuesInput) []string {
 	if in.AssigneeID != nil || in.ClearAssignee {
 		fields = append(fields, notify.FieldAssignee)
 	}
+	if in.DelegateID != nil || in.ClearDelegate {
+		fields = append(fields, notify.FieldDelegate)
+	}
 	if in.Priority != nil {
 		fields = append(fields, notify.FieldPriority)
 	}
@@ -622,6 +654,11 @@ func bulkHistoryEntries(
 	if !equalUUIDPtr(before.AssigneeID, after.AssigneeID) {
 		entries = append(entries, HistoryEntry{
 			IssueID: after.ID, Kind: "assignee", FromValue: before.AssigneeID, ToValue: after.AssigneeID,
+		})
+	}
+	if !equalUUIDPtr(before.DelegateID, after.DelegateID) {
+		entries = append(entries, HistoryEntry{
+			IssueID: after.ID, Kind: "delegate", FromValue: before.DelegateID, ToValue: after.DelegateID,
 		})
 	}
 	if before.Priority != after.Priority {

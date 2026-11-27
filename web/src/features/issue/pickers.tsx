@@ -162,6 +162,47 @@ export function AssigneePicker({
   );
 }
 
+export interface DelegatePickerProps extends PickerProps {
+  /** The delegate, `null` for none, `undefined` when the targets disagree. */
+  value: UUID | null | Mixed;
+  onSelect: (delegateId: UUID | null) => void;
+}
+
+/**
+ * Agents in the workspace, filterable, with nobody at the top.
+ *
+ * The same list as `AssigneePicker`, narrowed to app users. A person cannot be a
+ * delegate — the server rejects the write — and offering one would be a choice that
+ * can only fail. The built-in Polaris agent and an installed OAuth app are both that
+ * kind, so one filter covers both.
+ */
+export function DelegatePicker({
+  open,
+  onClose,
+  trigger,
+  placement,
+  value,
+  onSelect,
+}: DelegatePickerProps) {
+  return (
+    <UserPicker
+      open={open}
+      onClose={onClose}
+      trigger={trigger}
+      placement={placement}
+      value={value}
+      onSelect={onSelect}
+      kinds={['app']}
+      // COPY: "Delegate"
+      label="Delegate"
+      // COPY: "No agent"
+      noneLabel="No agent"
+      // COPY: "Delegate to an agent…"
+      filterPlaceholder="Delegate to an agent…"
+    />
+  );
+}
+
 export interface PriorityPickerProps extends PickerProps {
   /** The priority, or `undefined` when the targets disagree. */
   value: number | Mixed;

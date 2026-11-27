@@ -273,6 +273,7 @@ func (f *Fixture) NewIssue(t *testing.T, title string) uuid.UUID {
 			CreatorID:   &f.UserID,
 			Priority:    0,
 			SortOrder:   fmt.Sprintf("a%04d", n),
+			DelegateID:  nil,
 		})
 		return err
 	})

@@ -21,6 +21,7 @@ export const ISSUE_FIELDS = /* GraphQL */ `
     description
     stateId
     assigneeId
+    delegateId
     creatorId
     priority
     sortOrder

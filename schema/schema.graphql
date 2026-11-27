@@ -423,6 +423,11 @@ type Issue {
   description: String!
   stateId: UUID!
   assigneeId: UUID
+  """
+  The agent working this issue. The assignee stays the owner; the delegate is who was
+  asked to do the work. Only an app user can be a delegate.
+  """
+  delegateId: UUID
   creatorId: UUID
   """0 none, 1 urgent, 2 high, 3 medium, 4 low. A fixed scale."""
   priority: Int!
@@ -484,6 +489,8 @@ type Issue {
   state: WorkflowState!
   team: Team!
   assignee: User
+  """The agent named by delegateId, when one is set."""
+  delegate: User
   creator: User
   comments: [Comment!]!
   history: [IssueHistoryEntry!]!
@@ -2715,6 +2722,13 @@ input CreateIssueInput {
   description: String
   stateId: UUID
   assigneeId: UUID
+  """The agent to put on the issue. Only an app user is accepted."""
+  delegateId: UUID
+  """
+  Explicitly clear the delegate. A null delegateId means "leave it alone", including on
+  create, where there is nothing to clear.
+  """
+  clearDelegate: Boolean
   priority: Int
   estimate: Int
   """A calendar day, `2006-01-02`."""
@@ -2758,6 +2772,13 @@ input UpdateIssueInput {
   "leave it alone" in a partial update.
   """
   clearAssignee: Boolean
+  """The agent to put on the issue. Only an app user is accepted."""
+  delegateId: UUID
+  """
+  Explicitly clear the delegate. Needed because a null delegateId is indistinguishable
+  from "leave it alone" in a partial update.
+  """
+  clearDelegate: Boolean
   estimate: Int
   """Same reason as clearAssignee: null means "leave it alone"."""
   clearEstimate: Boolean
@@ -2789,6 +2810,10 @@ input BulkUpdateIssuesInput {
   stateId: UUID
   assigneeId: UUID
   clearAssignee: Boolean
+  """The agent to put on every selected issue. Only an app user is accepted."""
+  delegateId: UUID
+  """Explicitly clear the delegate on every selected issue."""
+  clearDelegate: Boolean
   priority: Int
   estimate: Int
   clearEstimate: Boolean

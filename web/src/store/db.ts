@@ -161,8 +161,10 @@ import {
  * v54 adds reaction (emoji on comments and issues). It shipped without this bump, and
  * every replica built before it then had no `reaction` store while every read and write
  * names one — so the workspace did not degrade, it failed to open at all.
+ * v55 adds issue.delegateId. An old replica would learn the field only on issues that
+ * changed after the upgrade, and the rest would look as though nobody was delegated.
  */
-export const CLIENT_SCHEMA = 54;
+export const CLIENT_SCHEMA = 55;
 
 /**
  * One database per workspace per schema version.

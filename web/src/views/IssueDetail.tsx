@@ -100,7 +100,12 @@ import {
 } from '~/features/issue/glyphs';
 import { applyLabel, removeLabel } from '~/features/labels/mutations';
 import { LabelPicker } from '~/features/labels/LabelPicker';
-import { AssigneePicker, PriorityPicker, StatusPicker } from '~/features/issue/pickers';
+import {
+  AssigneePicker,
+  DelegatePicker,
+  PriorityPicker,
+  StatusPicker,
+} from '~/features/issue/pickers';
 import { CyclePicker } from '~/features/cycles/CyclePicker';
 import { ProjectPicker } from '~/features/projects/ProjectPicker';
 import { DueDatePicker, DueDateValue, EstimatePicker } from '~/features/issue/properties';
@@ -206,6 +211,8 @@ export function IssueDetail() {
       const state = store.workflowStates.get(found.stateId);
       const assignee =
         found.assigneeId === undefined ? undefined : store.users.get(found.assigneeId);
+      const delegate =
+        found.delegateId === undefined ? undefined : store.users.get(found.delegateId);
       const creator = found.creatorId === undefined ? undefined : store.users.get(found.creatorId);
       const team = store.teams.get(found.teamId);
       return {
@@ -224,6 +231,9 @@ export function IssueDetail() {
         assigneeId: found.assigneeId ?? null,
         assigneeName: assignee === undefined ? null : personName(assignee),
         assigneeAvatar: assignee?.avatarUrl ?? null,
+        delegateId: found.delegateId ?? null,
+        delegateName: delegate === undefined ? null : personName(delegate),
+        delegateAvatar: delegate?.avatarUrl ?? null,
         creatorName: creator === undefined ? null : personName(creator),
         createdAt: found.createdAt,
         archived: found.archivedAt !== undefined,
@@ -338,6 +348,7 @@ export function IssueDetail() {
 
   const status = useMenuTrigger();
   const assignee = useMenuTrigger();
+  const delegate = useMenuTrigger();
   const priority = useMenuTrigger();
   const estimate = useMenuTrigger();
   // `dialog`, because that is what `DueDatePicker` renders: a panel with a text field and a
@@ -1341,6 +1352,41 @@ export function IssueDetail() {
             </Button>
           </div>
 
+          <div className={styles.property}>
+            <span
+              className={styles.srOnly}
+              id={`${issue.id}-delegate-label`}
+              // COPY: "Delegate"
+            >
+              Delegate
+            </span>
+            <Button
+              {...delegate.props}
+              variant="ghost"
+              fullWidth
+              className={styles.propertyTrigger}
+              aria-describedby={`${issue.id}-delegate-label`}
+              icon={
+                issue.delegateName === null ? (
+                  <UnassignedGlyph width="14" height="14" />
+                ) : (
+                  <Avatar
+                    name={issue.delegateName}
+                    src={issue.delegateAvatar}
+                    size="xs"
+                    colorKey={issue.delegateId ?? issue.delegateName}
+                    decorative
+                  />
+                )
+              }
+            >
+              {issue.delegateName ?? (
+                // COPY: "No agent"
+                <span className={styles.unset}>No agent</span>
+              )}
+            </Button>
+          </div>
+
           {/* Absent entirely for a team whose scale is `none`, rather than shown disabled: a
               team that has decided not to estimate should not have a permanently empty
               estimate field on every issue reminding them of the decision. */}
@@ -1535,6 +1581,14 @@ export function IssueDetail() {
         value={issue.assigneeId}
         placement="bottom-end"
         onSelect={(assigneeId) => updateIssue(engine, issue.id, { assigneeId }).catch(report)}
+      />
+      <DelegatePicker
+        open={delegate.open}
+        onClose={delegate.hide}
+        trigger={delegate.ref}
+        value={issue.delegateId}
+        placement="bottom-end"
+        onSelect={(delegateId) => updateIssue(engine, issue.id, { delegateId }).catch(report)}
       />
       <PriorityPicker
         open={priority.open}

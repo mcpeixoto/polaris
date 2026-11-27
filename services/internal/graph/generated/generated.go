@@ -810,6 +810,8 @@ type ComplexityRoot struct {
 		CreatorID          func(childComplexity int) int
 		Cycle              func(childComplexity int) int
 		CycleID            func(childComplexity int) int
+		Delegate           func(childComplexity int) int
+		DelegateID         func(childComplexity int) int
 		DeletedAt          func(childComplexity int) int
 		DeletedBy          func(childComplexity int) int
 		Description        func(childComplexity int) int
@@ -5542,6 +5544,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Issue.CycleID(childComplexity), true
+	case "Issue.delegate":
+		if e.ComplexityRoot.Issue.Delegate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Issue.Delegate(childComplexity), true
+	case "Issue.delegateId":
+		if e.ComplexityRoot.Issue.DelegateID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Issue.DelegateID(childComplexity), true
 	case "Issue.deletedAt":
 		if e.ComplexityRoot.Issue.DeletedAt == nil {
 			break
@@ -13229,6 +13243,11 @@ type Issue {
   description: String!
   stateId: UUID!
   assigneeId: UUID
+  """
+  The agent working this issue. The assignee stays the owner; the delegate is who was
+  asked to do the work. Only an app user can be a delegate.
+  """
+  delegateId: UUID
   creatorId: UUID
   """0 none, 1 urgent, 2 high, 3 medium, 4 low. A fixed scale."""
   priority: Int!
@@ -13290,6 +13309,8 @@ type Issue {
   state: WorkflowState!
   team: Team!
   assignee: User
+  """The agent named by delegateId, when one is set."""
+  delegate: User
   creator: User
   comments: [Comment!]!
   history: [IssueHistoryEntry!]!
@@ -15521,6 +15542,13 @@ input CreateIssueInput {
   description: String
   stateId: UUID
   assigneeId: UUID
+  """The agent to put on the issue. Only an app user is accepted."""
+  delegateId: UUID
+  """
+  Explicitly clear the delegate. A null delegateId means "leave it alone", including on
+  create, where there is nothing to clear.
+  """
+  clearDelegate: Boolean
   priority: Int
   estimate: Int
   """A calendar day, ` + "`" + `2006-01-02` + "`" + `."""
@@ -15564,6 +15592,13 @@ input UpdateIssueInput {
   "leave it alone" in a partial update.
   """
   clearAssignee: Boolean
+  """The agent to put on the issue. Only an app user is accepted."""
+  delegateId: UUID
+  """
+  Explicitly clear the delegate. Needed because a null delegateId is indistinguishable
+  from "leave it alone" in a partial update.
+  """
+  clearDelegate: Boolean
   estimate: Int
   """Same reason as clearAssignee: null means "leave it alone"."""
   clearEstimate: Boolean
@@ -15595,6 +15630,10 @@ input BulkUpdateIssuesInput {
   stateId: UUID
   assigneeId: UUID
   clearAssignee: Boolean
+  """The agent to put on every selected issue. Only an app user is accepted."""
+  delegateId: UUID
+  """Explicitly clear the delegate on every selected issue."""
+  clearDelegate: Boolean
   priority: Int
   estimate: Int
   clearEstimate: Boolean
@@ -18446,6 +18485,8 @@ func (ec *executionContext) childFields_Issue(ctx context.Context, field graphql
 		return ec.fieldContext_Issue_stateId(ctx, field)
 	case "assigneeId":
 		return ec.fieldContext_Issue_assigneeId(ctx, field)
+	case "delegateId":
+		return ec.fieldContext_Issue_delegateId(ctx, field)
 	case "creatorId":
 		return ec.fieldContext_Issue_creatorId(ctx, field)
 	case "priority":
@@ -18500,6 +18541,8 @@ func (ec *executionContext) childFields_Issue(ctx context.Context, field graphql
 		return ec.fieldContext_Issue_team(ctx, field)
 	case "assignee":
 		return ec.fieldContext_Issue_assignee(ctx, field)
+	case "delegate":
+		return ec.fieldContext_Issue_delegate(ctx, field)
 	case "creator":
 		return ec.fieldContext_Issue_creator(ctx, field)
 	case "comments":
@@ -38884,6 +38927,29 @@ func (ec *executionContext) fieldContext_Issue_assigneeId(_ context.Context, fie
 	return graphql.NewScalarFieldContext("Issue", field, false, false, errors.New("field of type UUID does not have child fields"))
 }
 
+func (ec *executionContext) _Issue_delegateId(ctx context.Context, field graphql.CollectedField, obj *Issue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Issue_delegateId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DelegateID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Issue_delegateId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Issue", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
 func (ec *executionContext) _Issue_creatorId(ctx context.Context, field graphql.CollectedField, obj *Issue) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -39520,6 +39586,38 @@ func (ec *executionContext) _Issue_assignee(ctx context.Context, field graphql.C
 	)
 }
 func (ec *executionContext) fieldContext_Issue_assignee(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Issue",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_User(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Issue_delegate(ctx context.Context, field graphql.CollectedField, obj *Issue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Issue_delegate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Delegate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *User) graphql.Marshaler {
+			return ec.marshalOUser2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐUser(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Issue_delegate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Issue",
 		Field:      field,
@@ -70283,7 +70381,7 @@ func (ec *executionContext) unmarshalInputBulkUpdateIssuesInput(ctx context.Cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"ids", "stateId", "assigneeId", "clearAssignee", "priority", "estimate", "clearEstimate", "dueDate", "clearDueDate", "addLabelIds", "removeLabelIds"}
+	fieldsInOrder := [...]string{"ids", "stateId", "assigneeId", "clearAssignee", "delegateId", "clearDelegate", "priority", "estimate", "clearEstimate", "dueDate", "clearDueDate", "addLabelIds", "removeLabelIds"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -70318,6 +70416,20 @@ func (ec *executionContext) unmarshalInputBulkUpdateIssuesInput(ctx context.Cont
 				return it, err
 			}
 			it.ClearAssignee = data
+		case "delegateId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("delegateId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DelegateID = data
+		case "clearDelegate":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clearDelegate"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClearDelegate = data
 		case "priority":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("priority"))
 			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
@@ -71494,7 +71606,7 @@ func (ec *executionContext) unmarshalInputCreateIssueInput(ctx context.Context, 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "teamId", "title", "description", "stateId", "assigneeId", "priority", "estimate", "dueDate", "parentId", "labelIds", "templateId", "formTemplateId", "afterIssueId", "projectId", "projectMilestoneId", "cycleId", "fromTriage", "skipDefaultTemplate", "recurringCadence", "recurringFirstDueDate"}
+	fieldsInOrder := [...]string{"id", "teamId", "title", "description", "stateId", "assigneeId", "delegateId", "clearDelegate", "priority", "estimate", "dueDate", "parentId", "labelIds", "templateId", "formTemplateId", "afterIssueId", "projectId", "projectMilestoneId", "cycleId", "fromTriage", "skipDefaultTemplate", "recurringCadence", "recurringFirstDueDate"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -71543,6 +71655,20 @@ func (ec *executionContext) unmarshalInputCreateIssueInput(ctx context.Context, 
 				return it, err
 			}
 			it.AssigneeID = data
+		case "delegateId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("delegateId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DelegateID = data
+		case "clearDelegate":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clearDelegate"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClearDelegate = data
 		case "priority":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("priority"))
 			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
@@ -74941,7 +75067,7 @@ func (ec *executionContext) unmarshalInputUpdateIssueInput(ctx context.Context, 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "title", "description", "stateId", "priority", "assigneeId", "clearAssignee", "estimate", "clearEstimate", "dueDate", "clearDueDate", "parentId", "clearParent", "afterIssueId", "moveToTop", "afterSiblingId", "projectId", "clearProject", "projectMilestoneId", "clearMilestone", "cycleId", "clearCycle"}
+	fieldsInOrder := [...]string{"id", "title", "description", "stateId", "priority", "assigneeId", "clearAssignee", "delegateId", "clearDelegate", "estimate", "clearEstimate", "dueDate", "clearDueDate", "parentId", "clearParent", "afterIssueId", "moveToTop", "afterSiblingId", "projectId", "clearProject", "projectMilestoneId", "clearMilestone", "cycleId", "clearCycle"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -74997,6 +75123,20 @@ func (ec *executionContext) unmarshalInputUpdateIssueInput(ctx context.Context, 
 				return it, err
 			}
 			it.ClearAssignee = data
+		case "delegateId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("delegateId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DelegateID = data
+		case "clearDelegate":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clearDelegate"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClearDelegate = data
 		case "estimate":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("estimate"))
 			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
@@ -82965,6 +83105,11 @@ func (ec *executionContext) _Issue(ctx context.Context, sel ast.SelectionSet, ob
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "delegateId":
+			out.Values[i] = ec._Issue_delegateId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		case "creatorId":
 			out.Values[i] = ec._Issue_creatorId(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
@@ -83097,6 +83242,11 @@ func (ec *executionContext) _Issue(ctx context.Context, sel ast.SelectionSet, ob
 			}
 		case "assignee":
 			out.Values[i] = ec._Issue_assignee(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "delegate":
+			out.Values[i] = ec._Issue_delegate(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}

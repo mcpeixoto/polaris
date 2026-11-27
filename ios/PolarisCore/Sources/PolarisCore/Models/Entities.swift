@@ -166,6 +166,9 @@ public struct Issue: Codable, Sendable, Hashable, Identifiable {
     public var state: WorkflowState
     public let team: Team
     public var assignee: User?
+    /// The agent asked to work the issue. The assignee stays the owner. Nil when nobody
+    /// has been asked, which is the ordinary case and not a blank id.
+    public var delegateId: String?
     public let creator: User?
     public var labels: [Label]
     public var parentId: String?
@@ -183,7 +186,7 @@ public struct Issue: Codable, Sendable, Hashable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id, identifier, title, description, priority, estimate, dueDate
-        case state, team, assignee, creator, labels, createdAt, updatedAt
+        case state, team, assignee, delegateId, creator, labels, createdAt, updatedAt
         case parentId, projectId, cycleId, parent, project, cycle, progress
     }
 
@@ -201,6 +204,7 @@ public struct Issue: Codable, Sendable, Hashable, Identifiable {
         state = try c.decode(WorkflowState.self, forKey: .state)
         team = try c.decode(Team.self, forKey: .team)
         assignee = try c.decodeIfPresent(User.self, forKey: .assignee)
+        delegateId = try c.decodeIfPresent(String.self, forKey: .delegateId)
         creator = try c.decodeIfPresent(User.self, forKey: .creator)
         labels = try c.decodeIfPresent([Label].self, forKey: .labels) ?? []
         parentId = try c.decodeIfPresent(String.self, forKey: .parentId)
@@ -229,6 +233,7 @@ public struct Issue: Codable, Sendable, Hashable, Identifiable {
         state: WorkflowState,
         team: Team,
         assignee: User? = nil,
+        delegateId: String? = nil,
         creator: User? = nil,
         labels: [Label] = [],
         parentId: String? = nil,
@@ -251,6 +256,7 @@ public struct Issue: Codable, Sendable, Hashable, Identifiable {
         self.state = state
         self.team = team
         self.assignee = assignee
+        self.delegateId = delegateId
         self.creator = creator
         self.labels = labels
         self.parentId = parentId

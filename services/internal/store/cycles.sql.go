@@ -240,7 +240,7 @@ SELECT i.id, i.workspace_id, i.team_id, i.number, i.title, i.description, i.stat
        i.started_at, i.completed_at, i.canceled_at,
        i.archived_at, i.deleted_at, i.created_at, i.updated_at,
        i.estimate, i.due_date, i.due_date_source, i.parent_id, i.sub_issue_sort_order,
-       i.template_id, i.form_template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at, i.recurring_issue_id
+       i.template_id, i.form_template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at, i.recurring_issue_id, i.delegate_id
 FROM issue i
 JOIN workflow_state s ON s.id = i.state_id
 WHERE i.team_id = $1
@@ -287,6 +287,7 @@ type ListCyclelessIssuesByCategoryRow struct {
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
 	RecurringIssueID   *uuid.UUID
+	DelegateID         *uuid.UUID
 }
 
 // Cycle-less issues in a given category, for auto-add.
@@ -332,6 +333,7 @@ func (q *Queries) ListCyclelessIssuesByCategory(ctx context.Context, arg ListCyc
 			&i.SnoozedUntil,
 			&i.AutoClosedAt,
 			&i.RecurringIssueID,
+			&i.DelegateID,
 		); err != nil {
 			return nil, err
 		}
@@ -390,7 +392,7 @@ SELECT i.id, i.workspace_id, i.team_id, i.number, i.title, i.description, i.stat
        i.started_at, i.completed_at, i.canceled_at,
        i.archived_at, i.deleted_at, i.created_at, i.updated_at,
        i.estimate, i.due_date, i.due_date_source, i.parent_id, i.sub_issue_sort_order,
-       i.template_id, i.form_template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at, i.recurring_issue_id
+       i.template_id, i.form_template_id, i.deleted_by, i.project_id, i.project_milestone_id, i.cycle_id, i.snoozed_until, i.auto_closed_at, i.recurring_issue_id, i.delegate_id
 FROM issue i
 JOIN workflow_state s ON s.id = i.state_id
 WHERE i.cycle_id = $1
@@ -431,6 +433,7 @@ type ListOpenIssuesInCycleRow struct {
 	SnoozedUntil       *time.Time
 	AutoClosedAt       *time.Time
 	RecurringIssueID   *uuid.UUID
+	DelegateID         *uuid.UUID
 }
 
 // Open work in a closing cycle: unstarted and started, not backlog/triage/canceled/completed.
@@ -476,6 +479,7 @@ func (q *Queries) ListOpenIssuesInCycle(ctx context.Context, cycleID *uuid.UUID)
 			&i.SnoozedUntil,
 			&i.AutoClosedAt,
 			&i.RecurringIssueID,
+			&i.DelegateID,
 		); err != nil {
 			return nil, err
 		}

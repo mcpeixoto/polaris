@@ -58,7 +58,11 @@ const (
 // producer and consumer share one vocabulary and a typo is a compile error rather than a
 // notification that silently stops arriving.
 const (
-	FieldAssignee    = "assignee_id"
+	FieldAssignee = "assignee_id"
+	// Who is working the issue, as distinct from who owns it. No rule below reacts to it:
+	// handing work to an agent is not a notification, and inventing one would tell the
+	// person who just clicked the button that they had clicked it.
+	FieldDelegate    = "delegate_id"
 	FieldState       = "state_id"
 	FieldPriority    = "priority"
 	FieldTitle       = "title"

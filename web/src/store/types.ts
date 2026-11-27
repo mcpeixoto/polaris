@@ -386,6 +386,8 @@ export interface Issue {
   readonly description: string;
   readonly stateId: UUID;
   readonly assigneeId?: UUID;
+  /** The agent working this issue. The assignee stays the owner. */
+  readonly delegateId?: UUID;
   readonly creatorId?: UUID;
   /** 0 none, 1 urgent, 2 high, 3 medium, 4 low. A fixed scale; see `PRIORITY_RANK`. */
   readonly priority: number;

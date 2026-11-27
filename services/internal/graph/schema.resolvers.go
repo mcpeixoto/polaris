@@ -34,6 +34,8 @@ func (r *mutationResolver) CreateIssue(ctx context.Context, input generated.Crea
 		Description:           deref(input.Description),
 		StateID:               input.StateID,
 		AssigneeID:            input.AssigneeID,
+		DelegateID:            input.DelegateID,
+		ClearDelegate:         deref(input.ClearDelegate),
 		Priority:              deref(input.Priority),
 		AfterIssueID:          input.AfterIssueID,
 		Estimate:              input.Estimate,
@@ -85,6 +87,8 @@ func (r *mutationResolver) UpdateIssue(ctx context.Context, input generated.Upda
 		// carried across whole, value and clear flag together, or setting it does nothing
 		// and reports success.
 		ClearAssignee:      deref(input.ClearAssignee),
+		DelegateID:         input.DelegateID,
+		ClearDelegate:      deref(input.ClearDelegate),
 		Estimate:           input.Estimate,
 		ClearEstimate:      deref(input.ClearEstimate),
 		DueDate:            toDate(input.DueDate),
@@ -1903,6 +1907,8 @@ func (r *mutationResolver) BulkUpdateIssues(ctx context.Context, input generated
 		StateID:       input.StateID,
 		AssigneeID:    input.AssigneeID,
 		ClearAssignee: deref(input.ClearAssignee),
+		DelegateID:    input.DelegateID,
+		ClearDelegate: deref(input.ClearDelegate),
 		Priority:      input.Priority,
 		Estimate:      input.Estimate,
 		ClearEstimate: deref(input.ClearEstimate),

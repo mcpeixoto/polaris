@@ -244,6 +244,19 @@ func (s *Service) CreateWorkspace(ctx context.Context, in CreateWorkspaceInput) 
 			Scope: authz.TeamScope(teamID, false), Payload: membership,
 		})
 
+		// The built-in agent arrives with the workspace, so there is somebody to delegate to
+		// before anybody has thought to @mention it. Only where a model is configured: an
+		// agent listed among the members of an install that cannot run it is a dead end.
+		if s.agentEnabled {
+			agentChange, err := s.mintAgentUser(ctx, q, wsID)
+			if err != nil {
+				return err
+			}
+			if agentChange != nil {
+				changes = append(changes, *agentChange)
+			}
+		}
+
 		out.Version, err = s.em.Emit(ctx, q, wsID, actor, changes...)
 		return err
 	})

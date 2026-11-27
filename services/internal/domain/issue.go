@@ -41,7 +41,12 @@ type CreateIssueInput struct {
 	// StateID defaults to the team's default status when nil.
 	StateID    *uuid.UUID
 	AssigneeID *uuid.UUID
-	Priority   int
+	// DelegateID is the agent asked to work the issue. The assignee stays the owner.
+	// ClearDelegate contradicts DelegateID the same way ClearAssignee does; on a create
+	// there is nothing to clear, and sending both is refused rather than guessed.
+	DelegateID    *uuid.UUID
+	ClearDelegate bool
+	Priority      int
 	// AfterIssueID places the new issue directly below an existing one in the same
 	// status column. Nil appends to the bottom.
 	AfterIssueID *uuid.UUID
@@ -162,6 +167,10 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 	if in.Priority < 0 || in.Priority > 4 {
 		return model.Issue{}, 0, platform.Validation("priority", "priority must be 0 (none) to 4 (low)")
 	}
+	if in.DelegateID != nil && in.ClearDelegate {
+		// COPY: cannot set and clear the delegate in one call
+		return model.Issue{}, 0, platform.Validation("delegateId", "cannot set and clear the delegate in one call")
+	}
 	estimate, err := validateEstimate(in.Estimate)
 	if err != nil {
 		return model.Issue{}, 0, err
@@ -259,6 +268,9 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 		if err := s.validateAssignee(ctx, q, p, in.TeamID, in.AssigneeID); err != nil {
 			return err
 		}
+		if err := s.validateDelegate(ctx, q, p, in.TeamID, in.DelegateID); err != nil {
+			return err
+		}
 
 		if err := validateIssueCycle(ctx, q, in.TeamID, in.CycleID); err != nil {
 			return err
@@ -321,6 +333,7 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 			Description:        in.Description,
 			StateID:            state.ID,
 			AssigneeID:         in.AssigneeID,
+			DelegateID:         in.DelegateID,
 			CreatorID:          creatorID,
 			Priority:           int16(in.Priority),
 			SortOrder:          sortOrder,
@@ -345,6 +358,14 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 			return mapParentTriggerError(err)
 		}
 		out = toIssue(store.AsIssueRow(row), team.Key)
+
+		// Same transaction as the insert. Cancelling first is a no-op on a new issue; the
+		// insert is what makes the delegation claimable once DelegationDelay has passed.
+		if in.DelegateID != nil {
+			if err := s.queueDelegation(ctx, q, p, id, in.DelegateID); err != nil {
+				return err
+			}
+		}
 
 		// No ChangedFields: an empty list is what marks a create, where every field is new
 		// and the question "did this one move" has no meaning yet.
@@ -493,6 +514,11 @@ type UpdateIssueInput struct {
 	AssigneeID    *uuid.UUID
 	ClearAssignee bool
 
+	// Delegate is three-state for the same reason as assignee. The assignee is who owns
+	// the issue; the delegate is the agent working it.
+	DelegateID    *uuid.UUID
+	ClearDelegate bool
+
 	// The three below are three-state for exactly the same reason, and each is a case
 	// where the missing third state would be silently wrong rather than merely awkward:
 	// unestimated is not an estimate of zero, "no due date" is not the epoch, and an issue
@@ -552,6 +578,10 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 	}
 	if in.AssigneeID != nil && in.ClearAssignee {
 		return model.Issue{}, 0, platform.Validation("assigneeId", "cannot set and clear the assignee in one call")
+	}
+	if in.DelegateID != nil && in.ClearDelegate {
+		// COPY: cannot set and clear the delegate in one call
+		return model.Issue{}, 0, platform.Validation("delegateId", "cannot set and clear the delegate in one call")
 	}
 	// The same contradiction for each of the three-state properties. Resolving it silently
 	// — letting the clear win, say — means a client with a stale form quietly wipes a value
@@ -693,6 +723,25 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 			changed = append(changed, notify.FieldAssignee)
 		}
 
+		if in.DelegateID != nil {
+			if err := s.validateDelegate(ctx, q, p, before.TeamID, in.DelegateID); err != nil {
+				return err
+			}
+			if before.DelegateID == nil || *before.DelegateID != *in.DelegateID {
+				history = append(history, HistoryEntry{
+					IssueID: in.ID, Kind: "delegate",
+					FromValue: before.DelegateID, ToValue: in.DelegateID,
+				})
+				changed = append(changed, notify.FieldDelegate)
+			}
+		}
+		if in.ClearDelegate && before.DelegateID != nil {
+			history = append(history, HistoryEntry{
+				IssueID: in.ID, Kind: "delegate", FromValue: before.DelegateID, ToValue: nil,
+			})
+			changed = append(changed, notify.FieldDelegate)
+		}
+
 		if in.Priority != nil && int16(*in.Priority) != before.Priority {
 			history = append(history, HistoryEntry{
 				IssueID: in.ID, Kind: "priority",
@@ -825,6 +874,8 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 			SortOrder:     sortOrder,
 			AssigneeID:    in.AssigneeID,
 			ClearAssignee: in.ClearAssignee,
+			DelegateID:    in.DelegateID,
+			ClearDelegate: in.ClearDelegate,
 			SetTimestamps: setTimestamps,
 			StartedAt:     started,
 			CompletedAt:   completed,
@@ -856,6 +907,20 @@ func (s *Service) UpdateIssue(ctx context.Context, p *authz.Principal, in Update
 			return mapParentTriggerError(err)
 		}
 		out = toIssue(store.AsIssueRow(row), team.Key)
+
+		// Cancel the open run and, when a delegate remains, queue the next one. Same
+		// transaction as the issue write: a delegate with no run, or a run for a delegate
+		// the issue no longer names, is the bug this exists to prevent.
+		if (in.DelegateID != nil && (before.DelegateID == nil || *before.DelegateID != *in.DelegateID)) ||
+			(in.ClearDelegate && before.DelegateID != nil) {
+			next := in.DelegateID
+			if in.ClearDelegate {
+				next = nil
+			}
+			if err := s.queueDelegation(ctx, q, p, in.ID, next); err != nil {
+				return err
+			}
+		}
 
 		// A move has no history entry — the feed does not report reordering — but it is
 		// still something this mutation set, and a changed-field list that omits what it
@@ -1178,6 +1243,51 @@ func (s *Service) validateAssignee(
 		}
 		if !member {
 			return platform.Validation("assigneeId", "that user is not a member of this team")
+		}
+	}
+	return nil
+}
+
+// validateDelegate is validateAssignee plus the rule that a delegate is an agent.
+//
+// A person as the delegate would mean the field no longer answers "who is working this":
+// the assignee already answers "whose is this", and a second person there is just a second
+// assignee with a different name.
+func (s *Service) validateDelegate(
+	ctx context.Context, q *store.Queries, p *authz.Principal, teamID uuid.UUID, delegate *uuid.UUID,
+) error {
+	if delegate == nil {
+		return nil
+	}
+	u, err := q.GetUser(ctx, *delegate)
+	if err != nil {
+		if store.IsNotFound(err) {
+			return platform.Validation("delegateId", "no such user")
+		}
+		return platform.Internal(err)
+	}
+	if u.WorkspaceID != p.WorkspaceID {
+		return platform.Validation("delegateId", "no such user")
+	}
+	if u.Status != "active" {
+		return platform.Validation("delegateId", "that user is suspended")
+	}
+	if u.Kind != "app" {
+		// COPY: delegate must be an agent
+		return platform.Validation("delegateId", "delegate must be an agent")
+	}
+
+	team, err := q.GetTeam(ctx, teamID)
+	if err != nil {
+		return platform.Internal(err)
+	}
+	if team.Private || u.Role == string(authz.RoleGuest) {
+		member, err := q.IsTeamMember(ctx, store.IsTeamMemberParams{TeamID: teamID, UserID: *delegate})
+		if err != nil {
+			return platform.Internal(err)
+		}
+		if !member {
+			return platform.Validation("delegateId", "that user is not a member of this team")
 		}
 	}
 	return nil

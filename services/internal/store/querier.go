@@ -180,10 +180,22 @@ type Querier interface {
 	// of 200 of each, while keeping the sequence gapless.
 	//
 	BumpWorkspaceVersionBy(ctx context.Context, arg BumpWorkspaceVersionByParams) (int64, error)
+	// Re-delegating or clearing the delegate drops whatever is still in flight. A run that
+	// already finished stays, because that is the history of the previous attempt.
+	//
+	CancelOpenAgentRunsForIssue(ctx context.Context, issueID uuid.UUID) error
 	// The interactive claim: this conversation, if it is still waiting. Distinct from the
 	// worker's claim, which takes whatever is oldest — here somebody is watching one session
 	// and the answer belongs to them.
 	ClaimAgentSessionByID(ctx context.Context, arg ClaimAgentSessionByIDParams) (AgentSession, error)
+	// The external runner's claim: this agent's oldest due run, and not one another worker
+	// is already taking. SKIP LOCKED is what makes two pollers overlap without waiting.
+	//
+	ClaimDueAgentRun(ctx context.Context, agentUserID uuid.UUID) (AgentRun, error)
+	// The built-in agent's claim. Same queue, restricted to identities this install owns, so
+	// a third-party app user delegated an issue is left for that app's own runner.
+	//
+	ClaimDueBuiltinAgentRun(ctx context.Context) (AgentRun, error)
 	ClaimDueNotice(ctx context.Context, arg ClaimDueNoticeParams) (ClaimDueNoticeRow, error)
 	// ClaimIdempotencyKey is the first statement of every mutation.
 	//
@@ -588,6 +600,8 @@ type Querier interface {
 	GetAgentIdentity(ctx context.Context, workspaceID uuid.UUID) (uuid.UUID, error)
 	GetAgentMessage(ctx context.Context, arg GetAgentMessageParams) (AgentMessage, error)
 	GetAgentPreference(ctx context.Context, userID uuid.UUID) (bool, error)
+	GetAgentRunBySessionRef(ctx context.Context, sessionRef *string) (AgentRun, error)
+	GetAgentRunner(ctx context.Context, agentUserID uuid.UUID) (AgentRunner, error)
 	GetAgentSession(ctx context.Context, arg GetAgentSessionParams) (AgentSession, error)
 	GetAiCreditBalance(ctx context.Context, workspaceID uuid.UUID) (int64, error)
 	GetArchivedInitiativeLabel(ctx context.Context, id uuid.UUID) (GetArchivedInitiativeLabelRow, error)
@@ -793,6 +807,11 @@ type Querier interface {
 	GetWorkspaceByURLKey(ctx context.Context, urlKey string) (Workspace, error)
 	GetWorkspaceVersion(ctx context.Context, workspaceID uuid.UUID) (int64, error)
 	InitWorkspaceVersion(ctx context.Context, workspaceID uuid.UUID) error
+	// One delegation, from the moment it is asked for to the moment the agent reports back.
+	//
+	// The issue row says who is delegated now. These statements are the queue that row points
+	// at: cancel what is still open, claim the oldest due run, and record how it ended.
+	InsertAgentRun(ctx context.Context, arg InsertAgentRunParams) (AgentRun, error)
 	InsertCustomerDomain(ctx context.Context, arg InsertCustomerDomainParams) error
 	// Inbound email idempotency: a retried webhook with the same Message-ID must not mint
 	// a second issue. Replies are refused before they reach this table.
@@ -826,6 +845,7 @@ type Querier interface {
 	ListAPIKeysForUser(ctx context.Context, userID uuid.UUID) ([]ListAPIKeysForUserRow, error)
 	ListActiveRecurringIssues(ctx context.Context) ([]ListActiveRecurringIssuesRow, error)
 	ListAgentMessages(ctx context.Context, arg ListAgentMessagesParams) ([]AgentMessage, error)
+	ListAgentRunsForIssue(ctx context.Context, issueID uuid.UUID) ([]AgentRun, error)
 	ListAgentSessionsForUser(ctx context.Context, arg ListAgentSessionsForUserParams) ([]AgentSession, error)
 	ListArchivedCyclesForTeam(ctx context.Context, teamID uuid.UUID) ([]Cycle, error)
 	ListArchivedIssuesForTeam(ctx context.Context, teamID uuid.UUID) ([]ListArchivedIssuesForTeamRow, error)
@@ -1306,7 +1326,17 @@ type Querier interface {
 	// the answer wanted is "where is there work to do", and most workspaces have none.
 	//
 	ListWorkspacesWithPurgeableIssues(ctx context.Context, deletedBefore *time.Time) ([]uuid.UUID, error)
+	// Workspaces whose built-in agent has never been minted. The identity used to be created on
+	// the first @mention, which left nothing to delegate to in a workspace that never had one.
+	//
+	ListWorkspacesWithoutAgentIdentity(ctx context.Context, lim int32) ([]uuid.UUID, error)
 	MarkAccountLogin(ctx context.Context, id uuid.UUID) error
+	MarkAgentRunDone(ctx context.Context, arg MarkAgentRunDoneParams) (AgentRun, error)
+	// A failure after the run was already marked done is still a failure: automatic apply can
+	// succeed at writing the turn and then fail a step, and the run should say so.
+	//
+	MarkAgentRunFailed(ctx context.Context, arg MarkAgentRunFailedParams) (AgentRun, error)
+	MarkAgentRunRunning(ctx context.Context, arg MarkAgentRunRunningParams) (AgentRun, error)
 	// One statement for the whole inbox, and one version block for the sync stream. Marking a
 	// thousand rows read one at a time would mint a thousand versions and hold the workspace's
 	// row lock for the duration of all of them.
@@ -1438,6 +1468,16 @@ type Querier interface {
 	// it would silently unattribute years of it.
 	//
 	RemoveUserFromWorkspace(ctx context.Context, id uuid.UUID) (User, error)
+	// An external runner whose claim went quiet still holds the run. Put it back.
+	//
+	// Only external runners heartbeat, so only their runs are swept. A built-in run is answered
+	// by an agent_session, which has its own sweep; requeuing it here would open a second
+	// session for the same delegation every five minutes the model spent thinking.
+	//
+	// session_ref is kept: for an external runner it is the CLI's resume handle, and the next
+	// claim should pick the conversation up rather than start it again.
+	//
+	RequeueStaleAgentRuns(ctx context.Context, olderThan *time.Time) (int64, error)
 	// A run that was claimed and never finished — the process died mid-turn. Returned to the
 	// queue rather than left working forever, which would otherwise be a session that renders
 	// as busy and never moves again.
@@ -1984,6 +2024,7 @@ type Querier interface {
 	UpdateWebhookEnabled(ctx context.Context, arg UpdateWebhookEnabledParams) (UpdateWebhookEnabledRow, error)
 	UpdateWorkflowState(ctx context.Context, arg UpdateWorkflowStateParams) (WorkflowState, error)
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (Workspace, error)
+	UpsertAgentRunner(ctx context.Context, arg UpsertAgentRunnerParams) (AgentRunner, error)
 	UpsertDueNotification(ctx context.Context, arg UpsertDueNotificationParams) (Notification, error)
 	UpsertGitHubTeamAutomation(ctx context.Context, arg UpsertGitHubTeamAutomationParams) (GithubTeamAutomation, error)
 	UpsertGitLabTeamAutomation(ctx context.Context, arg UpsertGitLabTeamAutomationParams) (GitlabTeamAutomation, error)

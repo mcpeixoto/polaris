@@ -430,6 +430,8 @@ var coveredElsewhere = map[string]string{
 	// Each of these is the clear half of a three-state property, and the table exercises it
 	// through that property's own row rather than as a field of its own.
 	"clearAssignee":  "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
+	"delegateId":     "TestUpdateIssue_DelegateIDRoundTrips",
+	"clearDelegate":  "TestUpdateIssue_DelegateIDRoundTrips",
 	"clearEstimate":  "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
 	"clearDueDate":   "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
 	"clearParent":    "the clear step of TestIssueRoundTrip_EverySettableFieldSurvivesTheAPI",
@@ -506,6 +508,7 @@ var storedButUnwritable = map[string]string{
 	"snoozedUntil":     "set by snoozeIssue, not by create; TestSnoozeIssue_HidesUntilTimeOrActivity",
 	"autoClosedAt":     "set by the auto-close engine, not by create",
 	"recurringIssueId": "set by createRecurringIssue, not by a stored input field; TestCreateIssue_RecurringCadenceAttachesASchedule",
+	"delegateId":       "optional; the table's issue has no delegate. TestUpdateIssue_DelegateIDRoundTrips writes it and reads it back",
 }
 
 func TestIssueRoundTrip_TheReadPathCarriesEveryStoredField(t *testing.T) {
