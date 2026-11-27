@@ -78,6 +78,33 @@ type AgentPreference struct {
 	UpdatedAt   time.Time
 }
 
+type AgentRun struct {
+	ID           uuid.UUID
+	WorkspaceID  uuid.UUID
+	IssueID      uuid.UUID
+	AgentUserID  uuid.UUID
+	DelegatedBy  *uuid.UUID
+	Status       string
+	RunAfter     time.Time
+	ClaimedAt    *time.Time
+	HeartbeatAt  *time.Time
+	FinishedAt   *time.Time
+	SessionRef   *string
+	Summary      *string
+	Error        *string
+	InputTokens  int64
+	OutputTokens int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type AgentRunner struct {
+	AgentUserID uuid.UUID
+	WorkspaceID uuid.UUID
+	LastSeenAt  time.Time
+	Version     string
+}
+
 type AgentSession struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID
@@ -641,6 +668,7 @@ type Issue struct {
 	AutoClosedAt       *time.Time
 	RecurringIssueID   *uuid.UUID
 	FormTemplateID     *uuid.UUID
+	DelegateID         *uuid.UUID
 }
 
 type IssueHistory struct {

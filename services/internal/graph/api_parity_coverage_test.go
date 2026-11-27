@@ -74,6 +74,8 @@ var serverSideOnly = map[string]string{
 	"SweepDueNotifications":      "worker cron: writes due and overdue notices",
 	"AdvanceCycles":              "worker cron: closes ended cycles, rolls work, auto-adds",
 	"AdvanceRecurringIssues":     "worker cron: mints the next occurrence after the due date passes",
+	"RequeueStaleAgentRuns":      "worker cron: returns claimed and running runs with a stale heartbeat to the queue",
+	"EnsureAgentIdentities":      "worker cron: mints the built-in agent for workspaces created before it came with the workspace",
 	"AutoCloseIssues":            "worker cron: closes stale open issues per team period",
 	"AutoArchive":                "worker cron: archives stale closed issues, projects and cycles",
 	"SubscribeOnAction":          "internal: called by the write paths that auto-subscribe",

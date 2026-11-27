@@ -47,8 +47,9 @@ const (
 	AgentSessionWorking = "working"
 	AgentSessionFailed  = "failed"
 
-	AgentOriginChat    = "chat"
-	AgentOriginComment = "comment"
+	AgentOriginChat       = "chat"
+	AgentOriginComment    = "comment"
+	AgentOriginDelegation = "delegation"
 
 	AgentRoleUser      = "user"
 	AgentRoleAssistant = "assistant"
@@ -543,7 +544,10 @@ func (s *Service) AddAgentTurn(
 		}
 		version, err = s.em.Emit(ctx, q, workspaceID, authz.AppActor(userID),
 			agentSessionChange(toAgentSession(updated)), agentMessageChange(userID, out))
-		return err
+		if err != nil {
+			return err
+		}
+		return s.finishDelegatedRun(ctx, q, sessionID, turn.Status, turn.Body, turn.Error, turn.InputTokens, turn.OutputTokens)
 	})
 	if err != nil {
 		return model.AgentMessage{}, 0, err
@@ -581,9 +585,13 @@ func (s *Service) MarkAgentSessionFailed(
 			}
 			return platform.Internal(err)
 		}
-		_, err = s.em.Emit(ctx, q, workspaceID, authz.AppActor(userID),
-			agentSessionChange(toAgentSession(updated)))
-		return err
+		if _, err := s.em.Emit(ctx, q, workspaceID, authz.AppActor(userID),
+			agentSessionChange(toAgentSession(updated))); err != nil {
+			return err
+		}
+		// No assistant text on this path. finishDelegatedRun keeps whatever summary the
+		// turn already stored and records the reason as the failure.
+		return s.finishDelegatedRun(ctx, q, sessionID, AgentSessionFailed, "", &reason, 0, 0)
 	})
 }
 

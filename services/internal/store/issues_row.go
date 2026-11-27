@@ -36,5 +36,6 @@ func IssueTableRow(i Issue) GetIssueRow {
 		FormTemplateID: i.FormTemplateID, RecurringIssueID: i.RecurringIssueID, DeletedBy: i.DeletedBy,
 		ProjectID: i.ProjectID, ProjectMilestoneID: i.ProjectMilestoneID,
 		CycleID: i.CycleID, SnoozedUntil: i.SnoozedUntil, AutoClosedAt: i.AutoClosedAt,
+		DelegateID: i.DelegateID,
 	}
 }

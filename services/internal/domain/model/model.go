@@ -234,9 +234,13 @@ type Issue struct {
 	Description string     `json:"description"`
 	StateID     uuid.UUID  `json:"stateId"`
 	AssigneeID  *uuid.UUID `json:"assigneeId,omitempty"`
-	CreatorID   *uuid.UUID `json:"creatorId,omitempty"`
-	Priority    int        `json:"priority"`
-	SortOrder   string     `json:"sortOrder"`
+	// DelegateID is the agent working the issue. The assignee stays the owner; this is who
+	// was asked to do the work. Only an app user can hold it, which the domain enforces
+	// because the kind lives on the user row and not on this one.
+	DelegateID *uuid.UUID `json:"delegateId,omitempty"`
+	CreatorID  *uuid.UUID `json:"creatorId,omitempty"`
+	Priority   int        `json:"priority"`
+	SortOrder  string     `json:"sortOrder"`
 
 	// Estimate is the raw point value. nil means unestimated, which is not zero.
 	Estimate *int `json:"estimate,omitempty"`

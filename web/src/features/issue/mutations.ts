@@ -69,6 +69,11 @@ export interface IssueFields {
   readonly priority?: number | undefined;
   /** `null` unassigns. There is no id that means "nobody", so the two cases are separate. */
   readonly assigneeId?: UUID | null | undefined;
+  /**
+   * `null` takes the agent off the issue. The assignee stays the owner; this is who was
+   * asked to do the work. Only an app user is legal, and the server is what enforces that.
+   */
+  readonly delegateId?: UUID | null | undefined;
   /** `null` removes the issue from its project. */
   readonly projectId?: UUID | null | undefined;
   /** `null` removes the issue from its cycle. */
@@ -89,6 +94,8 @@ export interface NewIssue {
   readonly description?: string | undefined;
   readonly stateId?: UUID | undefined;
   readonly assigneeId?: UUID | undefined;
+  /** An app user asked to work the new issue. Omitted leaves it with nobody. */
+  readonly delegateId?: UUID | undefined;
   readonly priority?: number | undefined;
   readonly estimate?: number | undefined;
   /** A calendar day, `2006-01-02`. */
@@ -183,6 +190,7 @@ export async function createIssue(engine: SyncEngine, input: NewIssue): Promise<
     description: input.description ?? '',
     stateId: state,
     assigneeId: input.assigneeId,
+    delegateId: input.delegateId,
     creatorId: input.creatorId,
     priority: input.priority ?? 0,
     sortOrder: lastSortOrderIn(store, state),
@@ -287,6 +295,9 @@ function planUpdate(
     ...(next.assigneeId === undefined
       ? null
       : { assigneeId: next.assigneeId === null ? undefined : next.assigneeId }),
+    ...(next.delegateId === undefined
+      ? null
+      : { delegateId: next.delegateId === null ? undefined : next.delegateId }),
     /*
      * The project, and the milestone that cannot outlive it.
      *
@@ -351,6 +362,11 @@ function bulkInputOf(fields: IssueFields): Record<string, unknown> | null {
       : fields.assigneeId === null
         ? { clearAssignee: true }
         : { assigneeId: fields.assigneeId }),
+    ...(fields.delegateId === undefined
+      ? null
+      : fields.delegateId === null
+        ? { clearDelegate: true }
+        : { delegateId: fields.delegateId }),
   };
   return Object.keys(input).length === 0 ? null : input;
 }
@@ -1321,6 +1337,7 @@ function createInputOf(input: NewIssue, stateId: UUID, id: UUID): Record<string,
       : { description: input.description }),
     ...(input.fromTriage === true || stateId === '' ? null : { stateId }),
     ...(input.assigneeId === undefined ? null : { assigneeId: input.assigneeId }),
+    ...(input.delegateId === undefined ? null : { delegateId: input.delegateId }),
     ...(input.priority === undefined ? null : { priority: input.priority }),
     ...(input.estimate === undefined ? null : { estimate: input.estimate }),
     ...(input.dueDate === undefined ? null : { dueDate: input.dueDate }),
@@ -1354,7 +1371,8 @@ function createInputOf(input: NewIssue, stateId: UUID, id: UUID): Record<string,
  *
  * `clearAssignee` is why this is not a spread: a null `assigneeId` on the wire is
  * indistinguishable from "leave it alone" in a partial update, so unassigning has its own
- * flag. Every partial-update API grows this problem; this one names it.
+ * flag. `clearDelegate` is the same split for the agent. Every partial-update API grows
+ * this problem; this one names it.
  */
 function updateInputOf(fields: IssueFields): Record<string, unknown> {
   return {
@@ -1367,6 +1385,11 @@ function updateInputOf(fields: IssueFields): Record<string, unknown> {
       : fields.assigneeId === null
         ? { clearAssignee: true }
         : { assigneeId: fields.assigneeId }),
+    ...(fields.delegateId === undefined
+      ? null
+      : fields.delegateId === null
+        ? { clearDelegate: true }
+        : { delegateId: fields.delegateId }),
     ...(fields.projectId === undefined
       ? null
       : fields.projectId === null
@@ -1441,6 +1464,7 @@ function sameIssue(before: Issue, after: Issue): boolean {
     before.stateId === after.stateId &&
     before.priority === after.priority &&
     before.assigneeId === after.assigneeId &&
+    before.delegateId === after.delegateId &&
     before.projectId === after.projectId &&
     before.projectMilestoneId === after.projectMilestoneId &&
     before.cycleId === after.cycleId

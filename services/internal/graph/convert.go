@@ -227,6 +227,7 @@ func toIssue(i model.Issue) (generated.Issue, error) {
 		Description: i.Description,
 		StateID:     i.StateID,
 		AssigneeID:  i.AssigneeID,
+		DelegateID:  i.DelegateID,
 		CreatorID:   i.CreatorID,
 		Priority:    i.Priority,
 		SortOrder:   i.SortOrder,

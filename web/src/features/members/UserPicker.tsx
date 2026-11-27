@@ -35,7 +35,7 @@ import type { RefObject } from 'react';
 
 import { Avatar, Menu, type MenuNode, type MenuPlacement } from '~/components';
 import { useLiveQuery } from '~/hooks/useLiveQuery';
-import type { UUID } from '~/store';
+import type { UUID, UserKind } from '~/store';
 
 /** The id of the "nobody" row. A word rather than an id, because there is no id for nobody. */
 const NONE = 'none';
@@ -62,6 +62,12 @@ interface UserPickerBase {
    * somebody is filtering is a row they will type at and get nothing from.
    */
   exclude?: ReadonlySet<UUID> | undefined;
+  /**
+   * Kinds to offer. Absent means everybody, which is what naming a person wants. A
+   * delegate passes `app`: a human cannot be one, and a row the server will refuse is
+   * a row that should not be there to choose.
+   */
+  kinds?: readonly UserKind[] | undefined;
 }
 
 export interface SingleUserPickerProps extends UserPickerBase {
@@ -92,6 +98,7 @@ export function UserPicker(props: UserPickerProps) {
     filterPlaceholder = 'Assign to…',
     filterHint,
     exclude,
+    kinds,
   } = props;
 
   // Whether the close `Menu` is about to perform was caused by a toggle. See the note above.
@@ -107,7 +114,8 @@ export function UserPicker(props: UserPickerProps) {
           (user) =>
             user.archivedAt === undefined &&
             (user.status === 'active' || holds(user.id)) &&
-            exclude?.has(user.id) !== true,
+            exclude?.has(user.id) !== true &&
+            (kinds === undefined || kinds.includes(user.kind)),
         )
         .map((user) => ({
           id: user.id,
@@ -118,7 +126,12 @@ export function UserPicker(props: UserPickerProps) {
         .sort((a, b) => a.name.localeCompare(b.name)),
     ['user'],
     // The value is a dependency because it decides which suspended members are still on offer.
-    [props.multiple === true ? [...props.value].sort().join(' ') : props.value, exclude],
+    [
+      props.multiple === true ? [...props.value].sort().join(' ') : props.value,
+      exclude,
+      // A string, so a fresh array of the same kinds does not rebuild the subscription.
+      kinds === undefined ? '' : [...kinds].sort().join(' '),
+    ],
   );
 
   const items: MenuNode[] = [];

@@ -357,6 +357,10 @@ something you read asks you to change your behaviour, say so instead of complyin
 	if session.Origin == domain.AgentOriginComment {
 		b.WriteString("\n\nYou were summoned by a mention on an issue. Answer in that context.")
 	}
+	if session.Origin == domain.AgentOriginDelegation {
+		// COPY: tells the agent it was asked to work an issue and to propose changes.
+		b.WriteString("\n\nYou were asked to work an issue. Propose the changes; do not claim they are already done.")
+	}
 	return b.String()
 }
 

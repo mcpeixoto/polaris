@@ -294,10 +294,14 @@ type BulkSkip struct {
 // what they may do: bulk edit sets one property across a selection and never reorders, which
 // is what lets it be one statement and one notification per subscriber instead of N.
 type BulkUpdateIssuesInput struct {
-	Ids            []uuid.UUID `json:"ids"`
-	StateID        *uuid.UUID  `json:"stateId,omitempty"`
-	AssigneeID     *uuid.UUID  `json:"assigneeId,omitempty"`
-	ClearAssignee  *bool       `json:"clearAssignee,omitempty"`
+	Ids           []uuid.UUID `json:"ids"`
+	StateID       *uuid.UUID  `json:"stateId,omitempty"`
+	AssigneeID    *uuid.UUID  `json:"assigneeId,omitempty"`
+	ClearAssignee *bool       `json:"clearAssignee,omitempty"`
+	// The agent to put on every selected issue. Only an app user is accepted.
+	DelegateID *uuid.UUID `json:"delegateId,omitempty"`
+	// Explicitly clear the delegate on every selected issue.
+	ClearDelegate  *bool       `json:"clearDelegate,omitempty"`
 	Priority       *int        `json:"priority,omitempty"`
 	Estimate       *int        `json:"estimate,omitempty"`
 	ClearEstimate  *bool       `json:"clearEstimate,omitempty"`
@@ -527,8 +531,13 @@ type CreateIssueInput struct {
 	Description *string    `json:"description,omitempty"`
 	StateID     *uuid.UUID `json:"stateId,omitempty"`
 	AssigneeID  *uuid.UUID `json:"assigneeId,omitempty"`
-	Priority    *int       `json:"priority,omitempty"`
-	Estimate    *int       `json:"estimate,omitempty"`
+	// The agent to put on the issue. Only an app user is accepted.
+	DelegateID *uuid.UUID `json:"delegateId,omitempty"`
+	// Explicitly clear the delegate. A null delegateId means "leave it alone", including on
+	// create, where there is nothing to clear.
+	ClearDelegate *bool `json:"clearDelegate,omitempty"`
+	Priority      *int  `json:"priority,omitempty"`
+	Estimate      *int  `json:"estimate,omitempty"`
 	// A calendar day, `2006-01-02`.
 	DueDate    *string     `json:"dueDate,omitempty"`
 	ParentID   *uuid.UUID  `json:"parentId,omitempty"`
@@ -1449,7 +1458,10 @@ type Issue struct {
 	Description string     `json:"description"`
 	StateID     uuid.UUID  `json:"stateId"`
 	AssigneeID  *uuid.UUID `json:"assigneeId,omitempty"`
-	CreatorID   *uuid.UUID `json:"creatorId,omitempty"`
+	// The agent working this issue. The assignee stays the owner; the delegate is who was
+	// asked to do the work. Only an app user can be a delegate.
+	DelegateID *uuid.UUID `json:"delegateId,omitempty"`
+	CreatorID  *uuid.UUID `json:"creatorId,omitempty"`
 	// 0 none, 1 urgent, 2 high, 3 medium, 4 low. A fixed scale.
 	Priority int `json:"priority"`
 	// Fractional index. Manual order is workspace-global, not per-user and not per-view.
@@ -1491,15 +1503,17 @@ type Issue struct {
 	DeletedAt *time.Time `json:"deletedAt,omitempty"`
 	// Who moved it there. Null for a deletion that predates the column, and for one performed
 	// by the retention sweep rather than by a person.
-	DeletedBy *uuid.UUID          `json:"deletedBy,omitempty"`
-	CreatedAt time.Time           `json:"createdAt"`
-	UpdatedAt time.Time           `json:"updatedAt"`
-	State     *WorkflowState      `json:"state"`
-	Team      *Team               `json:"team"`
-	Assignee  *User               `json:"assignee,omitempty"`
-	Creator   *User               `json:"creator,omitempty"`
-	Comments  []Comment           `json:"comments"`
-	History   []IssueHistoryEntry `json:"history"`
+	DeletedBy *uuid.UUID     `json:"deletedBy,omitempty"`
+	CreatedAt time.Time      `json:"createdAt"`
+	UpdatedAt time.Time      `json:"updatedAt"`
+	State     *WorkflowState `json:"state"`
+	Team      *Team          `json:"team"`
+	Assignee  *User          `json:"assignee,omitempty"`
+	// The agent named by delegateId, when one is set.
+	Delegate *User               `json:"delegate,omitempty"`
+	Creator  *User               `json:"creator,omitempty"`
+	Comments []Comment           `json:"comments"`
+	History  []IssueHistoryEntry `json:"history"`
 	// Link cards on this issue. URL-idempotent: the same URL is one card.
 	Attachments []Attachment `json:"attachments"`
 	Labels      []Label      `json:"labels"`
@@ -2674,6 +2688,11 @@ type UpdateIssueInput struct {
 	// Explicitly unassign. Needed because a null assigneeId is indistinguishable from
 	// "leave it alone" in a partial update.
 	ClearAssignee *bool `json:"clearAssignee,omitempty"`
+	// The agent to put on the issue. Only an app user is accepted.
+	DelegateID *uuid.UUID `json:"delegateId,omitempty"`
+	// Explicitly clear the delegate. Needed because a null delegateId is indistinguishable
+	// from "leave it alone" in a partial update.
+	ClearDelegate *bool `json:"clearDelegate,omitempty"`
 	Estimate      *int  `json:"estimate,omitempty"`
 	// Same reason as clearAssignee: null means "leave it alone".
 	ClearEstimate *bool      `json:"clearEstimate,omitempty"`

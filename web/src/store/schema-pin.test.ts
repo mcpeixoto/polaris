@@ -4,7 +4,7 @@ import { CLIENT_SCHEMA } from './db';
 import { ENTITY_TYPES } from './types';
 
 /**
- * The set of stores a v54 replica has.
+ * The set of stores a v55 replica has.
  *
  * The database's name carries the schema number, so a bump is how an old replica gets
  * thrown away and rebuilt. That works right up until somebody adds an entity type and
@@ -17,7 +17,7 @@ import { ENTITY_TYPES } from './types';
  * has been open since before the deploy.
  */
 const STORES_AT: Readonly<Record<number, readonly string[]>> = {
-  54: [
+  55: [
     'workspace',
     'user',
     'githubConnection',

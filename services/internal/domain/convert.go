@@ -170,6 +170,7 @@ func toIssue(i store.GetIssueRow, teamKey string) model.Issue {
 		Description: i.Description,
 		StateID:     i.StateID,
 		AssigneeID:  i.AssigneeID,
+		DelegateID:  i.DelegateID,
 		CreatorID:   i.CreatorID,
 		Priority:    int(i.Priority),
 		SortOrder:   i.SortOrder,

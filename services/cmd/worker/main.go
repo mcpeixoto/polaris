@@ -159,6 +159,48 @@ func run() error {
 			},
 		},
 		{
+			// One due delegation per tick, ahead of the session runner so the session exists
+			// before that job looks for queued conversations. Five seconds is the same
+			// cadence as the inbox: long enough that a person still editing the description
+			// is inside DelegationDelay, short enough that a run that is due does not sit.
+			name:   "start delegated runs",
+			every:  5 * time.Second,
+			atBoot: true,
+			run: func(ctx context.Context) error {
+				return svc.StartDueDelegatedRun(ctx)
+			},
+			critical: false,
+		},
+		{
+			// Workspaces created before the agent was minted with the workspace. Runs at
+			// boot and then rarely: after the first pass there is nothing left to do.
+			name:   "mint built-in agents",
+			every:  time.Hour,
+			atBoot: true,
+			run: func(ctx context.Context) error {
+				n, err := svc.EnsureAgentIdentities(ctx)
+				if err == nil && n > 0 {
+					log.Info("minted built-in agents", "workspaces", n)
+				}
+				return err
+			},
+		},
+		{
+			// A claimed run whose worker died still holds the issue. Five minutes without
+			// a heartbeat is the line between "the model is thinking" and "nobody is
+			// there", and a minute between sweeps is how long a dead run stays dead.
+			name:  "requeue stale agent runs",
+			every: time.Minute,
+			run: func(ctx context.Context) error {
+				n, err := svc.RequeueStaleAgentRuns(ctx, 5*time.Minute)
+				if err == nil && n > 0 {
+					log.Info("requeued stale agent runs", "rows", n)
+				}
+				return err
+			},
+			critical: false,
+		},
+		{
 			// The queue the api does not drain: a conversation summoned by a mention has
 			// nobody watching a stream, so it is answered here.
 			//

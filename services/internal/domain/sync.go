@@ -1340,7 +1340,10 @@ func (s *Service) StreamBootstrap(ctx context.Context, p *authz.Principal, w Boo
 // v54 adds reaction (emoji on comments and issues). The entity shipped without this
 // bump, so replicas built before it had no reaction store while every client
 // transaction named one, and the workspace failed to open rather than degrading.
-const ClientSchemaVersion = 54
+// v55 adds issue.delegateId. A replica that kept its old rows would show a delegate
+// only on issues touched after the upgrade, and the rest would look un-delegated
+// until the next full sync.
+const ClientSchemaVersion = 55
 
 // PruneChangeLog deletes change rows past the retention window. Run nightly.
 //
