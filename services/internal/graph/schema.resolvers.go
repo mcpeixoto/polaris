@@ -4039,6 +4039,20 @@ func (r *mutationResolver) DeleteWebhook(ctx context.Context, id uuid.UUID) (*ge
 	return &generated.DeletePayload{Version: int(version), ID: deleted}, nil
 }
 
+// StartLinearImport is the resolver for the startLinearImport field.
+func (r *mutationResolver) StartLinearImport(ctx context.Context, apiKey string) (*generated.ImportJob, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	job, err := r.Svc.StartLinearImport(ctx, p, apiKey)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := toImportJob(job)
+	return &out, nil
+}
+
 // CreateOauthClient is the resolver for the createOauthClient field.
 func (r *mutationResolver) CreateOauthClient(ctx context.Context, input generated.CreateOauthClientInput) (*generated.OauthClientCreatePayload, error) {
 	p, err := principalFrom(ctx)
@@ -5648,6 +5662,40 @@ func (r *queryResolver) WebhookDeliveries(ctx context.Context, webhookID uuid.UU
 		return nil, PresentError(ctx, err)
 	}
 	return toWebhookDeliveries(rows), nil
+}
+
+// ImportJob is the resolver for the importJob field.
+func (r *queryResolver) ImportJob(ctx context.Context, id uuid.UUID) (*generated.ImportJob, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	job, err := r.Svc.GetImportJob(ctx, p, id)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, nil
+		}
+		return nil, PresentError(ctx, err)
+	}
+	out := toImportJob(job)
+	return &out, nil
+}
+
+// ImportJobs is the resolver for the importJobs field.
+func (r *queryResolver) ImportJobs(ctx context.Context) ([]generated.ImportJob, error) {
+	p, err := principalFrom(ctx)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	jobs, err := r.Svc.ListImportJobs(ctx, p)
+	if err != nil {
+		return nil, PresentError(ctx, err)
+	}
+	out := make([]generated.ImportJob, 0, len(jobs))
+	for _, j := range jobs {
+		out = append(out, toImportJob(j))
+	}
+	return out, nil
 }
 
 // AuditLog is the resolver for the auditLog field.

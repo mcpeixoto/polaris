@@ -39,6 +39,11 @@ type Service struct {
 	githubComments GitHubCommentPoster
 	gitlabComments GitLabCommentPoster
 
+	// importSources are the trackers an import can read from, by import_job.source. Nil
+	// means none: StartLinearImport refuses, and a queued job fails rather than waiting
+	// forever for code this process does not have. See RegisterImportSource.
+	importSources map[string]ImportSource
+
 	// audit records security-relevant events, and is nil in a community build.
 	//
 	// Not setter-injected like the two above, and the difference is what the nil means. A

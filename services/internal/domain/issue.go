@@ -117,6 +117,24 @@ type CreateIssueInput struct {
 	// of a new schedule. The composer "Make recurring…" path.
 	RecurringCadence      *string
 	RecurringFirstDueDate *model.Date
+
+	// imported carries what an import knows about an issue that a request never may: the
+	// number it already had, and when it was filed and closed. Unexported so the only way
+	// to set it is ImportRun.CreateIssue, and honoured only under WithImport besides — a
+	// client that could choose its own issue number could squat on ENG-1000 before the
+	// team got there.
+	imported *importedIssue
+}
+
+type importedIssue struct {
+	number      int64
+	createdAt   *time.Time
+	completedAt *time.Time
+	canceledAt  *time.Time
+
+	// link is written in the create's own transaction. Written afterwards, a crash between
+	// the two commits leaves an issue no link points at, and the resume files it again.
+	link *store.InsertImportLinkParams
 }
 
 // issueIDFor returns the id a new issue should take, honouring a client's choice.
@@ -278,9 +296,9 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 
 		// Takes a row lock on the team for the rest of the transaction, so two
 		// simultaneous creations cannot claim the same number.
-		number, err := q.AllocateIssueNumber(ctx, in.TeamID)
+		number, err := s.issueNumberFor(ctx, q, in)
 		if err != nil {
-			return platform.Internal(err)
+			return err
 		}
 
 		sortOrder, err := s.sortOrderFor(ctx, q, in.TeamID, state.ID, in.AfterIssueID)
@@ -352,10 +370,26 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 		if hasDueDate {
 			params.DueDate = store.DateOf(dueDay)
 		}
+		if in.imported != nil && isImport(ctx) {
+			params.CreatedAt = in.imported.createdAt
+			if params.CompletedAt != nil && in.imported.completedAt != nil {
+				params.CompletedAt = in.imported.completedAt
+			}
+			if params.CanceledAt != nil && in.imported.canceledAt != nil {
+				params.CanceledAt = in.imported.canceledAt
+			}
+		}
 
 		row, err := q.CreateIssue(ctx, params)
 		if err != nil {
 			return mapParentTriggerError(err)
+		}
+		if in.imported != nil && in.imported.link != nil && isImport(ctx) {
+			link := *in.imported.link
+			link.PolarisID = row.ID
+			if err := q.InsertImportLink(ctx, link); err != nil {
+				return platform.Internal(err)
+			}
 		}
 		out = toIssue(store.AsIssueRow(row), team.Key)
 
@@ -447,6 +481,39 @@ func (s *Service) CreateIssue(ctx context.Context, p *authz.Principal, in Create
 		return model.Issue{}, 0, err
 	}
 	return out, version, nil
+}
+
+// issueNumberFor allocates the next number in the team, or keeps the one an imported issue
+// already had.
+//
+// An import's number is kept only when nothing here has used it — natively, or in the trash,
+// which the unique index still counts. When it has, the imported issue takes the next free
+// number instead: ENG-12 meaning two different things in one workspace is the outcome this
+// avoids, and a renumbered import is the honest cost of importing into a team that already
+// had work in it. Either way the counter ends at or above every number in use, so the next
+// issue filed natively does not collide with one the import wrote.
+func (s *Service) issueNumberFor(ctx context.Context, q *store.Queries, in CreateIssueInput) (int64, error) {
+	if in.imported != nil && in.imported.number > 0 && isImport(ctx) {
+		taken, err := q.IssueNumberTaken(ctx, store.IssueNumberTakenParams{
+			TeamID: in.TeamID, Number: in.imported.number,
+		})
+		if err != nil {
+			return 0, platform.Internal(err)
+		}
+		if !taken {
+			if err := q.RaiseTeamIssueCounter(ctx, store.RaiseTeamIssueCounterParams{
+				ID: in.TeamID, Number: in.imported.number,
+			}); err != nil {
+				return 0, platform.Internal(err)
+			}
+			return in.imported.number, nil
+		}
+	}
+	number, err := q.AllocateIssueNumber(ctx, in.TeamID)
+	if err != nil {
+		return 0, platform.Internal(err)
+	}
+	return number, nil
 }
 
 // dedupe keeps the caller's order and drops repeats.

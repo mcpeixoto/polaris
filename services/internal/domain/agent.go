@@ -690,6 +690,11 @@ func (s *Service) maybeSummonAgent(
 	if p.ActorType == authz.ActorAppUser {
 		return nil
 	}
+	// An imported comment that once named the agent was a summons in another tracker. Running
+	// it now would answer a question nobody here asked, on an issue nobody is looking at.
+	if isImport(ctx) {
+		return nil
+	}
 	if !mentionsAgent(ctx, q, comment.Body, s, issue.WorkspaceID) {
 		return nil
 	}

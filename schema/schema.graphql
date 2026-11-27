@@ -2094,6 +2094,30 @@ type Webhook {
   updatedAt: Time!
 }
 
+"""
+An import from another tracker, as the admin who started it sees it. The source's API key
+is not on this type: it lives on the job only while the job can still run, and nowhere a
+query can reach.
+"""
+type ImportJob {
+  id: UUID!
+  source: String!
+  """queued, running, done or failed."""
+  status: String!
+  """One entry per kind of entity, in no meaningful order."""
+  progress: [ImportProgress!]!
+  error: String
+  createdAt: Time!
+  startedAt: Time
+  finishedAt: Time
+}
+
+type ImportProgress {
+  entity: String!
+  done: Int!
+  total: Int!
+}
+
 type WebhookCreated {
   webhook: Webhook!
   """Shown once. Used to HMAC the raw body. Not recoverable afterwards."""
@@ -3595,6 +3619,11 @@ type Query {
   webhooks: [Webhook!]!
   webhookDeliveries(webhookId: UUID!, first: Int): [WebhookDelivery!]!
 
+  """One import. Admins only."""
+  importJob(id: UUID!): ImportJob
+  """The workspace's recent imports, newest first. Admins only."""
+  importJobs: [ImportJob!]!
+
   """
   The workspace's audit log, newest first. Admins only, and an Enterprise feature: on a
   plan without it this refuses with PLAN_LIMIT rather than returning an empty list.
@@ -4079,6 +4108,12 @@ type Mutation {
   createWebhook(input: CreateWebhookInput!): WebhookCreatePayload!
   updateWebhook(input: UpdateWebhookInput!): WebhookPayload!
   deleteWebhook(id: UUID!): DeletePayload!
+
+  """
+  Queues an import of the Linear workspace an API key belongs to. Admins only. The key is
+  checked against Linear before anything is queued and is dropped when the job ends.
+  """
+  startLinearImport(apiKey: String!): ImportJob!
 
   """Returns the client secret exactly once."""
   createOauthClient(input: CreateOauthClientInput!): OauthClientCreatePayload!

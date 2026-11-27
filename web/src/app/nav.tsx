@@ -48,6 +48,7 @@ export type NavGlyphName =
   | 'sentry'
   | 'slack'
   | 'export'
+  | 'import'
   | 'prefs'
   | 'trash';
 
@@ -266,6 +267,13 @@ function glyphPath(name: NavGlyphName) {
         <>
           <path d="M8 3.5v6.5M5.5 7.5 8 10l2.5-2.5" {...stroke} />
           <path d="M3.5 12.5h9" {...stroke} />
+        </>
+      );
+    case 'import':
+      return (
+        <>
+          <path d="M2.5 8h6.5M6.5 5.5 9 8l-2.5 2.5" {...stroke} />
+          <path d="M9.5 3.5h3v9h-3" {...stroke} />
         </>
       );
     case 'prefs':

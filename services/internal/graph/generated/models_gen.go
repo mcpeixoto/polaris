@@ -1237,6 +1237,28 @@ type GitLabWebhook struct {
 	Secret string `json:"secret"`
 }
 
+// An import from another tracker, as the admin who started it sees it. The source's API key
+// is not on this type: it lives on the job only while the job can still run, and nowhere a
+// query can reach.
+type ImportJob struct {
+	ID     uuid.UUID `json:"id"`
+	Source string    `json:"source"`
+	// queued, running, done or failed.
+	Status string `json:"status"`
+	// One entry per kind of entity, in no meaningful order.
+	Progress   []ImportProgress `json:"progress"`
+	Error      *string          `json:"error,omitempty"`
+	CreatedAt  time.Time        `json:"createdAt"`
+	StartedAt  *time.Time       `json:"startedAt,omitempty"`
+	FinishedAt *time.Time       `json:"finishedAt,omitempty"`
+}
+
+type ImportProgress struct {
+	Entity string `json:"entity"`
+	Done   int    `json:"done"`
+	Total  int    `json:"total"`
+}
+
 // A workspace objective grouping a manually curated set of projects.
 type Initiative struct {
 	ID          uuid.UUID `json:"id"`

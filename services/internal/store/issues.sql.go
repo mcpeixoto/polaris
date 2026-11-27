@@ -481,7 +481,7 @@ INSERT INTO issue (id, workspace_id, team_id, number, title, description,
                    started_at, completed_at, canceled_at,
                    estimate, due_date, due_date_source, parent_id, sub_issue_sort_order,
                    template_id, form_template_id, project_id, project_milestone_id, cycle_id, snoozed_until,
-                   recurring_issue_id, delegate_id)
+                   recurring_issue_id, delegate_id, created_at)
 VALUES ($1, $2, $3, $4,
         $5, $6, $7,
         $8, $9, $10,
@@ -495,7 +495,10 @@ VALUES ($1, $2, $3, $4,
         $18, $19, $20,
         $21,
         $22, $23, $24,
-        $25, $26, $27)
+        $25, $26, $27,
+        -- Null is now. Only an import sets it, to keep the date the issue was filed where
+        -- it was filed rather than the date it was copied here.
+        COALESCE($28::timestamptz, now()))
 RETURNING id, workspace_id, team_id, number, title, description, state_id,
           assignee_id, creator_id, priority, sort_order,
           started_at, completed_at, canceled_at,
@@ -532,6 +535,7 @@ type CreateIssueParams struct {
 	SnoozedUntil       *time.Time
 	RecurringIssueID   *uuid.UUID
 	DelegateID         *uuid.UUID
+	CreatedAt          *time.Time
 }
 
 type CreateIssueRow struct {
@@ -605,6 +609,7 @@ func (q *Queries) CreateIssue(ctx context.Context, arg CreateIssueParams) (Creat
 		arg.SnoozedUntil,
 		arg.RecurringIssueID,
 		arg.DelegateID,
+		arg.CreatedAt,
 	)
 	var i CreateIssueRow
 	err := row.Scan(

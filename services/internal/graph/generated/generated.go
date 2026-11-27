@@ -627,6 +627,23 @@ type ComplexityRoot struct {
 		URL    func(childComplexity int) int
 	}
 
+	ImportJob struct {
+		CreatedAt  func(childComplexity int) int
+		Error      func(childComplexity int) int
+		FinishedAt func(childComplexity int) int
+		ID         func(childComplexity int) int
+		Progress   func(childComplexity int) int
+		Source     func(childComplexity int) int
+		StartedAt  func(childComplexity int) int
+		Status     func(childComplexity int) int
+	}
+
+	ImportProgress struct {
+		Done   func(childComplexity int) int
+		Entity func(childComplexity int) int
+		Total  func(childComplexity int) int
+	}
+
 	Initiative struct {
 		ArchivedAt            func(childComplexity int) int
 		Color                 func(childComplexity int) int
@@ -1135,6 +1152,7 @@ type ComplexityRoot struct {
 		SnoozeIssue                    func(childComplexity int, id uuid.UUID, until time.Time, clientID *uuid.UUID, opID *uuid.UUID) int
 		SnoozeNotification             func(childComplexity int, id uuid.UUID, until *time.Time) int
 		StartCycleToday                func(childComplexity int, id uuid.UUID, clientID *uuid.UUID, opID *uuid.UUID) int
+		StartLinearImport              func(childComplexity int, apiKey string) int
 		SubmitIntegration              func(childComplexity int, input SubmitIntegrationInput) int
 		SuspendUser                    func(childComplexity int, userID uuid.UUID, suspended bool) int
 		UnregisterPushDevice           func(childComplexity int, token string) int
@@ -1594,6 +1612,8 @@ type ComplexityRoot struct {
 		GitlabTeamAutomation         func(childComplexity int, teamID uuid.UUID) int
 		GitlabUserLink               func(childComplexity int) int
 		GitlabWebhook                func(childComplexity int) int
+		ImportJob                    func(childComplexity int, id uuid.UUID) int
+		ImportJobs                   func(childComplexity int) int
 		Initiative                   func(childComplexity int, id uuid.UUID) int
 		InitiativeLabel              func(childComplexity int, id uuid.UUID) int
 		InitiativeLabels             func(childComplexity int) int
@@ -2225,6 +2245,7 @@ type MutationResolver interface {
 	CreateWebhook(ctx context.Context, input CreateWebhookInput) (*WebhookCreatePayload, error)
 	UpdateWebhook(ctx context.Context, input UpdateWebhookInput) (*WebhookPayload, error)
 	DeleteWebhook(ctx context.Context, id uuid.UUID) (*DeletePayload, error)
+	StartLinearImport(ctx context.Context, apiKey string) (*ImportJob, error)
 	CreateOauthClient(ctx context.Context, input CreateOauthClientInput) (*OauthClientCreatePayload, error)
 	UpdateOauthClient(ctx context.Context, input UpdateOauthClientInput) (*OauthClientPayload, error)
 	RotateOauthClientSecret(ctx context.Context, id uuid.UUID) (*OauthClientSecretPayload, error)
@@ -2313,6 +2334,8 @@ type QueryResolver interface {
 	AuthorisedOauthApps(ctx context.Context) ([]AuthorisedOauthApp, error)
 	Webhooks(ctx context.Context) ([]Webhook, error)
 	WebhookDeliveries(ctx context.Context, webhookID uuid.UUID, first *int) ([]WebhookDelivery, error)
+	ImportJob(ctx context.Context, id uuid.UUID) (*ImportJob, error)
+	ImportJobs(ctx context.Context) ([]ImportJob, error)
 	AuditLog(ctx context.Context, first *int, after *uuid.UUID) ([]AuditLogEntry, error)
 	OauthClients(ctx context.Context) ([]OauthClient, error)
 	OauthClient(ctx context.Context, id uuid.UUID) (*OauthClient, error)
@@ -4757,6 +4780,74 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.GitLabWebhook.URL(childComplexity), true
+
+	case "ImportJob.createdAt":
+		if e.ComplexityRoot.ImportJob.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ImportJob.CreatedAt(childComplexity), true
+	case "ImportJob.error":
+		if e.ComplexityRoot.ImportJob.Error == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ImportJob.Error(childComplexity), true
+	case "ImportJob.finishedAt":
+		if e.ComplexityRoot.ImportJob.FinishedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ImportJob.FinishedAt(childComplexity), true
+	case "ImportJob.id":
+		if e.ComplexityRoot.ImportJob.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ImportJob.ID(childComplexity), true
+	case "ImportJob.progress":
+		if e.ComplexityRoot.ImportJob.Progress == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ImportJob.Progress(childComplexity), true
+	case "ImportJob.source":
+		if e.ComplexityRoot.ImportJob.Source == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ImportJob.Source(childComplexity), true
+	case "ImportJob.startedAt":
+		if e.ComplexityRoot.ImportJob.StartedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ImportJob.StartedAt(childComplexity), true
+	case "ImportJob.status":
+		if e.ComplexityRoot.ImportJob.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ImportJob.Status(childComplexity), true
+
+	case "ImportProgress.done":
+		if e.ComplexityRoot.ImportProgress.Done == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ImportProgress.Done(childComplexity), true
+	case "ImportProgress.entity":
+		if e.ComplexityRoot.ImportProgress.Entity == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ImportProgress.Entity(childComplexity), true
+	case "ImportProgress.total":
+		if e.ComplexityRoot.ImportProgress.Total == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ImportProgress.Total(childComplexity), true
 
 	case "Initiative.archivedAt":
 		if e.ComplexityRoot.Initiative.ArchivedAt == nil {
@@ -8083,6 +8174,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.StartCycleToday(childComplexity, args["id"].(uuid.UUID), args["clientId"].(*uuid.UUID), args["opId"].(*uuid.UUID)), true
+	case "Mutation.startLinearImport":
+		if e.ComplexityRoot.Mutation.StartLinearImport == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_startLinearImport_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.StartLinearImport(childComplexity, args["apiKey"].(string)), true
 	case "Mutation.submitIntegration":
 		if e.ComplexityRoot.Mutation.SubmitIntegration == nil {
 			break
@@ -10520,6 +10622,23 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.GitlabWebhook(childComplexity), true
+	case "Query.importJob":
+		if e.ComplexityRoot.Query.ImportJob == nil {
+			break
+		}
+
+		args, err := ec.field_Query_importJob_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ImportJob(childComplexity, args["id"].(uuid.UUID)), true
+	case "Query.importJobs":
+		if e.ComplexityRoot.Query.ImportJobs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.ImportJobs(childComplexity), true
 	case "Query.initiative":
 		if e.ComplexityRoot.Query.Initiative == nil {
 			break
@@ -14914,6 +15033,30 @@ type Webhook {
   updatedAt: Time!
 }
 
+"""
+An import from another tracker, as the admin who started it sees it. The source's API key
+is not on this type: it lives on the job only while the job can still run, and nowhere a
+query can reach.
+"""
+type ImportJob {
+  id: UUID!
+  source: String!
+  """queued, running, done or failed."""
+  status: String!
+  """One entry per kind of entity, in no meaningful order."""
+  progress: [ImportProgress!]!
+  error: String
+  createdAt: Time!
+  startedAt: Time
+  finishedAt: Time
+}
+
+type ImportProgress {
+  entity: String!
+  done: Int!
+  total: Int!
+}
+
 type WebhookCreated {
   webhook: Webhook!
   """Shown once. Used to HMAC the raw body. Not recoverable afterwards."""
@@ -16415,6 +16558,11 @@ type Query {
   webhooks: [Webhook!]!
   webhookDeliveries(webhookId: UUID!, first: Int): [WebhookDelivery!]!
 
+  """One import. Admins only."""
+  importJob(id: UUID!): ImportJob
+  """The workspace's recent imports, newest first. Admins only."""
+  importJobs: [ImportJob!]!
+
   """
   The workspace's audit log, newest first. Admins only, and an Enterprise feature: on a
   plan without it this refuses with PLAN_LIMIT rather than returning an empty list.
@@ -16899,6 +17047,12 @@ type Mutation {
   createWebhook(input: CreateWebhookInput!): WebhookCreatePayload!
   updateWebhook(input: UpdateWebhookInput!): WebhookPayload!
   deleteWebhook(id: UUID!): DeletePayload!
+
+  """
+  Queues an import of the Linear workspace an API key belongs to. Admins only. The key is
+  checked against Linear before anything is queued and is dropped when the job ends.
+  """
+  startLinearImport(apiKey: String!): ImportJob!
 
   """Returns the client secret exactly once."""
   createOauthClient(input: CreateOauthClientInput!): OauthClientCreatePayload!
@@ -18129,6 +18283,40 @@ func (ec *executionContext) childFields_GitLabWebhook(ctx context.Context, field
 		return ec.fieldContext_GitLabWebhook_secret(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type GitLabWebhook", field.Name)
+}
+
+func (ec *executionContext) childFields_ImportJob(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_ImportJob_id(ctx, field)
+	case "source":
+		return ec.fieldContext_ImportJob_source(ctx, field)
+	case "status":
+		return ec.fieldContext_ImportJob_status(ctx, field)
+	case "progress":
+		return ec.fieldContext_ImportJob_progress(ctx, field)
+	case "error":
+		return ec.fieldContext_ImportJob_error(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_ImportJob_createdAt(ctx, field)
+	case "startedAt":
+		return ec.fieldContext_ImportJob_startedAt(ctx, field)
+	case "finishedAt":
+		return ec.fieldContext_ImportJob_finishedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ImportJob", field.Name)
+}
+
+func (ec *executionContext) childFields_ImportProgress(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "entity":
+		return ec.fieldContext_ImportProgress_entity(ctx, field)
+	case "done":
+		return ec.fieldContext_ImportProgress_done(ctx, field)
+	case "total":
+		return ec.fieldContext_ImportProgress_total(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ImportProgress", field.Name)
 }
 
 func (ec *executionContext) childFields_Initiative(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -24687,6 +24875,20 @@ func (ec *executionContext) field_Mutation_startCycleToday_args(ctx context.Cont
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_startLinearImport_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "apiKey",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["apiKey"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_submitIntegration_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -26130,6 +26332,20 @@ func (ec *executionContext) field_Query_gitlabTeamAutomation_args(ctx context.Co
 		return nil, err
 	}
 	args["teamId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_importJob_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -35984,6 +36200,268 @@ func (ec *executionContext) _GitLabWebhook_secret(ctx context.Context, field gra
 }
 func (ec *executionContext) fieldContext_GitLabWebhook_secret(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("GitLabWebhook", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ImportJob_id(ctx context.Context, field graphql.CollectedField, obj *ImportJob) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ImportJob_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ImportJob_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ImportJob", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ImportJob_source(ctx context.Context, field graphql.CollectedField, obj *ImportJob) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ImportJob_source(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Source, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ImportJob_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ImportJob", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ImportJob_status(ctx context.Context, field graphql.CollectedField, obj *ImportJob) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ImportJob_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ImportJob_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ImportJob", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ImportJob_progress(ctx context.Context, field graphql.CollectedField, obj *ImportJob) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ImportJob_progress(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Progress, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []ImportProgress) graphql.Marshaler {
+			return ec.marshalNImportProgress2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐImportProgressᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ImportJob_progress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ImportJob",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ImportProgress(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ImportJob_error(ctx context.Context, field graphql.CollectedField, obj *ImportJob) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ImportJob_error(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Error, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ImportJob_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ImportJob", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ImportJob_createdAt(ctx context.Context, field graphql.CollectedField, obj *ImportJob) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ImportJob_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ImportJob_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ImportJob", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _ImportJob_startedAt(ctx context.Context, field graphql.CollectedField, obj *ImportJob) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ImportJob_startedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ImportJob_startedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ImportJob", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _ImportJob_finishedAt(ctx context.Context, field graphql.CollectedField, obj *ImportJob) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ImportJob_finishedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FinishedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ImportJob_finishedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ImportJob", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _ImportProgress_entity(ctx context.Context, field graphql.CollectedField, obj *ImportProgress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ImportProgress_entity(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Entity, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ImportProgress_entity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ImportProgress", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ImportProgress_done(ctx context.Context, field graphql.CollectedField, obj *ImportProgress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ImportProgress_done(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Done, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ImportProgress_done(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ImportProgress", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ImportProgress_total(ctx context.Context, field graphql.CollectedField, obj *ImportProgress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ImportProgress_total(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Total, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ImportProgress_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ImportProgress", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _Initiative_id(ctx context.Context, field graphql.CollectedField, obj *Initiative) (ret graphql.Marshaler) {
@@ -51857,6 +52335,50 @@ func (ec *executionContext) fieldContext_Mutation_deleteWebhook(ctx context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_startLinearImport(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_startLinearImport(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().StartLinearImport(ctx, fc.Args["apiKey"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *ImportJob) graphql.Marshaler {
+			return ec.marshalNImportJob2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐImportJob(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_startLinearImport(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ImportJob(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_startLinearImport_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createOauthClient(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -61397,6 +61919,82 @@ func (ec *executionContext) fieldContext_Query_webhookDeliveries(ctx context.Con
 	if fc.Args, err = ec.field_Query_webhookDeliveries_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_importJob(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_importJob(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ImportJob(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *ImportJob) graphql.Marshaler {
+			return ec.marshalOImportJob2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐImportJob(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_importJob(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ImportJob(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_importJob_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_importJobs(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_importJobs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().ImportJobs(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []ImportJob) graphql.Marshaler {
+			return ec.marshalNImportJob2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐImportJobᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_importJobs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ImportJob(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -81889,6 +82487,127 @@ func (ec *executionContext) _GitLabWebhook(ctx context.Context, sel ast.Selectio
 	return out
 }
 
+var importJobImplementors = []string{"ImportJob"}
+
+func (ec *executionContext) _ImportJob(ctx context.Context, sel ast.SelectionSet, obj *ImportJob) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, importJobImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ImportJob")
+		case "id":
+			out.Values[i] = ec._ImportJob_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "source":
+			out.Values[i] = ec._ImportJob_source(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._ImportJob_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "progress":
+			out.Values[i] = ec._ImportJob_progress(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "error":
+			out.Values[i] = ec._ImportJob_error(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._ImportJob_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "startedAt":
+			out.Values[i] = ec._ImportJob_startedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "finishedAt":
+			out.Values[i] = ec._ImportJob_finishedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var importProgressImplementors = []string{"ImportProgress"}
+
+func (ec *executionContext) _ImportProgress(ctx context.Context, sel ast.SelectionSet, obj *ImportProgress) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, importProgressImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ImportProgress")
+		case "entity":
+			out.Values[i] = ec._ImportProgress_entity(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "done":
+			out.Values[i] = ec._ImportProgress_done(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "total":
+			out.Values[i] = ec._ImportProgress_total(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var initiativeImplementors = []string{"Initiative"}
 
 func (ec *executionContext) _Initiative(ctx context.Context, sel ast.SelectionSet, obj *Initiative) graphql.Marshaler {
@@ -85496,6 +86215,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteWebhook":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteWebhook(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "startLinearImport":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_startLinearImport(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -89451,6 +90177,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_webhookDeliveries(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "importJob":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_importJob(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "importJobs":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_importJobs(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -94722,6 +95492,56 @@ func (ec *executionContext) marshalNGitLabUserLinkPayload2ᚖgithubᚗcomᚋpeix
 	return ec._GitLabUserLinkPayload(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNImportJob2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐImportJob(ctx context.Context, sel ast.SelectionSet, v ImportJob) graphql.Marshaler {
+	return ec._ImportJob(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNImportJob2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐImportJobᚄ(ctx context.Context, sel ast.SelectionSet, v []ImportJob) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNImportJob2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐImportJob(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNImportJob2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐImportJob(ctx context.Context, sel ast.SelectionSet, v *ImportJob) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ImportJob(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNImportProgress2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐImportProgress(ctx context.Context, sel ast.SelectionSet, v ImportProgress) graphql.Marshaler {
+	return ec._ImportProgress(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNImportProgress2ᚕgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐImportProgressᚄ(ctx context.Context, sel ast.SelectionSet, v []ImportProgress) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNImportProgress2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐImportProgress(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) marshalNInitiative2githubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiative(ctx context.Context, sel ast.SelectionSet, v Initiative) graphql.Marshaler {
 	return ec._Initiative(ctx, sel, &v)
 }
@@ -97682,6 +98502,13 @@ func (ec *executionContext) marshalOGitLabWebhook2ᚖgithubᚗcomᚋpeixotolabs�
 		return graphql.Null
 	}
 	return ec._GitLabWebhook(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOImportJob2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐImportJob(ctx context.Context, sel ast.SelectionSet, v *ImportJob) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._ImportJob(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOInitiative2ᚖgithubᚗcomᚋpeixotolabsᚋpolarisᚋservicesᚋinternalᚋgraphᚋgeneratedᚐInitiative(ctx context.Context, sel ast.SelectionSet, v *Initiative) graphql.Marshaler {

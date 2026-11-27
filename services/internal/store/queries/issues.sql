@@ -11,7 +11,7 @@ INSERT INTO issue (id, workspace_id, team_id, number, title, description,
                    started_at, completed_at, canceled_at,
                    estimate, due_date, due_date_source, parent_id, sub_issue_sort_order,
                    template_id, form_template_id, project_id, project_milestone_id, cycle_id, snoozed_until,
-                   recurring_issue_id, delegate_id)
+                   recurring_issue_id, delegate_id, created_at)
 VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(team_id), sqlc.arg(number),
         sqlc.arg(title), sqlc.arg(description), sqlc.arg(state_id),
         sqlc.narg(assignee_id), sqlc.narg(creator_id), sqlc.arg(priority),
@@ -25,7 +25,10 @@ VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(team_id), sqlc.arg(number
         sqlc.narg(parent_id), sqlc.narg(sub_issue_sort_order), sqlc.narg(template_id),
         sqlc.narg(form_template_id),
         sqlc.narg(project_id), sqlc.narg(project_milestone_id), sqlc.narg(cycle_id),
-        sqlc.narg(snoozed_until), sqlc.narg(recurring_issue_id), sqlc.narg(delegate_id))
+        sqlc.narg(snoozed_until), sqlc.narg(recurring_issue_id), sqlc.narg(delegate_id),
+        -- Null is now. Only an import sets it, to keep the date the issue was filed where
+        -- it was filed rather than the date it was copied here.
+        COALESCE(sqlc.narg(created_at)::timestamptz, now()))
 RETURNING id, workspace_id, team_id, number, title, description, state_id,
           assignee_id, creator_id, priority, sort_order,
           started_at, completed_at, canceled_at,

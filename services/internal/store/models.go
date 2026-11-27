@@ -212,6 +212,7 @@ type ChangeLog struct {
 	CreatedAt     time.Time
 	ChangedFields []string
 	BatchKey      *string
+	Silent        bool
 }
 
 type ChangeLogDefault struct {
@@ -508,6 +509,31 @@ type IdempotencyKey struct {
 	Result      json.RawMessage
 	Version     *int64
 	ExpiresAt   time.Time
+	CreatedAt   time.Time
+}
+
+type ImportJob struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	Source      string
+	Status      string
+	CreatedBy   *uuid.UUID
+	Progress    json.RawMessage
+	Error       *string
+	ApiKey      *string
+	CreatedAt   time.Time
+	StartedAt   *time.Time
+	FinishedAt  *time.Time
+	UpdatedAt   time.Time
+}
+
+type ImportLink struct {
+	WorkspaceID uuid.UUID
+	JobID       uuid.UUID
+	Source      string
+	Entity      string
+	ExternalID  string
+	PolarisID   uuid.UUID
 	CreatedAt   time.Time
 }
 

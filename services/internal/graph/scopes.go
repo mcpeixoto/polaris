@@ -116,9 +116,11 @@ var adminMutations = map[string]bool{
 	"rotateOauthClientSecret":  true,
 
 	// Integration configuration.
-	"createWebhook":          true,
-	"updateWebhook":          true,
-	"deleteWebhook":          true,
+	"createWebhook": true,
+	"updateWebhook": true,
+	"deleteWebhook": true,
+	// An import writes teams, statuses and labels for everybody, like the settings above.
+	"startLinearImport":      true,
 	"createGitHubConnection": true,
 	"updateGitHubConnection": true,
 	"deleteGitHubConnection": true,

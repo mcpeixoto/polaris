@@ -27,7 +27,7 @@ describe('SettingsNav', () => {
     for (const route of SETTINGS_ROUTES) {
       expect(links).toContain(route);
     }
-    expect(SETTINGS_ROUTES).toHaveLength(32);
+    expect(SETTINGS_ROUTES).toHaveLength(33);
   });
 
   it('groups the rows under Personal, Issues, Projects, Features and Administration', () => {

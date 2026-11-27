@@ -143,6 +143,8 @@ const GROUPS: readonly SettingsGroup[] = [
       // feature's existence, which is the opposite of "disabled with a reason, never
       // hidden".
       { to: '/settings/audit-log', label: 'Audit log', glyph: 'view', gate: 'admin' },
+      // COPY:
+      { to: '/settings/import', label: 'Import', glyph: 'import', gate: 'member' },
       { to: '/settings/export', label: 'Export', glyph: 'export', gate: 'member' },
       { to: '/settings/trash', label: 'Trash', glyph: 'trash', gate: 'member' },
       { to: '/settings/deleted-teams', label: 'Deleted teams', glyph: 'trash', gate: 'member' },

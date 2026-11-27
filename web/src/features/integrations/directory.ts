@@ -135,6 +135,14 @@ export const DIRECTORY: readonly DirectoryEntry[] = [
     summary: 'No-code actions and triggers over the public GraphQL API.',
   },
   {
+    id: 'linear',
+    name: 'Linear',
+    category: 'Sync',
+    // COPY:
+    summary: 'Import teams, issues and comments from a Linear workspace.',
+    href: '/settings/import',
+  },
+  {
     id: 'jira',
     name: 'Jira',
     category: 'Sync',
