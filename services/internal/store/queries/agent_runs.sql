@@ -85,6 +85,9 @@ UPDATE agent_run
 SET status = 'done',
     finished_at = now(),
     summary = sqlc.narg(summary),
+    -- A finish that does not repeat the resume handle must not wipe the one claim
+    -- already stored. The runner sends it when it has one, and omits it otherwise.
+    session_ref = COALESCE(sqlc.narg(session_ref), session_ref),
     input_tokens = input_tokens + sqlc.arg(input_tokens),
     output_tokens = output_tokens + sqlc.arg(output_tokens),
     updated_at = now()
@@ -103,6 +106,9 @@ SET status = 'failed',
     finished_at = now(),
     summary = COALESCE(sqlc.narg(summary), summary),
     error = sqlc.narg(error),
+    session_ref = COALESCE(sqlc.narg(session_ref), session_ref),
+    input_tokens = input_tokens + sqlc.arg(input_tokens),
+    output_tokens = output_tokens + sqlc.arg(output_tokens),
     updated_at = now()
 WHERE id = sqlc.arg(id)
   AND status IN ('claimed', 'running', 'done')
@@ -147,6 +153,31 @@ WHERE status IN ('claimed', 'running')
   AND NOT EXISTS (
     SELECT 1 FROM agent_identity ai WHERE ai.user_id = agent_run.agent_user_id
   );
+
+-- The runner's heartbeat. The first one promotes claimed to running: claim only means
+-- a process holds the row, and running means it has started the work.
+--
+-- A run that is no longer claimed or running is returned unchanged. The caller has to
+-- tell a cancelled run apart from a run that belongs to somebody else — the first answer
+-- is "stop", the second is "not yours". Updating only the live rows and returning
+-- nothing for the rest would make those the same answer.
+--
+-- name: HeartbeatAgentRun :one
+UPDATE agent_run
+SET heartbeat_at = CASE
+      WHEN status IN ('claimed', 'running') THEN now()
+      ELSE heartbeat_at
+    END,
+    status = CASE WHEN status = 'claimed' THEN 'running' ELSE status END,
+    updated_at = CASE
+      WHEN status IN ('claimed', 'running') THEN now()
+      ELSE updated_at
+    END
+WHERE id = sqlc.arg(id)
+  AND agent_user_id = sqlc.arg(agent_user_id)
+RETURNING id, workspace_id, issue_id, agent_user_id, delegated_by, status, run_after,
+          claimed_at, heartbeat_at, finished_at, session_ref, summary, error,
+          input_tokens, output_tokens, created_at, updated_at;
 
 -- name: UpsertAgentRunner :one
 INSERT INTO agent_runner (agent_user_id, workspace_id, last_seen_at, version)

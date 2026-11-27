@@ -67,6 +67,13 @@ var notInTheAPI = map[string]string{
 	"StartQueuedAgentRun":     "worker claim: takes the oldest queued conversation, FOR UPDATE SKIP LOCKED",
 	"StartDueDelegatedRun":    "worker cron: claims one due built-in delegation and opens its session",
 	"EnsureAgentIdentities":   "worker cron: mints the built-in agent for workspaces that predate it",
+	// The external runner. These are the POST /runner/v1 routes an installed app polls;
+	// a GraphQL mutation would put the same queue on the session API the product's own
+	// client uses, which is the wrong caller.
+	"StartRunnerClaim":    "POST /runner/v1/claim — an external runner takes its oldest due delegation",
+	"MarkRunnerHeartbeat": "POST /runner/v1/runs/{id}/heartbeat — keeps an external run from being requeued",
+	"CreateRunnerComment": "POST /runner/v1/runs/{id}/events — the runner posts a comment as the agent",
+	"MarkRunnerFinished":  "POST /runner/v1/runs/{id}/finish — the runner reports how the run ended",
 
 	// Registration is unauthenticated by specification (RFC 7591): the client is asking
 	// for an identity before anybody has signed in, so there is no session for a GraphQL

@@ -73,6 +73,11 @@
 		}
 	}
 
+	# polaris-runner, the external agent's poll and report. Bearer-only, short requests.
+	handle /runner/* {
+		reverse_proxy api:8088
+	}
+
 	handle /asks/* {
 		reverse_proxy api:8088
 	}

@@ -5411,6 +5411,11 @@ export type UpdateWorkspaceInput = {
 };
 
 export type User = {
+  /**
+   * When an external runner last asked for this agent's work. Null for a person, and
+   * for an agent whose runner has never called.
+   */
+  agentLastSeenAt?: Maybe<Scalars['Time']['output']>;
   archivedAt?: Maybe<Scalars['Time']['output']>;
   avatarUrl?: Maybe<Scalars['String']['output']>;
   createdAt: Scalars['Time']['output'];

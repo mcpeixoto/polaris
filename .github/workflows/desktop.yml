@@ -492,9 +492,43 @@ jobs:
   # succeeded — so a tag where Windows failed publishes nothing, rather than publishing a
   # release whose Windows installer is missing. That is the v0.2.0 failure the `release`
   # job above was written to prevent, arriving from the other end.
+  # polaris-runner, the process that works issues delegated to an external agent. A plain Go
+  # binary, so one Linux runner cross-compiles every platform; nothing here needs signing the
+  # way an installer does. Attached to the same draft as the installers, before `publish`
+  # makes it public, so a released tag never lacks the runner it documents.
+  runner-cli:
+    name: polaris-runner binaries
+    needs: release
+    if: ${{ inputs.tag != '' || startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/go.mod
+          cache-dependency-path: services/go.sum
+      - name: Build and attach
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: services
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for target in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64; do
+            os=${target%/*}; arch=${target#*/}
+            out="dist/polaris-runner-${RELEASE_TAG#v}-${os}-${arch}"
+            [ "$os" = windows ] && out="$out.exe"
+            CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath \
+              -ldflags "-s -w -X main.runnerVersion=${RELEASE_TAG#v}" -o "$out" ./cmd/polaris-runner
+          done
+          (cd dist && sha256sum polaris-runner-* > "polaris-runner-${RELEASE_TAG#v}-SHA256SUMS")
+          gh release upload "$RELEASE_TAG" dist/* --clobber
+
   publish:
     name: Publish the release
-    needs: build
+    needs: [build, runner-cli]
     if: ${{ inputs.tag != '' || startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     steps:

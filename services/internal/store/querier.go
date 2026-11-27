@@ -823,6 +823,15 @@ type Querier interface {
 	GetWorkspace(ctx context.Context, id uuid.UUID) (Workspace, error)
 	GetWorkspaceByURLKey(ctx context.Context, urlKey string) (Workspace, error)
 	GetWorkspaceVersion(ctx context.Context, workspaceID uuid.UUID) (int64, error)
+	// The runner's heartbeat. The first one promotes claimed to running: claim only means
+	// a process holds the row, and running means it has started the work.
+	//
+	// A run that is no longer claimed or running is returned unchanged. The caller has to
+	// tell a cancelled run apart from a run that belongs to somebody else — the first answer
+	// is "stop", the second is "not yours". Updating only the live rows and returning
+	// nothing for the rest would make those the same answer.
+	//
+	HeartbeatAgentRun(ctx context.Context, arg HeartbeatAgentRunParams) (AgentRun, error)
 	InitWorkspaceVersion(ctx context.Context, workspaceID uuid.UUID) error
 	// One delegation, from the moment it is asked for to the moment the agent reports back.
 	//

@@ -50,3 +50,9 @@ models:
       - github.com/99designs/gqlgen/graphql.Int
       - github.com/99designs/gqlgen/graphql.Int64
       - github.com/99designs/gqlgen/graphql.Int32
+  # Filled from agent_runner, not from the user row, so the sync payload does not carry
+  # a liveness fact that only exists once a process has polled.
+  User:
+    fields:
+      agentLastSeenAt:
+        resolver: true
