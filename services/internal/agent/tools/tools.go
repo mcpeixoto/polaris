@@ -33,7 +33,12 @@ type Tool struct {
 	// ReadOnly marks a tool that cannot change state, which is what a read-only
 	// connection is allowed to call.
 	ReadOnly bool
-	Run      func(ctx context.Context, svc *domain.Service, p *authz.Principal, args map[string]any) (any, error)
+	// Destructive marks a write that archives or deletes, as opposed to one that
+	// only adds or edits. MCP clients ask a person before calling one. It is a
+	// property of the verb, not of the connection: a read-only server still refuses
+	// it for the same reason it refuses every other write.
+	Destructive bool
+	Run         func(ctx context.Context, svc *domain.Service, p *authz.Principal, args map[string]any) (any, error)
 }
 
 type Registry struct {

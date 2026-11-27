@@ -283,11 +283,16 @@ func NewRouter(d Deps) http.Handler {
 
 	mcpRW := &mcp.Server{Svc: d.Service, PublicURL: d.Config.PublicURL, ReadOnly: false}
 	mcpRO := &mcp.Server{Svc: d.Service, PublicURL: d.Config.PublicURL, ReadOnly: true}
+	// Same write gate as /mcp. Catalog only changes which tools tools/list names.
+	mcpCatalog := &mcp.Server{Svc: d.Service, PublicURL: d.Config.PublicURL, Catalog: true}
 	mux.Handle("POST /mcp", requireMCP(d.Config.PublicURL, d.Limits.GraphQL(mcpRW)))
 	mux.Handle("GET /mcp", requireMCP(d.Config.PublicURL, d.Limits.GraphQL(mcpRW)))
 	mux.Handle("DELETE /mcp", requireMCP(d.Config.PublicURL, mcpRW))
 	mux.Handle("POST /mcp/readonly", requireMCP(d.Config.PublicURL, d.Limits.GraphQL(mcpRO)))
 	mux.Handle("GET /mcp/readonly", requireMCP(d.Config.PublicURL, d.Limits.GraphQL(mcpRO)))
+	mux.Handle("POST /mcp/catalog", requireMCP(d.Config.PublicURL, d.Limits.GraphQL(mcpCatalog)))
+	mux.Handle("GET /mcp/catalog", requireMCP(d.Config.PublicURL, d.Limits.GraphQL(mcpCatalog)))
+	mux.Handle("DELETE /mcp/catalog", requireMCP(d.Config.PublicURL, mcpCatalog))
 	mux.Handle("GET /.well-known/oauth-protected-resource",
 		d.Limits.Anonymous(mcp.WellKnownProtectedResource(d.Config.PublicURL)))
 	mux.Handle("GET /.well-known/oauth-authorization-server",

@@ -1,6 +1,7 @@
 // Package mcp is Polaris exposed as a remote MCP server.
 //
 // Linear's own server is Streamable HTTP at /mcp (read-write) and /mcp/readonly.
+// /mcp/catalog is the same server with a short tool list; see Server.Catalog.
 // This package is that surface, as an extra route on api rather than a sixth
 // container: the tools call domain.Service, so an issue created from Claude Code
 // is the same issue the web client would have created — same validation, same
@@ -42,6 +43,16 @@ type Server struct {
 	Svc       *domain.Service
 	PublicURL string
 	ReadOnly  bool
+
+	// Catalog advertises nine everyday tools plus discover/execute, instead of the
+	// whole registry. Clients that paste every definition into the prompt were
+	// spending the context window on verbs a given conversation never calls.
+	//
+	// It is a listing, not a privilege. tools/call still resolves any registry name
+	// — a client that cached one from an earlier connection keeps working — and the
+	// write still has to clear the same read-only server flag and write-scope check
+	// as /mcp. A catalog connection cannot do something a plain one would refuse.
+	Catalog bool
 
 	// Tools overrides the shared catalogue. Nil in production, where every server uses the
 	// same registry; tests set it to exercise the transport against a known set.

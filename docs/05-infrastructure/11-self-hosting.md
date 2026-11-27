@@ -583,7 +583,7 @@ correct.
 | `/graphql` | `api` `:8088` | |
 | `/auth/*` | `api` `:8088` | |
 | `/oauth/token`, `/oauth/revoke`, `/oauth/register` | `api` `:8088` | Token exchange, revocation, and RFC 7591 dynamic client registration. Match these **exactly**, not the `/oauth/` prefix: consent (`GET /oauth/authorize`) is the SPA, and proxying the whole prefix 404s the page a person approves on. |
-| `/mcp`, `/mcp/readonly` | `api` `:8088` | Streamable HTTP MCP. Long-lived: raise the proxy read timeout. |
+| `/mcp`, `/mcp/readonly`, `/mcp/catalog` | `api` `:8088` | Streamable HTTP MCP. Long-lived: raise the proxy read timeout. |
 | `/agent/*` | `api` `:8088` | The agent's token stream (server-sent events). **Turn response buffering off** — a buffered proxy delivers the whole answer at the end, which is the same as not streaming. |
 | `/asks/*` | `api` `:8088` | Public Asks intake. Token in the path is the credential. |
 | `/calendars/*` | `api` `:8088` | Public cycle ICS feeds. Token in the path is the credential. |
