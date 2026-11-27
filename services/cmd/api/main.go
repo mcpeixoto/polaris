@@ -29,6 +29,7 @@ import (
 	"github.com/peixotolabs/polaris/services/internal/graph"
 	"github.com/peixotolabs/polaris/services/internal/graph/generated"
 	"github.com/peixotolabs/polaris/services/internal/httpapi"
+	"github.com/peixotolabs/polaris/services/internal/importer/linear"
 	ghclient "github.com/peixotolabs/polaris/services/internal/integrations/github"
 	glclient "github.com/peixotolabs/polaris/services/internal/integrations/gitlab"
 	"github.com/peixotolabs/polaris/services/internal/llm"
@@ -80,6 +81,8 @@ func run() error {
 	svc.PublicURL = cfg.PublicURL
 	svc.SetGitHubCommentPoster(ghclient.CommentClient{})
 	svc.SetGitLabCommentPoster(glclient.CommentClient{})
+	// The api only checks a key and queues the job; the worker runs it.
+	domain.RegisterImportSource(svc, &linear.Source{})
 
 	fileStore, err := files.OpenFromConfig(cfg.FilesDriver, cfg.FilesPath, files.S3Config{
 		Endpoint:  cfg.S3Endpoint,

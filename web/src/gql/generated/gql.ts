@@ -102,6 +102,10 @@ type Documents = {
     "\n  \n  query GitLabTeamAutomation($teamId: UUID!) {\n    gitlabTeamAutomation(teamId: $teamId) {\n      ...GitLabTeamAutomationFields\n    }\n  }\n": typeof types.GitLabTeamAutomationDocument,
     "\n  \n  mutation UpdateGitLabTeamAutomation($input: UpdateGitLabTeamAutomationInput!) {\n    updateGitLabTeamAutomation(input: $input) {\n      gitlabTeamAutomation {\n        ...GitLabTeamAutomationFields\n      }\n    }\n  }\n": typeof types.UpdateGitLabTeamAutomationDocument,
     "\n  \n  mutation DeleteGitLabTeamAutomation($teamId: UUID!) {\n    deleteGitLabTeamAutomation(teamId: $teamId) {\n      gitlabTeamAutomation {\n        ...GitLabTeamAutomationFields\n      }\n    }\n  }\n": typeof types.DeleteGitLabTeamAutomationDocument,
+    "\n  fragment ImportJobFields on ImportJob {\n    id\n    source\n    status\n    progress {\n      entity\n      done\n      total\n    }\n    error\n    createdAt\n    startedAt\n    finishedAt\n  }\n": typeof types.ImportJobFieldsFragmentDoc,
+    "\n  \n  query ImportJobs {\n    importJobs {\n      ...ImportJobFields\n    }\n  }\n": typeof types.ImportJobsDocument,
+    "\n  \n  query ImportJob($id: UUID!) {\n    importJob(id: $id) {\n      ...ImportJobFields\n    }\n  }\n": typeof types.ImportJobDocument,
+    "\n  \n  mutation StartLinearImport($apiKey: String!) {\n    startLinearImport(apiKey: $apiKey) {\n      ...ImportJobFields\n    }\n  }\n": typeof types.StartLinearImportDocument,
     "\n  fragment NotificationFields on Notification {\n    id\n    workspaceId\n    userId\n    type\n    issueId\n    commentId\n    actor {\n      type\n      id\n    }\n    changeVersion\n    groupKey\n    count\n    payload\n    readAt\n    snoozedUntil\n    createdAt\n    updatedAt\n  }\n": typeof types.NotificationFieldsFragmentDoc,
     "\n  \n  query Inbox($first: Int!) {\n    notifications(includeRead: true, includeSnoozed: true, first: $first) {\n      ...NotificationFields\n    }\n  }\n": typeof types.InboxDocument,
     "\n  query UnreadNotificationCount {\n    unreadNotificationCount\n  }\n": typeof types.UnreadNotificationCountDocument,
@@ -418,6 +422,10 @@ const documents: Documents = {
     "\n  \n  query GitLabTeamAutomation($teamId: UUID!) {\n    gitlabTeamAutomation(teamId: $teamId) {\n      ...GitLabTeamAutomationFields\n    }\n  }\n": types.GitLabTeamAutomationDocument,
     "\n  \n  mutation UpdateGitLabTeamAutomation($input: UpdateGitLabTeamAutomationInput!) {\n    updateGitLabTeamAutomation(input: $input) {\n      gitlabTeamAutomation {\n        ...GitLabTeamAutomationFields\n      }\n    }\n  }\n": types.UpdateGitLabTeamAutomationDocument,
     "\n  \n  mutation DeleteGitLabTeamAutomation($teamId: UUID!) {\n    deleteGitLabTeamAutomation(teamId: $teamId) {\n      gitlabTeamAutomation {\n        ...GitLabTeamAutomationFields\n      }\n    }\n  }\n": types.DeleteGitLabTeamAutomationDocument,
+    "\n  fragment ImportJobFields on ImportJob {\n    id\n    source\n    status\n    progress {\n      entity\n      done\n      total\n    }\n    error\n    createdAt\n    startedAt\n    finishedAt\n  }\n": types.ImportJobFieldsFragmentDoc,
+    "\n  \n  query ImportJobs {\n    importJobs {\n      ...ImportJobFields\n    }\n  }\n": types.ImportJobsDocument,
+    "\n  \n  query ImportJob($id: UUID!) {\n    importJob(id: $id) {\n      ...ImportJobFields\n    }\n  }\n": types.ImportJobDocument,
+    "\n  \n  mutation StartLinearImport($apiKey: String!) {\n    startLinearImport(apiKey: $apiKey) {\n      ...ImportJobFields\n    }\n  }\n": types.StartLinearImportDocument,
     "\n  fragment NotificationFields on Notification {\n    id\n    workspaceId\n    userId\n    type\n    issueId\n    commentId\n    actor {\n      type\n      id\n    }\n    changeVersion\n    groupKey\n    count\n    payload\n    readAt\n    snoozedUntil\n    createdAt\n    updatedAt\n  }\n": types.NotificationFieldsFragmentDoc,
     "\n  \n  query Inbox($first: Int!) {\n    notifications(includeRead: true, includeSnoozed: true, first: $first) {\n      ...NotificationFields\n    }\n  }\n": types.InboxDocument,
     "\n  query UnreadNotificationCount {\n    unreadNotificationCount\n  }\n": types.UnreadNotificationCountDocument,
@@ -1012,6 +1020,22 @@ export function graphql(source: "\n  \n  mutation UpdateGitLabTeamAutomation($in
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  \n  mutation DeleteGitLabTeamAutomation($teamId: UUID!) {\n    deleteGitLabTeamAutomation(teamId: $teamId) {\n      gitlabTeamAutomation {\n        ...GitLabTeamAutomationFields\n      }\n    }\n  }\n"): (typeof documents)["\n  \n  mutation DeleteGitLabTeamAutomation($teamId: UUID!) {\n    deleteGitLabTeamAutomation(teamId: $teamId) {\n      gitlabTeamAutomation {\n        ...GitLabTeamAutomationFields\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment ImportJobFields on ImportJob {\n    id\n    source\n    status\n    progress {\n      entity\n      done\n      total\n    }\n    error\n    createdAt\n    startedAt\n    finishedAt\n  }\n"): (typeof documents)["\n  fragment ImportJobFields on ImportJob {\n    id\n    source\n    status\n    progress {\n      entity\n      done\n      total\n    }\n    error\n    createdAt\n    startedAt\n    finishedAt\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  query ImportJobs {\n    importJobs {\n      ...ImportJobFields\n    }\n  }\n"): (typeof documents)["\n  \n  query ImportJobs {\n    importJobs {\n      ...ImportJobFields\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  query ImportJob($id: UUID!) {\n    importJob(id: $id) {\n      ...ImportJobFields\n    }\n  }\n"): (typeof documents)["\n  \n  query ImportJob($id: UUID!) {\n    importJob(id: $id) {\n      ...ImportJobFields\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  \n  mutation StartLinearImport($apiKey: String!) {\n    startLinearImport(apiKey: $apiKey) {\n      ...ImportJobFields\n    }\n  }\n"): (typeof documents)["\n  \n  mutation StartLinearImport($apiKey: String!) {\n    startLinearImport(apiKey: $apiKey) {\n      ...ImportJobFields\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

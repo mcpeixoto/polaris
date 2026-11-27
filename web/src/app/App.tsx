@@ -105,6 +105,9 @@ const Drafts = lazy(async () => ({ default: (await import('~/views/Drafts')).Dra
 const ExportSettings = lazy(async () => ({
   default: (await import('~/views/ExportSettings')).ExportSettings,
 }));
+const ImportSettings = lazy(async () => ({
+  default: (await import('~/views/ImportSettings')).ImportSettings,
+}));
 const GitHubSettings = lazy(async () => ({
   default: (await import('~/views/GitHubSettings')).GitHubSettings,
 }));
@@ -714,6 +717,14 @@ export function SignedInShell() {
               }
             />
             <Route
+              path="/settings/import"
+              element={
+                <MembersOnly>
+                  <ImportSettings />
+                </MembersOnly>
+              }
+            />
+            <Route
               path="/settings/export"
               element={
                 <MembersOnly>
@@ -804,7 +815,10 @@ function MembersOnly({ children }: { children: ReactNode }) {
  * Which routes are wrapped is decided by what the server does, not by which sidebar block a
  * screen sits in. Members, Labels, Templates, API keys, MCP, Asks, Integrations, Export,
  * Trash and Deleted teams all carry something a non-admin may actually do, and stay on
- * `MembersOnly`.
+ * `MembersOnly`. Import stays there too, beside Export: a member who types the address
+ * gets the page, and the page says that starting one is an administrator's job. The
+ * server is what enforces it. Wrapping the route in `AdminOnly` would replace that
+ * sentence with the generic administration refusal.
  *
  * The two refusals differ because the two audiences do. A guest is sent home, as every
  * other guest gate here does: they have no business knowing the page exists. A member is

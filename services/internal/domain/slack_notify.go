@@ -57,7 +57,8 @@ func (s *Service) FanOutSlack(ctx context.Context, workspaceID uuid.UUID, baseUR
 	now := time.Now()
 	for _, ch := range changes {
 		highest = ch.Version
-		if ch.Op == string(OpRevoke) {
+		// Silent changes are not announced in the channel either; see Change.Silent.
+		if ch.Op == string(OpRevoke) || ch.Silent {
 			continue
 		}
 		text := ""

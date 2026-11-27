@@ -17,9 +17,9 @@ import (
 const appendChange = `-- name: AppendChange :exec
 INSERT INTO change_log (workspace_id, version, entity_type, entity_id, op,
                         team_id, scope, actor_type, actor_id, payload,
-                        changed_fields, batch_key)
+                        changed_fields, batch_key, silent)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11::text[], $12)
+        $11::text[], $12, $13)
 `
 
 type AppendChangeParams struct {
@@ -35,6 +35,7 @@ type AppendChangeParams struct {
 	Payload       []byte
 	ChangedFields []string
 	BatchKey      *string
+	Silent        bool
 }
 
 func (q *Queries) AppendChange(ctx context.Context, arg AppendChangeParams) error {
@@ -51,6 +52,7 @@ func (q *Queries) AppendChange(ctx context.Context, arg AppendChangeParams) erro
 		arg.Payload,
 		arg.ChangedFields,
 		arg.BatchKey,
+		arg.Silent,
 	)
 	return err
 }
@@ -92,7 +94,7 @@ func (q *Queries) PruneChangeLogBefore(ctx context.Context, before time.Time) (i
 
 const readChangesSince = `-- name: ReadChangesSince :many
 SELECT workspace_id, version, entity_type, entity_id, op, team_id, scope,
-       actor_type, actor_id, payload, created_at, changed_fields, batch_key
+       actor_type, actor_id, payload, created_at, changed_fields, batch_key, silent
 FROM change_log
 WHERE workspace_id = $1
   AND version > $2
@@ -117,6 +119,9 @@ type ReadChangesSinceParams struct {
 // changed_fields and batch_key are selected even though the hub ignores them, because one
 // read path is the point: a second query shaped for the fan-out would be a second answer to
 // "what happened since V", and the two would drift on the day somebody fixes only one.
+//
+// silent is selected for the same reason. The hub streams a silent row like any other; the
+// notification, webhook and Slack fan-outs read it and stay quiet.
 func (q *Queries) ReadChangesSince(ctx context.Context, arg ReadChangesSinceParams) ([]ChangeLog, error) {
 	rows, err := q.db.Query(ctx, readChangesSince,
 		arg.WorkspaceID,
@@ -145,6 +150,7 @@ func (q *Queries) ReadChangesSince(ctx context.Context, arg ReadChangesSincePara
 			&i.CreatedAt,
 			&i.ChangedFields,
 			&i.BatchKey,
+			&i.Silent,
 		); err != nil {
 			return nil, err
 		}

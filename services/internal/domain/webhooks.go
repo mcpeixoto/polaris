@@ -304,6 +304,11 @@ func (s *Service) FanOutWebhooks(ctx context.Context, workspaceID uuid.UUID, bas
 		now := time.Now()
 		for _, r := range rows {
 			highest = r.Version
+			// A silent change syncs and is not announced. An import that posted every copied
+			// issue to every subscriber's URL would be a flood nobody's endpoint asked for.
+			if r.Silent {
+				continue
+			}
 			eventType, ok := webhookChangeTypes[r.EntityType]
 			if !ok || r.Op == string(OpRevoke) {
 				continue

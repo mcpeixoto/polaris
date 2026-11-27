@@ -237,6 +237,14 @@ type Querier interface {
 	// one waiting on the other, and LIMIT 1 because a run holds its transaction open for as
 	// long as the model takes to answer.
 	ClaimQueuedAgentSession(ctx context.Context) (AgentSession, error)
+	// ClaimQueuedImportJob takes the oldest queued job, the same way StartQueuedAgentRun takes a
+	// conversation. SKIP LOCKED is what lets two workers poll the one queue without both
+	// running the same import.
+	//
+	// started_at keeps its first value on a resume: a job the sweep put back in the queue is
+	// the same import continuing, not a new one starting.
+	//
+	ClaimQueuedImportJob(ctx context.Context) (ClaimQueuedImportJobRow, error)
 	// ClearDefaultProjectStatuses must run immediately before setting a new default, in the
 	// same transaction: project_status_workspace_default_key is a partial unique index, so
 	// doing it the other way round fails.
@@ -584,6 +592,12 @@ type Querier interface {
 	// Returning the existing row lets the writer update it instead of appending.
 	//
 	FindGroupableHistoryEntry(ctx context.Context, arg FindGroupableHistoryEntryParams) (IssueHistory, error)
+	FindProjectByName(ctx context.Context, arg FindProjectByNameParams) (uuid.UUID, error)
+	// FinishImportJob ends a job either way and drops the key in the same statement. The table's
+	// CHECK refuses a finished row that still holds one, so forgetting the second half here
+	// would fail loudly rather than leave a credential behind.
+	//
+	FinishImportJob(ctx context.Context, arg FinishImportJobParams) error
 	FirstProjectMilestoneSortOrder(ctx context.Context, projectID uuid.UUID) (string, error)
 	// GetAPIKeyByTokenHash is the authentication path.
 	//
@@ -653,6 +667,9 @@ type Querier interface {
 	GetGitLabTeamAutomation(ctx context.Context, arg GetGitLabTeamAutomationParams) (GitlabTeamAutomation, error)
 	GetGitLabUserLink(ctx context.Context, arg GetGitLabUserLinkParams) (GitlabUserLink, error)
 	GetIdempotencyKey(ctx context.Context, arg GetIdempotencyKeyParams) (IdempotencyKey, error)
+	GetImportJob(ctx context.Context, arg GetImportJobParams) (GetImportJobRow, error)
+	GetImportJobAPIKey(ctx context.Context, id uuid.UUID) (*string, error)
+	GetImportLink(ctx context.Context, arg GetImportLinkParams) (uuid.UUID, error)
 	GetInboundEmailByMessageID(ctx context.Context, arg GetInboundEmailByMessageIDParams) (InboundEmail, error)
 	GetInitiative(ctx context.Context, id uuid.UUID) (Initiative, error)
 	GetInitiativeForUpdate(ctx context.Context, id uuid.UUID) (Initiative, error)
@@ -813,12 +830,26 @@ type Querier interface {
 	// at: cancel what is still open, claim the oldest due run, and record how it ended.
 	InsertAgentRun(ctx context.Context, arg InsertAgentRunParams) (AgentRun, error)
 	InsertCustomerDomain(ctx context.Context, arg InsertCustomerDomainParams) error
+	// Imports from another tracker. See migrations/000096_import.up.sql for the tables.
+	//
+	// api_key is selected by exactly one query, GetImportJobAPIKey. Every other read leaves it
+	// out by naming its columns, so a job row that reaches GraphQL, a log line or a test failure
+	// message cannot carry somebody's Linear credential along with it.
+	InsertImportJob(ctx context.Context, arg InsertImportJobParams) (InsertImportJobRow, error)
+	// Re-pointing on conflict rather than doing nothing: a link survives the entity it named
+	// being deleted here, and the import that recreates it has to be the one the next run finds.
+	//
+	InsertImportLink(ctx context.Context, arg InsertImportLinkParams) error
 	// Inbound email idempotency: a retried webhook with the same Message-ID must not mint
 	// a second issue. Replies are refused before they reach this table.
 	InsertInboundEmail(ctx context.Context, arg InsertInboundEmailParams) (InboundEmail, error)
 	InsertWebhookDelivery(ctx context.Context, arg InsertWebhookDeliveryParams) (WebhookDelivery, error)
 	InsertWorkspaceURLAlias(ctx context.Context, arg InsertWorkspaceURLAliasParams) error
 	IsTeamMember(ctx context.Context, arg IsTeamMemberParams) (bool, error)
+	// IssueNumberTaken counts deleted issues too, because issue_team_number_key does: a number in
+	// the trash is still a number the insert would collide with.
+	//
+	IssueNumberTaken(ctx context.Context, arg IssueNumberTakenParams) (bool, error)
 	LastCustomerSortOrder(ctx context.Context, workspaceID uuid.UUID) (string, error)
 	LastCycleNumber(ctx context.Context, teamID uuid.UUID) (int32, error)
 	LastDashboardSortOrder(ctx context.Context, workspaceID uuid.UUID) (string, error)
@@ -982,6 +1013,7 @@ type Querier interface {
 	ListFormTemplateFields(ctx context.Context, formTemplateID uuid.UUID) ([]FormTemplateField, error)
 	ListFormTemplatesForTeam(ctx context.Context, arg ListFormTemplatesForTeamParams) ([]ListFormTemplatesForTeamRow, error)
 	ListFormTemplatesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]ListFormTemplatesInWorkspaceRow, error)
+	ListImportJobs(ctx context.Context, workspaceID uuid.UUID) ([]ListImportJobsRow, error)
 	ListInitiativeLabelLinks(ctx context.Context, initiativeID uuid.UUID) ([]InitiativeLabelLink, error)
 	ListInitiativeLabelsInGroup(ctx context.Context, parentID *uuid.UUID) ([]ListInitiativeLabelsInGroupRow, error)
 	ListInitiativeLabelsInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]ListInitiativeLabelsInWorkspaceRow, error)
@@ -1300,6 +1332,7 @@ type Querier interface {
 	ListWebhooks(ctx context.Context, workspaceID uuid.UUID) ([]ListWebhooksRow, error)
 	ListWorkflowStatesForTeam(ctx context.Context, teamID uuid.UUID) ([]WorkflowState, error)
 	ListWorkflowStatesInWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]WorkflowState, error)
+	ListWorkspaceMemberEmails(ctx context.Context, workspaceID uuid.UUID) ([]ListWorkspaceMemberEmailsRow, error)
 	ListWorkspacesForAccount(ctx context.Context, accountID *uuid.UUID) ([]ListWorkspacesForAccountRow, error)
 	// Due dates.
 	//
@@ -1402,6 +1435,11 @@ type Querier interface {
 	// of a large trash would hold every other writer in the workspace behind it.
 	//
 	PurgeDeletedIssues(ctx context.Context, arg PurgeDeletedIssuesParams) ([]PurgeDeletedIssuesRow, error)
+	// RaiseTeamIssueCounter moves the counter past numbers an import wrote explicitly, and never
+	// backwards. Without it the next issue somebody files natively is allocated a number the
+	// import already used, and the unique index refuses their create.
+	//
+	RaiseTeamIssueCounter(ctx context.Context, arg RaiseTeamIssueCounterParams) error
 	// ReadChangesSince is the sync hub's only read path, and the notification engine's. The
 	// predicate maps exactly onto change_log_workspace_version_idx, and the LIMIT is what makes
 	// the "gap too large -> resync" branch decidable: if the caller gets a full page it asks
@@ -1411,6 +1449,9 @@ type Querier interface {
 	// changed_fields and batch_key are selected even though the hub ignores them, because one
 	// read path is the point: a second query shaped for the fan-out would be a second answer to
 	// "what happened since V", and the two would drift on the day somebody fixes only one.
+	//
+	// silent is selected for the same reason. The hub streams a silent row like any other; the
+	// notification, webhook and Slack fan-outs read it and stay quiet.
 	//
 	ReadChangesSince(ctx context.Context, arg ReadChangesSinceParams) ([]ChangeLog, error)
 	RecordWebhookFailure(ctx context.Context, id uuid.UUID) (int32, error)
@@ -1482,6 +1523,11 @@ type Querier interface {
 	// queue rather than left working forever, which would otherwise be a session that renders
 	// as busy and never moves again.
 	RequeueStaleAgentSessions(ctx context.Context, cutoff time.Time) (int64, error)
+	// RequeueStaleImportJobs puts a running job that has stopped reporting back in the queue. A
+	// worker that died mid-import leaves exactly that, and the import_link rows it wrote are
+	// what let the next claim carry on rather than start over.
+	//
+	RequeueStaleImportJobs(ctx context.Context, before time.Time) (int64, error)
 	// RestoreIssue returns the row because a restore puts the issue back on the sync stream,
 	// and the payload has to be the issue as it is now — not as the client last saw it before
 	// the delete.
@@ -1944,6 +1990,10 @@ type Querier interface {
 	UpdateGitHubUserLink(ctx context.Context, arg UpdateGitHubUserLinkParams) (UpdateGitHubUserLinkRow, error)
 	UpdateGitLabConnection(ctx context.Context, arg UpdateGitLabConnectionParams) (UpdateGitLabConnectionRow, error)
 	UpdateGitLabUserLink(ctx context.Context, arg UpdateGitLabUserLinkParams) (GitlabUserLink, error)
+	// UpdateImportJobProgress also touches updated_at, which is the liveness signal the stale
+	// sweep reads. A job that reports progress is a job that is still running.
+	//
+	UpdateImportJobProgress(ctx context.Context, arg UpdateImportJobProgressParams) error
 	UpdateInitiative(ctx context.Context, arg UpdateInitiativeParams) (Initiative, error)
 	UpdateInitiativeLabel(ctx context.Context, arg UpdateInitiativeLabelParams) (UpdateInitiativeLabelRow, error)
 	UpdateInitiativeSubscription(ctx context.Context, arg UpdateInitiativeSubscriptionParams) (InitiativeSubscription, error)

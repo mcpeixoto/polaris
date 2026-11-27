@@ -60,6 +60,18 @@ type Change struct {
 	// The names come from internal/notify's Field* constants, so the mutation that writes
 	// the list and the rules that match on it share one vocabulary.
 	ChangedFields []string
+
+	// Silent records the change for sync and keeps it out of everybody's inbox, webhooks
+	// and Slack channel.
+	//
+	// The case it exists for is an import: four hundred issues copied from another tracker
+	// have to reach every client, and must not arrive as four hundred "assigned to you"
+	// rows for work that was assigned months ago somewhere else. Only the writer knows which
+	// of its changes are that kind, so the flag travels with the change rather than being
+	// guessed downstream from the actor or the timing. A write under WithImport is silent
+	// whether or not the call site set this, which is what lets an importer go through the
+	// ordinary create paths without each of them growing a parameter.
+	Silent bool
 }
 
 // HistoryEntry is an activity-feed row. Separate from Change on purpose:
@@ -183,6 +195,7 @@ func (Emitter) Emit(
 			Payload:       payloadJSON,
 			ChangedFields: fields,
 			BatchKey:      batchKey,
+			Silent:        c.Silent || isImport(ctx),
 		}); err != nil {
 			return 0, platform.Internal(fmt.Errorf("append change: %w", err))
 		}

@@ -15,6 +15,7 @@ import (
 
 	"github.com/peixotolabs/polaris/services/internal/agent"
 	"github.com/peixotolabs/polaris/services/internal/domain"
+	"github.com/peixotolabs/polaris/services/internal/importer/linear"
 	"github.com/peixotolabs/polaris/services/internal/llm"
 	"github.com/peixotolabs/polaris/services/internal/mailer"
 	"github.com/peixotolabs/polaris/services/internal/platform"
@@ -52,6 +53,7 @@ func run() error {
 	defer db.Close()
 
 	svc := domain.NewService(db)
+	domain.RegisterImportSource(svc, &linear.Source{})
 
 	// Mail is optional, and this is the one line an install with no relay ever sees about it.
 	//
@@ -233,6 +235,41 @@ func run() error {
 				n, err := svc.SweepAgentSessions(ctx)
 				if err == nil && n > 0 {
 					log.Info("pruned agent sessions", "rows", n)
+				}
+				return err
+			},
+		},
+		{
+			// Imports from another tracker. One job per tick, run to the end: a big
+			// workspace is thousands of creates, each its own transaction, and the queue
+			// is drained one import at a time so the four connections above are not all
+			// spent copying somebody's backlog while the inbox fan-out waits.
+			//
+			// The ten-minute bound every other job gets would cut a large import off
+			// halfway, every time, and the stale sweep would requeue it into the same
+			// wall. So this one gets two hours. A run that hits even that is not lost:
+			// RunQueuedImport leaves it running, the sweep below requeues it once it has
+			// been quiet for fifteen minutes, and the next claim resumes from the import
+			// links instead of starting over.
+			name:    "run import jobs",
+			every:   5 * time.Second,
+			timeout: 2 * time.Hour,
+			run: func(ctx context.Context) error {
+				ran, err := domain.RunQueuedImport(ctx, svc)
+				if ran && err == nil {
+					log.Info("import finished")
+				}
+				return err
+			},
+		},
+		{
+			// A worker that died mid-import leaves its job running with nobody behind it.
+			name:  "sweep stale imports",
+			every: 5 * time.Minute,
+			run: func(ctx context.Context) error {
+				n, err := domain.RequeueStaleImports(ctx, svc)
+				if err == nil && n > 0 {
+					log.Info("requeued stale imports", "jobs", n)
 				}
 				return err
 			},
@@ -581,6 +618,9 @@ type job struct {
 	// hours to find out that this month has nowhere to write.
 	atBoot bool
 	run    func(context.Context) error
+	// timeout bounds one run. Zero is the ten minutes every job gets unless it says why
+	// it needs longer.
+	timeout time.Duration
 	// critical jobs log at error level on failure; the rest are warnings, so that alert
 	// rules can distinguish "the disk will fill" from "cleanup was skipped once".
 	critical bool
@@ -592,7 +632,11 @@ func (j job) loop(ctx context.Context, log *slog.Logger) {
 	exec := func() {
 		start := time.Now()
 		// Bounded so a job that hangs on a lock does not silently stop running forever.
-		runCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+		timeout := j.timeout
+		if timeout == 0 {
+			timeout = 10 * time.Minute
+		}
+		runCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 
 		if err := j.run(runCtx); err != nil {

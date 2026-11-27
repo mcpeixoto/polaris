@@ -112,6 +112,12 @@ func (s *Service) FanOut(ctx context.Context, workspaceID uuid.UUID) (int, error
 
 		highest := cursor
 		for _, r := range rows {
+			// A silent change is one its writer said nobody should hear about — an import,
+			// today. It still moves the watermark, or the next pass would read it again.
+			if r.Silent {
+				highest = r.Version
+				continue
+			}
 			deliveries, err := deliveriesFor(ctx, cache, r)
 			if err != nil {
 				return err
@@ -622,6 +628,13 @@ func (c *fanOutCache) unsubscribedFrom(ctx context.Context, issueID uuid.UUID, u
 func (s *Service) SubscribeOnAction(
 	ctx context.Context, q *store.Queries, p *authz.Principal, issueID, userID uuid.UUID, reason string,
 ) error {
+	// An import did none of these things here. The person it names as creator, assignee or
+	// commenter did them in another tracker, months ago, and subscribing them now would turn
+	// the first comment anybody writes on four hundred old issues into four hundred inbox
+	// rows for people who never asked to follow them.
+	if isImport(ctx) {
+		return nil
+	}
 	// A row already exists, saying either "watching" or "explicitly not". Both are answers
 	// this function must not overwrite, and neither is a change, so neither is emitted.
 	if _, err := q.GetIssueSubscription(ctx, store.GetIssueSubscriptionParams{

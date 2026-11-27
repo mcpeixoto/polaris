@@ -1,9 +1,9 @@
 -- name: AppendChange :exec
 INSERT INTO change_log (workspace_id, version, entity_type, entity_id, op,
                         team_id, scope, actor_type, actor_id, payload,
-                        changed_fields, batch_key)
+                        changed_fields, batch_key, silent)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        sqlc.arg(changed_fields)::text[], sqlc.narg(batch_key));
+        sqlc.arg(changed_fields)::text[], sqlc.narg(batch_key), sqlc.arg(silent));
 
 -- ReadChangesSince is the sync hub's only read path, and the notification engine's. The
 -- predicate maps exactly onto change_log_workspace_version_idx, and the LIMIT is what makes
@@ -15,9 +15,12 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
 -- read path is the point: a second query shaped for the fan-out would be a second answer to
 -- "what happened since V", and the two would drift on the day somebody fixes only one.
 --
+-- silent is selected for the same reason. The hub streams a silent row like any other; the
+-- notification, webhook and Slack fan-outs read it and stay quiet.
+--
 -- name: ReadChangesSince :many
 SELECT workspace_id, version, entity_type, entity_id, op, team_id, scope,
-       actor_type, actor_id, payload, created_at, changed_fields, batch_key
+       actor_type, actor_id, payload, created_at, changed_fields, batch_key, silent
 FROM change_log
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND version > sqlc.arg(after_version)
