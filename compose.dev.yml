@@ -46,8 +46,11 @@ services:
       timeout: 3s
       retries: 20
 
+  # MinIO stopped publishing images: minio/minio on Docker Hub and quay.io both refuse
+  # pulls, which broke `make up` for anyone without a cached copy. pgsty/minio is the
+  # community-maintained fork of the same server, pinned to a release like before.
   minio:
-    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     container_name: polaris_dev_files
     command: ["server", "/data", "--console-address", ":9001"]
     environment:

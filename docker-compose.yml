@@ -247,7 +247,8 @@ services:
   minio:
     <<: *defaults
     profiles: ["s3"]
-    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    # Upstream minio/minio can no longer be pulled; pgsty/minio is the maintained fork.
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     container_name: polaris_files
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
