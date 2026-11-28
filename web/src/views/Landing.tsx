@@ -70,6 +70,10 @@ import {
 import styles from './Landing.module.css';
 
 const SOURCE = 'https://github.com/mcpeixoto/polaris';
+const FAZIER = 'https://fazier.com';
+// Neutral rather than light or dark: the footer follows the theme and the badge does not.
+const FAZIER_BADGE =
+  'https://fazier.com/api/v1//public/badges/launch_badges.svg?badge_type=launched&theme=neutral';
 const SELF_HOST_DOC =
   'https://github.com/mcpeixoto/polaris/blob/main/docs/05-infrastructure/11-self-hosting.md';
 
@@ -587,6 +591,11 @@ export function Landing() {
           <a href="#self-host">Self-host</a>
           <a href={SOURCE}>GitHub</a>
         </nav>
+        {/* Fazier lists Polaris for free on condition that this badge stays on the site.
+            index.html carries the same link in <noscript> for checkers that do not run JS. */}
+        <a href={FAZIER} target="_blank" rel="noopener" className={styles.badge}>
+          <img src={FAZIER_BADGE} width={120} height={26} alt="Fazier badge" loading="lazy" />
+        </a>
       </footer>
     </div>
   );
