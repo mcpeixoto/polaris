@@ -67,8 +67,23 @@ for file in docker-compose*.yml; do
   fi
 done
 
+# No image from a registry that no longer serves it.
+#
+# MinIO stopped publishing: minio/minio on Docker Hub ("repository does not exist") and
+# quay.io/minio/minio (401) both refuse pulls. compose.dev.yml pinned it, so `make up`
+# failed for anyone without a cached copy — including the README's "Try it" steps. The
+# maintained fork is pgsty/minio. Covers compose.dev.yml too, which the loops above skip.
+for file in docker-compose*.yml compose*.yml; do
+  [ -e "$file" ] || continue
+  if grep -nE '^[[:space:]]*image:[[:space:]]*(quay\.io/)?minio/minio([:@[:space:]]|$)' "$file"; then
+    echo "FAIL: $file: minio/minio can no longer be pulled; use pgsty/minio"
+    fail=1
+  fi
+done
+
 if [ $fail -eq 0 ]; then
   echo "compose profiles: ok"
   echo "compose postgres hostname: ok"
+  echo "compose images pullable: ok"
 fi
 exit $fail
