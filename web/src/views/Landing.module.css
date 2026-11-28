@@ -1633,6 +1633,11 @@
   color: var(--text-primary);
 }
 
+.badge {
+  display: inline-flex;
+  line-height: 0;
+}
+
 /* ------------------------------------------------------------------ *
  * Scroll-driven layer
  *

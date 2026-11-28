@@ -1,3 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -43,6 +47,24 @@ describe('Landing', () => {
     for (const link of links) {
       expect(link.getAttribute('href')).toBe(repo);
     }
+  });
+
+  it('keeps the Fazier badge in the footer, which the free listing requires', () => {
+    const { container } = renderLanding();
+    const footer = container.querySelector('footer');
+    const badge = footer?.querySelector('a[href="https://fazier.com"]');
+    expect(badge).toBeTruthy();
+    const img = badge?.querySelector('img');
+    expect(img?.getAttribute('alt')).toBe('Fazier badge');
+    expect(img?.getAttribute('src')).toContain(
+      'fazier.com/api/v1//public/badges/launch_badges.svg',
+    );
+  });
+
+  it('carries the same Fazier link in the HTML shell for checkers that skip JS', () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const html = readFileSync(resolve(here, '..', '..', 'index.html'), 'utf8');
+    expect(html).toMatch(/<noscript>[\s\S]*href="https:\/\/fazier\.com"[\s\S]*<\/noscript>/);
   });
 
   it('names the product surfaces Polar actually ships', () => {

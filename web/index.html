@@ -32,6 +32,17 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Fazier's free listing requires its badge on the site, and its checker may read the
+         HTML without running the app. The landing footer shows the same link with JS. -->
+    <noscript>
+      <a href="https://fazier.com" target="_blank" rel="noopener"
+        ><img
+          src="https://fazier.com/api/v1//public/badges/launch_badges.svg?badge_type=launched&amp;theme=neutral"
+          width="120"
+          height="26"
+          alt="Fazier badge"
+      /></a>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
